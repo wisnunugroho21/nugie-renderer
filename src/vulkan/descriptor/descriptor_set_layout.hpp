@@ -20,18 +20,11 @@ namespace NugieVulkan {
           VkShaderStageFlags stageFlags,
           uint32_t count = 1
         );
-
-        Builder& addFlag(
-          uint32_t binding,
-          VkDescriptorBindingFlags flag
-        );
-
         DescriptorSetLayout* build() const;
     
       private:
         Device* device;
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings{};
-        std::unordered_map<uint32_t, VkDescriptorBindingFlags> flags{};
       };
     
       DescriptorSetLayout(Device* device, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings);
@@ -43,8 +36,6 @@ namespace NugieVulkan {
     private:
       Device* device;
       VkDescriptorSetLayout descriptorSetLayout;
-
       std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-      std::unordered_map<uint32_t, VkDescriptorBindingFlags> flags;
   };
 }

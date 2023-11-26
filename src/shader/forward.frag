@@ -1,5 +1,4 @@
 #version 460
-#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "core/struct.glsl"
 
@@ -19,7 +18,7 @@ layout(set = 0, binding = 3) buffer readonly MaterialModel {
   Material materials[];
 };
 
-layout(set = 0, binding = 4) uniform sampler2D colorTexture[];
+layout(set = 0, binding = 4) uniform sampler2D colorTexture[1];
 
 void main() {
   outPosition = fragPosition;
@@ -32,6 +31,6 @@ void main() {
   if (colorTextureIndex == 0) {
     outColor = materials[fragMaterialIndex].baseColor;
   } else {
-    outColor = texture(colorTexture[nonuniformEXT(colorTextureIndex - 1u)], fragTextCoord);
+    outColor = texture(colorTexture[colorTextureIndex - 1u], fragTextCoord);
   }
 }
