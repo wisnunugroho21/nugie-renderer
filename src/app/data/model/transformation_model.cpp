@@ -16,10 +16,7 @@ namespace NugieApp {
 		auto newTransforms = std::vector<Transformation>();
 		for (auto &&transform : transformations) {
 			newTransforms.emplace_back(Transformation{ 
-				transform.getPointMatrix(),
-				transform.getDirMatrix(), 
-				transform.getPointInverseMatrix(), 
-				transform.getDirInverseMatrix(), 
+				transform.getModelMatrix(),
 				transform.getNormalMatrix() 
 			});
 		}

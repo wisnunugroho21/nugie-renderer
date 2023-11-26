@@ -4,366 +4,136 @@
 
 #include "core/struct.glsl"
 
-layout(origin_upper_left) in vec4 gl_FragCoord;
 layout(location = 0) out vec4 outColor;
 
 layout (input_attachment_index = 0, set = 0, binding = 0) uniform subpassInputMS inputPosition;
 layout (input_attachment_index = 1, set = 0, binding = 1) uniform subpassInputMS inputNormal;
 layout (input_attachment_index = 2, set = 0, binding = 2) uniform subpassInputMS inputColor;
 layout (input_attachment_index = 3, set = 0, binding = 3) uniform subpassInputMS inputMaterial;
+layout (input_attachment_index = 4, set = 0, binding = 4) uniform subpassInputMS inputShadowCoord;
 
-layout(set = 1, binding = 0) uniform readonly RayTraceUbo {
-  vec3 origin;
-  vec3 background;
-  uint numLights;
-  vec2 screenSize;
+layout(set = 1, binding = 0) uniform readonly DeferredUniform {
+  vec4 originNumLights;
 } ubo;
 
-layout(set = 1, binding = 1) buffer readonly ObjectSsbo {
-  Object objects[];
+layout(set = 1, binding = 1) buffer readonly SpotLightSsbo {
+  SpotLight lights[];
 };
 
-layout(set = 1, binding = 2) buffer readonly ObjectBvhSsbo {
-  BvhNode objectBvhNodes[];
-};
+layout(set = 1, binding = 2) uniform sampler2DMS shadowMapTexture;
 
-layout(set = 1, binding = 3) buffer readonly PrimitiveSsbo {
-  Primitive primitives[];
-};
+vec4 fresnelSchlick(float cosTheta, vec4 F0) {
+  return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+} 
 
-layout(set = 1, binding = 4) buffer readonly PrimitiveBvhSsbo {
-  BvhNode primitiveBvhNodes[];
-};
+float D_GGX(float NoH, float roughness) {
+  float alpha = roughness * roughness;
+  float alpha2 = alpha * alpha;
+  float NoH2 = NoH * NoH;
+  float b = (NoH2 * (alpha2 - 1.0) + 1.0);
 
-layout(set = 1, binding = 5) buffer readonly PositionSsbo {
-  vec4 positions[];
-};
+  return alpha2 / (PI * b * b);
+}
 
-layout(set = 1, binding = 6) buffer readonly LightSsbo {
-  TriangleLight lights[];
-};
+float G1_GGX_Schlick(float NoV, float roughness) {
+  //float r = roughness; // original
+  float r = 0.5 + 0.5 * roughness; // Disney remapping
+  float k = (r * r) / 2.0;
+  float denom = NoV * (1.0 - k) + k;
 
-layout(set = 1, binding = 7) buffer readonly LightBvhSsbo {
-  BvhNode lightBvhNodes[];
-};
+  return max(NoV, 0.001) / denom;
+}
 
-layout(set = 1, binding = 8) buffer readonly MaterialSsbo {
-  Material materials[];
-};
+float G_Smith(float NoV, float NoL, float roughness) {
+  float g1_l = G1_GGX_Schlick(NoL, roughness);
+  float g1_v = G1_GGX_Schlick(NoV, roughness);
+  return g1_l * g1_v;
+}
 
-layout(set = 1, binding = 9) buffer readonly TransformationSsbo {
-  Transformation transformations[];
-};
+vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal, 
+  vec4 baseColor, float metallicness, float fresnelReflect, float roughness) 
+{
+  vec4 H = normalize(viewDirection + lightDirection); // half vector
 
-layout(push_constant) uniform Push {
-  uint randomSeed;
-} push;
-
-#include "core/boolean.glsl"
-#include "core/basic.glsl"
-#include "core/random.glsl"
-#include "core/trace.glsl"
-#include "core/ggx.glsl"
-#include "core/shape.glsl"
-#include "core/material.glsl"
-#include "core/render.glsl"
-
-// ------------- Material -------------
-
-ShadeRecord indirectGgxShade(vec3 rayDirection, vec3 hitPoint, vec3 surfaceColor, vec3 surfaceNormal, float surfaceRoughness, float fresnelReflect, uint additionalRandomSeed) {
-  ShadeRecord scat;
-  scat.nextRay.origin = hitPoint;
-
-  vec3 unitViewDirection = normalize(rayDirection);
-  float f0 = 0.16 * (fresnelReflect * fresnelReflect);
-
-  vec3[3] globalOnb = buildOnb(reflect(unitViewDirection, surfaceNormal));
-  scat.nextRay.direction = ggxRandomDirection(globalOnb, surfaceRoughness, additionalRandomSeed);
-
-  vec3 H = normalize(scat.nextRay.direction - rayDirection); // half vector
-
-  float NoL = max(dot(surfaceNormal, normalize(scat.nextRay.direction)), 0.001f);
-  float NoV = max(dot(surfaceNormal, -1.0f * unitViewDirection), 0.001f);
-  float NoH = max(dot(surfaceNormal, H), 0.001f);
-  float VoH = max(dot(unitViewDirection, H), 0.001f);
-
-  float brdf = ggxBrdfValue(NoV, NoL, NoH, VoH, f0, surfaceRoughness);
-  float pdf = ggxPdfValue(NoH, VoH, surfaceRoughness);
-
-  scat.radiance = partialIntegrand(surfaceColor, brdf, NoL);
-  scat.pdf = when_gt(length(scat.radiance), 0.001f) * pdf;
+  // all required dot products
+  float NoV = clamp(dot(surfaceNormal, viewDirection), 0.0, 1.0);
+  float NoL = clamp(dot(surfaceNormal, lightDirection), 0.0, 1.0);
+  float NoH = clamp(dot(surfaceNormal, H), 0.0, 1.0);
+  float VoH = clamp(dot(viewDirection, H), 0.0, 1.0);     
   
-  return scat;
-}
+  // F0 for dielectics in range [0.0, 0.16] 
+  // default FO is (0.16 * 0.5^2) = 0.04
+  vec4 f0 = vec4(0.16 * (fresnelReflect * fresnelReflect)); 
+  // in case of metals, baseColor contains F0
+  f0 = mix(f0, baseColor, metallicness);
 
-ShadeRecord indirectGgxShade(Ray r, HitRecord hit, uint additionalRandomSeed) {
-  return indirectGgxShade(r.direction, hit.point, hit.color, hit.normal, hit.roughness, hit.fresnelReflect, additionalRandomSeed);
-}
-
-ShadeRecord indirectLambertShade(vec3 hitPoint, vec3 surfaceColor, vec3 surfaceNormal, uint additionalRandomSeed) {
-  ShadeRecord scat;
-
-  scat.nextRay.origin = hitPoint;
-  scat.nextRay.direction = lambertRandomDirection(buildOnb(surfaceNormal), additionalRandomSeed);
-
-  float NoL = max(dot(surfaceNormal, normalize(scat.nextRay.direction)), 0.001f);
-  float brdf = lambertBrdfValue();
-  float pdf = lambertPdfValue(NoL);
-
-  scat.radiance = partialIntegrand(surfaceColor, brdf, NoL); 
-  scat.pdf = when_gt(length(scat.radiance), 0.001f) * pdf;
+  // specular microfacet (cook-torrance) BRDF
+  vec4 F = fresnelSchlick(VoH, f0);
+  float D = D_GGX(NoH, roughness);
+  float G = G_Smith(NoV, NoL, roughness);
+  vec4 spec = (F * D * G) / (4.0 * max(NoV, 0.001) * max(NoL, 0.001));
   
-  return scat;
+  // diffuse
+  vec4 rhoD = baseColor;
+  rhoD *= vec4(1.0) - F; // if not specular, use as diffuse (optional)
+  rhoD *= (1.0 - metallicness); // no diffuse for metals
+  vec4 diff = rhoD * RECIPROCAL_PI;
+  
+  return diff + spec;
 }
 
-ShadeRecord indirectLambertShade(HitRecord hit, uint additionalRandomSeed) {
-  return indirectLambertShade(hit.point, hit.color, hit.normal, additionalRandomSeed);
+float computeShadowFactor(vec4 lightSpacePos)
+{
+  	// Convert light space position to NDC
+  	vec3 lightSpaceNDC = lightSpacePos.xyz /= lightSpacePos.w;
+ 
+  	// If the fragment is outside the light's projection then it is outside
+  	// the light's influence, which means it is in the shadow (notice that
+  	// such sample would be outside the shadow map image)
+  	if (abs(lightSpaceNDC.x) > 1.0 || abs(lightSpaceNDC.y) > 1.0 || abs(lightSpaceNDC.z) > 1.0) {
+			return 0.0;	
+		} 	
+ 
+  	// Translate from NDC to shadow map space (Vulkan's Z is already in [0..1])
+  	vec2 shadowMapCoord = lightSpaceNDC.xy * 0.5 + 0.5;
+ 
+  	// Check if the sample is in the light or in the shadow
+  	ivec2 texCoord = ivec2(shadowMapCoord.xy * textureSize(shadowMapTexture));
+   	if (lightSpaceNDC.z > texelFetch(shadowMapTexture, texCoord, gl_SampleID).x)
+    	return 0.0; // In the shadow
+ 
+  	// In the light
+  	return 1.0;
 }
-
-ShadeRecord directGgxShade(uint lightIndex, vec3 rayDirection, vec3 hitPoint, vec3 surfaceColor, vec3 surfaceNormal, float surfaceRoughness, float fresnelReflect, uint additionalRandomSeed) {
-  ShadeRecord scat;
-  Ray shadowRay;
-
-  scat.radiance = vec3(0.0f);
-  scat.pdf = 0.01f;
-
-  shadowRay.origin = hitPoint;
-  shadowRay.direction = triangleLightRandomDirection(lights[lightIndex], shadowRay.origin, additionalRandomSeed);
-
-  HitRecord objectHit = hitObjectBvh(shadowRay, 0.001f, FLT_MAX);
-  HitRecord lightHit = hitTriangleLightBvh(shadowRay, 0.001f, FLT_MAX);
-
-  if (lightHit.isHit && (!objectHit.isHit || length(lightHit.point - shadowRay.origin) < length(objectHit.point - shadowRay.origin))) {
-    vec3 unitLightDirection = normalize(shadowRay.direction);
-
-    float NloL = max(dot(lightHit.normal, -1.0f * unitLightDirection), 0.001f);
-    float NoL = max(dot(surfaceNormal, unitLightDirection), 0.001f);
-
-    vec3 unitViewDirection = normalize(rayDirection);
-    vec3 H = normalize(shadowRay.direction - rayDirection); // half vector
-
-    float f0 = 0.16 * (fresnelReflect * fresnelReflect);
-    
-    float NoV = max(dot(surfaceNormal, -1.0f * unitViewDirection), 0.001f);
-    float NoH = max(dot(surfaceNormal, H), 0.001f);
-    float VoH = max(dot(unitViewDirection, H), 0.001f);
-
-    vec3 vectorDistance = lightHit.point - shadowRay.origin;
-
-    float brdf = ggxBrdfValue(NoV, NoL, NoH, VoH, f0, surfaceRoughness);
-    float sqrDistance = dot(vectorDistance, vectorDistance);
-    float area = triangleLightArea(lights[lightHit.hitIndex]);
-    float pdf = ggxPdfValue(NoH, VoH, surfaceRoughness);
-
-    scat.radiance = partialIntegrand(surfaceColor, brdf, NoL) * Gfactor(NloL, sqrDistance, area) * lights[lightHit.hitIndex].color;
-    scat.pdf = when_gt(length(scat.radiance), 0.001f) * pdf;  
-  }
-
-  return scat;
-}
-
-ShadeRecord directGgxShade(uint lightIndex, Ray r, HitRecord hit, uint additionalRandomSeed) {
-  return directGgxShade(lightIndex, r.direction, hit.point, hit.color, hit.normal, hit.roughness, hit.fresnelReflect, additionalRandomSeed);
-}
-
-/* ShadeRecord sunDirectGgxShade(vec3 rayDirection, vec3 hitPoint, vec3 surfaceColor, vec3 surfaceNormal, float surfaceRoughness, float fresnelReflect, uint additionalRandomSeed) {
-  ShadeRecord scat;
-  Ray shadowRay;
-
-  scat.radiance = vec3(0.0f);
-  scat.pdf = 0.01f;
-
-  shadowRay.origin = hitPoint;
-  shadowRay.direction = sunLightRandomDirection(ubo.sunLight);
-
-  HitRecord objectHit = hitObjectBvh(shadowRay, 0.001f, FLT_MAX);
-  HitRecord lightHit = hitTriangleLightBvh(shadowRay, 0.001f, FLT_MAX);
-
-  if (!lightHit.isHit && !objectHit.isHit) {
-    vec3 unitLightDirection = normalize(shadowRay.direction);
-
-    float NloL = max(dot(lightHit.normal, -1.0f * unitLightDirection), 0.001f);
-    float NoL = max(dot(surfaceNormal, unitLightDirection), 0.001f);
-
-    vec3 unitViewDirection = normalize(rayDirection);
-    vec3 H = normalize(shadowRay.direction - rayDirection); // half vector
-
-    float f0 = 0.16 * (fresnelReflect * fresnelReflect);
-    
-    float NoV = max(dot(surfaceNormal, -1.0f * unitViewDirection), 0.001f);
-    float NoH = max(dot(surfaceNormal, H), 0.001f);
-    float VoH = max(dot(unitViewDirection, H), 0.001f);
-
-    float brdf = ggxBrdfValue(NoV, NoL, NoH, VoH, f0, surfaceRoughness);
-    float pdf = ggxPdfValue(NoH, VoH, surfaceRoughness);
-
-    scat.radiance = partialIntegrand(surfaceColor, brdf, NoL) * ubo.sunLight.color / pdf;
-    scat.pdf = when_gt(length(scat.radiance), 0.001f) * pdf;  
-  }
-
-  return scat;
-}
-
-ShadeRecord sunDirectGgxShade(Ray r, HitRecord hit, uint additionalRandomSeed) {
-  return sunDirectGgxShade(r.direction, hit.point, hit.color, hit.normal, hit.roughness, hit.fresnelReflect, additionalRandomSeed);
-} */
-
-ShadeRecord directLambertShade(uint lightIndex, vec3 hitPoint, vec3 surfaceColor, vec3 surfaceNormal, uint additionalRandomSeed) {
-  ShadeRecord scat;
-  Ray shadowRay;
-
-  scat.radiance = vec3(0.0f);
-  scat.pdf = 0.01f;
-
-  shadowRay.origin = hitPoint;
-  shadowRay.direction = triangleLightRandomDirection(lights[lightIndex], shadowRay.origin, additionalRandomSeed);
-
-  HitRecord objectHit = hitObjectBvh(shadowRay, 0.001f, FLT_MAX);
-  HitRecord lightHit = hitTriangleLightBvh(shadowRay, 0.001f, FLT_MAX);
-
-  if (lightHit.isHit && (!objectHit.isHit || length(lightHit.point - shadowRay.origin) < length(objectHit.point - shadowRay.origin))) {
-    vec3 unitLightDirection = normalize(shadowRay.direction);
-
-    float NloL = max(dot(lightHit.normal, -1.0f * unitLightDirection), 0.001f);
-    float NoL = max(dot(surfaceNormal, unitLightDirection), 0.001f);
-
-    vec3 vectorDistance = lightHit.point - shadowRay.origin;    
-
-    float brdf = lambertBrdfValue();
-    float sqrDistance = dot(vectorDistance, vectorDistance);
-    float area = triangleLightArea(lights[lightHit.hitIndex]);
-    float pdf = lambertPdfValue(NoL);
-
-    scat.radiance = partialIntegrand(surfaceColor, brdf, NoL) * Gfactor(NloL, sqrDistance, area) * lights[lightHit.hitIndex].color;
-    scat.pdf = when_gt(length(scat.radiance), 0.001f) * pdf;
-  }
-
-  return scat;
-}
-
-ShadeRecord directLambertShade(uint lightIndex, HitRecord hit, uint additionalRandomSeed) {
-  return directLambertShade(lightIndex, hit.point, hit.color, hit.normal, additionalRandomSeed);
-}
-
-/* ShadeRecord sunDirectLambertShade(vec3 hitPoint, vec3 surfaceColor, vec3 surfaceNormal, uint additionalRandomSeed) {
-  ShadeRecord scat;
-  Ray shadowRay;
-
-  scat.radiance = vec3(0.0f);
-  scat.pdf = 0.01f;
-
-  shadowRay.origin = hitPoint;
-  shadowRay.direction = sunLightRandomDirection(ubo.sunLight);
-
-  HitRecord objectHit = hitObjectBvh(shadowRay, 0.001f, FLT_MAX);
-  HitRecord lightHit = hitTriangleLightBvh(shadowRay, 0.001f, FLT_MAX);
-
-  if (!lightHit.isHit && !objectHit.isHit) {
-    vec3 unitLightDirection = normalize(shadowRay.direction);
-    
-    float NoL = max(dot(surfaceNormal, unitLightDirection), 0.001f);
-    float brdf = lambertBrdfValue();
-    float pdf = lambertPdfValue(NoL);
-
-    scat.radiance = partialIntegrand(surfaceColor, brdf, NoL) * ubo.sunLight.color / pdf;
-    scat.pdf = when_gt(length(scat.radiance), 0.001f) * pdf;
-  }
-
-  return scat;
-}
-
-ShadeRecord sunDirectLambertShade(HitRecord hit, uint additionalRandomSeed) {
-  return sunDirectLambertShade(hit.point, hit.color, hit.normal, additionalRandomSeed);
-} */
 
 void main() {
-  vec3 surfacePosition = subpassLoad(inputPosition, gl_SampleID).rgb;
-  vec3 surfaceNormal = subpassLoad(inputNormal, gl_SampleID).rgb;
-  vec3 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID).rgb;
-  vec3 surfaceColor = subpassLoad(inputColor, gl_SampleID).rgb;
+  vec4 surfacePosition = subpassLoad(inputPosition, gl_SampleID);
+  vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
+  vec4 surfaceColor = subpassLoad(inputColor, gl_SampleID);
+  vec4 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID);
+  vec4 surfaceShadowCoord = subpassLoad(inputShadowCoord, gl_SampleID);
 
-  ShadeRecord indirectShadeResult, directShadeResult[10];
+  float shadowFactor = computeShadowFactor(surfaceShadowCoord);
+  vec4 totalRadiance = vec4(0.0f);
 
-  if (surfaceMaterialParams.x >= randomFloat(0)) {
-    indirectShadeResult = indirectGgxShade(surfacePosition - ubo.origin, surfacePosition, surfaceColor, surfaceNormal, surfaceMaterialParams.y, surfaceMaterialParams.z, 0u);
-    // directShadeResult[ubo.numLights] = sunDirectGgxShade(surfacePosition - ubo.origin, surfacePosition, surfaceColor, surfaceNormal, surfaceMaterialParams.y, surfaceMaterialParams.z, 0u);
+  for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {
+    vec4 lightDirection = lights[i].position - surfacePosition;
+    vec4 unitLightDirection = normalize(lightDirection);
 
-    for (uint j = 0; j < ubo.numLights; j++) {
-      directShadeResult[j] = directGgxShade(j, surfacePosition - ubo.origin, surfacePosition, surfaceColor, surfaceNormal, surfaceMaterialParams.y, surfaceMaterialParams.z, 0u);
-    }
-  } else {
-    indirectShadeResult = indirectLambertShade(surfacePosition, surfaceColor, surfaceNormal, 0u);
-    // directShadeResult[ubo.numLights] = sunDirectLambertShade(surfacePosition, surfaceColor, surfaceNormal, 0u);
+    float DoL = dot(lights[i].direction, -1.0f * unitLightDirection);
 
-    for (uint j = 0; j < ubo.numLights; j++) {
-      directShadeResult[j] = directLambertShade(j, surfacePosition, surfaceColor, surfaceNormal, 0u);
+    if (DoL > cos(lights[i].angle)) {
+      vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
+
+      vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
+        surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+
+      float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
+      vec4 irradiance = lights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
+      
+      totalRadiance += brdf * irradiance * shadowFactor;
     }
   }
 
-  float totalPdf = indirectShadeResult.pdf; // + directShadeResult[ubo.numLights].pdf;
-  for (uint j = 0; j < ubo.numLights; j++) {
-    totalPdf += directShadeResult[j].pdf;
-  }
-
-  vec3 cummulativeRadiance = vec3(0.0f); //directShadeResult[ubo.numLights].radiance * directShadeResult[ubo.numLights].pdf;
-  for (uint j = 0; j < ubo.numLights; j++) {
-    cummulativeRadiance += directShadeResult[j].radiance * directShadeResult[j].pdf;
-  }
-
-  vec3 totalRadiance = cummulativeRadiance / totalPdf;
-  vec3 totalIndirect = indirectShadeResult.radiance * indirectShadeResult.pdf / totalPdf;
-
-  Ray curRay = indirectShadeResult.nextRay;
-  
-  for(uint i = 1; i < 2; i++) {
-    HitRecord objectHit = hitObjectBvh(curRay, 0.001f, FLT_MAX);
-    HitRecord lightHit = hitTriangleLightBvh(curRay, 0.001f, FLT_MAX);
-
-    if (lightHit.isHit && (!objectHit.isHit || length(lightHit.point - curRay.origin) < length(objectHit.point - curRay.origin))) {
-      totalIndirect = mix(totalIndirect, totalIndirect * GfactorTriangleLight(curRay, lightHit), when_gt(i, 0u));
-      totalRadiance = totalRadiance + totalIndirect * lights[lightHit.hitIndex].color;
-      break;
-    }
-
-    totalIndirect = totalIndirect / indirectShadeResult.pdf;
-
-    if (!objectHit.isHit && !lightHit.isHit) {
-      vec3 lightColor = vec3(0.0f); //when_or(when_ge(dot(normalize(curRay.direction), ubo.sunLight.direction), 0.99f), when_eq(i, 0u)) * ubo.sunLight.color;
-      totalRadiance = totalRadiance + totalIndirect * lightColor;
-      break;
-    }
-
-    if (objectHit.metallicness >= randomFloat(i)) {
-      indirectShadeResult = indirectGgxShade(curRay, objectHit, i);
-      // directShadeResult[ubo.numLights] = sunDirectGgxShade(curRay, objectHit, i);
-
-      for (uint j = 0; j < ubo.numLights; j++) {
-        directShadeResult[j] = directGgxShade(j, curRay, objectHit, i);
-      }
-    } else {
-      indirectShadeResult = indirectLambertShade(objectHit, i);
-      // directShadeResult[ubo.numLights] = sunDirectLambertShade(objectHit, i);
-
-      for (uint j = 0; j < ubo.numLights; j++) {
-        directShadeResult[j] = directLambertShade(j, objectHit, i);
-      }
-    }
-
-    float totalPdf = indirectShadeResult.pdf; // + directShadeResult[ubo.numLights].pdf;
-    for (uint j = 0; j < ubo.numLights; j++) {
-      totalPdf += directShadeResult[j].pdf;
-    }
-
-    vec3 cummulativeRadiance = vec3(0.0f); //directShadeResult[ubo.numLights].radiance * directShadeResult[ubo.numLights].pdf;
-    for (uint j = 0; j < ubo.numLights; j++) {
-      cummulativeRadiance += directShadeResult[j].radiance * directShadeResult[j].pdf;
-    }
-
-    totalRadiance += totalIndirect * cummulativeRadiance / totalPdf;
-    totalIndirect = totalIndirect * indirectShadeResult.radiance * indirectShadeResult.pdf / totalPdf;
-
-    curRay = indirectShadeResult.nextRay;
-  }
-  
-  outColor = vec4(totalRadiance, 1.0f);
+  outColor = totalRadiance;
 }

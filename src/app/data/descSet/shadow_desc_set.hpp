@@ -8,12 +8,11 @@
 #include <memory>
 
 namespace NugieApp {
-	class ModelDeferredDescSet {
+	class ShadowDescSet {
 		public:
-			ModelDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo buffersInfo[1],
-				std::vector<VkDescriptorImageInfo> renderTextureInfo[1]);
-			~ModelDeferredDescSet();
+			ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
+				std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[1]);
+			~ShadowDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
@@ -23,8 +22,7 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo buffersInfo[1],
-				std::vector<VkDescriptorImageInfo> renderTextureInfo[1]);
+				std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[1]);
 	};
 	
 }

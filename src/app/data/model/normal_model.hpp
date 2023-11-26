@@ -21,7 +21,7 @@ namespace NugieApp {
 			VkDescriptorBufferInfo getPositionInfo() { return this->buffer->descriptorInfo(); }
 			NugieVulkan::Buffer* getBuffer() { return this->buffer; }
 
-			void update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<glm::vec4> normals);
+			void update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<Normal> normals);
 			
 		private:
 			NugieVulkan::Device* device;

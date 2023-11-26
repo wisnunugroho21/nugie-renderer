@@ -28,17 +28,12 @@ namespace NugieApp {
 			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
 		}
 
-		VkPushConstantRange pushConstantRange{};
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(RayTracePushConstant);
-
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts = (setLayouts.size() > 0) ? setLayouts.data() : nullptr;
-		pipelineLayoutInfo.pushConstantRangeCount = 1u;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+		pipelineLayoutInfo.pushConstantRangeCount = 0u;
+		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
 		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
@@ -72,18 +67,6 @@ namespace NugieApp {
 			(descriptorSets.size() > 0) ? descriptorSets.data() : nullptr,
 			0,
 			nullptr
-		);
-
-		RayTracePushConstant pushConstant{};
-		pushConstant.randomSeed = randomSeed;
-
-		vkCmdPushConstants(
-			commandBuffer->getCommandBuffer(), 
-			this->pipelineLayout, 
-			VK_SHADER_STAGE_FRAGMENT_BIT,
-			0,
-			sizeof(RayTracePushConstant),
-			&pushConstant
 		);
 
 		this->pipeline->draw(commandBuffer, 6);

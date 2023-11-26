@@ -10,14 +10,14 @@
 #include <vector>
 
 namespace NugieApp {
-	class RasterUniform {
+	class ForwardUniform {
 		public:
-			RasterUniform(NugieVulkan::Device* device);
-			~RasterUniform();
+			ForwardUniform(NugieVulkan::Device* device);
+			~ForwardUniform();
 
 			std::vector<VkDescriptorBufferInfo> getBuffersInfo() const;
 
-			void writeGlobalData(uint32_t frameIndex, RasterUbo ubo);
+			void writeGlobalData(uint32_t frameIndex, ForwardUbo ubo);
 
 		private:
       NugieVulkan::Device* device;

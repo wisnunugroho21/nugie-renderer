@@ -4,24 +4,30 @@
 #include "../../vulkan/device/device.hpp"
 #include "../../vulkan/texture/texture.hpp"
 #include "../../vulkan/buffer/buffer.hpp"
+#include "../../vulkan/texture/texture.hpp"
+#include "../camera/camera.hpp"
 #include "../data/model/index_model.hpp"
 #include "../data/model/position_model.hpp"
 #include "../data/model/normal_model.hpp"
+#include "../data/model/textCoord_model.hpp"
 #include "../data/model/reference_model.hpp"
-#include "../data/model/object_model.hpp"
-#include "../data/model/primitive_model.hpp"
-#include "../data/model/triangle_light_model.hpp"
 #include "../data/model/material_model.hpp"
 #include "../data/model/transformation_model.hpp"
-#include "../data/buffer/raster_uniform.hpp"
-#include "../data/buffer/ray_tracing_uniform.hpp"
+#include "../data/model/spot_light_model.hpp"
+#include "../data/buffer/shadow_uniform.hpp"
+#include "../data/buffer/forward_uniform.hpp"
+#include "../data/buffer/deferred_uniform.hpp"
+#include "../data/descSet/shadow_desc_set.hpp"
 #include "../data/descSet/forward_desc_set.hpp"
 #include "../data/descSet/model_deferred_desc_set.hpp"
 #include "../data/descSet/attachment_deferred_desc_set.hpp"
 #include "../renderer/hybrid_renderer.hpp"
-#include "../renderer_sub/raytracing_sub_renderer.hpp"
+#include "../renderer_sub/final_sub_renderer.hpp"
+#include "../renderer_sub/shadow_sub_renderer.hpp"
 #include "../renderer_subpart/forward_subpart_renderer.hpp"
 #include "../renderer_subpart/deferred_subpart_renderer.hpp"
+#include "../renderer_subpart/shadow_subpart_renderer.hpp"
+#include "../renderer_system/shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/deferred_pass_render_system.hpp"
 
@@ -45,7 +51,6 @@ namespace NugieApp {
 
 		private:
 			void loadObjects();
-			void loadQuadModels();
 
 			void updateCamera(uint32_t width, uint32_t height);
 			void recreateSubRendererAndSubsystem();
@@ -53,34 +58,47 @@ namespace NugieApp {
 			NugieVulkan::Window* window;
 			NugieVulkan::Device* device;
 
+			Camera* camera;
+
 			HybridRenderer* renderer;
-			RayTracingSubRenderer* rayTracingSubRenderer;
+
+			FinalSubRenderer* finalSubRenderer;
+			ShadowSubRenderer* shadowSubRenderer;
+
 			ForwardSubPartRenderer* forwardSubPartRenderer;
 			DeferredSubPartRenderer* deferredSubPartRenderer;
+			ShadowSubPartRenderer* shadowSubPartRenderer;
+			
 			ForwardPassRenderSystem* forwardPassRenderer;
 			DeferredPassRenderSystem* deferredPasRenderer;
+			ShadowPassRenderSystem* shadowPassRenderer;
 
 			IndexModel* indexModel;
 			PositionModel* positionModel;
 			NormalModel* normalModel;
+			TextCoordModel* textCoordModel;
 			ReferenceModel* referenceModel;
-			PrimitiveModel* primitiveModel;
-			TriangleLightModel* triangleLightModel;
-			ObjectModel* objectModel;
 			MaterialModel* materialModel;
 			TransformationModel* transformationModel;
+			SpotLightModel* spotLightModel;
 
-			RasterUniform* rasterUniforms;
-			RayTracingUniform* rayTracingUniform;
+			ShadowUniform* shadowUniform;
+			ForwardUniform* forwardUniform;
+			DeferredUniform* deferredUniform;
+			
 			ForwardDescSet* forwardDescSet;
 			AttachmentDeferredDescSet* attachmentDeferredDescSet;
 			ModelDeferredDescSet* modelDeferredDescSet;
+			ShadowDescSet* shadowDescSet;
 
 			uint32_t randomSeed = 0, numLight = 0;
 			bool isRendering = true;
 			float frameTime = 0;
 
-			RasterUbo rasterUbo;
-			RayTraceUbo rayTraceUbo;
+			ShadowUbo shadowUbo;
+			ForwardUbo forwardUbo;
+			DeferredUbo deferredUbo;
+
+			NugieVulkan::Texture* colorTexture;
 	};
 }

@@ -11,13 +11,23 @@
 #include "../command/command_buffer.hpp"
 
 namespace NugieVulkan {
-  Texture::Texture(Device* device, CommandBuffer* commandBuffer, const char* textureFileName) : device{device} {
+  Texture::Texture(Device* device, CommandBuffer* commandBuffer, const char* textureFileName, VkFilter filterMode, VkSamplerAddressMode addressMode, 
+    VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) : device{device} 
+  {
     this->createTextureImage(commandBuffer, textureFileName);
-    this->createTextureSampler();
+    this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
+  }
+
+  Texture::Texture(Device* device, Image* image, VkFilter filterMode, VkSamplerAddressMode addressMode, 
+    VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) 
+    : device{device}, image{image} 
+  {
+    this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
   }
 
   Texture::~Texture() {
     vkDestroySampler(this->device->getLogicalDevice(), this->sampler, nullptr);
+    if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
     if (this->image != nullptr) delete this->image;
   }
 
@@ -35,17 +45,17 @@ namespace NugieVulkan {
     unsigned long pixelSize = 4;
     uint32_t pixelCount = texWidth * texHeight;
 
-    Buffer stagingBuffer {
+    this->stagingBuffer = new Buffer(
 			this->device,
 			pixelSize,
 			pixelCount,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-		};
+    );
 
-    stagingBuffer.map();
-    stagingBuffer.writeToBuffer(pixels);
-    stagingBuffer.unmap();
+    this->stagingBuffer->map();
+    this->stagingBuffer->writeToBuffer(pixels);
+    this->stagingBuffer->unmap();
 
     stbi_image_free(pixels);
 
@@ -57,31 +67,33 @@ namespace NugieVulkan {
       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 
       0, VK_ACCESS_TRANSFER_WRITE_BIT);
       
-    stagingBuffer.copyBufferToImage(commandBuffer, this->image);
+    this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
     this->image->generateMipMap(commandBuffer);
     // this->image->transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   }
 
-  void Texture::createTextureSampler() {
+  void Texture::createTextureSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anistropyEnable, 
+    VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) 
+  {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.magFilter = filterMode;
+    samplerInfo.minFilter = filterMode;
 
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeU = addressMode;
+    samplerInfo.addressModeV = addressMode;
+    samplerInfo.addressModeW = addressMode;
 
-    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.anisotropyEnable = anistropyEnable;
     samplerInfo.maxAnisotropy = this->device->getProperties().limits.maxSamplerAnisotropy;
 
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.borderColor = borderColor;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
 
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.compareEnable = compareOp == VK_COMPARE_OP_NEVER ? VK_FALSE : VK_TRUE;
+    samplerInfo.compareOp = compareOp;
 
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipmapMode = mipmapMode;
     samplerInfo.minLod = 0.0f; // Optional
     samplerInfo.maxLod = static_cast<float>(this->mipLevels);
     samplerInfo.mipLodBias = 0.0f; // Optional
@@ -91,9 +103,9 @@ namespace NugieVulkan {
     }
   }
 
-  VkDescriptorImageInfo Texture::getDescriptorInfo() {
+  VkDescriptorImageInfo Texture::getDescriptorInfo(VkImageLayout desiredImageLayout) {
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageLayout = desiredImageLayout;
     imageInfo.imageView = this->image->getImageView();
     imageInfo.sampler = this->sampler;
 

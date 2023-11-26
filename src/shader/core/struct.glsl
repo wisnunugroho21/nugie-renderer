@@ -1,93 +1,51 @@
 // ------------- Struct ------------- 
 
-// ---------------------- buffer struct ----------------------
+#define RECIPROCAL_PI 0.3183098861837907
+#define RECIPROCAL_2PI 0.15915494309189535
+#define PI 3.14159265359
+#define FLT_MAX 3.402823e+38
+#define FLT_MIN 1.175494e-38
 
-struct Primitive {
-  uvec3 indices;
-  uint materialIndex;
+struct Position {
+  vec4 position;
 };
 
-struct Object {
-  uint firstBvhIndex;
-  uint firstPrimitiveIndex;
+struct Normal {
+  vec4 normal;
+};
+
+struct Reference {
+  uint materialIndex;
   uint transformIndex;
 };
 
-struct PointLight {
-  vec3 position;
-  vec3 color;
-};
-
-struct TriangleLight {
-  vec3 point0;
-  vec3 point1;
-  vec3 point2;
-
-  vec3 color;
-};
-
-struct SunLight {
-  vec3 direction;
-  vec3 color;
-};
-
-struct BvhNode {
-  uint leftNode;
-  uint rightNode;
-  uint leftObjIndex;
-  uint rightObjIndex;
-
-  vec3 maximum;
-  vec3 minimum;
-};
-
 struct Material {
-  vec3 baseColor;
-	float metallicness;
-  float roughness;
-  float fresnelReflect;
+  vec4 baseColor;
+  vec4 params;
+  uint colorTextureIndex;
 };
 
 struct Transformation {
-  mat4 pointMatrix;
-  mat4 dirMatrix;
-  mat4 pointInverseMatrix;
-  mat4 dirInverseMatrix;
+  mat4 modelMatrix;
   mat4 normalMatrix;
 };
 
-// ---------------------- internal struct ----------------------
-
-struct Ray {
-  vec3 origin;
-  vec3 direction;
+struct PointLight {
+  vec4 position;
+  vec4 color;
 };
 
-struct FaceNormal {
-  bool frontFace;
-  vec3 normal;
+struct SpotLight {
+  vec4 position;
+  vec4 color;
+  vec4 direction;
+  float angle;
 };
 
-struct HitRecord {
-  bool isHit;
-  uint hitIndex;
-  vec3 point;
-
-  float t;
-
-  vec3 color;
-  vec3 normal;
-  float metallicness;
-  float roughness;
-  float fresnelReflect;
+struct DeferredUbo {
+  uint numLights;
 };
 
-struct ShadeRecord {
-  vec3 radiance;  
-  Ray nextRay;
-  float pdf;
+struct ForwardUbo {
+  mat4 transforms;
 };
-
-float pi = 3.14159265359;
-float FLT_MAX = 3.402823e+38;
-float FLT_MIN = 1.175494e-38;

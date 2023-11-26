@@ -14,13 +14,7 @@ namespace NugieApp {
 		glm::vec3 scale{1.0f};
 		glm::vec3 rotation{0.0f};
 
-		glm::vec3 objectMinimum{0.0f};
-		glm::vec3 objectMaximum{0.0f};
-
-		glm::mat4 getPointMatrix();
-		glm::mat4 getDirMatrix();
-    glm::mat4 getPointInverseMatrix();
-    glm::mat4 getDirInverseMatrix();
-    glm::mat4 getNormalMatrix();
+		glm::mat4 getModelMatrix();
+    glm::mat3 getNormalMatrix();
 	};
 }

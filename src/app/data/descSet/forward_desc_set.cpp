@@ -3,9 +3,9 @@
 
 namespace NugieApp {
   ForwardDescSet::ForwardDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]) 
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[2], VkDescriptorImageInfo texturesInfo[1]) 
 	{
-		this->createDescriptor(device, descriptorPool, uniformBufferInfo, modelsInfo);
+		this->createDescriptor(device, descriptorPool, uniformBufferInfo, modelsInfo, texturesInfo);
   }
 
 	ForwardDescSet::~ForwardDescSet() {
@@ -13,13 +13,16 @@ namespace NugieApp {
 	}
 
   void ForwardDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]) 
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[2], 
+		VkDescriptorImageInfo texturesInfo[1]) 
 	{
     this->descSetLayout = 
 			NugieVulkan::DescriptorSetLayout::Builder(device)
 				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-				.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+				.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build();
 		
 	this->descriptorSets.clear();
@@ -27,13 +30,13 @@ namespace NugieApp {
 			VkDescriptorSet descSet;
 
 			auto x = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
-				.writeBuffer(0, uniformBufferInfo[i])
-				.writeBuffer(1, modelsInfo[0])
-				.writeBuffer(2, modelsInfo[1])
+				.writeBuffer(0, uniformBufferInfo[0][i])
+				.writeBuffer(1, uniformBufferInfo[1][i])
+				.writeBuffer(2, modelsInfo[0])
+				.writeBuffer(3, modelsInfo[1])
+				.writeImage(4, texturesInfo[0])
 				.build(&descSet);
-
-			auto z = x;
-
+			
 			this->descriptorSets.emplace_back(descSet);
 		}
   }

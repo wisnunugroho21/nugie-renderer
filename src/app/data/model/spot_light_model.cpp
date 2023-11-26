@@ -1,4 +1,4 @@
-#include "position_model.hpp"
+#include "spot_light_model.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -8,17 +8,17 @@
 #include <glm/gtx/hash.hpp>
 
 namespace NugieApp {
-	PositionModel::PositionModel(NugieVulkan::Device* device) : device{device} {
+	SpotLightModel::SpotLightModel(NugieVulkan::Device* device) : device{device} {
 		this->createBuffers();
 	}
 
-	PositionModel::~PositionModel() {
+	SpotLightModel::~SpotLightModel() {
 		if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
 		if (this->buffer != nullptr) delete this->buffer;
 	}
 
-	void PositionModel::createBuffers() {
-		uint32_t instanceSize = static_cast<uint32_t>(sizeof(Position));
+	void SpotLightModel::createBuffers() {
+		uint32_t instanceSize = static_cast<uint32_t>(sizeof(SpotLight));
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
@@ -32,18 +32,18 @@ namespace NugieApp {
 			this->device,
 			instanceSize,
 			1000000,
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 		);
 	}
 
-	void PositionModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<Position> positions) {
-		auto bufferSize = static_cast<VkDeviceSize>(sizeof(Position)) * static_cast<VkDeviceSize>(positions.size());
+	void SpotLightModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<SpotLight> objects) {
+		auto bufferSize = static_cast<VkDeviceSize>(sizeof(SpotLight)) * static_cast<VkDeviceSize>(objects.size());
 
 		this->stagingBuffer->map();
-		this->stagingBuffer->writeToBuffer((void *) positions.data(), bufferSize);
+		this->stagingBuffer->writeToBuffer((void *) objects.data(), bufferSize);
 		
 		this->buffer->copyFromAnotherBuffer(commandBuffer, this->stagingBuffer, bufferSize);
-	}
-} // namespace NugieApp
+	} 
+} // namespace nugi
 

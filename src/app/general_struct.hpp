@@ -9,77 +9,60 @@
 #include <vector>
 
 namespace NugieApp {
+  struct Position {
+    glm::vec4 position;
+
+    bool operator == (const Position &other) const {
+			return this->position == other.position;
+		}
+  };
+
+  struct Normal {
+    glm::vec4 normal;
+  };
+
+  struct TextCoord {
+    glm::vec2 textCoord;
+  };
+
   struct Reference {
     uint32_t materialIndex;
     uint32_t transformIndex;
   };
 
-  struct Primitive {
-    alignas(16) glm::uvec3 indices;
-    uint32_t materialIndex;
-  };
-
-  struct Object {
-    uint32_t firstBvhIndex = 0;
-    uint32_t firstPrimitiveIndex = 0;
-    uint32_t transformIndex;
-  };
-
-  struct BvhNode {
-    uint32_t leftNode = 0;
-    uint32_t rightNode = 0;
-    uint32_t leftObjIndex = 0;
-    uint32_t rightObjIndex = 0;
-
-    alignas(16) glm::vec3 maximum;
-    alignas(16) glm::vec3 minimum;
-  };
-
   struct Material {
-    alignas(16)  glm::vec3 baseColor;
-    float metallicness;
-    float roughness;
-    float fresnelReflect;
+    alignas(16) glm::vec4 baseColor;
+    alignas(16) glm::vec4 params;
+    uint32_t colorTextureIndex;
   };
 
   struct Transformation {
-    glm::mat4 pointMatrix{1.0f};
-    glm::mat4 dirMatrix{1.0f};
-    glm::mat4 pointInverseMatrix{1.0f};
-    glm::mat4 dirInverseMatrix{1.0f};
+    glm::mat4 modelMatrix{1.0f};
     glm::mat4 normalMatrix{1.0f};
   };
 
   struct PointLight {
-    alignas(16) glm::vec3 position;
-    alignas(16) glm::vec3 color;
+    glm::vec4 position;
+    glm::vec4 color;
   };
 
-  struct TriangleLight {
-    alignas(16) glm::vec3 point0;
-    alignas(16) glm::vec3 point1;
-    alignas(16) glm::vec3 point2;
-
-    alignas(16) glm::vec3 color;
+  struct SpotLight {
+    alignas(16) glm::vec4 position;
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 direction;
+    float angle;
   };
 
-  struct SunLight {
-    alignas(16) glm::vec3 direction;
-    alignas(16) glm::vec3 color;
+  struct DeferredUbo {
+    glm::vec4 originNumLights;
   };
 
-  struct RayTraceUbo {
-    alignas(16) glm::vec3 origin;
-    alignas(16) glm::vec3 background;
-    uint32_t numLights;
-    alignas(16) glm::vec2 screenSize;
-  };
-
-  struct RasterUbo {
+  struct ForwardUbo {
     glm::mat4 transforms;
   };
 
-  struct RayTracePushConstant {
-    uint32_t randomSeed;
+  struct ShadowUbo {
+    glm::mat4 transforms;
   };
+  
 }

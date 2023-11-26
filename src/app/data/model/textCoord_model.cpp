@@ -1,4 +1,4 @@
-#include "position_model.hpp"
+#include "textCoord_model.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -8,17 +8,17 @@
 #include <glm/gtx/hash.hpp>
 
 namespace NugieApp {
-	PositionModel::PositionModel(NugieVulkan::Device* device) : device{device} {
+	TextCoordModel::TextCoordModel(NugieVulkan::Device* device) : device{device} {
 		this->createBuffers();
 	}
 
-	PositionModel::~PositionModel() {
+	TextCoordModel::~TextCoordModel() {
 		if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
 		if (this->buffer != nullptr) delete this->buffer;
 	}
 
-	void PositionModel::createBuffers() {
-		uint32_t instanceSize = static_cast<uint32_t>(sizeof(Position));
+	void TextCoordModel::createBuffers() {
+		uint32_t instanceSize = static_cast<uint32_t>(sizeof(TextCoord));
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
@@ -37,11 +37,11 @@ namespace NugieApp {
 		);
 	}
 
-	void PositionModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<Position> positions) {
-		auto bufferSize = static_cast<VkDeviceSize>(sizeof(Position)) * static_cast<VkDeviceSize>(positions.size());
+	void TextCoordModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<TextCoord> textCoords) {
+		auto bufferSize = static_cast<VkDeviceSize>(sizeof(TextCoord)) * static_cast<VkDeviceSize>(textCoords.size());
 
 		this->stagingBuffer->map();
-		this->stagingBuffer->writeToBuffer((void *) positions.data(), bufferSize);
+		this->stagingBuffer->writeToBuffer((void *) textCoords.data(), bufferSize);
 		
 		this->buffer->copyFromAnotherBuffer(commandBuffer, this->stagingBuffer, bufferSize);
 	}

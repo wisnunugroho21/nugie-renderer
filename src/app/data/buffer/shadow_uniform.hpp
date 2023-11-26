@@ -10,14 +10,14 @@
 #include <vector>
 
 namespace NugieApp {
-	class RayTracingUniform {
+	class ShadowUniform {
 		public:
-			RayTracingUniform(NugieVulkan::Device* device);
-			~RayTracingUniform();
+			ShadowUniform(NugieVulkan::Device* device);
+			~ShadowUniform();
 
 			std::vector<VkDescriptorBufferInfo> getBuffersInfo() const;
 
-			void writeGlobalData(uint32_t frameIndex, RayTraceUbo ubo);
+			void writeGlobalData(uint32_t frameIndex, ShadowUbo ubo);
 
 		private:
       NugieVulkan::Device* device;

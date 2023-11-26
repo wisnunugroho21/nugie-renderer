@@ -18,7 +18,7 @@ namespace NugieApp {
 	}
 
 	void ReferenceModel::createBuffers() {
-		uint32_t instanceSize = static_cast<uint32_t>(sizeof(glm::uvec2));
+		uint32_t instanceSize = static_cast<uint32_t>(sizeof(Reference));
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
@@ -37,8 +37,8 @@ namespace NugieApp {
 		);
 	}
 
-	void ReferenceModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<glm::uvec2> references) {
-		auto bufferSize = static_cast<VkDeviceSize>(sizeof(glm::uvec2)) * static_cast<VkDeviceSize>(references.size());
+	void ReferenceModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<Reference> references) {
+		auto bufferSize = static_cast<VkDeviceSize>(sizeof(Reference)) * static_cast<VkDeviceSize>(references.size());
 
 		this->stagingBuffer->map();
 		this->stagingBuffer->writeToBuffer((void *) references.data(), bufferSize);

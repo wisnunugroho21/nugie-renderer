@@ -13,15 +13,15 @@
 #include <memory>
 
 namespace NugieApp {
-	class ReferenceModel {
+	class TextCoordModel {
 		public:
-			ReferenceModel(NugieVulkan::Device* device);
-			~ReferenceModel();
+			TextCoordModel(NugieVulkan::Device* device);
+			~TextCoordModel();
 
-			VkDescriptorBufferInfo getReferenceInfo() { return this->buffer->descriptorInfo(); }
+			VkDescriptorBufferInfo getPositionInfo() { return this->buffer->descriptorInfo(); }
 			NugieVulkan::Buffer* getBuffer() { return this->buffer; }
 
-			void update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<Reference> references);
+			void update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<TextCoord> textCoords);
 			
 		private:
 			NugieVulkan::Device* device;

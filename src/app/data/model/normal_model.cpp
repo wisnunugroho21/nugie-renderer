@@ -18,7 +18,7 @@ namespace NugieApp {
 	}
 
 	void NormalModel::createBuffers() {
-		uint32_t instanceSize = static_cast<uint32_t>(sizeof(glm::vec4));
+		uint32_t instanceSize = static_cast<uint32_t>(sizeof(Normal));
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
@@ -37,8 +37,8 @@ namespace NugieApp {
 		);
 	}
 
-	void NormalModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<glm::vec4> normals) {
-		auto bufferSize = static_cast<VkDeviceSize>(sizeof(glm::vec4)) * static_cast<VkDeviceSize>(normals.size());
+	void NormalModel::update(NugieVulkan::CommandBuffer* commandBuffer, std::vector<Normal> normals) {
+		auto bufferSize = static_cast<VkDeviceSize>(sizeof(Normal)) * static_cast<VkDeviceSize>(normals.size());
 
 		this->stagingBuffer->map();
 		this->stagingBuffer->writeToBuffer((void *) normals.data(), bufferSize);

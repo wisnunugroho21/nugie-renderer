@@ -40,21 +40,25 @@ namespace NugieApp {
 	void ForwardPassRenderSystem::createPipeline(NugieVulkan::RenderPass* renderPass) {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions(3);
-		std::vector<VkVertexInputAttributeDescription> attributeDescription(4);
-		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(4);
+		std::vector<VkVertexInputBindingDescription> bindingDescriptions(4);
+		std::vector<VkVertexInputAttributeDescription> attributeDescription(5);
+		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(5);
 
 		bindingDescriptions[0].binding = 0;
-		bindingDescriptions[0].stride = sizeof(glm::vec4);
+		bindingDescriptions[0].stride = sizeof(Position);
 		bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[1].binding = 1;
-		bindingDescriptions[1].stride = sizeof(glm::vec4);
+		bindingDescriptions[1].stride = sizeof(Normal);
 		bindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[2].binding = 2;
-		bindingDescriptions[2].stride = sizeof(glm::uvec2);
+		bindingDescriptions[2].stride = sizeof(TextCoord);
 		bindingDescriptions[2].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		bindingDescriptions[3].binding = 3;
+		bindingDescriptions[3].stride = sizeof(Reference);
+		bindingDescriptions[3].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		attributeDescription[0].binding = 0;
 		attributeDescription[0].location = 0;
@@ -68,13 +72,18 @@ namespace NugieApp {
 
 		attributeDescription[2].binding = 2;
 		attributeDescription[2].location = 2;
-		attributeDescription[2].format = VK_FORMAT_R32_UINT;
+		attributeDescription[2].format = VK_FORMAT_R32G32_SFLOAT;
 		attributeDescription[2].offset = 0;
 
-		attributeDescription[3].binding = 2;
+		attributeDescription[3].binding = 3;
 		attributeDescription[3].location = 3;
 		attributeDescription[3].format = VK_FORMAT_R32_UINT;
-		attributeDescription[3].offset = sizeof(uint32_t);
+		attributeDescription[3].offset = 0;
+
+		attributeDescription[4].binding = 3;
+		attributeDescription[4].location = 4;
+		attributeDescription[4].format = VK_FORMAT_R32_UINT;
+		attributeDescription[4].offset = sizeof(uint32_t);
 
     colorBlendAttachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[0].blendEnable = VK_FALSE;
@@ -86,6 +95,9 @@ namespace NugieApp {
     colorBlendAttachment[2].blendEnable = VK_FALSE;
 
 		colorBlendAttachment[3].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment[3].blendEnable = VK_FALSE;
+
+		colorBlendAttachment[4].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[4].blendEnable = VK_FALSE;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)

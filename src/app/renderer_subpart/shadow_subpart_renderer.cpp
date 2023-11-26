@@ -1,0 +1,100 @@
+#include "shadow_subpart_renderer.hpp"
+
+#include <assert.h>
+#include <array>
+
+namespace NugieApp {
+  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height)
+    : device{device}, width{width}, height{height}
+  {
+    this->createShadowResources();
+  }
+
+  ShadowSubPartRenderer::~ShadowSubPartRenderer() {
+    for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
+      if (shadowDepthTexture != nullptr) delete shadowDepthTexture;
+    }
+
+    for (auto &&depthImage : this->shadowDepthImages) {
+      if (depthImage != nullptr) delete depthImage;
+    }
+  }
+
+  std::vector<VkDescriptorImageInfo> ShadowSubPartRenderer::getDepthInfoResources() {
+    std::vector<VkDescriptorImageInfo> descInfos{};
+    for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
+      descInfos.emplace_back(shadowDepthTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+    }
+
+    return descInfos;
+  }
+
+  std::vector<std::vector<VkImageView>> ShadowSubPartRenderer::getAttachments() {
+    std::vector<std::vector<VkImageView>> attachments;
+
+    std::vector<VkImageView> shadowDepthAttachment;
+    for (size_t i = 0; i < this->shadowDepthImages.size(); i++) {
+      shadowDepthAttachment.emplace_back(this->shadowDepthImages[i]->getImageView());
+    }
+
+    attachments.emplace_back(shadowDepthAttachment);
+
+    return attachments;
+  }
+
+  std::vector<VkAttachmentDescription> ShadowSubPartRenderer::getAttachmentDescs() {
+    VkFormat depthFormat = this->findDepthFormat();
+    auto msaaSamples = this->device->getMSAASamples();
+
+    VkAttachmentDescription shadowDepthAttachment{};
+    shadowDepthAttachment.format = depthFormat;
+    shadowDepthAttachment.samples = msaaSamples;
+    shadowDepthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    shadowDepthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    shadowDepthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    shadowDepthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    shadowDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    shadowDepthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    std::vector<VkAttachmentDescription> attachmentDescs;
+    attachmentDescs.emplace_back(shadowDepthAttachment);
+
+    return attachmentDescs;
+  }
+
+  VkAttachmentReference ShadowSubPartRenderer::getDepthAttachmentRef() {
+    VkAttachmentReference shadowDepthAttachmentRef{};
+    shadowDepthAttachmentRef.attachment = 0;
+    shadowDepthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    return shadowDepthAttachmentRef;
+  }
+
+  void ShadowSubPartRenderer::createShadowResources() {
+    VkFormat depthFormat = this->findDepthFormat();
+    auto msaaSamples = this->device->getMSAASamples();
+
+    this->shadowDepthImages.clear();
+    this->shadowDepthTextures.clear();
+    
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+      auto image = new NugieVulkan::Image(
+        this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
+      );
+      
+      this->shadowDepthImages.push_back(image);
+      this->shadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, image, VK_FILTER_LINEAR, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+    }
+  }
+
+  VkFormat ShadowSubPartRenderer::findDepthFormat() {
+    return this->device->findSupportedFormat(
+      {VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+      VK_IMAGE_TILING_OPTIMAL,
+      VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  }
+} // namespace NugieApp

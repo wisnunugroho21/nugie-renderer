@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+
 namespace NugieVulkan {
   struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;

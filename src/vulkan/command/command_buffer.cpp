@@ -9,6 +9,10 @@ namespace NugieVulkan {
 
 	}
 
+	void CommandBuffer::resetCommand() {
+		vkResetCommandBuffer(this->commandBuffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	}
+
 	void CommandBuffer::beginSingleTimeCommand() {
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

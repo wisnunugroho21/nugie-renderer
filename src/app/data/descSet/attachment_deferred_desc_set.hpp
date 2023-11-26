@@ -11,7 +11,7 @@ namespace NugieApp {
 	class AttachmentDeferredDescSet {
 		public:
 			AttachmentDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorImageInfo> attachmentsInfo[4], uint32_t imageCount);
+				std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount);
 			~AttachmentDeferredDescSet();
 
 			VkDescriptorSet getDescriptorSets(int imageIndex) { return this->descriptorSets[imageIndex]; }
@@ -22,7 +22,7 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorImageInfo> attachmentsInfo[4], uint32_t imageCount);
+				std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount);
 	};
 	
 }

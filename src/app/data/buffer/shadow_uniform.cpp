@@ -1,4 +1,4 @@
-#include "raster_uniform.hpp"
+#include "shadow_uniform.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,17 +10,17 @@
 #include <string>
 
 namespace NugieApp {
-	RasterUniform::RasterUniform(NugieVulkan::Device* device) : device{device} {
+	ShadowUniform::ShadowUniform(NugieVulkan::Device* device) : device{device} {
 		this->createUniformBuffer();
 	}
 
-	RasterUniform::~RasterUniform() {
+	ShadowUniform::~ShadowUniform() {
 		for (auto &&uniformBuffer : this->uniformBuffers) {
 			if (uniformBuffer != nullptr) delete uniformBuffer;
 		}
 	}
 
-	std::vector<VkDescriptorBufferInfo> RasterUniform::getBuffersInfo() const {
+	std::vector<VkDescriptorBufferInfo> ShadowUniform::getBuffersInfo() const {
 		std::vector<VkDescriptorBufferInfo> buffersInfo{};
 		
 		for (int i = 0; i < this->uniformBuffers.size(); i++) {
@@ -30,13 +30,13 @@ namespace NugieApp {
 		return buffersInfo;
 	}
 
-	void RasterUniform::createUniformBuffer() {
+	void ShadowUniform::createUniformBuffer() {
 		this->uniformBuffers.clear();
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			auto uniformBuffer = new NugieVulkan::Buffer(
 				this->device,
-				sizeof(RasterUbo),
+				sizeof(ShadowUbo),
 				1u,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
@@ -47,7 +47,7 @@ namespace NugieApp {
 		}
 	}
 
-	void RasterUniform::writeGlobalData(uint32_t frameIndex, RasterUbo ubo) {
+	void ShadowUniform::writeGlobalData(uint32_t frameIndex, ShadowUbo ubo) {
 		this->uniformBuffers[frameIndex]->writeToBuffer(&ubo);
 		this->uniformBuffers[frameIndex]->flush();
 	}

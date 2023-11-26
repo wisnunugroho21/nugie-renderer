@@ -8,7 +8,7 @@
 #include <memory>
 
 namespace NugieApp {
-  class RayTracingSubRenderer {
+  class ShadowSubRenderer {
     public:
       class Builder {
         public:
@@ -17,7 +17,7 @@ namespace NugieApp {
           Builder& addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs = {});
           Builder& addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef);
 
-          RayTracingSubRenderer* build();
+          ShadowSubRenderer* build();
 
         private:
           NugieVulkan::Device* device;
@@ -32,10 +32,10 @@ namespace NugieApp {
       };
 
 
-      RayTracingSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+      ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
         std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
         std::vector<VkAttachmentReference> resolveAttachmentRef);
-      ~RayTracingSubRenderer();
+      ~ShadowSubRenderer();
       
       NugieVulkan::RenderPass* getRenderPass() const { return this->renderPass; }
 
@@ -49,8 +49,6 @@ namespace NugieApp {
 
       NugieVulkan::Device* device;
       NugieVulkan::RenderPass* renderPass;
-
-      VkFormat findDepthFormat();
 
       void createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
         std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 

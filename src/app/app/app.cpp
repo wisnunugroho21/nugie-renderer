@@ -1,5 +1,7 @@
 #include "app.hpp"
 
+#include "../utils/load_model/load_model.hpp"
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -20,51 +22,60 @@ namespace NugieApp {
 		this->device = new NugieVulkan::Device(this->window);
 		this->renderer = new HybridRenderer(this->window, this->device);
 
+		this->camera = new Camera();
+
 		this->loadObjects();
-		// this->loadQuadModels();
 		this->recreateSubRendererAndSubsystem();
 	}
 
 	App::~App() {
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->deferredPasRenderer != nullptr) delete this->deferredPasRenderer;
+		if (this->shadowPassRenderer != nullptr) delete this->shadowPassRenderer;
 
 		if (this->forwardSubPartRenderer != nullptr) delete this->forwardSubPartRenderer;
 		if (this->deferredSubPartRenderer != nullptr) delete this->deferredSubPartRenderer;
+		if (this->shadowSubPartRenderer != nullptr) delete this->shadowSubPartRenderer;
 
-		if (this->rayTracingSubRenderer != nullptr) delete this->rayTracingSubRenderer;
+		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
 		if (this->renderer != nullptr) delete this->renderer;
 
+		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->attachmentDeferredDescSet != nullptr) delete this->attachmentDeferredDescSet;
 		if (this->modelDeferredDescSet != nullptr) delete this->modelDeferredDescSet;
-		if (this->rasterUniforms != nullptr) delete this->rasterUniforms;
-		if (this->rayTracingUniform != nullptr) delete this->rayTracingUniform;
+
+		if (this->shadowUniform != nullptr) delete this->shadowUniform;
+		if (this->forwardUniform != nullptr) delete this->forwardUniform;
+		if (this->deferredUniform != nullptr) delete this->deferredUniform;
 
 		if (this->indexModel != nullptr) delete this->indexModel;
 		if (this->positionModel != nullptr) delete this->positionModel;
 		if (this->normalModel != nullptr) delete this->normalModel;
+		if (this->textCoordModel != nullptr) delete this->textCoordModel;
 		if (this->referenceModel != nullptr) delete this->referenceModel;
 		if (this->materialModel != nullptr) delete this->materialModel;
-		if (this->primitiveModel != nullptr) delete this->primitiveModel;
-		if (this->objectModel != nullptr) delete this->objectModel;
 		if (this->transformationModel != nullptr) delete this->transformationModel;
-		if (this->triangleLightModel != nullptr) delete this->triangleLightModel;
+		if (this->spotLightModel != nullptr) delete this->spotLightModel;
+
+		if (this->colorTexture != nullptr) delete this->colorTexture;
 
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
+
+		if (this->camera != nullptr) delete this->camera;
 	}
 
 	void App::renderLoop() {
-		std::vector<VkDeviceSize> vertexOffsets(3);
-		vertexOffsets[0] = 0;
-		vertexOffsets[1] = 0;
-		vertexOffsets[2] = 0;
-
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->positionModel->getBuffer());
 		forwardBuffers.emplace_back(this->normalModel->getBuffer());
+		forwardBuffers.emplace_back(this->textCoordModel->getBuffer());
 		forwardBuffers.emplace_back(this->referenceModel->getBuffer());
+
+		std::vector<NugieVulkan::Buffer*> shadowBuffers;
+		shadowBuffers.emplace_back(this->positionModel->getBuffer());
+		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
 
 		while (this->isRendering) {
 			auto oldTime = std::chrono::high_resolution_clock::now();
@@ -79,13 +90,17 @@ namespace NugieApp {
 
 				auto commandBuffer = this->renderer->beginCommand();
 
-				this->rayTracingSubRenderer->beginRenderPass(commandBuffer, imageIndex);
+				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
+				this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount());
+				this->shadowSubRenderer->endRenderPass(commandBuffer);
 
-				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), vertexOffsets);
-				this->rayTracingSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
+
+				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount());
+				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets, this->randomSeed);
 
-				this->rayTracingSubRenderer->endRenderPass(commandBuffer);
+				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				this->renderer->endRenderCommand(commandBuffer);
 				this->renderer->submitRenderCommand(commandBuffer);
@@ -111,8 +126,9 @@ namespace NugieApp {
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		uint32_t t = 0;
 
-		this->rasterUniforms->writeGlobalData(0, this->rasterUbo);
-		this->rayTracingUniform->writeGlobalData(0, this->rayTraceUbo);
+		this->forwardUniform->writeGlobalData(0, this->forwardUbo);
+		this->deferredUniform->writeGlobalData(0, this->deferredUbo);
+		this->shadowUniform->writeGlobalData(0, this->shadowUbo);
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
 
@@ -136,244 +152,81 @@ namespace NugieApp {
 	}
 
 	void App::loadObjects() {
-		this->primitiveModel = new PrimitiveModel(this->device);
-
-		std::vector<glm::vec4> positions;
-		std::vector<glm::vec4> normals;
-		std::vector<glm::uvec2> references;
-		std::vector<uint32_t> indices;
-
-		std::vector<Object> objects;
+		std::vector<Position> positions;
+		std::vector<Normal> normals;
+		std::vector<TextCoord> textCoords;
+		std::vector<Reference> references;
+		std::vector<Material> materials;
 		std::vector<TransformComponent> transforms;
-		std::vector<BoundBox*> boundBoxes;
+		std::vector<uint32_t> indices;
+		std::vector<SpotLight> lights;
 
-		std::vector<TriangleLight> lights;
+		// ----------------------------------------------------------------------------
+
+		LoadedModel loadedModel = loadObjModel("../assets/models/viking_room.obj");
+
+		auto positionSize = static_cast<uint32_t>(positions.size());
+		for (auto &&index : loadedModel.indices) {
+			indices.emplace_back(positionSize + index);
+		}
+
+		for (auto &&position : loadedModel.positions) {
+			positions.emplace_back(position);
+		}
+
+		for (auto &&normal : loadedModel.normals) {
+			normals.emplace_back(normal);
+		}
+
+		for (auto &&textCoord : loadedModel.textCoords) {
+			textCoords.emplace_back(textCoord);
+		}
+
+		for (size_t i = 0; i < loadedModel.positions.size(); i++) {
+			references.emplace_back(Reference{ 1, 0 });
+		}
+
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 
-		// kanan
-		positions.emplace_back(glm::vec4{ 555.0f, 0.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 555.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 555.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 0.0f, 555.0f, 1.0f });
+		loadedModel = loadObjModel("../assets/models/quad_model.obj");
 
-		normals.emplace_back(glm::vec4{ -1.0f, 0.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ -1.0f, 0.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ -1.0f, 0.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ -1.0f, 0.0f, 0.0f, 0.0f });
+		positionSize = static_cast<uint32_t>(positions.size());
+		for (auto &&index : loadedModel.indices) {
+			indices.emplace_back(positionSize + index);
+		}
 
-		references.emplace_back(glm::uvec2{ 1, 0 });
-		references.emplace_back(glm::uvec2{ 1, 0 });
-		references.emplace_back(glm::uvec2{ 1, 0 });
-		references.emplace_back(glm::uvec2{ 1, 0 });
+		for (auto &&position : loadedModel.positions) {
+			positions.emplace_back(position);
+		}
 
-		indices.emplace_back(0u);
-		indices.emplace_back(1u);
-		indices.emplace_back(2u);
-		indices.emplace_back(2u);
-		indices.emplace_back(3u);
-		indices.emplace_back(0u);
+		for (auto &&normal : loadedModel.normals) {
+			normals.emplace_back(normal);
+		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
-		uint32_t transformIndex = static_cast<uint32_t>(transforms.size() - 1);
+		for (auto &&textCoord : loadedModel.textCoords) {
+			textCoords.emplace_back(textCoord);
+		}
 
-		objects.emplace_back(Object{ this->primitiveModel->getBvhSize(), this->primitiveModel->getPrimitiveSize(), transformIndex });
-		uint32_t objectIndex = static_cast<uint32_t>(objects.size() - 1);
+		for (size_t i = 0; i < loadedModel.positions.size(); i++) {
+			references.emplace_back(Reference{ 0, 1 });
+		}
 
-		std::vector<Primitive> rightWallPrimitives;
-		rightWallPrimitives.emplace_back(Primitive{ glm::uvec3(0u, 1u, 2u), 1u });
-		rightWallPrimitives.emplace_back(Primitive{ glm::uvec3(2u, 3u, 0u), 1u });
-
-		this->primitiveModel->addPrimitive(rightWallPrimitives, positions);
-
-		boundBoxes.emplace_back(new ObjectBoundBox{ static_cast<uint32_t>(boundBoxes.size() + 1), &objects[objectIndex], rightWallPrimitives, &transforms[transformIndex], positions });
-		uint32_t boundBoxIndex = static_cast<uint32_t>(boundBoxes.size() - 1);
-
-		transforms[transformIndex].objectMaximum = boundBoxes[boundBoxIndex]->getOriginalMax();
-		transforms[transformIndex].objectMinimum = boundBoxes[boundBoxIndex]->getOriginalMin();
-
-		// ----------------------------------------------------------------------------
-		
-		// kiri
-		positions.emplace_back(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 0.0f, 555.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 0.0f, 555.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 0.0f, 0.0f, 555.0f, 1.0f });
-
-		normals.emplace_back(glm::vec4{ 1.0f, 0.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 1.0f, 0.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 1.0f, 0.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 1.0f, 0.0f, 0.0f, 0.0f });
-
-		references.emplace_back(glm::uvec2{ 2, 0 });
-		references.emplace_back(glm::uvec2{ 2, 0 });
-		references.emplace_back(glm::uvec2{ 2, 0 });
-		references.emplace_back(glm::uvec2{ 2, 0 });
-
-		indices.emplace_back(4u);
-		indices.emplace_back(5u);
-		indices.emplace_back(6u);
-		indices.emplace_back(6u);
-		indices.emplace_back(7u);
-		indices.emplace_back(4u);
-
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
-		transformIndex = static_cast<uint32_t>(transforms.size() - 1);
-
-		objects.emplace_back(Object{ this->primitiveModel->getBvhSize(), this->primitiveModel->getPrimitiveSize(), transformIndex });
-		objectIndex = static_cast<uint32_t>(objects.size() - 1);
-
-		std::vector<Primitive> leftWallPrimitives;
-		leftWallPrimitives.emplace_back(Primitive{ glm::uvec3(4u, 5u, 6u) });
-		leftWallPrimitives.emplace_back(Primitive{ glm::uvec3(6u, 7u, 4u) });
-
-		this->primitiveModel->addPrimitive(rightWallPrimitives, positions);
-
-		boundBoxes.emplace_back(new ObjectBoundBox{ static_cast<uint32_t>(boundBoxes.size() + 1), &objects[objectIndex], leftWallPrimitives, &transforms[transformIndex], positions });
-		boundBoxIndex = static_cast<uint32_t>(boundBoxes.size() - 1);
-
-		transforms[transformIndex].objectMaximum = boundBoxes[boundBoxIndex]->getOriginalMax();
-		transforms[transformIndex].objectMinimum = boundBoxes[boundBoxIndex]->getOriginalMin();
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 		
-		// bawah
-		positions.emplace_back(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 0.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 0.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 0.0f, 0.0f, 555.0f, 1.0f });
+		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 0u });
+		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
-		normals.emplace_back(glm::vec4{ 0.0f, 1.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, 1.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, 1.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, 1.0f, 0.0f, 0.0f });
+		SpotLight light{};
+		light.position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
+		light.direction = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} - light.position;
+		light.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+		light.angle = 60.0f;
 
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-
-		indices.emplace_back(8u);
-		indices.emplace_back(9u);
-		indices.emplace_back(10u);
-		indices.emplace_back(10u);
-		indices.emplace_back(11u);
-		indices.emplace_back(8u);
-
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
-		transformIndex = static_cast<uint32_t>(transforms.size() - 1);
-
-		objects.emplace_back(Object{ this->primitiveModel->getBvhSize(), this->primitiveModel->getPrimitiveSize(), transformIndex });
-		objectIndex = static_cast<uint32_t>(objects.size() - 1);
-
-		std::vector<Primitive> bottomWallPrimitives;
-		bottomWallPrimitives.emplace_back(Primitive{ glm::uvec3(8u, 9u, 10u) });
-		bottomWallPrimitives.emplace_back(Primitive{ glm::uvec3(10u, 11u, 8u) });
-
-		this->primitiveModel->addPrimitive(rightWallPrimitives, positions);
-
-		boundBoxes.emplace_back(new ObjectBoundBox{ static_cast<uint32_t>(boundBoxes.size() + 1), &objects[objectIndex], bottomWallPrimitives, &transforms[transformIndex], positions });
-		boundBoxIndex = static_cast<uint32_t>(boundBoxes.size() - 1);
-
-		transforms[transformIndex].objectMaximum = boundBoxes[boundBoxIndex]->getOriginalMax();
-		transforms[transformIndex].objectMinimum = boundBoxes[boundBoxIndex]->getOriginalMin();
-
-		// ----------------------------------------------------------------------------
-		
-		// atas
-		positions.emplace_back(glm::vec4{ 0.0f, 555.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 555.0f, 0.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 555.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 0.0f, 555.0f, 555.0f, 1.0f });
-
-		normals.emplace_back(glm::vec4{ 0.0f, -1.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, -1.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, -1.0f, 0.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, -1.0f, 0.0f, 0.0f });
-
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-
-		indices.emplace_back(12u);
-		indices.emplace_back(13u);
-		indices.emplace_back(14u);
-		indices.emplace_back(14u);
-		indices.emplace_back(15u);
-		indices.emplace_back(12u);
-
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
-		transformIndex = static_cast<uint32_t>(transforms.size() - 1);
-
-		objects.emplace_back(Object{ this->primitiveModel->getBvhSize(), this->primitiveModel->getPrimitiveSize(), transformIndex });
-		objectIndex = static_cast<uint32_t>(objects.size() - 1);
-
-		std::vector<Primitive> topWallPrimitives;
-		topWallPrimitives.emplace_back(Primitive{ glm::uvec3(12u, 13u, 14u) });
-		topWallPrimitives.emplace_back(Primitive{ glm::uvec3(14u, 15u, 12u) });
-
-		this->primitiveModel->addPrimitive(rightWallPrimitives, positions);
-
-		boundBoxes.emplace_back(new ObjectBoundBox{ static_cast<uint32_t>(boundBoxes.size() + 1), &objects[objectIndex], topWallPrimitives, &transforms[transformIndex], positions });
-		boundBoxIndex = static_cast<uint32_t>(boundBoxes.size() - 1);
-
-		transforms[transformIndex].objectMaximum = boundBoxes[boundBoxIndex]->getOriginalMax();
-		transforms[transformIndex].objectMinimum = boundBoxes[boundBoxIndex]->getOriginalMin();
-
-		// ----------------------------------------------------------------------------
-		
-		// depan
-		positions.emplace_back(glm::vec4{ 0.0f, 0.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 0.0f, 555.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 555.0f, 555.0f, 1.0f });
-		positions.emplace_back(glm::vec4{ 555.0f, 0.0f, 555.0f, 1.0f });
-
-		normals.emplace_back(glm::vec4{ 0.0f, 0.0f, -1.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, 0.0f, -1.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, 0.0f, -1.0f, 0.0f });
-		normals.emplace_back(glm::vec4{ 0.0f, 0.0f, -1.0f, 0.0f });
-
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-		references.emplace_back(glm::uvec2{ 0, 0 });
-
-		indices.emplace_back(16u);
-		indices.emplace_back(17u);
-		indices.emplace_back(18u);
-		indices.emplace_back(18u);
-		indices.emplace_back(19u);
-		indices.emplace_back(16u);
-
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
-		transformIndex = static_cast<uint32_t>(transforms.size() - 1);
-
-		objects.emplace_back(Object{ this->primitiveModel->getBvhSize(), this->primitiveModel->getPrimitiveSize(), transformIndex });
-		objectIndex = static_cast<uint32_t>(objects.size() - 1);
-
-		std::vector<Primitive> frontWallPrimitives;
-		frontWallPrimitives.emplace_back(Primitive{ glm::uvec3(16u, 17u, 18u) });
-		frontWallPrimitives.emplace_back(Primitive{ glm::uvec3(18u, 19u, 16u) });
-
-		this->primitiveModel->addPrimitive(rightWallPrimitives, positions);
-
-		boundBoxes.emplace_back(new ObjectBoundBox{ static_cast<uint32_t>(boundBoxes.size() + 1), &objects[objectIndex], frontWallPrimitives, &transforms[transformIndex], positions });
-		boundBoxIndex = static_cast<uint32_t>(boundBoxes.size() - 1);
-
-		transforms[transformIndex].objectMaximum = boundBoxes[boundBoxIndex]->getOriginalMax();
-		transforms[transformIndex].objectMinimum = boundBoxes[boundBoxIndex]->getOriginalMin();
-
-		// ----------------------------------------------------------------------------
-
-		auto materials = std::vector<Material>();
-
-		materials.emplace_back(Material{ glm::vec3{ 0.73f, 0.73f, 0.73f }, 0.0f, 0.0f, 0.0f });
-		materials.emplace_back(Material{ glm::vec3{ 0.65f, 0.05f, 0.05f }, 0.0f, 0.0f, 0.0f });
-		materials.emplace_back(Material{ glm::vec3{ 0.12f, 0.45f, 0.15f }, 0.0f, 0.0f, 0.0f });
-
-		lights.emplace_back(TriangleLight{ glm::vec3{213.0f, 554.0f, 227.0f}, glm::vec3{343.0f, 554.0f, 227.0f}, glm::vec3{343.0f, 554.0f, 332.0f}, glm::vec3(100.0f) });
-		lights.emplace_back(TriangleLight{ glm::vec3{343.0f, 554.0f, 332.0f}, glm::vec3{213.0f, 554.0f, 332.0f}, glm::vec3{213.0f, 554.0f, 227.0f}, glm::vec3(100.0f) });
+		lights.emplace_back(light);
 
 		// ----------------------------------------------------------------------------
 
@@ -385,18 +238,14 @@ namespace NugieApp {
 		this->normalModel = new NormalModel(this->device);
 		this->normalModel->update(commandBuffer, normals);
 
+		this->textCoordModel = new TextCoordModel(this->device);
+		this->textCoordModel->update(commandBuffer, textCoords);
+
 		this->indexModel = new IndexModel(this->device);
 		this->indexModel->update(commandBuffer, indices);
 
 		this->referenceModel = new ReferenceModel(this->device);
 		this->referenceModel->update(commandBuffer, references);
-
-		this->primitiveModel->updatePrimitiveBuffers(commandBuffer);
-		this->primitiveModel->updateBvhBuffers(commandBuffer);
-
-		this->objectModel = new ObjectModel(this->device);
-		this->objectModel->updateObject(commandBuffer, objects);
-		this->objectModel->updateBvh(commandBuffer, boundBoxes);
 
 		this->materialModel = new MaterialModel(this->device);
 		this->materialModel->update(commandBuffer, materials);
@@ -404,91 +253,61 @@ namespace NugieApp {
 		this->transformationModel = new TransformationModel(this->device);
 		this->transformationModel->update(commandBuffer, transforms);
 
-		this->triangleLightModel = new TriangleLightModel(this->device);
-		this->triangleLightModel->updateTriangleLight(commandBuffer, lights);
-		this->triangleLightModel->updateBvh(commandBuffer, lights);
+		this->spotLightModel = new SpotLightModel(this->device);
+		this->spotLightModel->update(commandBuffer, lights);
+
+		this->colorTexture = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
+			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
 
 		this->renderer->endTransferCommand(commandBuffer);
 		this->renderer->submitTransferCommand(commandBuffer);
 
 		this->numLight = static_cast<uint32_t>(lights.size());
-	}
 
-	void App::loadQuadModels() {
-		auto positions = std::vector<glm::vec4>();
-		auto indices = std::vector<uint32_t>();
+		// ---------------------------------------------------------------------
 
-		glm::vec4 position1 { -1.0f, -1.0f, 0.0f, 1.0f };
-		positions.emplace_back(position1);
+		uint32_t width = this->renderer->getSwapChain()->width();
+		uint32_t height = this->renderer->getSwapChain()->height();
 
-		glm::vec4 position2 { 1.0f, -1.0f, 0.0f, 1.0f };
-		positions.emplace_back(position2);
-
-		glm::vec4 position3 { 1.0f, 1.0f, 0.0f, 1.0f };
-		positions.emplace_back(position3);
-
-		glm::vec4 position4 { -1.0f, 1.0f, 0.0f, 1.0f };
-		positions.emplace_back(position4);
-
-		indices = {
-			0, 1, 2, 2, 3, 0
-		};
-
-		auto commandBuffer = this->renderer->beginTransferCommand();
-
-		this->positionModel = new PositionModel(this->device);
-		this->positionModel->update(commandBuffer, positions);
-
-		this->indexModel = new IndexModel(this->device);
-		this->indexModel->update(commandBuffer, indices);
-
-		this->renderer->endTransferCommand(commandBuffer);
-		this->renderer->submitTransferCommand(commandBuffer);
-	}
-
-	void App::updateCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(278.0f, 278.0f, -800.0f);
-		glm::vec3 direction = glm::vec3(0.0f, 0.0f, 800.0f);
-		glm::vec3 vup = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 position = lights[0].position;
+		glm::vec3 direction = lights[0].direction;
+		glm::vec3 upVector = glm::vec3(0.0f, 0.0f, 1.0f);
 
 		float near = 0.1f;
 		float far = 2000.0f;
 
-		constexpr float theta = glm::radians(40.0f);
-		float tanHalfFovy = glm::tan(theta / 2.0f);
+		float theta = glm::radians(lights[0].angle);
+		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		
+		Camera shadowCamera;
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(position, direction, upVector);
+
+		glm::mat4 view = shadowCamera.getViewMatrix();
+		glm::mat4 projection = shadowCamera.getProjectionMatrix();
+
+		this->shadowUbo.transforms = projection * view;
+	}
+
+	void App::updateCamera(uint32_t width, uint32_t height) {
+		glm::vec3 position = glm::vec3(0.0f, 30.0f, -60.0f);
+		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
+
+		float near = 0.1f;
+		float far = 2000.0f;
+
+		float theta = glm::radians(45.0f);
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
-		glm::vec3 w = glm::normalize(direction);
-		glm::vec3 u = glm::normalize(glm::cross(w, vup));
-		glm::vec3 v = glm::cross(w, u);
+		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+		this->camera->setViewTarget(position, target, vup);
 
-		glm::mat4 view = glm::mat4{1.0f};
-		view[0][0] = u.x;
-    view[1][0] = u.y;
-    view[2][0] = u.z;
-    view[0][1] = v.x;
-    view[1][1] = v.y;
-    view[2][1] = v.z;
-    view[0][2] = w.x;
-    view[1][2] = w.y;
-    view[2][2] = w.z;
-    view[3][0] = -glm::dot(u, position);
-    view[3][1] = -glm::dot(v, position);
-    view[3][2] = -glm::dot(w, position);
+		glm::mat4 view = this->camera->getViewMatrix();
+		glm::mat4 projection = this->camera->getProjectionMatrix();
 
-		glm::mat4 projection = glm::mat4{0.0f};
-		projection[0][0] = 1.f / (aspectRatio * tanHalfFovy);
-    projection[1][1] = 1.f / (tanHalfFovy);
-    projection[2][2] = far / (far - near);
-    projection[2][3] = 1.f;
-    projection[3][2] = -(far * near) / (far - near);
-
-		this->rasterUbo.transforms = projection * view;
-
-		this->rayTraceUbo.origin = position;
-		this->rayTraceUbo.background = glm::vec3(0.0f);
-		this->rayTraceUbo.numLights = this->numLight;
-		this->rayTraceUbo.screenSize = glm::vec2(WIDTH, HEIGHT);
+		this->forwardUbo.transforms = projection * view;
+		this->deferredUbo.originNumLights = glm::vec4(position, static_cast<float>(this->numLight));
 
 		/* float phi = glm::radians(45.0f);
 		float theta = glm::radians(45.0f);
@@ -505,11 +324,13 @@ namespace NugieApp {
 
 		this->updateCamera(width, height);
 
-		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
+		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+			imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
+		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, width, height);
 
-		this->rayTracingSubRenderer = RayTracingSubRenderer::Builder(this->device, width, height)
+		this->finalSubRenderer = FinalSubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
 				this->forwardSubPartRenderer->getOutputAttachmentRefs(), this->forwardSubPartRenderer->getDepthAttachmentRef())
 			.addSubPass(this->deferredSubPartRenderer->getAttachments(), this->deferredSubPartRenderer->getAttachmentDescs(),
@@ -518,42 +339,61 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
+		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, width, height)
+			.addSubPass(this->shadowSubPartRenderer->getAttachments(), this->shadowSubPartRenderer->getAttachmentDescs(),
+				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
+			.build();
+
+		VkDescriptorBufferInfo shadowModelInfos[1] = {
+			this->transformationModel->getTransformationInfo()
+		};
+
 		VkDescriptorBufferInfo forwardModelInfos[2] = {
 			this->transformationModel->getTransformationInfo(),
 			this->materialModel->getMaterialInfo()
 		};
 
-		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
+		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[5] = {
 			this->forwardSubPartRenderer->getPositionInfoResources(),
 			this->forwardSubPartRenderer->getNormalInfoResources(),
 			this->forwardSubPartRenderer->getColorInfoResources(),
-			this->forwardSubPartRenderer->getMaterialInfoResources()
+			this->forwardSubPartRenderer->getMaterialInfoResources(),
+			this->forwardSubPartRenderer->getShadowCoordInfoResources()
 		};
 
-		VkDescriptorBufferInfo deferredModelInfo[9] {
-			this->objectModel->getObjectInfo(), 
-			this->objectModel->getBvhInfo(),
-			this->primitiveModel->getPrimitiveInfo(), 
-			this->primitiveModel->getBvhInfo(),
-			this->positionModel->getPositionInfo(),
-			this->triangleLightModel->getLightInfo(),
-			this->triangleLightModel->getBvhInfo(),
-			this->materialModel->getMaterialInfo(),
-			this->transformationModel->getTransformationInfo()
+		VkDescriptorBufferInfo deferredModelInfo[1] {
+			this->spotLightModel->getLightInfo()
+		};
+
+		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[1] {
+			this->shadowSubPartRenderer->getDepthInfoResources()
+		};
+
+		VkDescriptorImageInfo texturesInfo[1] {
+			this->colorTexture->getDescriptorInfo()
 		};
 		
-		this->rasterUniforms = new RasterUniform(this->device);
-		this->rayTracingUniform = new RayTracingUniform(this->device);
+		this->shadowUniform = new ShadowUniform(this->device);
+		this->forwardUniform = new ForwardUniform(this->device);
+		this->deferredUniform = new DeferredUniform(this->device);
+
+		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[2] = {
+			this->forwardUniform->getBuffersInfo(),
+			this->shadowUniform->getBuffersInfo()
+		};
 		
-		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), this->rasterUniforms->getBuffersInfo(), forwardModelInfos);
+		this->shadowDescSet = new ShadowDescSet(this->device, this->renderer->getDescriptorPool(), this->shadowUniform->getBuffersInfo(), shadowModelInfos);
+		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos, texturesInfo);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
-		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), this->rayTracingUniform->getBuffersInfo(), deferredModelInfo);
+		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), this->deferredUniform->getBuffersInfo(), 
+			deferredModelInfo, deferredRenderTextureInfo);
 
 		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;
 		deferredDescSetLayouts.emplace_back(this->attachmentDeferredDescSet->getDescSetLayout());
 		deferredDescSetLayouts.emplace_back(this->modelDeferredDescSet->getDescSetLayout());
 
-		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->rayTracingSubRenderer->getRenderPass());
-		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->rayTracingSubRenderer->getRenderPass());
+		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, this->shadowDescSet->getDescSetLayout(), this->shadowSubRenderer->getRenderPass());
+		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
+		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
 	}
 }

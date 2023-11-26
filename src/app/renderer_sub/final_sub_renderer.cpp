@@ -1,15 +1,15 @@
-#include "raytracing_sub_renderer.hpp"
+#include "final_sub_renderer.hpp"
 
 #include <assert.h>
 #include <array>
 
 namespace NugieApp {
-  RayTracingSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height) : device{device}, width{width}, height{height} 
+  FinalSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height) : device{device}, width{width}, height{height} 
   {
 
   }
 
-  RayTracingSubRenderer::Builder& RayTracingSubRenderer::Builder::addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  FinalSubRenderer::Builder& FinalSubRenderer::Builder::addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs) 
   {
     for (auto &&attachment : attachments) {
@@ -27,19 +27,19 @@ namespace NugieApp {
     return *this;
   }
 
-  RayTracingSubRenderer::Builder& RayTracingSubRenderer::Builder::addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef) {
+  FinalSubRenderer::Builder& FinalSubRenderer::Builder::addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef) {
     this->resolveAttachmentRef.clear();
     this->resolveAttachmentRef.emplace_back(resolveAttachmentRef);
 
     return *this;
   }
 
-  RayTracingSubRenderer* RayTracingSubRenderer::Builder::build() {
-    return new RayTracingSubRenderer(this->device, this->width, this->height, this->attachments, this->attachmentDescs, 
+  FinalSubRenderer* FinalSubRenderer::Builder::build() {
+    return new FinalSubRenderer(this->device, this->width, this->height, this->attachments, this->attachmentDescs, 
       this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef);
   }
 
-  RayTracingSubRenderer::RayTracingSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  FinalSubRenderer::FinalSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
     std::vector<VkAttachmentReference> resolveAttachmentRef)
     : device{device}, width{width}, height{height}
@@ -47,11 +47,11 @@ namespace NugieApp {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
   }
 
-  RayTracingSubRenderer::~RayTracingSubRenderer() {
+  FinalSubRenderer::~FinalSubRenderer() {
     if (this->renderPass != nullptr) delete this->renderPass;
   }
 
-  void RayTracingSubRenderer::createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  void FinalSubRenderer::createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 
     std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, std::vector<VkAttachmentReference> resolveAttachmentRef)
   {
@@ -73,7 +73,7 @@ namespace NugieApp {
 
       for (auto &&outputAttachmentRef : outputAttachmentRefs[i]) {
         VkClearValue clearValue;
-        clearValue.color = {0.01f, 0.01f, 0.01f, 1.0f};
+        clearValue.color = {0.0f, 0.0f, 0.0f, 1.0f};
 
         this->clearValues.emplace_back(clearValue);
       }
@@ -105,8 +105,6 @@ namespace NugieApp {
         imageViews.emplace_back(attachments[j][i]);
       }
 
-      auto x = imageViews;
-
       renderPassBuilder = renderPassBuilder.addViewImages(imageViews);
     }
 
@@ -126,14 +124,7 @@ namespace NugieApp {
     this->renderPass = renderPassBuilder.build();
   }
 
-  VkFormat RayTracingSubRenderer::findDepthFormat() {
-    return this->device->findSupportedFormat(
-      {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-      VK_IMAGE_TILING_OPTIMAL,
-      VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-  }
-
-  void RayTracingSubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, int currentImageIndex) {
+  void FinalSubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, int currentImageIndex) {
 		VkRenderPassBeginInfo renderBeginInfo{};
 		renderBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderBeginInfo.renderPass = this->getRenderPass()->getRenderPass();
@@ -159,11 +150,11 @@ namespace NugieApp {
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);
 	}
 
-  void RayTracingSubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
+  void FinalSubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
     vkCmdNextSubpass(commandBuffer->getCommandBuffer(), subPassContent);
   }
 
-	void RayTracingSubRenderer::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
+	void FinalSubRenderer::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
 		vkCmdEndRenderPass(commandBuffer->getCommandBuffer());
 	}
   

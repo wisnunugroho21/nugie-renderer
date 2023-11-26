@@ -62,6 +62,7 @@ namespace NugieApp {
 				.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 100)
+				.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100)
 				.build();
 	}
 
@@ -70,7 +71,7 @@ namespace NugieApp {
 		this->commandPool = new NugieVulkan::CommandPool(
 			this->device, 
 			queueFamily.graphicsFamily, 
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
 		);
 	}
 
@@ -167,6 +168,7 @@ namespace NugieApp {
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
 		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(this->currentFrameIndex), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		this->commandPool->reset();
 	}
 
 	void HybridRenderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
@@ -178,6 +180,7 @@ namespace NugieApp {
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
 		commandBuffer->submitCommand(this->device->getGraphicsQueue(this->currentFrameIndex), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		this->commandPool->reset();
 	}
 
 	void HybridRenderer::submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {

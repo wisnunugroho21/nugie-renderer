@@ -26,6 +26,12 @@ namespace NugieVulkan {
 						std::vector<VkVertexInputAttributeDescription> attributeDescriptions
 					);
 
+					Builder& setDefault(
+						const std::string& vertFilePath,
+						std::vector<VkVertexInputBindingDescription> bindingDescriptions,
+						std::vector<VkVertexInputAttributeDescription> attributeDescriptions
+					);
+
 					Builder& setSubpass(uint32_t subpass);
 					Builder& setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo);
 					Builder& setRasterizationInfo(VkPipelineRasterizationStateCreateInfo rasterizationInfo);

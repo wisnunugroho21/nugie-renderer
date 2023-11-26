@@ -173,6 +173,7 @@ namespace NugieVulkan {
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
     deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
+    deviceFeatures.depthBiasClamp = VK_TRUE;
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -290,7 +291,6 @@ namespace NugieVulkan {
     }
 
     extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-    extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
     return extensions;
   }
@@ -421,6 +421,7 @@ namespace NugieVulkan {
         return format;
       }
     }
+    
     throw std::runtime_error("failed to find supported format!");
   }
 
