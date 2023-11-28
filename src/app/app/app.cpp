@@ -377,15 +377,19 @@ namespace NugieApp {
 		this->forwardUniform = new ForwardUniform(this->device);
 		this->deferredUniform = new DeferredUniform(this->device);
 
-		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[2] = {
-			this->forwardUniform->getBuffersInfo(),
+		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
+			this->forwardUniform->getBuffersInfo()
+		};
+
+		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[2] = {
+			this->deferredUniform->getBuffersInfo(),
 			this->shadowUniform->getBuffersInfo()
 		};
 		
 		this->shadowDescSet = new ShadowDescSet(this->device, this->renderer->getDescriptorPool(), this->shadowUniform->getBuffersInfo(), shadowModelInfos);
 		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos, texturesInfo);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
-		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), this->deferredUniform->getBuffersInfo(), 
+		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredUniformInfo, 
 			deferredModelInfo, deferredRenderTextureInfo);
 
 		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;

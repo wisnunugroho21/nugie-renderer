@@ -12,25 +12,18 @@ layout(location = 0) out vec4 fragPosition;
 layout(location = 1) out vec4 fragNormal;
 layout(location = 2) out vec2 fragTextCoord;
 layout(location = 3) out flat uint fragMaterialIndex;
-layout(location = 4) out vec4 fragShadowCoord;
 
 layout(set = 0, binding = 0) uniform readonly ForwardUniform {
 	mat4 transforms;
 } forwardUbo;
 
-layout(set = 0, binding = 1) uniform readonly ShadowUniform {
-	mat4 transforms;
-} shadowUbo;
-
-layout(set = 0, binding = 2) buffer readonly TransformationSsbo {
+layout(set = 0, binding = 1) buffer readonly TransformationSsbo {
   Transformation transformations[];
 };
 
 void main() {
   vec4 positionWorld = transformations[transformIndex].modelMatrix * position;
-
 	gl_Position = forwardUbo.transforms * positionWorld;
-	fragShadowCoord = shadowUbo.transforms * positionWorld;
   
   fragPosition = positionWorld;
 	fragNormal = normalize(transformations[transformIndex].normalMatrix * normal);

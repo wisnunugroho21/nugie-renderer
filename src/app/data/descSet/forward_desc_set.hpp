@@ -11,7 +11,7 @@ namespace NugieApp {
 	class ForwardDescSet {
 		public:
 			ForwardDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[2], 
+				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[2], 
 				VkDescriptorImageInfo texturesInfo[1]);
 			~ForwardDescSet();
 

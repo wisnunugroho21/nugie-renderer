@@ -10,17 +10,20 @@ layout (input_attachment_index = 0, set = 0, binding = 0) uniform subpassInputMS
 layout (input_attachment_index = 1, set = 0, binding = 1) uniform subpassInputMS inputNormal;
 layout (input_attachment_index = 2, set = 0, binding = 2) uniform subpassInputMS inputColor;
 layout (input_attachment_index = 3, set = 0, binding = 3) uniform subpassInputMS inputMaterial;
-layout (input_attachment_index = 4, set = 0, binding = 4) uniform subpassInputMS inputShadowCoord;
 
 layout(set = 1, binding = 0) uniform readonly DeferredUniform {
   vec4 originNumLights;
 } ubo;
 
-layout(set = 1, binding = 1) buffer readonly SpotLightSsbo {
+layout(set = 1, binding = 1) uniform readonly ShadowUniform {
+	mat4 transforms;
+} shadowUbo;
+
+layout(set = 1, binding = 2) buffer readonly SpotLightSsbo {
   SpotLight lights[];
 };
 
-layout(set = 1, binding = 2) uniform sampler2DMS shadowMapTexture;
+layout(set = 1, binding = 3) uniform sampler2DMS shadowMapTexture;
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -111,9 +114,9 @@ void main() {
   vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
   vec4 surfaceColor = subpassLoad(inputColor, gl_SampleID);
   vec4 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID);
-  vec4 surfaceShadowCoord = subpassLoad(inputShadowCoord, gl_SampleID);
 
-  float shadowFactor = computeShadowFactor(surfaceShadowCoord);
+  vec4 shadowCoord = shadowUbo.transforms * surfacePosition;
+  float shadowFactor = computeShadowFactor(shadowCoord);
   vec4 totalRadiance = vec4(0.0f);
 
   for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {
