@@ -278,15 +278,17 @@ namespace NugieApp {
 
 		float theta = glm::radians(lights[0].angle);
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		
-		Camera shadowCamera;
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
-		shadowCamera.setViewDirection(position, direction, upVector);
 
-		glm::mat4 view = shadowCamera.getViewMatrix();
-		glm::mat4 projection = shadowCamera.getProjectionMatrix();
+		for (uint32_t i = 0u; i < this->numLight; i++) {
+			Camera shadowCamera;
+			shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+			shadowCamera.setViewDirection(position, direction, upVector);
 
-		this->shadowUbo.transforms = projection * view;
+			glm::mat4 view = shadowCamera.getViewMatrix();
+			glm::mat4 projection = shadowCamera.getProjectionMatrix();
+
+			this->shadowUbo.lightTransforms[i] = projection * view;
+		}
 	}
 
 	void App::updateCamera(uint32_t width, uint32_t height) {
@@ -328,7 +330,7 @@ namespace NugieApp {
 			imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
-		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, width, height);
+		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, width, height, this->numLight);
 
 		this->finalSubRenderer = FinalSubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),

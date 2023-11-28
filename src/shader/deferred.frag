@@ -23,7 +23,7 @@ layout(set = 1, binding = 2) buffer readonly SpotLightSsbo {
   SpotLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DMS shadowMapTexture;
+layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -101,9 +101,11 @@ float computeShadowFactor(vec4 lightSpacePos)
   	vec2 shadowMapCoord = lightSpaceNDC.xy * 0.5 + 0.5;
  
   	// Check if the sample is in the light or in the shadow
-  	ivec2 texCoord = ivec2(shadowMapCoord.xy * textureSize(shadowMapTexture));
-   	if (lightSpaceNDC.z > texelFetch(shadowMapTexture, texCoord, gl_SampleID).x)
-    	return 0.0; // In the shadow
+    for (float i = 0.0f; i < ubo.originNumLights.w; i += 1.0f) {
+      if (lightSpaceNDC.z > texture(shadowMapTexture, vec3(shadowMapCoord, i)).x) {
+        return 0.0; // In the shadow
+      }
+    }
  
   	// In the light
   	return 1.0;

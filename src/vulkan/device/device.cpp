@@ -174,6 +174,7 @@ namespace NugieVulkan {
     deviceFeatures.sampleRateShading = VK_TRUE;
     deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
     deviceFeatures.depthBiasClamp = VK_TRUE;
+    deviceFeatures.geometryShader = VK_TRUE;
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

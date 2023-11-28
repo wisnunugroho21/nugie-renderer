@@ -15,8 +15,9 @@ namespace NugieVulkan
     public:
       Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
         VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, 
-        VkImageAspectFlags aspectFlags);
-      Image(Device* device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
+        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
+      Image(Device* device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format, 
+        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
       ~Image();
 
       VkImage getImage() const { return this->image; }
@@ -26,6 +27,7 @@ namespace NugieVulkan
       
       VkImageAspectFlags getAspectFlag() const { return this->aspectFlags; }
       uint32_t getMipLevels() const { return this->mipLevels; }
+      uint32_t getLayerNum() const { return this->layerNum; }
 
       uint32_t getWidth() { return this->width; }
       uint32_t getHeight() { return this->height; }
@@ -56,10 +58,11 @@ namespace NugieVulkan
       VkImageAspectFlags aspectFlags;
       VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
       
-      uint32_t width, height, mipLevels;
+      uint32_t width, height, mipLevels, layerNum;
       bool isImageCreatedByUs = false;
 
-      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
+      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, 
+        VkMemoryPropertyFlags properties);
       void createImageView();
   };
   

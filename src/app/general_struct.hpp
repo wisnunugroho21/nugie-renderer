@@ -8,6 +8,8 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 
+#define LIGHT_NUM 1
+
 namespace NugieApp {
   struct Position {
     glm::vec4 position;
@@ -62,7 +64,7 @@ namespace NugieApp {
   };
 
   struct ShadowUbo {
-    glm::mat4 transforms;
+    glm::mat4 lightTransforms[LIGHT_NUM];
   };
   
 }
