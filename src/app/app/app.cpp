@@ -275,37 +275,31 @@ namespace NugieApp {
 
 		glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
 		glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
 		this->shadowUbo.lightTransforms[0] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(-1.0f, 0.0f, 0.0f);
 		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
 		this->shadowUbo.lightTransforms[1] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, 1.0f, 0.0f);
 		upVector = glm::vec3(0.0f, 0.0f, 1.0f);
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
 		this->shadowUbo.lightTransforms[2] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, -1.0f, 0.0f);
 		upVector = glm::vec3(0.0f, 0.0f, -1.0f);
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
 		this->shadowUbo.lightTransforms[3] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, 0.0f, 1.0f);
 		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
 		this->shadowUbo.lightTransforms[4] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, 0.0f, -1.0f);
 		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
 		this->shadowUbo.lightTransforms[5] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 	}
