@@ -1,6 +1,7 @@
 #version 460
 
 #define KEPSILON 0.00001
+#define LIGHT_NUM 2
 
 #include "core/struct.glsl"
 
@@ -16,8 +17,8 @@ layout(set = 1, binding = 0) uniform readonly DeferredUniform {
 } ubo;
 
 layout(set = 1, binding = 1) uniform readonly ShadowUniform {
-	mat4 transforms;
-} shadowUbo;
+	mat4 lightTransforms[LIGHT_NUM];
+};
 
 layout(set = 1, binding = 2) buffer readonly SpotLightSsbo {
   SpotLight lights[];
@@ -85,30 +86,31 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-float computeShadowFactor(vec4 lightSpacePos)
+float computeShadowFactor(vec4 surfacePosition)
 {
-  	// Convert light space position to NDC
-  	vec3 lightSpaceNDC = lightSpacePos.xyz /= lightSpacePos.w;
- 
-  	// If the fragment is outside the light's projection then it is outside
-  	// the light's influence, which means it is in the shadow (notice that
-  	// such sample would be outside the shadow map image)
-  	if (abs(lightSpaceNDC.x) > 1.0 || abs(lightSpaceNDC.y) > 1.0 || abs(lightSpaceNDC.z) > 1.0) {
-			return 0.0;	
-		} 	
- 
-  	// Translate from NDC to shadow map space (Vulkan's Z is already in [0..1])
-  	vec2 shadowMapCoord = lightSpaceNDC.xy * 0.5 + 0.5;
- 
-  	// Check if the sample is in the light or in the shadow
-    for (float i = 0.0f; i < ubo.originNumLights.w; i += 1.0f) {
-      if (lightSpaceNDC.z > texture(shadowMapTexture, vec3(shadowMapCoord, i)).x) {
-        return 0.0; // In the shadow
-      }
+  for (float i = 0.0f; i < ubo.originNumLights.w; i += 1.0f) {
+    vec4 lightSpacePos = lightTransforms[uint(i)] * surfacePosition;
+
+    // Convert light space position to NDC
+    vec3 lightSpaceNDC = lightSpacePos.xyz /= lightSpacePos.w;
+
+    // If the fragment is outside the light's projection then it is outside
+    // the light's influence, which means it is in the shadow (notice that
+    // such sample would be outside the shadow map image)
+    if (abs(lightSpaceNDC.x) > 1.0 || abs(lightSpaceNDC.y) > 1.0 || abs(lightSpaceNDC.z) > 1.0) {
+      return 0.0;	
+    } 	
+
+    // Translate from NDC to shadow map space (Vulkan's Z is already in [0..1])
+    vec2 shadowMapCoord = lightSpaceNDC.xy * 0.5 + 0.5;
+
+    if (lightSpaceNDC.z > texture(shadowMapTexture, vec3(shadowMapCoord, i)).x) {
+      return 0.0; // In the shadow
     }
- 
-  	// In the light
-  	return 1.0;
+  }
+
+  // In the light
+  return 1.0;
 }
 
 void main() {
@@ -117,8 +119,7 @@ void main() {
   vec4 surfaceColor = subpassLoad(inputColor, gl_SampleID);
   vec4 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID);
 
-  vec4 shadowCoord = shadowUbo.transforms * surfacePosition;
-  float shadowFactor = computeShadowFactor(shadowCoord);
+  float shadowFactor = computeShadowFactor(surfacePosition);
   vec4 totalRadiance = vec4(0.0f);
 
   for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {

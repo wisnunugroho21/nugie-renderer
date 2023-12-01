@@ -1,6 +1,6 @@
 #version 460
 
-#define LIGHT_NUM 1
+#define LIGHT_NUM 2
 
 layout(triangles, invocations = LIGHT_NUM) in;
 layout(triangle_strip, max_vertices = 3) out;

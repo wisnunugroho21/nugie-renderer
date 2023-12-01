@@ -228,6 +228,14 @@ namespace NugieApp {
 
 		lights.emplace_back(light);
 
+		SpotLight light2{};
+		light2.position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
+		light2.direction = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} - light2.position;
+		light2.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+		light2.angle = 60.0f;
+
+		lights.emplace_back(light2);
+
 		// ----------------------------------------------------------------------------
 
 		auto commandBuffer = this->renderer->beginTransferCommand();
@@ -269,17 +277,17 @@ namespace NugieApp {
 		uint32_t width = this->renderer->getSwapChain()->width();
 		uint32_t height = this->renderer->getSwapChain()->height();
 
-		glm::vec3 position = lights[0].position;
-		glm::vec3 direction = lights[0].direction;
-		glm::vec3 upVector = glm::vec3(0.0f, 0.0f, 1.0f);
-
 		float near = 0.1f;
 		float far = 2000.0f;
 
-		float theta = glm::radians(lights[0].angle);
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		glm::vec3 upVector = glm::vec3(0.0f, 0.0f, 1.0f);
 
 		for (uint32_t i = 0u; i < this->numLight; i++) {
+			glm::vec3 position = lights[i].position;
+			glm::vec3 direction = lights[i].direction;
+			float theta = glm::radians(lights[i].angle);
+
 			Camera shadowCamera;
 			shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 			shadowCamera.setViewDirection(position, direction, upVector);
