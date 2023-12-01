@@ -56,7 +56,7 @@ namespace NugieApp {
 		if (this->referenceModel != nullptr) delete this->referenceModel;
 		if (this->materialModel != nullptr) delete this->materialModel;
 		if (this->transformationModel != nullptr) delete this->transformationModel;
-		if (this->spotLightModel != nullptr) delete this->spotLightModel;
+		if (this->pointLightModel != nullptr) delete this->pointLightModel;
 
 		if (this->colorTexture != nullptr) delete this->colorTexture;
 
@@ -159,7 +159,7 @@ namespace NugieApp {
 		std::vector<Material> materials;
 		std::vector<TransformComponent> transforms;
 		std::vector<uint32_t> indices;
-		std::vector<SpotLight> lights;
+		std::vector<PointLight> lights;
 
 		// ----------------------------------------------------------------------------
 
@@ -220,21 +220,9 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 0u });
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
-		SpotLight light{};
-		light.position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
-		light.direction = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} - light.position;
+		PointLight light{};
+		light.position = glm::vec4{ 0.0f, 50.0f, -50.0f, 1.0f };
 		light.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
-		light.angle = 60.0f;
-
-		lights.emplace_back(light);
-
-		SpotLight light2{};
-		light2.position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
-		light2.direction = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} - light2.position;
-		light2.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
-		light2.angle = 60.0f;
-
-		lights.emplace_back(light2);
 
 		// ----------------------------------------------------------------------------
 
@@ -261,8 +249,8 @@ namespace NugieApp {
 		this->transformationModel = new TransformationModel(this->device);
 		this->transformationModel->update(commandBuffer, transforms);
 
-		this->spotLightModel = new SpotLightModel(this->device);
-		this->spotLightModel->update(commandBuffer, lights);
+		this->pointLightModel = new PointLightModel(this->device);
+		this->pointLightModel->update(commandBuffer, lights);
 
 		this->colorTexture = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
 			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
@@ -277,26 +265,47 @@ namespace NugieApp {
 		uint32_t width = this->renderer->getSwapChain()->width();
 		uint32_t height = this->renderer->getSwapChain()->height();
 
+		Camera shadowCamera;
 		float near = 0.1f;
 		float far = 2000.0f;
-
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		glm::vec3 upVector = glm::vec3(0.0f, 0.0f, 1.0f);
+		float theta = glm::radians(90.0f);
 
-		for (uint32_t i = 0u; i < this->numLight; i++) {
-			glm::vec3 position = lights[i].position;
-			glm::vec3 direction = lights[i].direction;
-			float theta = glm::radians(lights[i].angle);
+		glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
+		glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
+		this->shadowUbo.lightTransforms[0] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
-			Camera shadowCamera;
-			shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
-			shadowCamera.setViewDirection(position, direction, upVector);
+		direction = glm::vec3(-1.0f, 0.0f, 0.0f);
+		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
+		this->shadowUbo.lightTransforms[1] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
-			glm::mat4 view = shadowCamera.getViewMatrix();
-			glm::mat4 projection = shadowCamera.getProjectionMatrix();
+		direction = glm::vec3(0.0f, 1.0f, 0.0f);
+		upVector = glm::vec3(0.0f, 0.0f, 1.0f);
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
+		this->shadowUbo.lightTransforms[2] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 
-			this->shadowUbo.lightTransforms[i] = projection * view;
-		}
+		direction = glm::vec3(0.0f, -1.0f, 0.0f);
+		upVector = glm::vec3(0.0f, 0.0f, -1.0f);
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
+		this->shadowUbo.lightTransforms[3] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+
+		direction = glm::vec3(0.0f, 0.0f, 1.0f);
+		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
+		this->shadowUbo.lightTransforms[4] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+
+		direction = glm::vec3(0.0f, 0.0f, -1.0f);
+		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
+		this->shadowUbo.lightTransforms[5] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
 	}
 
 	void App::updateCamera(uint32_t width, uint32_t height) {
@@ -338,7 +347,7 @@ namespace NugieApp {
 			imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
-		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, width, height, this->numLight);
+		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, width, height, this->numLight * 6);
 
 		this->finalSubRenderer = FinalSubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
@@ -349,7 +358,7 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
-		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, width, height, this->numLight)
+		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, width, height, this->numLight * 6)
 			.addSubPass(this->shadowSubPartRenderer->getAttachments(), this->shadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
 			.build();
@@ -372,7 +381,7 @@ namespace NugieApp {
 		};
 
 		VkDescriptorBufferInfo deferredModelInfo[1] {
-			this->spotLightModel->getLightInfo()
+			this->pointLightModel->getLightInfo()
 		};
 
 		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[1] {

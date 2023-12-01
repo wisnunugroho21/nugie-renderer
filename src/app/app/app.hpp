@@ -13,7 +13,7 @@
 #include "../data/model/reference_model.hpp"
 #include "../data/model/material_model.hpp"
 #include "../data/model/transformation_model.hpp"
-#include "../data/model/spot_light_model.hpp"
+#include "../data/model/point_light_model.hpp"
 #include "../data/buffer/shadow_uniform.hpp"
 #include "../data/buffer/forward_uniform.hpp"
 #include "../data/buffer/deferred_uniform.hpp"
@@ -80,7 +80,7 @@ namespace NugieApp {
 			ReferenceModel* referenceModel;
 			MaterialModel* materialModel;
 			TransformationModel* transformationModel;
-			SpotLightModel* spotLightModel;
+			PointLightModel* pointLightModel;
 
 			ShadowUniform* shadowUniform;
 			ForwardUniform* forwardUniform;

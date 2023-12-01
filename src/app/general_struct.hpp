@@ -8,7 +8,7 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 
-#define LIGHT_NUM 2
+#define LIGHT_NUM 6
 
 namespace NugieApp {
   struct Position {

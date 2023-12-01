@@ -1,7 +1,7 @@
 #version 460
 
 #define KEPSILON 0.00001
-#define LIGHT_NUM 2
+#define LIGHT_NUM 6
 
 #include "core/struct.glsl"
 
@@ -20,8 +20,8 @@ layout(set = 1, binding = 1) uniform readonly ShadowUniform {
 	mat4 lightTransforms[LIGHT_NUM];
 };
 
-layout(set = 1, binding = 2) buffer readonly SpotLightSsbo {
-  SpotLight lights[];
+layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
+  PointLight lights[];
 };
 
 layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
@@ -88,8 +88,8 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 
 float computeShadowFactor(vec4 surfacePosition)
 {
-  for (float i = 0.0f; i < ubo.originNumLights.w; i += 1.0f) {
-    vec4 lightSpacePos = lightTransforms[uint(i)] * surfacePosition;
+  for (uint i = 0u; i < LIGHT_NUM; i++) {
+    vec4 lightSpacePos = lightTransforms[i] * surfacePosition;
 
     // Convert light space position to NDC
     vec3 lightSpaceNDC = lightSpacePos.xyz /= lightSpacePos.w;
@@ -124,9 +124,19 @@ void main() {
 
   for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {
     vec4 lightDirection = lights[i].position - surfacePosition;
+    
     vec4 unitLightDirection = normalize(lightDirection);
+    vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
 
-    float DoL = dot(lights[i].direction, -1.0f * unitLightDirection);
+    vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
+      surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+
+    float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
+    vec4 irradiance = lights[i].color / (4 * PI * dot(lightDirection, lightDirection)) * NoL;
+    
+    totalRadiance += brdf * irradiance * shadowFactor;
+
+    /* float DoL = dot(lights[i].direction, -1.0f * unitLightDirection);
 
     if (DoL > cos(lights[i].angle)) {
       vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
@@ -138,7 +148,7 @@ void main() {
       vec4 irradiance = lights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
       
       totalRadiance += brdf * irradiance * shadowFactor;
-    }
+    } */
   }
 
   outColor = totalRadiance;
