@@ -74,7 +74,7 @@ namespace NugieVulkan {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = this->image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.viewType = (this->layerNum == 1) ? VK_IMAGE_VIEW_TYPE_2D : VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     viewInfo.format = this->format;
     viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
     viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
