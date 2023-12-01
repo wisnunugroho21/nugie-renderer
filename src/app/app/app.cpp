@@ -223,6 +223,8 @@ namespace NugieApp {
 		PointLight light{};
 		light.position = glm::vec4{ 0.0f, 50.0f, -50.0f, 1.0f };
 		light.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+		
+		lights.emplace_back(light);
 
 		// ----------------------------------------------------------------------------
 
