@@ -3,8 +3,8 @@
 #include <array>
 
 namespace NugieVulkan {
-  RenderPass::Builder::Builder(Device* device, uint32_t width, uint32_t height) : 
-    device{device}, width{width}, height{height} 
+  RenderPass::Builder::Builder(Device* device, uint32_t width, uint32_t height, uint32_t layerNum) : 
+    device{device}, width{width}, height{height}, layerNum{layerNum} 
   {
 
   }
@@ -47,14 +47,14 @@ namespace NugieVulkan {
     renderPassInfo.dependencyCount = static_cast<uint32_t>(this->dependencies.size());
     renderPassInfo.pDependencies = this->dependencies.data();
 
-    return new RenderPass(this->device, this->viewImages, renderPassInfo, this->width, this->height);
+    return new RenderPass(this->device, this->viewImages, renderPassInfo, this->width, this->height, this->layerNum);
   }
 
-  RenderPass::RenderPass(Device* device, std::vector<std::vector<VkImageView>> viewImages, VkRenderPassCreateInfo renderPassInfo, uint32_t width, uint32_t height) 
+  RenderPass::RenderPass(Device* device, std::vector<std::vector<VkImageView>> viewImages, VkRenderPassCreateInfo renderPassInfo, uint32_t width, uint32_t height, uint32_t layerNum) 
     : device{device}
   {
     this->createRenderPass(renderPassInfo);
-    this->createFramebuffers(viewImages, width, height);
+    this->createFramebuffers(viewImages, width, height, layerNum);
   }
 
   RenderPass::~RenderPass() {
@@ -71,7 +71,7 @@ namespace NugieVulkan {
     }
   }
 
-  void RenderPass::createFramebuffers(std::vector<std::vector<VkImageView>> viewImages, uint32_t width, uint32_t height) {
+  void RenderPass::createFramebuffers(std::vector<std::vector<VkImageView>> viewImages, uint32_t width, uint32_t height, uint32_t layerNum) {
     this->framebuffers.resize(viewImages.size());
 
     for (size_t i = 0; i < viewImages.size(); i++) {
@@ -82,7 +82,7 @@ namespace NugieVulkan {
       framebufferInfo.pAttachments = viewImages[i].data();
       framebufferInfo.width = width;
       framebufferInfo.height = height;
-      framebufferInfo.layers = 1u;
+      framebufferInfo.layers = layerNum;
 
       if (vkCreateFramebuffer(
         this->device->getLogicalDevice(),

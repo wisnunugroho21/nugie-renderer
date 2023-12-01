@@ -12,7 +12,7 @@ namespace NugieApp {
     public:
       class Builder {
         public:
-          Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height);
+          Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum);
 
           Builder& addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs = {});
           Builder& addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef);
@@ -21,7 +21,7 @@ namespace NugieApp {
 
         private:
           NugieVulkan::Device* device;
-          uint32_t width, height;
+          uint32_t width, height, layerNum;
 
           std::vector<std::vector<VkImageView>> attachments;
           std::vector<VkAttachmentDescription> attachmentDescs;
@@ -32,7 +32,7 @@ namespace NugieApp {
       };
 
 
-      ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+      ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
         std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
         std::vector<VkAttachmentReference> resolveAttachmentRef);
       ~ShadowSubRenderer();
@@ -44,7 +44,7 @@ namespace NugieApp {
 			void endRenderPass(NugieVulkan::CommandBuffer* commandBuffer);
       
     private:
-      uint32_t width, height;
+      uint32_t width, height, layerNum;
       std::vector<VkClearValue> clearValues;
 
       NugieVulkan::Device* device;

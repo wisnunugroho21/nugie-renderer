@@ -349,7 +349,7 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
-		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, width, height)
+		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, width, height, this->numLight)
 			.addSubPass(this->shadowSubPartRenderer->getAttachments(), this->shadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
 			.build();

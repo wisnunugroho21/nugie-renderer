@@ -12,7 +12,7 @@ namespace NugieVulkan {
     public:
       class Builder {
         public:
-          Builder(Device* device, uint32_t width, uint32_t height);
+          Builder(Device* device, uint32_t width, uint32_t height, uint32_t layerNum = 1u);
 
           Builder& addSubpass(VkSubpassDescription subpass);
           Builder& addAttachment(VkAttachmentDescription attachment);
@@ -25,14 +25,14 @@ namespace NugieVulkan {
         private:
           Device* device;
           
-          uint32_t width, height;
+          uint32_t width, height, layerNum;
           std::vector<VkSubpassDescription> subpasses;
           std::vector<VkAttachmentDescription> attachments;
           std::vector<VkSubpassDependency> dependencies;
           std::vector<std::vector<VkImageView>> viewImages;
       };
 
-      RenderPass(Device* device, std::vector<std::vector<VkImageView>> viewImages, VkRenderPassCreateInfo renderPassInfo, uint32_t width, uint32_t height);
+      RenderPass(Device* device, std::vector<std::vector<VkImageView>> viewImages, VkRenderPassCreateInfo renderPassInfo, uint32_t width, uint32_t height, uint32_t layerNum);
       ~RenderPass();
 
       VkFramebuffer getFramebuffers(int index) { return this->framebuffers[index]; }
@@ -45,7 +45,7 @@ namespace NugieVulkan {
       VkRenderPass renderPass;
 
       void createRenderPass(VkRenderPassCreateInfo renderPassInfo);
-      void createFramebuffers(std::vector<std::vector<VkImageView>> viewImages, uint32_t width, uint32_t height);
+      void createFramebuffers(std::vector<std::vector<VkImageView>> viewImages, uint32_t width, uint32_t height, uint32_t layerNum);
   };
 } // namespace nugiEngin 
 
