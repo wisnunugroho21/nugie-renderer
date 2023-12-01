@@ -273,35 +273,38 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		float theta = glm::radians(90.0f);
 
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		glm::mat4 projection = shadowCamera.getProjectionMatrix();
+
 		glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
 		glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[0] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+		this->shadowUbo.lightTransforms[0] = projection * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(-1.0f, 0.0f, 0.0f);
 		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[1] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+		this->shadowUbo.lightTransforms[1] = projection * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, 1.0f, 0.0f);
 		upVector = glm::vec3(0.0f, 0.0f, 1.0f);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[2] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+		this->shadowUbo.lightTransforms[2] = projection * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, -1.0f, 0.0f);
 		upVector = glm::vec3(0.0f, 0.0f, -1.0f);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[3] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+		this->shadowUbo.lightTransforms[3] = projection * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, 0.0f, 1.0f);
 		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[4] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+		this->shadowUbo.lightTransforms[4] = projection * shadowCamera.getViewMatrix();
 
 		direction = glm::vec3(0.0f, 0.0f, -1.0f);
 		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
 		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[5] = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+		this->shadowUbo.lightTransforms[5] = projection * shadowCamera.getViewMatrix();
 	}
 
 	void App::updateCamera(uint32_t width, uint32_t height) {
