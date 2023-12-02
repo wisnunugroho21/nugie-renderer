@@ -25,12 +25,17 @@ namespace NugieApp {
 	void ShadowPassRenderSystem::createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout) {
 		VkDescriptorSetLayout setLayout = descriptorSetLayout->getDescriptorSetLayout();
 
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		pushConstantRange.offset = 0u;
+		pushConstantRange.stageFlags = sizeof(ShadowPushConstant);
+
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = 1u;
 		pipelineLayoutInfo.pSetLayouts = &setLayout;
-		pipelineLayoutInfo.pushConstantRangeCount = 0u;
-		pipelineLayoutInfo.pPushConstantRanges = nullptr;
+		pipelineLayoutInfo.pushConstantRangeCount = 1u;
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
 		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
@@ -88,7 +93,7 @@ namespace NugieApp {
 
 	void ShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
 		std::vector<NugieVulkan::Buffer*> vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-		uint32_t indexCount, std::vector<VkDeviceSize> offsets) 
+		uint32_t indexCount, std::vector<VkDeviceSize> offsets, float farPlane) 
 	{
 		this->pipeline->bindPipeline(commandBuffer);
 
@@ -108,6 +113,18 @@ namespace NugieApp {
 				offsets.emplace_back(0);
 			}
 		}
+
+		ShadowPushConstant pushConstant{};
+		pushConstant.farPlane = farPlane;
+
+		vkCmdPushConstants(
+			commandBuffer->getCommandBuffer(),
+			this->pipelineLayout,
+			VK_SHADER_STAGE_FRAGMENT_BIT,
+			0u,
+			sizeof(ShadowPushConstant),
+			&pushConstant
+		);
 
 		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
 		this->pipeline->drawIndexed(commandBuffer, indexCount);

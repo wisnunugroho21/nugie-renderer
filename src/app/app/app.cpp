@@ -91,14 +91,14 @@ namespace NugieApp {
 				auto commandBuffer = this->renderer->beginCommand();
 
 				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
-				this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount());
+				this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {}, this->shadowFarPlane);
 				this->shadowSubRenderer->endRenderPass(commandBuffer);
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
 				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount());
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-				this->deferredPasRenderer->render(commandBuffer, descriptorSets, this->randomSeed);
+				this->deferredPasRenderer->render(commandBuffer, descriptorSets, this->shadowFarPlane);
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -273,6 +273,8 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		float theta = glm::radians(90.0f);
 
+		this->shadowFarPlane = far;
+
 		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		glm::mat4 projection = shadowCamera.getProjectionMatrix();
 
@@ -362,8 +364,9 @@ namespace NugieApp {
 				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
 			.build();
 
-		VkDescriptorBufferInfo shadowModelInfos[1] = {
-			this->transformationModel->getTransformationInfo()
+		VkDescriptorBufferInfo shadowModelInfos[2] = {
+			this->transformationModel->getTransformationInfo(),
+			this->pointLightModel->getLightInfo()
 		};
 
 		VkDescriptorBufferInfo forwardModelInfos[2] = {

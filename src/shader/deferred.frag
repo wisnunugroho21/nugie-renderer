@@ -26,6 +26,12 @@ layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
 
 layout(set = 1, binding = 3) uniform samplerCube shadowMapTexture;
 
+layout(push_constant) uniform Push {
+  float farPlane;
+};
+
+// ---------------------------------------------------------------------------
+
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 } 
@@ -87,22 +93,13 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 }
 
 float computeShadowFactor(vec4 surfacePosition) {
-  for (uint i = 0u; i < LIGHT_NUM; i++) {
-    vec4 lightSpacePos = lightTransforms[i] * surfacePosition;
+  vec4 surfaceToLight = lights[0].position - surfacePosition;
 
-    // Convert light space position to NDC
-    vec3 lightSpaceNDC = lightSpacePos.xyz /= lightSpacePos.w;
+  float closestDepth = texture(shadowMapTexture, surfaceToLight.xyz).x;
+  closestDepth *= farPlane;
 
-    // Translate from NDC to shadow map space (Vulkan's Z is already in [0..1])
-    vec2 shadowMapCoord = lightSpaceNDC.xy * 0.5 + 0.5;
-
-    if (lightSpaceNDC.z > texture(shadowMapTexture, vec3(shadowMapCoord, i)).x) {
-      return 0.0; // In the shadow
-    }
-  }
-
-  // In the light
-  return 1.0;
+  float currentDepth = length(surfaceToLight);
+  return currentDepth > closestDepth ? 1.0f : 0.0f;
 }
 
 void main() {

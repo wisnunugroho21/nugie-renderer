@@ -3,10 +3,10 @@
 
 namespace NugieApp {
   ModelDeferredDescSet::ModelDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo buffersInfo[1], 
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[1], 
 		std::vector<VkDescriptorImageInfo> renderTextureInfo[1]) 
 	{
-		this->createDescriptor(device, descriptorPool, uniformBufferInfo, buffersInfo, renderTextureInfo);
+		this->createDescriptor(device, descriptorPool, uniformBufferInfo, modelsInfo, renderTextureInfo);
   }
 
 	ModelDeferredDescSet::~ModelDeferredDescSet() {
@@ -14,7 +14,7 @@ namespace NugieApp {
 	}
 
   void ModelDeferredDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo buffersInfo[1],
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[1],
 		std::vector<VkDescriptorImageInfo> renderTextureInfo[1])
 	{
     this->descSetLayout = 
@@ -32,7 +32,7 @@ namespace NugieApp {
 			NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
 				.writeBuffer(0, uniformBufferInfo[0][i])
 				.writeBuffer(1, uniformBufferInfo[1][i])
-				.writeBuffer(2, buffersInfo[0])
+				.writeBuffer(2, modelsInfo[0])
 				.writeImage(3, renderTextureInfo[0][i])
 				.build(&descSet);
 

@@ -93,7 +93,7 @@ namespace NugieApp {
 
 			uint32_t randomSeed = 0, numLight = 0;
 			bool isRendering = true;
-			float frameTime = 0;
+			float frameTime = 0.0f, shadowFarPlane = 0.0f;
 
 			ShadowUbo shadowUbo;
 			ForwardUbo forwardUbo;

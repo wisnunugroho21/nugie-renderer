@@ -66,4 +66,8 @@ namespace NugieApp {
   struct ShadowUbo {
     glm::mat4 lightTransforms[LIGHT_NUM];
   };
+
+  struct ShadowPushConstant {
+    float farPlane = 0.0f;
+  };
 }
