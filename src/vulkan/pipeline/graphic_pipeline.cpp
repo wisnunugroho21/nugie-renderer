@@ -111,6 +111,7 @@ namespace NugieVulkan {
 	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultShadow(
 		const std::string& vertFilePath, 
 		const std::string& geomFilePath,
+		const std::string& fragFilePath,
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions
 	) {
@@ -187,7 +188,20 @@ namespace NugieVulkan {
 		geometryShaderStageInfo.pNext = nullptr;
 		geometryShaderStageInfo.pSpecializationInfo = nullptr;
 
-		this->shaderStagesInfo = { vertexShaderStageInfo, geometryShaderStageInfo };
+		VkShaderModule fragShaderModule;
+		auto fragCode = GraphicPipeline::readFile(fragFilePath);
+		GraphicPipeline::createShaderModule(this->device, fragCode, &fragShaderModule);
+
+		VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{};
+		fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragmentShaderStageInfo.module = fragShaderModule;
+		fragmentShaderStageInfo.pName = "main";
+		fragmentShaderStageInfo.flags = 0;
+		fragmentShaderStageInfo.pNext = nullptr;
+		fragmentShaderStageInfo.pSpecializationInfo = nullptr;
+
+		this->shaderStagesInfo = { vertexShaderStageInfo, geometryShaderStageInfo, fragmentShaderStageInfo };
 
 		return *this;
 	}

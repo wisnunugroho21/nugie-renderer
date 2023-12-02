@@ -29,6 +29,7 @@ namespace NugieVulkan {
 					Builder& setDefaultShadow(
 						const std::string& vertFilePath, 
 						const std::string& geomFilePath,
+						const std::string& fragFilePath,
 						std::vector<VkVertexInputBindingDescription> bindingDescriptions,
 						std::vector<VkVertexInputAttributeDescription> attributeDescriptions
 					);
