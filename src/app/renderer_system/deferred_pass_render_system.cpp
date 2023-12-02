@@ -26,7 +26,7 @@ namespace NugieApp {
 		VkPushConstantRange pushConstantRange{};
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		pushConstantRange.offset = 0u;
-		pushConstantRange.stageFlags = sizeof(ShadowPushConstant);
+		pushConstantRange.size = sizeof(ShadowPushConstant);
 
 		std::vector<VkDescriptorSetLayout> setLayouts;
 		for (auto &&descriptorSetLayout: descriptorSetLayouts) {
