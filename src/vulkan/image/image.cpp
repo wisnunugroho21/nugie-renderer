@@ -49,6 +49,10 @@ namespace NugieVulkan {
     imageInfo.samples = numSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+    if (this->layerNum == 6) {
+      imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
+
     if (vkCreateImage(this->device->getLogicalDevice(), &imageInfo, nullptr, &this->image) != VK_SUCCESS) {
       throw std::runtime_error("failed to create image!");
     }
@@ -74,7 +78,6 @@ namespace NugieVulkan {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = this->image;
-    viewInfo.viewType = (this->layerNum == 1) ? VK_IMAGE_VIEW_TYPE_2D : VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     viewInfo.format = this->format;
     viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
     viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
@@ -85,6 +88,14 @@ namespace NugieVulkan {
     viewInfo.subresourceRange.levelCount = this->mipLevels;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = this->layerNum;
+
+    if (this->layerNum == 1) {
+      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    } else if (this->layerNum == 6) {
+      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    } else {
+      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    }
 
     if (vkCreateImageView(this->device->getLogicalDevice(), &viewInfo, nullptr, &this->imageView) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture image view!");
@@ -217,9 +228,9 @@ namespace NugieVulkan {
   void Image::copyImageFromOther(CommandBuffer* commandBuffer, Image* srcImage) {
     VkImageCopy copyInfo{};
 
-    copyInfo.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copyInfo.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
 		copyInfo.srcOffset      = {0, 0, 0};
-		copyInfo.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+		copyInfo.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
 		copyInfo.dstOffset      = {0, 0, 0};
 		copyInfo.extent         = {this->width, this->height, 1};
 
@@ -229,9 +240,9 @@ namespace NugieVulkan {
   void Image::copyImageToOther(CommandBuffer* commandBuffer, Image* dstImage) {
     VkImageCopy copyInfo{};
 
-    copyInfo.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copyInfo.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
 		copyInfo.srcOffset      = {0, 0, 0};
-		copyInfo.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+		copyInfo.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
 		copyInfo.dstOffset      = {0, 0, 0};
 		copyInfo.extent         = {this->width, this->height, 1};
 
@@ -258,7 +269,7 @@ namespace NugieVulkan {
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.subresourceRange.aspectMask = this->aspectFlags;
     barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.layerCount = this->layerNum;
     barrier.subresourceRange.levelCount = 1;
 
     int32_t mipWidth = this->width;
@@ -286,13 +297,13 @@ namespace NugieVulkan {
       blit.srcSubresource.aspectMask = this->aspectFlags;
       blit.srcSubresource.mipLevel = i - 1;
       blit.srcSubresource.baseArrayLayer = 0;
-      blit.srcSubresource.layerCount = 1;
+      blit.srcSubresource.layerCount = this->layerNum;
       blit.dstOffsets[0] = { 0, 0, 0 };
       blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
       blit.dstSubresource.aspectMask = this->aspectFlags;
       blit.dstSubresource.mipLevel = i;
       blit.dstSubresource.baseArrayLayer = 0;
-      blit.dstSubresource.layerCount = 1;
+      blit.dstSubresource.layerCount = this->layerNum;
 
       vkCmdBlitImage(
         commandBuffer->getCommandBuffer(),

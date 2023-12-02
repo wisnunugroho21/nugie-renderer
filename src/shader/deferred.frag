@@ -24,7 +24,7 @@ layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
   PointLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
+layout(set = 1, binding = 3) uniform samplerCube shadowMapTexture;
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
