@@ -23,11 +23,6 @@ namespace NugieApp {
 	}
 
 	void DeferredPassRenderSystem::createPipelineLayout(std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts) {
-		VkPushConstantRange pushConstantRange{};
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		pushConstantRange.offset = 0u;
-		pushConstantRange.size = sizeof(ShadowPushConstant);
-
 		std::vector<VkDescriptorSetLayout> setLayouts;
 		for (auto &&descriptorSetLayout: descriptorSetLayouts) {
 			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
@@ -37,8 +32,8 @@ namespace NugieApp {
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts = (setLayouts.size() > 0) ? setLayouts.data() : nullptr;
-		pipelineLayoutInfo.pushConstantRangeCount = 1u;
-		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+		pipelineLayoutInfo.pushConstantRangeCount = 0u;
+		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
 		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
@@ -59,7 +54,7 @@ namespace NugieApp {
 			.build();
 	}
 
-	void DeferredPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, std::vector<VkDescriptorSet> descriptorSets, float farPlane) 
+	void DeferredPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, std::vector<VkDescriptorSet> descriptorSets) 
 	{
 		this->pipeline->bindPipeline(commandBuffer);
 
@@ -72,18 +67,6 @@ namespace NugieApp {
 			(descriptorSets.size() > 0) ? descriptorSets.data() : nullptr,
 			0,
 			nullptr
-		);
-
-		ShadowPushConstant pushConstant{};
-		pushConstant.farPlane = farPlane;
-
-		vkCmdPushConstants(
-			commandBuffer->getCommandBuffer(),
-			this->pipelineLayout,
-			VK_SHADER_STAGE_FRAGMENT_BIT,
-			0u,
-			sizeof(ShadowPushConstant),
-			&pushConstant
 		);
 
 		this->pipeline->draw(commandBuffer, 6);

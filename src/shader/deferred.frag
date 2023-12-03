@@ -24,11 +24,7 @@ layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
   PointLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform samplerCube shadowMapTexture;
-
-layout(push_constant) uniform Push {
-  float farPlane;
-};
+layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
 
 // ---------------------------------------------------------------------------
 
@@ -92,14 +88,18 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-float computeShadowFactor(vec4 surfacePosition) {
-  vec4 surfaceToLight = lights[0].position - surfacePosition;
+vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
+  for (uint i = 0u; i < ubo.originNumLights.w; i++) {
+    vec4 lightSpacePos = lightTransforms[i] * surfacePosition;
 
-  float closestDepth = texture(shadowMapTexture, surfaceToLight.xyz).x;
-  closestDepth *= farPlane;
+    lightSpacePos.xyz = lightSpacePos.xyz / lightSpacePos.w;
+    lightSpacePos.xy = lightSpacePos.xy * 0.5 + 0.5;
 
-  float currentDepth = length(surfaceToLight);
-  return currentDepth > closestDepth ? 1.0f : 0.0f;
+    float shadowFactor = lightSpacePos.z > texture(shadowMapTexture, vec3(lightSpacePos.xy, i)).x ? 0.25f : 1.0f;
+    totalRadiance *= shadowFactor;
+  }
+
+  return totalRadiance;
 }
 
 void main() {
@@ -108,7 +108,6 @@ void main() {
   vec4 surfaceColor = subpassLoad(inputColor, gl_SampleID);
   vec4 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID);
 
-  float shadowFactor = computeShadowFactor(surfacePosition);
   vec4 totalRadiance = vec4(0.0f);
 
   for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {
@@ -123,7 +122,7 @@ void main() {
     float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
     vec4 irradiance = lights[i].color / (4 * PI * dot(lightDirection, lightDirection)) * NoL;
     
-    totalRadiance += brdf * irradiance * shadowFactor;
+    totalRadiance += brdf * irradiance;
 
     /* float DoL = dot(lights[i].direction, -1.0f * unitLightDirection);
 
@@ -140,5 +139,5 @@ void main() {
     } */
   }
 
-  outColor = totalRadiance;
+  outColor = computeTotalRadianceAfterShadow(surfacePosition, totalRadiance);
 }

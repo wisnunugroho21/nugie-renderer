@@ -19,7 +19,7 @@ namespace NugieApp {
 				NugieVulkan::RenderPass* renderPass);
 			~DeferredPassRenderSystem();
 
-			void render(NugieVulkan::CommandBuffer* commandBuffer, std::vector<VkDescriptorSet> descriptorSets, float farPlane = 0.0f);
+			void render(NugieVulkan::CommandBuffer* commandBuffer, std::vector<VkDescriptorSet> descriptorSets);
 		
 		private:
 			void createPipelineLayout(std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts);
