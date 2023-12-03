@@ -49,10 +49,6 @@ namespace NugieVulkan {
     imageInfo.samples = numSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (this->layerNum == 6) {
-      imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-    }
-
     if (vkCreateImage(this->device->getLogicalDevice(), &imageInfo, nullptr, &this->image) != VK_SUCCESS) {
       throw std::runtime_error("failed to create image!");
     }
@@ -91,8 +87,6 @@ namespace NugieVulkan {
 
     if (this->layerNum == 1) {
       viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    } else if (this->layerNum == 6) {
-      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
     } else {
       viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     }
