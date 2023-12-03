@@ -89,13 +89,19 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 }
 
 vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint i = 0u; i < ubo.originNumLights.w; i++) {
-    vec4 lightSpacePos = lightTransforms[i] * surfacePosition;
+  for (uint i = 0u; i < LIGHT_NUM; i++) {
+    vec4 shadowCoord = lightTransforms[i] * surfacePosition;
 
-    lightSpacePos.xyz = lightSpacePos.xyz / lightSpacePos.w;
-    lightSpacePos.xy = lightSpacePos.xy * 0.5 + 0.5;
+    shadowCoord = shadowCoord / shadowCoord.w;
+    shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-    float shadowFactor = lightSpacePos.z > texture(shadowMapTexture, vec3(lightSpacePos.xy, i)).x ? 0.25f : 1.0f;
+    float dist = texture(shadowMapTexture, vec3(shadowCoord.xy, i)).x;
+
+    bool isShadow = shadowCoord.w > 0.0f
+      && abs(shadowCoord.z) < 1.0f
+      && dist < shadowCoord.z;
+
+    float shadowFactor = isShadow ? 0.5f : 1.0f;
     totalRadiance *= shadowFactor;
   }
 

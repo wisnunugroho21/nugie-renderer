@@ -170,7 +170,7 @@ namespace NugieApp {
     
 		vkCmdSetViewport(commandBuffer->getCommandBuffer(), 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);
-    vkCmdSetDepthBias(commandBuffer->getCommandBuffer(), 6.0f, 1.0f, 1.5f);
+    vkCmdSetDepthBias(commandBuffer->getCommandBuffer(), 1.25f, 0.0f, 1.75f);
 	}
 
   void ShadowSubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
