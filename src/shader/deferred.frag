@@ -101,8 +101,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
       && abs(shadowCoord.z) < 1.0f
       && dist < shadowCoord.z;
 
-    float shadowFactor = isShadow ? 0.5f : 1.0f;
-    totalRadiance *= shadowFactor;
+    totalRadiance *= isShadow ? 0.25f : 1.0f;
   }
 
   return totalRadiance;
