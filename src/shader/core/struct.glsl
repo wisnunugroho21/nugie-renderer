@@ -30,6 +30,10 @@ struct Transformation {
   mat4 normalMatrix;
 };
 
+struct LightTransformation {
+  mat4 viewProjectionMatrix;
+};
+
 struct PointLight {
   vec4 position;
   vec4 color;

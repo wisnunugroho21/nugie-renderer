@@ -13,8 +13,8 @@
 #include "../data/model/reference_model.hpp"
 #include "../data/model/material_model.hpp"
 #include "../data/model/transformation_model.hpp"
+#include "../data/model/light_transformation_model.hpp"
 #include "../data/model/point_light_model.hpp"
-#include "../data/buffer/shadow_uniform.hpp"
 #include "../data/buffer/forward_uniform.hpp"
 #include "../data/buffer/deferred_uniform.hpp"
 #include "../data/descSet/shadow_desc_set.hpp"
@@ -82,8 +82,8 @@ namespace NugieApp {
 			MaterialModel* materialModel;
 			TransformationModel* transformationModel;
 			PointLightModel* pointLightModel;
+			LightTransformationModel* lightTransformationModel;
 
-			ShadowUniform* shadowUniform;
 			ForwardUniform* forwardUniform;
 			DeferredUniform* deferredUniform;
 			
@@ -96,7 +96,6 @@ namespace NugieApp {
 			bool isRendering = true;
 			float frameTime = 0.0f;
 
-			ShadowUbo shadowUbo;
 			ForwardUbo forwardUbo;
 			DeferredUbo deferredUbo;
 

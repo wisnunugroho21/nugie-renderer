@@ -1,7 +1,6 @@
 #version 460
 
 #define KEPSILON 0.00001
-#define LIGHT_NUM 6
 
 #include "core/struct.glsl"
 
@@ -16,8 +15,8 @@ layout(set = 1, binding = 0) uniform readonly DeferredUniform {
   vec4 originNumLights;
 } ubo;
 
-layout(set = 1, binding = 1) uniform readonly ShadowUniform {
-	mat4 lightTransforms[LIGHT_NUM];
+layout(set = 0, binding = 1) buffer readonly LightTransformationSsbo {
+	LightTransformation lightTransformations[];
 };
 
 layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
@@ -89,8 +88,8 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 }
 
 vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint i = 0u; i < LIGHT_NUM; i++) {
-    vec4 shadowCoord = lightTransforms[i] * surfacePosition;
+  for (uint i = 0u; i < uint(ubo.originNumLights.w) * 6; i++) {
+    vec4 shadowCoord = lightTransformations[i].viewProjectionMatrix * surfacePosition;
 
     shadowCoord = shadowCoord / shadowCoord.w;
     shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;

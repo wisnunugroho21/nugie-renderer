@@ -43,6 +43,10 @@ namespace NugieApp {
     glm::mat4 normalMatrix{1.0f};
   };
 
+  struct LightTransformation {
+    glm::mat4 viewProjectionMatrix{1.0f};
+  };
+
   struct PointLight {
     glm::vec4 position;
     glm::vec4 color;

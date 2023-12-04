@@ -10,8 +10,8 @@
 namespace NugieApp {
 	class ShadowDescSet {
 		public:
-			ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]);
+			ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, 
+				VkDescriptorBufferInfo modelsInfo[3]);
 			~ShadowDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) { return this->descriptorSets[frameIndex]; }
@@ -22,7 +22,7 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]);
+				VkDescriptorBufferInfo modelsInfo[3]);
 	};
 	
 }

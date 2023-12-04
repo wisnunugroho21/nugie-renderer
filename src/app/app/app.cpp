@@ -45,7 +45,6 @@ namespace NugieApp {
 		if (this->attachmentDeferredDescSet != nullptr) delete this->attachmentDeferredDescSet;
 		if (this->modelDeferredDescSet != nullptr) delete this->modelDeferredDescSet;
 
-		if (this->shadowUniform != nullptr) delete this->shadowUniform;
 		if (this->forwardUniform != nullptr) delete this->forwardUniform;
 		if (this->deferredUniform != nullptr) delete this->deferredUniform;
 
@@ -57,6 +56,7 @@ namespace NugieApp {
 		if (this->materialModel != nullptr) delete this->materialModel;
 		if (this->transformationModel != nullptr) delete this->transformationModel;
 		if (this->pointLightModel != nullptr) delete this->pointLightModel;
+		if (this->lightTransformationModel != nullptr) delete this->lightTransformationModel;
 
 		if (this->colorTexture != nullptr) delete this->colorTexture;
 
@@ -128,7 +128,6 @@ namespace NugieApp {
 
 		this->forwardUniform->writeGlobalData(0, this->forwardUbo);
 		this->deferredUniform->writeGlobalData(0, this->deferredUbo);
-		this->shadowUniform->writeGlobalData(0, this->shadowUbo);
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
 
@@ -159,7 +158,8 @@ namespace NugieApp {
 		std::vector<Material> materials;
 		std::vector<TransformComponent> transforms;
 		std::vector<uint32_t> indices;
-		std::vector<PointLight> lights;
+		std::vector<PointLight> pointLights;
+		std::vector<LightTransformation> lightTransformations;
 
 		// ----------------------------------------------------------------------------
 
@@ -220,11 +220,11 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 0u });
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
-		PointLight light{};
-		light.position = glm::vec4{ 0.0f, 50.0f, -50.0f, 1.0f };
-		light.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+		PointLight pointLight{};
+		pointLight.position = glm::vec4{ 0.0f, 50.0f, -50.0f, 1.0f };
+		pointLight.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
 		
-		lights.emplace_back(light);
+		pointLights.emplace_back(pointLight);
 
 		// ----------------------------------------------------------------------------
 
@@ -252,7 +252,7 @@ namespace NugieApp {
 		this->transformationModel->update(commandBuffer, transforms);
 
 		this->pointLightModel = new PointLightModel(this->device);
-		this->pointLightModel->update(commandBuffer, lights);
+		this->pointLightModel->update(commandBuffer, pointLights);
 
 		this->colorTexture = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
 			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
@@ -260,7 +260,7 @@ namespace NugieApp {
 		this->renderer->endTransferCommand(commandBuffer);
 		this->renderer->submitTransferCommand(commandBuffer);
 
-		this->numLight = static_cast<uint32_t>(lights.size());
+		this->numLight = static_cast<uint32_t>(pointLights.size());
 
 		// ---------------------------------------------------------------------
 
@@ -276,35 +276,38 @@ namespace NugieApp {
 		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		glm::mat4 projection = shadowCamera.getProjectionMatrix();
 
-		glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
-		glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[0] = projection * shadowCamera.getViewMatrix();
+		lightTransformations.resize(static_cast<size_t>(this->numLight * 6));
+		for (uint32_t i = 0; i < this->numLight; i++) {
+			glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
+			glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * this->numLight].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 
-		direction = glm::vec3(-1.0f, 0.0f, 0.0f);
-		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[1] = projection * shadowCamera.getViewMatrix();
+			direction = glm::vec3(-1.0f, 0.0f, 0.0f);
+			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * this->numLight + 1].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 
-		direction = glm::vec3(0.0f, 1.0f, 0.0f);
-		upVector = glm::vec3(0.0f, 0.0f, 1.0f);
-		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[2] = projection * shadowCamera.getViewMatrix();
+			direction = glm::vec3(0.0f, 1.0f, 0.0f);
+			upVector = glm::vec3(0.0f, 0.0f, 1.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * this->numLight + 2].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 
-		direction = glm::vec3(0.0f, -1.0f, 0.0f);
-		upVector = glm::vec3(0.0f, 0.0f, -1.0f);
-		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[3] = projection * shadowCamera.getViewMatrix();
+			direction = glm::vec3(0.0f, -1.0f, 0.0f);
+			upVector = glm::vec3(0.0f, 0.0f, -1.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * this->numLight + 3].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 
-		direction = glm::vec3(0.0f, 0.0f, 1.0f);
-		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[4] = projection * shadowCamera.getViewMatrix();
+			direction = glm::vec3(0.0f, 0.0f, 1.0f);
+			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * this->numLight + 4].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 
-		direction = glm::vec3(0.0f, 0.0f, -1.0f);
-		upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-		shadowCamera.setViewDirection(lights[0].position, direction, upVector);
-		this->shadowUbo.lightTransforms[5] = projection * shadowCamera.getViewMatrix();
+			direction = glm::vec3(0.0f, 0.0f, -1.0f);
+			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * this->numLight + 5].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+		}
 	}
 
 	void App::updateCamera(uint32_t width, uint32_t height) {
@@ -380,7 +383,8 @@ namespace NugieApp {
 			this->forwardSubPartRenderer->getShadowCoordInfoResources()
 		};
 
-		VkDescriptorBufferInfo deferredModelInfo[1] {
+		VkDescriptorBufferInfo deferredModelInfo[2] {
+			this->lightTransformationModel->getTransformationInfo(),
 			this->pointLightModel->getLightInfo()
 		};
 
@@ -392,7 +396,6 @@ namespace NugieApp {
 			this->colorTexture->getDescriptorInfo()
 		};
 		
-		this->shadowUniform = new ShadowUniform(this->device);
 		this->forwardUniform = new ForwardUniform(this->device);
 		this->deferredUniform = new DeferredUniform(this->device);
 
@@ -400,12 +403,11 @@ namespace NugieApp {
 			this->forwardUniform->getBuffersInfo()
 		};
 
-		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[2] = {
-			this->deferredUniform->getBuffersInfo(),
-			this->shadowUniform->getBuffersInfo()
+		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
+			this->deferredUniform->getBuffersInfo()
 		};
 		
-		this->shadowDescSet = new ShadowDescSet(this->device, this->renderer->getDescriptorPool(), this->shadowUniform->getBuffersInfo(), shadowModelInfos);
+		this->shadowDescSet = new ShadowDescSet(this->device, this->renderer->getDescriptorPool(), shadowModelInfos);
 		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos, texturesInfo);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
 		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredUniformInfo, 
