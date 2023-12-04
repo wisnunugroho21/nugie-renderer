@@ -346,7 +346,7 @@ namespace NugieApp {
 			imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
-		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, width, height, this->numLight * 6);
+		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * 6);
 
 		this->finalSubRenderer = FinalSubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
@@ -357,7 +357,7 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
-		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, width, height, this->numLight * 6)
+		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * 6)
 			.addSubPass(this->shadowSubPartRenderer->getAttachments(), this->shadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
 			.build();

@@ -36,13 +36,14 @@
 
 #define APP_TITLE "Testing Vulkan"
 
+#define WIDTH 800
+#define HEIGHT 800
+#define SHADOW_RESOLUTION 1024
+
 namespace NugieApp {
 	class App
 	{
 		public:
-			static constexpr int WIDTH = 800;
-			static constexpr int HEIGHT = 800;
-
 			App();
 			~App();
 
