@@ -226,6 +226,55 @@ namespace NugieApp {
 		
 		pointLights.emplace_back(pointLight);
 
+		this->numLight = static_cast<uint32_t>(pointLights.size());
+
+		// ---------------------------------------------------------------------
+
+		uint32_t width = this->renderer->getSwapChain()->width();
+		uint32_t height = this->renderer->getSwapChain()->height();
+
+		Camera shadowCamera;
+		float near = 0.1f;
+		float far = 2000.0f;
+		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		float theta = glm::radians(90.0f);
+
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		glm::mat4 projection = shadowCamera.getProjectionMatrix();
+
+		lightTransformations.resize(static_cast<size_t>(this->numLight * 6));
+		for (uint32_t i = 0; i < this->numLight; i++) {
+			glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
+			glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * 6].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+
+			direction = glm::vec3(-1.0f, 0.0f, 0.0f);
+			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * 6 + 1].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+
+			direction = glm::vec3(0.0f, 1.0f, 0.0f);
+			upVector = glm::vec3(0.0f, 0.0f, 1.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * 6 + 2].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+
+			direction = glm::vec3(0.0f, -1.0f, 0.0f);
+			upVector = glm::vec3(0.0f, 0.0f, -1.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * 6 + 3].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+
+			direction = glm::vec3(0.0f, 0.0f, 1.0f);
+			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * 6 + 4].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+
+			direction = glm::vec3(0.0f, 0.0f, -1.0f);
+			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
+			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
+			lightTransformations[i * 6 + 5].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+		}
+
 		// ----------------------------------------------------------------------------
 
 		auto commandBuffer = this->renderer->beginTransferCommand();
@@ -262,55 +311,6 @@ namespace NugieApp {
 
 		this->renderer->endTransferCommand(commandBuffer);
 		this->renderer->submitTransferCommand(commandBuffer);
-
-		this->numLight = static_cast<uint32_t>(pointLights.size());
-
-		// ---------------------------------------------------------------------
-
-		uint32_t width = this->renderer->getSwapChain()->width();
-		uint32_t height = this->renderer->getSwapChain()->height();
-
-		Camera shadowCamera;
-		float near = 0.1f;
-		float far = 2000.0f;
-		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		float theta = glm::radians(90.0f);
-
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
-		glm::mat4 projection = shadowCamera.getProjectionMatrix();
-
-		lightTransformations.resize(static_cast<size_t>(this->numLight * 6));
-		for (uint32_t i = 0; i < this->numLight; i++) {
-			glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);
-			glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
-			lightTransformations[i * this->numLight].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-
-			direction = glm::vec3(-1.0f, 0.0f, 0.0f);
-			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
-			lightTransformations[i * this->numLight + 1].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-
-			direction = glm::vec3(0.0f, 1.0f, 0.0f);
-			upVector = glm::vec3(0.0f, 0.0f, 1.0f);
-			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
-			lightTransformations[i * this->numLight + 2].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-
-			direction = glm::vec3(0.0f, -1.0f, 0.0f);
-			upVector = glm::vec3(0.0f, 0.0f, -1.0f);
-			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
-			lightTransformations[i * this->numLight + 3].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-
-			direction = glm::vec3(0.0f, 0.0f, 1.0f);
-			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
-			lightTransformations[i * this->numLight + 4].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-
-			direction = glm::vec3(0.0f, 0.0f, -1.0f);
-			upVector = glm::vec3(0.0f, -1.0f, 0.0f);
-			shadowCamera.setViewDirection(pointLights[0].position, direction, upVector);
-			lightTransformations[i * this->numLight + 5].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-		}
 	}
 
 	void App::updateCamera(uint32_t width, uint32_t height) {
@@ -370,7 +370,7 @@ namespace NugieApp {
 
 		VkDescriptorBufferInfo shadowModelInfos[2] = {
 			this->transformationModel->getTransformationInfo(),
-			this->pointLightModel->getLightInfo()
+			this->lightTransformationModel->getTransformationInfo()
 		};
 
 		VkDescriptorBufferInfo forwardModelInfos[2] = {

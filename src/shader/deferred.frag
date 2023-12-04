@@ -15,7 +15,7 @@ layout(set = 1, binding = 0) uniform readonly DeferredUniform {
   vec4 originNumLights;
 } ubo;
 
-layout(set = 0, binding = 1) buffer readonly LightTransformationSsbo {
+layout(set = 1, binding = 1) buffer readonly LightTransformationSsbo {
 	LightTransformation lightTransformations[];
 };
 
