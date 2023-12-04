@@ -86,7 +86,7 @@ namespace NugieApp {
       
       this->shadowDepthImages.push_back(image);
       this->shadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, image, VK_FILTER_LINEAR, 
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
         VK_SAMPLER_MIPMAP_MODE_LINEAR));
     }
   }
