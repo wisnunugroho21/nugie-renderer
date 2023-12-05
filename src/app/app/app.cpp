@@ -90,9 +90,11 @@ namespace NugieApp {
 
 				auto commandBuffer = this->renderer->beginCommand();
 
-				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
-				this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
-				this->shadowSubRenderer->endRenderPass(commandBuffer);
+				for (uint32_t i = 0; i < this->numLight; i++) {
+					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex, i);
+					this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
+					this->shadowSubRenderer->endRenderPass(commandBuffer);
+				}
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
@@ -352,7 +354,7 @@ namespace NugieApp {
 			imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
-		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * 6);
+		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight);
 
 		this->finalSubRenderer = FinalSubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
@@ -363,7 +365,7 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
-		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * 6)
+		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight)
 			.addSubPass(this->shadowSubPartRenderer->getAttachments(), this->shadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
 			.build();
@@ -391,10 +393,6 @@ namespace NugieApp {
 			this->pointLightModel->getLightInfo()
 		};
 
-		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[1] {
-			this->shadowSubPartRenderer->getDepthInfoResources()
-		};
-
 		VkDescriptorImageInfo texturesInfo[1] {
 			this->colorTexture->getDescriptorInfo()
 		};
@@ -413,8 +411,8 @@ namespace NugieApp {
 		this->shadowDescSet = new ShadowDescSet(this->device, this->renderer->getDescriptorPool(), shadowModelInfos);
 		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos, texturesInfo);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
-		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredUniformInfo, 
-			deferredModelInfo, deferredRenderTextureInfo);
+		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredUniformInfo, deferredModelInfo, 
+			this->shadowSubPartRenderer->getDepthPointInfoResources());
 
 		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;
 		deferredDescSetLayouts.emplace_back(this->attachmentDeferredDescSet->getDescSetLayout());

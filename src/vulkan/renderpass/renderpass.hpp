@@ -35,7 +35,7 @@ namespace NugieVulkan {
       RenderPass(Device* device, std::vector<std::vector<VkImageView>> viewImages, VkRenderPassCreateInfo renderPassInfo, uint32_t width, uint32_t height, uint32_t layerNum);
       ~RenderPass();
 
-      VkFramebuffer getFramebuffers(int index) { return this->framebuffers[index]; }
+      VkFramebuffer getFramebuffers(uint32_t index) { return this->framebuffers[index]; }
       VkRenderPass getRenderPass() { return this->renderPass; }
 
     private:

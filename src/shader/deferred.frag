@@ -23,7 +23,7 @@ layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
   PointLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
+layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture[2];
 
 // ---------------------------------------------------------------------------
 
@@ -94,7 +94,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
     shadowCoord = shadowCoord / shadowCoord.w;
     shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-    float dist = texture(shadowMapTexture, vec3(shadowCoord.xy, i)).x;
+    float dist = texture(shadowMapTexture[i], vec3(shadowCoord.xy, i)).x;
 
     bool isShadow = shadowCoord.w > 0.0f
       && abs(shadowCoord.z) < 1.0f

@@ -12,10 +12,10 @@ namespace NugieApp {
 		public:
 			ModelDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
 				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[2],
-				std::vector<VkDescriptorImageInfo> renderTextureInfo[1]);
+				std::vector<VkDescriptorImageInfo> shadowPointTextureInfo);
 			~ModelDeferredDescSet();
 
-			VkDescriptorSet getDescriptorSets(int frameIndex) { return this->descriptorSets[frameIndex]; }
+			VkDescriptorSet getDescriptorSets(uint32_t frameIndex) { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
 		private:
@@ -23,8 +23,8 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[1],
-				std::vector<VkDescriptorImageInfo> renderTextureInfo[1]);
+				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[2],
+				std::vector<VkDescriptorImageInfo> shadowPointTextureInfo);
 	};
 	
 }
