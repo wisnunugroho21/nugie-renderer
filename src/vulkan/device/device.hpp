@@ -104,8 +104,8 @@ namespace NugieVulkan {
       // Anti-aliasing
       VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
-      const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-      const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
+      std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+      std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
   };
 
 }  // namespace lve
