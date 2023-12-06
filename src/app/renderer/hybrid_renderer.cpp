@@ -71,7 +71,7 @@ namespace NugieApp {
 		this->commandPool = new NugieVulkan::CommandPool(
 			this->device, 
 			queueFamily.graphicsFamily, 
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
 		);
 	}
 
@@ -141,12 +141,16 @@ namespace NugieApp {
 	NugieVulkan::CommandBuffer* HybridRenderer::beginCommand() {
 		assert(this->isFrameStarted && "can't start command while frame still in progress");
 
+		this->commandBuffers[this->currentFrameIndex]->resetCommand();
 		this->commandBuffers[this->currentFrameIndex]->beginReccuringCommand();
+
 		return this->commandBuffers[this->currentFrameIndex];
 	}
 
 	NugieVulkan::CommandBuffer* HybridRenderer::beginTransferCommand() {
+		this->transferCommandBuffers[0]->resetCommand();
 		this->transferCommandBuffers[0]->beginReccuringCommand();
+
 		return this->transferCommandBuffers[0];
 	}
 
@@ -168,7 +172,6 @@ namespace NugieApp {
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
 		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(this->currentFrameIndex), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
-		this->commandPool->reset();
 	}
 
 	void HybridRenderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
@@ -180,7 +183,6 @@ namespace NugieApp {
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
 		commandBuffer->submitCommand(this->device->getGraphicsQueue(this->currentFrameIndex), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
-		this->commandPool->reset();
 	}
 
 	void HybridRenderer::submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
