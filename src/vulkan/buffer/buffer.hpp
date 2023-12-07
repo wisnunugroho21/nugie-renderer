@@ -17,8 +17,17 @@ class Buffer {
     VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkBufferUsageFlags usageFlags,
-    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkMemoryPropertyFlags memoryPropertyFlag,
     VkDeviceSize minOffsetAlignment = 1);
+
+  Buffer(
+    Device* device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkBufferUsageFlags usageFlags,
+    const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment = 1);
+
   ~Buffer();
 
   VkBuffer getBuffer() const { return this->buffer; }
@@ -28,9 +37,10 @@ class Buffer {
   VkDeviceSize getAlignmentSize() const { return this->instanceSize; }
   VkDeviceSize getBufferSize() const { return this->bufferSize; }
   VkBufferUsageFlags getUsageFlags() const { return this->usageFlags; }
-  VkMemoryPropertyFlags getMemoryPropertyFlags() const { return this->memoryPropertyFlags; }
+  VkMemoryPropertyFlags getMemoryPropertyFlags() const { return this->memoryPropertyFlag; }
 
-  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlag);
+  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> memoryPropertyFlag);
 
   void copyFromAnotherBuffer(CommandBuffer* commandBuffer, Buffer* srcBuffer, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
   void copyToAnotherBuffer(CommandBuffer* commandBuffer,Buffer* destBuffer, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
@@ -74,7 +84,7 @@ class Buffer {
   VkDeviceSize instanceSize;
   VkDeviceSize alignmentSize;
   VkBufferUsageFlags usageFlags;
-  VkMemoryPropertyFlags memoryPropertyFlags;
+  VkMemoryPropertyFlags memoryPropertyFlag;
 };
  
 }  // namespace lve

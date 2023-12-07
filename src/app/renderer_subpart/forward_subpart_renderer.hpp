@@ -10,7 +10,7 @@
 namespace NugieApp {
   class ForwardSubPartRenderer {
     public:
-      ForwardSubPartRenderer(NugieVulkan::Device* device, VkFormat swapChainImageFormat, uint32_t imageCount, uint32_t width, uint32_t height);
+      ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height);
       ~ForwardSubPartRenderer();
 
       std::vector<VkDescriptorImageInfo> getPositionInfoResources();
@@ -36,7 +36,7 @@ namespace NugieApp {
       std::vector<NugieVulkan::Image*> forwardDepthImages;
 
       VkFormat findDepthFormat();
-      VkFormat swapChainImageFormat;
+      VkFormat findColorFormat();
 
       void createForwardResources(uint32_t imageCount);
   };

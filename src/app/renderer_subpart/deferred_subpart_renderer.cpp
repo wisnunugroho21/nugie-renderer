@@ -48,7 +48,7 @@ namespace NugieApp {
   }
 
   std::vector<VkAttachmentDescription> DeferredSubPartRenderer::getAttachmentDescs() {
-    VkFormat colorFormat = this->swapChainImageFormat;
+    VkFormat colorFormat = this->findColorFormat();
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -150,7 +150,7 @@ namespace NugieApp {
   }
 
   void DeferredSubPartRenderer::createDeferredResources(uint32_t imageCount) {
-    VkFormat colorFormat = this->swapChainImageFormat;
+    VkFormat colorFormat = this->findColorFormat();
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -160,7 +160,7 @@ namespace NugieApp {
       this->deferredColorImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_IMAGE_ASPECT_COLOR_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
@@ -169,14 +169,21 @@ namespace NugieApp {
       this->deferredDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
     }
   }
 
+  VkFormat DeferredSubPartRenderer::findColorFormat() {
+    return this->device->findSupportedFormat(
+        { VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R16G16B16A16_UNORM, VK_FORMAT_R32G32B32A32_SFLOAT },
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  }
+
   VkFormat DeferredSubPartRenderer::findDepthFormat() {
     return this->device->findSupportedFormat(
-      {VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+      { VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
       VK_IMAGE_TILING_OPTIMAL,
       VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
   }

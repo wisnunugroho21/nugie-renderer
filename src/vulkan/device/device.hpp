@@ -57,7 +57,10 @@ namespace NugieVulkan {
 
       SwapChainSupportDetails getSwapChainSupport() { return this->querySwapChainSupport(this->physicalDevice); }
       QueueFamilyIndices getPhysicalQueueFamilies() { return this->findQueueFamilies(this->physicalDevice); }
-      uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
+      uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags property);
+      uint32_t findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> properties, VkMemoryPropertyFlags *selectedProperty);
+
       VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
     private:
@@ -69,11 +72,11 @@ namespace NugieVulkan {
       void createLogicalDevice();
 
       // helper creation functions
-      bool isDeviceSuitable(VkPhysicalDevice device);
       bool checkDeviceExtensionSupport(VkPhysicalDevice device);
       bool checkValidationLayerSupport();
       void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
       void hasGflwRequiredInstanceExtensions();
+      uint32_t rateDeviceSuitability(VkPhysicalDevice device);
       std::vector<const char *> getRequiredExtensions();
       QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
       SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);

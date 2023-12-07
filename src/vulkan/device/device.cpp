@@ -5,6 +5,7 @@
 #include <iostream>
 #include <set>
 #include <unordered_set>
+#include <map>
 
 namespace NugieVulkan {
 
@@ -98,8 +99,8 @@ namespace NugieVulkan {
     createInfo.ppEnabledExtensionNames = extensions.data();
     
     if (enableValidationLayers) {
-      createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-      createInfo.ppEnabledLayerNames = validationLayers.data();
+      createInfo.enabledLayerCount = static_cast<uint32_t>(this->validationLayers.size());
+      createInfo.ppEnabledLayerNames = this->validationLayers.data();
 
       VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
       this->populateDebugMessengerCreateInfo(debugCreateInfo);
@@ -129,19 +130,20 @@ namespace NugieVulkan {
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(this->instance, &deviceCount, devices.data());
 
-    for (const auto &device : devices) {
-      if (this->isDeviceSuitable(device)) {
-        this->physicalDevice = device;
-        break;
-      }
+    std::multimap<uint32_t, VkPhysicalDevice> candidates;
+    for (const auto& device : devices) {
+      int score = this->rateDeviceSuitability(device);
+      candidates.insert(std::make_pair(score, device));
     }
 
-    if (this->physicalDevice == VK_NULL_HANDLE) {
+    if (candidates.rbegin()->first == 0) {
       throw std::runtime_error("failed to find a suitable GPU!");
     }
 
+    physicalDevice = candidates.rbegin()->second;
+
     vkGetPhysicalDeviceProperties(this->physicalDevice, &this->properties);
-    std::cout << "physical device: " << this->properties.deviceName << std::endl;
+    std::cout << "selected physical device: " << this->properties.deviceName << std::endl;
   }
 
   void Device::createLogicalDevice() {
@@ -198,8 +200,8 @@ namespace NugieVulkan {
     // might not really be necessary anymore because device specific validation layers
     // have been deprecated
     if (enableValidationLayers) {
-      createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-      createInfo.ppEnabledLayerNames = validationLayers.data();
+      createInfo.enabledLayerCount = static_cast<uint32_t>(this->validationLayers.size());
+      createInfo.ppEnabledLayerNames = this->validationLayers.data();
     } else {
       createInfo.enabledLayerCount = 0;
     }
@@ -225,21 +227,38 @@ namespace NugieVulkan {
     this->window->createWindowSurface(this->instance, &this->surface); 
   }
 
-  bool Device::isDeviceSuitable(VkPhysicalDevice device) {
-    QueueFamilyIndices indices = this->findQueueFamilies(device);
-    bool extensionsSupported = this->checkDeviceExtensionSupport(device);
+  uint32_t Device::rateDeviceSuitability(VkPhysicalDevice device) {
+    uint32_t score = 0u;
 
-    bool swapChainAdequate = false;
-    if (extensionsSupported) {
-      SwapChainSupportDetails swapChainSupport = this->querySwapChainSupport(device);
-      swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+    bool extensionsSupported = this->checkDeviceExtensionSupport(device);
+    if (!extensionsSupported) {
+      return score;
+    }
+
+    QueueFamilyIndices indices = this->findQueueFamilies(device);
+    if (!indices.isComplete()) {
+      return score;
+    }
+
+    SwapChainSupportDetails swapChainSupport = this->querySwapChainSupport(device);
+    if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty()) {
+      return score;
     }
 
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    return indices.isComplete() && extensionsSupported && swapChainAdequate && 
-      supportedFeatures.samplerAnisotropy && supportedFeatures.geometryShader;
+    if (supportedFeatures.samplerAnisotropy && supportedFeatures.geometryShader) {
+      return score;
+    }
+
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+    score += deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 1000u : 0u;
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    return score;
   }
 
   void Device::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
@@ -420,6 +439,7 @@ namespace NugieVulkan {
         details.presentModes.data()
       );
     }
+
     return details;
   }
 
@@ -439,13 +459,33 @@ namespace NugieVulkan {
     throw std::runtime_error("failed to find supported format!");
   }
 
-  uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+  uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags property) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(this->physicalDevice, &memProperties);
+
     for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
       if ((typeFilter & (1 << i)) &&
-          (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+          (memProperties.memoryTypes[i].propertyFlags & property) == property) {
         return i;
+      }
+    }
+
+    throw std::runtime_error("failed to find suitable memory type!");
+  }
+
+  uint32_t Device::findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> properties, VkMemoryPropertyFlags *selectedProperty) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(this->physicalDevice, &memProperties);
+
+    for (auto &&property : properties) {
+      for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & property) == property) {
+          if (selectedProperty != nullptr) {
+            *selectedProperty = property;
+          }
+          
+          return i;
+        }
       }
     }
 
