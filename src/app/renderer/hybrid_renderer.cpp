@@ -182,9 +182,14 @@ namespace NugieApp {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
-		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex], this->transferFinishSemaphores[0] };
+		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
-		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT };
+		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+		if (isWaitTransfer) {
+			waitSemaphores.emplace_back(this->transferFinishSemaphores[0]);
+			waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+		}
 
 		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
@@ -193,9 +198,14 @@ namespace NugieApp {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
-		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex], this->transferFinishSemaphores[0] };
+		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+		if (isWaitTransfer) {
+			waitSemaphores.emplace_back(this->transferFinishSemaphores[0]);
+			waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+		}
 
 		commandBuffer->submitCommand(this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
