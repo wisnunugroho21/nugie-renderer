@@ -66,9 +66,8 @@ namespace NugieVulkan {
     presentInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
     presentInfo.pWaitSemaphores = waitSemaphores.data();
 
-    VkSwapchainKHR swapChains[] = { this->swapChain };
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapChains;
+    presentInfo.swapchainCount = 1u;
+    presentInfo.pSwapchains = &this->swapChain;
 
     presentInfo.pImageIndices = imageIndex;
 
@@ -147,7 +146,7 @@ namespace NugieVulkan {
 
   VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
     for (const auto &availableFormat : availableFormats) {
-      if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
+      if (availableFormat.format == VK_FORMAT_R8G8B8A8_SRGB &&
         availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
       {
         return availableFormat;

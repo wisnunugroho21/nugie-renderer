@@ -67,10 +67,6 @@ namespace NugieVulkan {
 		if (vkQueueSubmit(queue, 1, &submitInfo, fence) != VK_SUCCESS) {
 			std::cerr << "Failed to submitting command buffer" << '\n';
 		}
-
-		if (vkQueueWaitIdle(queue) != VK_SUCCESS) {
-			std::cerr << "Failed to waiting queue" << '\n';
-		}
 	}
 
 	void CommandBuffer::submitCommands(std::vector<CommandBuffer*> commandBuffers, VkQueue queue, std::vector<VkSemaphore> waitSemaphores, 
@@ -107,10 +103,5 @@ namespace NugieVulkan {
 		if (vkQueueSubmit(queue, 1, &submitInfo, fence) != VK_SUCCESS) {
 			std::cerr << "Failed to submitting command buffer" << '\n';
 		}
-
-		if (vkQueueWaitIdle(queue) != VK_SUCCESS) {
-			std::cerr << "Failed to waiting queue" << '\n';
-		}
-		
 	}
 } // namespace NugieVulkan

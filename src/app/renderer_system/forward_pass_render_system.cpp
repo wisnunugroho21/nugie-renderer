@@ -42,7 +42,7 @@ namespace NugieApp {
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(4);
 		std::vector<VkVertexInputAttributeDescription> attributeDescription(5);
-		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(5);
+		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(4);
 
 		bindingDescriptions[0].binding = 0;
 		bindingDescriptions[0].stride = sizeof(Position);
@@ -96,9 +96,6 @@ namespace NugieApp {
 
 		colorBlendAttachment[3].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[3].blendEnable = VK_FALSE;
-
-		colorBlendAttachment[4].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment[4].blendEnable = VK_FALSE;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)
 			.setDefault("shader/forward.vert.spv", "shader/forward.frag.spv", colorBlendAttachment, bindingDescriptions, attributeDescription)

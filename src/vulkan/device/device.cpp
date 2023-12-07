@@ -5,25 +5,26 @@
 #include <iostream>
 #include <set>
 #include <unordered_set>
+#include <map>
 
 namespace NugieVulkan {
 
   // local callback functions
   static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-      VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-      VkDebugUtilsMessageTypeFlagsEXT messageType,
-      const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-      void *pUserData) 
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+    void *pUserData) 
   {
     std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
     return VK_FALSE;
   }
 
   VkResult CreateDebugUtilsMessengerEXT(
-      VkInstance instance,
-      const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-      const VkAllocationCallbacks *pAllocator,
-      VkDebugUtilsMessengerEXT *pDebugMessenger) 
+    VkInstance instance,
+    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator,
+    VkDebugUtilsMessengerEXT *pDebugMessenger) 
   {
     auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
       instance,
@@ -38,9 +39,9 @@ namespace NugieVulkan {
   }
 
   void DestroyDebugUtilsMessengerEXT(
-      VkInstance instance,
-      VkDebugUtilsMessengerEXT debugMessenger,
-      const VkAllocationCallbacks *pAllocator) 
+    VkInstance instance,
+    VkDebugUtilsMessengerEXT debugMessenger,
+    const VkAllocationCallbacks *pAllocator) 
   {
     auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
       instance,
@@ -88,19 +89,22 @@ namespace NugieVulkan {
     VkInstanceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
-    createInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+
+    #ifdef __APPLE__
+      createInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    #endif
 
     auto extensions = this->getRequiredExtensions();
-    extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
-
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+    
     if (enableValidationLayers) {
-      createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-      createInfo.ppEnabledLayerNames = validationLayers.data();
+      createInfo.enabledLayerCount = static_cast<uint32_t>(this->validationLayers.size());
+      createInfo.ppEnabledLayerNames = this->validationLayers.data();
 
+      VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
       this->populateDebugMessengerCreateInfo(debugCreateInfo);
+
       createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
     } else {
       createInfo.enabledLayerCount = 0;
@@ -117,79 +121,120 @@ namespace NugieVulkan {
   void Device::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(this->instance, &deviceCount, nullptr);
+
     if (deviceCount == 0) {
       throw std::runtime_error("failed to find GPUs with Vulkan support!");
     }
+
     std::cout << "Device count: " << deviceCount << std::endl;
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(this->instance, &deviceCount, devices.data());
 
-    for (const auto &device : devices) {
-      if (this->isDeviceSuitable(device)) {
-        this->physicalDevice = device;
-        break;
-      }
+    std::multimap<uint32_t, VkPhysicalDevice> candidates;
+    for (const auto& device : devices) {
+      uint32_t score = this->rateDeviceSuitability(device);
+      candidates.insert(std::make_pair(score, device));
     }
 
-    if (this->physicalDevice == VK_NULL_HANDLE) {
+    if (candidates.rbegin()->first == 0) {
       throw std::runtime_error("failed to find a suitable GPU!");
     }
 
+    physicalDevice = candidates.rbegin()->second;
+
     vkGetPhysicalDeviceProperties(this->physicalDevice, &this->properties);
-    std::cout << "physical device: " << this->properties.deviceName << std::endl;
+    std::cout << "selected physical device: " << this->properties.deviceName << std::endl;
   }
 
   void Device::createLogicalDevice() {
-    this->familyIndices = this->findQueueFamilies(this->physicalDevice);
-
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> sharedQueueFamilies = {
-      this->familyIndices.graphicsFamily, 
-      this->familyIndices.presentFamily, 
-      this->familyIndices.computeFamily,
-      this->familyIndices.transferFamily
-    };
-
-    std::vector<float> queuePriority;
-
-    for (int i = 0; i < Device::MAX_FRAMES_IN_FLIGHT; i++) {
-      if (i == 0) {
-        queuePriority.emplace_back(1.0f);
-      } else {
-        queuePriority.emplace_back(queuePriority[i - 1] * 0.5f);
-      }
-    }
-
-    for (uint32_t queueFamily : sharedQueueFamilies) {
-      VkDeviceQueueCreateInfo queueCreateInfo = {};
-      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-      queueCreateInfo.queueFamilyIndex = queueFamily;
-      queueCreateInfo.queueCount = static_cast<uint32_t>(queuePriority.size());
-      queueCreateInfo.pQueuePriorities = queuePriority.data();
-      queueCreateInfos.push_back(queueCreateInfo);
-    }
-
-    VkPhysicalDeviceFeatures deviceFeatures = {};
-    deviceFeatures.samplerAnisotropy = VK_TRUE;
-    deviceFeatures.sampleRateShading = VK_TRUE;
-    deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
-    deviceFeatures.depthBiasClamp = VK_TRUE;
-
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+    this->familyIndices = this->findQueueFamilies(this->physicalDevice);
+    float queuePriority = 1.0f;
+
+    VkDeviceQueueCreateInfo graphicQueueCreateInfo = {};
+    graphicQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    graphicQueueCreateInfo.queueFamilyIndex = this->familyIndices.graphicsFamily;
+    graphicQueueCreateInfo.queueCount = 1u;
+    graphicQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = { graphicQueueCreateInfo };
+
+    if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
+      && this->familyIndices.transferFamily != this->familyIndices.graphicsFamily
+      && this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) 
+    {
+      VkDeviceQueueCreateInfo presentQueueCreateInfo = {};
+      presentQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      presentQueueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      presentQueueCreateInfo.queueCount = 1u;
+      presentQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(presentQueueCreateInfo);
+
+      VkDeviceQueueCreateInfo transferQueueCreateInfo = {};
+      transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      transferQueueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
+      transferQueueCreateInfo.queueCount = 1u;
+      transferQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(transferQueueCreateInfo);
+    } else if (this->familyIndices.presentFamily == this->familyIndices.transferFamily 
+      && this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) 
+    {
+      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      queueCreateInfo.queueCount = 1u;
+      queueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(queueCreateInfo);
+    } else if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
+      && this->familyIndices.presentFamily == this->familyIndices.graphicsFamily) 
+    {
+      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
+      queueCreateInfo.queueCount = 1u;
+      queueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(queueCreateInfo);
+    } else if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
+      && this->familyIndices.transferFamily == this->familyIndices.graphicsFamily)
+    {
+      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      queueCreateInfo.queueCount = 1u;
+      queueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(queueCreateInfo);
+    }
 
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.sampleRateShading = VK_TRUE;
+    deviceFeatures.depthBiasClamp = VK_TRUE;
+    deviceFeatures.geometryShader = VK_TRUE;
+
     createInfo.pEnabledFeatures = &deviceFeatures;
+
+    #ifdef __APPLE__
+      this->deviceExtensions.emplace_back("VK_KHR_portability_subset");
+    #endif
+
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
     // might not really be necessary anymore because device specific validation layers
     // have been deprecated
     if (enableValidationLayers) {
-      createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-      createInfo.ppEnabledLayerNames = validationLayers.data();
+      createInfo.enabledLayerCount = static_cast<uint32_t>(this->validationLayers.size());
+      createInfo.ppEnabledLayerNames = this->validationLayers.data();
     } else {
       createInfo.enabledLayerCount = 0;
     }
@@ -198,48 +243,59 @@ namespace NugieVulkan {
       throw std::runtime_error("failed to create logical device!");
     }
 
-    this->graphicsQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-    this->presentQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-    this->computeQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-    this->transferQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-
-    for (int i = 0; i < Device::MAX_FRAMES_IN_FLIGHT; i++) {
-      vkGetDeviceQueue(this->device, this->familyIndices.graphicsFamily, i, &this->graphicsQueue[i]);
-      vkGetDeviceQueue(this->device, this->familyIndices.presentFamily, i, &this->presentQueue[i]);
-      vkGetDeviceQueue(this->device, this->familyIndices.computeFamily, i, &this->computeQueue[i]);
-      vkGetDeviceQueue(this->device, this->familyIndices.transferFamily, i, &this->transferQueue[i]);
-    }
+    vkGetDeviceQueue(this->device, this->familyIndices.graphicsFamily, 0, &this->graphicsQueue);
+    vkGetDeviceQueue(this->device, this->familyIndices.presentFamily, 0, &this->presentQueue);
+    vkGetDeviceQueue(this->device, this->familyIndices.transferFamily, 0, &this->transferQueue);
   }
 
   void Device::createSurface() { 
     this->window->createWindowSurface(this->instance, &this->surface); 
   }
 
-  bool Device::isDeviceSuitable(VkPhysicalDevice device) {
-    QueueFamilyIndices indices = this->findQueueFamilies(device);
-    bool extensionsSupported = this->checkDeviceExtensionSupport(device);
+  uint32_t Device::rateDeviceSuitability(VkPhysicalDevice device) {
+    uint32_t score = 0u;
 
-    bool swapChainAdequate = false;
-    if (extensionsSupported) {
-      SwapChainSupportDetails swapChainSupport = this->querySwapChainSupport(device);
-      swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+    bool extensionsSupported = this->checkDeviceExtensionSupport(device);
+    if (!extensionsSupported) {
+      return score;
+    }
+
+    QueueFamilyIndices indices = this->findQueueFamilies(device);
+    if (!indices.isComplete()) {
+      return score;
+    }
+
+    SwapChainSupportDetails swapChainSupport = this->querySwapChainSupport(device);
+    if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty()) {
+      return score;
     }
 
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    return indices.isComplete() && extensionsSupported && swapChainAdequate && 
-      supportedFeatures.samplerAnisotropy;
+    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.geometryShader 
+      ||  !supportedFeatures.sampleRateShading || !supportedFeatures.depthBiasClamp) 
+    {
+      return score;
+    }
+
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+    score += deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 1000u : 0u;
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    return score;
   }
 
   void Device::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
-    createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                                VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT 
+      | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT 
+      | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT 
+      | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+
     createInfo.pfnUserCallback = debugCallback;
     createInfo.pUserData = nullptr;  // Optional
   }
@@ -247,8 +303,9 @@ namespace NugieVulkan {
   void Device::setupDebugMessenger() {
     if (!this->enableValidationLayers) return;
 
-    VkDebugUtilsMessengerCreateInfoEXT createInfo;
+    VkDebugUtilsMessengerCreateInfoEXT createInfo{};
     this->populateDebugMessengerCreateInfo(createInfo);
+
     if (CreateDebugUtilsMessengerEXT(this->instance, &createInfo, nullptr, &this->debugMessenger) != VK_SUCCESS) {
       throw std::runtime_error("failed to set up debug messenger!");
     }
@@ -290,7 +347,9 @@ namespace NugieVulkan {
       extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    #ifdef __APPLE__
+      extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    #endif
 
     return extensions;
   }
@@ -312,6 +371,7 @@ namespace NugieVulkan {
     auto requiredExtensions = this->getRequiredExtensions();
     for (const auto &required : requiredExtensions) {
       std::cout << "\t" << required << std::endl;
+      
       if (available.find(required) == available.end()) {
         throw std::runtime_error("Missing required glfw extension");
       }
@@ -348,35 +408,59 @@ namespace NugieVulkan {
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-    int i = 0;
-    for (const auto &queueFamily : queueFamilies) {
-      if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+      if (queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
         indices.graphicsFamily = i;
+        indices.graphicsCount = queueFamilies[i].queueCount;
         indices.graphicsFamilyHasValue = true;
       }
 
-      if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-        indices.computeFamily = i;
-        indices.computeFamilyHasValue = true;
+      if (indices.graphicsFamilyHasValue) {
+        break;
       }
+    }
 
-      if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
-        indices.transferFamily = i;
-        indices.transferFamilyHasValue = true;
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+      if (indices.graphicsFamily == i) {
+        continue;
       }
 
       VkBool32 presentSupport = false;
       vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->surface, &presentSupport);
-      if (queueFamily.queueCount > 0 && presentSupport) {
+      if (queueFamilies[i].queueCount > 0 && presentSupport) {
         indices.presentFamily = i;
+        indices.presentCount = queueFamilies[i].queueCount;
         indices.presentFamilyHasValue = true;
       }
 
-      if (indices.isComplete()) {
-        break;
+      if (queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+        indices.transferFamily = i;
+        indices.transferCount = queueFamilies[i].queueCount;
+        indices.transferFamilyHasValue = true;
       }
 
-      i++;
+      if (indices.transferFamilyHasValue && indices.presentFamilyHasValue) {
+        break;
+      }
+    }
+    
+    if (!indices.transferFamilyHasValue) {
+      if (queueFamilies[indices.graphicsFamily].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+        indices.transferFamily = indices.graphicsFamily;
+        indices.transferCount = indices.graphicsCount;
+        indices.transferFamilyHasValue = true;
+      }
+    }
+
+    if (!indices.presentFamilyHasValue) {
+      VkBool32 presentSupport = false;
+      vkGetPhysicalDeviceSurfaceSupportKHR(device, indices.graphicsFamily, this->surface, &presentSupport);
+
+      if (queueFamilies[indices.graphicsFamily].queueFlags & presentSupport) {
+        indices.presentFamily = indices.graphicsFamily;
+        indices.presentCount = indices.graphicsCount;
+        indices.presentFamilyHasValue = true;
+      }
     }
 
     return indices;
@@ -406,6 +490,7 @@ namespace NugieVulkan {
         details.presentModes.data()
       );
     }
+
     return details;
   }
 
@@ -425,13 +510,33 @@ namespace NugieVulkan {
     throw std::runtime_error("failed to find supported format!");
   }
 
-  uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+  uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags property) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(this->physicalDevice, &memProperties);
+
     for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
       if ((typeFilter & (1 << i)) &&
-          (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+          (memProperties.memoryTypes[i].propertyFlags & property) == property) {
         return i;
+      }
+    }
+
+    throw std::runtime_error("failed to find suitable memory type!");
+  }
+
+  uint32_t Device::findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> properties, VkMemoryPropertyFlags *selectedProperty) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(this->physicalDevice, &memProperties);
+
+    for (auto &&property : properties) {
+      for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & property) == property) {
+          if (selectedProperty != nullptr) {
+            *selectedProperty = property;
+          }
+          
+          return i;
+        }
       }
     }
 

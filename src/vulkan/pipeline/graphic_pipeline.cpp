@@ -108,8 +108,9 @@ namespace NugieVulkan {
 		return *this;
 	}
 
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefault(
-		const std::string& vertFilePath,
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultShadow(
+		const std::string& vertFilePath, 
+		const std::string& geomFilePath,
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions
 	) {
@@ -136,12 +137,8 @@ namespace NugieVulkan {
 		this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
 		
 		this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		this->multisampleInfo.sampleShadingEnable = VK_TRUE;
-		this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
-		this->multisampleInfo.minSampleShading = 0.2f;           
-		this->multisampleInfo.pSampleMask = nullptr;             // Optional
-		this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
-		this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
+		this->multisampleInfo.sampleShadingEnable = VK_FALSE;
+		this->multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 		
 		this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		this->depthStencilInfo.depthTestEnable = VK_TRUE;
@@ -177,7 +174,20 @@ namespace NugieVulkan {
 		vertexShaderStageInfo.pNext = nullptr;
 		vertexShaderStageInfo.pSpecializationInfo = nullptr;
 
-		this->shaderStagesInfo = { vertexShaderStageInfo };
+		VkShaderModule geomShaderModule;
+		auto geomCode = GraphicPipeline::readFile(geomFilePath);
+		GraphicPipeline::createShaderModule(this->device, geomCode, &geomShaderModule);
+
+		VkPipelineShaderStageCreateInfo geometryShaderStageInfo{};
+		geometryShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		geometryShaderStageInfo.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+		geometryShaderStageInfo.module = geomShaderModule;
+		geometryShaderStageInfo.pName = "main";
+		geometryShaderStageInfo.flags = 0;
+		geometryShaderStageInfo.pNext = nullptr;
+		geometryShaderStageInfo.pSpecializationInfo = nullptr;
+
+		this->shaderStagesInfo = { vertexShaderStageInfo, geometryShaderStageInfo };
 
 		return *this;
 	}

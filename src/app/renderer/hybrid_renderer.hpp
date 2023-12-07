@@ -33,14 +33,14 @@ namespace NugieApp {
 				return this->currentImageIndex;
 			}
 
-			NugieVulkan::CommandBuffer* beginCommand();
+			NugieVulkan::CommandBuffer* beginRenderCommand();
 			NugieVulkan::CommandBuffer* beginTransferCommand();
 
 			void endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer);
 			void endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
 
-			void submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffer);
-			void submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer);
+			void submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffe, bool isWaitTransfer);
+			void submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer);
 
 			void submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
 
@@ -56,12 +56,14 @@ namespace NugieApp {
 
 			NugieVulkan::Window* window;
 			NugieVulkan::Device* device;
-
-			NugieVulkan::CommandPool* commandPool;
+			
 			NugieVulkan::DescriptorPool* descriptorPool;
 			NugieVulkan::SwapChain* swapChain;
 
-			std::vector<NugieVulkan::CommandBuffer*> commandBuffers;
+			NugieVulkan::CommandPool* graphicCommandPool;
+			NugieVulkan::CommandPool* transferCommandPool;
+
+			std::vector<NugieVulkan::CommandBuffer*> graphicCommandBuffers;
 			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
 
 			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, transferFinishSemaphores;

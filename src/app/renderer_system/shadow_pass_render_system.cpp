@@ -80,7 +80,7 @@ namespace NugieApp {
 		dynamicStateInfo.flags = 0;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)
-			.setDefault("shader/shadow_map.vert.spv", bindingDescriptions, attributeDescription)
+			.setDefaultShadow("shader/shadow_map.vert.spv", "shader/shadow_map.geom.spv", bindingDescriptions, attributeDescription)
 			.setRasterizationInfo(rasterizationInfo)
 			.setDynamicStateInfo(dynamicStateInfo)
 			.build();

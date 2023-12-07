@@ -4,9 +4,8 @@
 #include <array>
 
 namespace NugieApp {
-  ForwardSubPartRenderer::ForwardSubPartRenderer(NugieVulkan::Device* device, VkFormat swapChainImageFormat, 
-    uint32_t imageCount, uint32_t width, uint32_t height)
-    : device{device}, swapChainImageFormat{swapChainImageFormat}, width{width}, height{height}
+  ForwardSubPartRenderer::ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height)
+    : device{device}, width{width}, height{height}
   {
     this->createForwardResources(imageCount);
   }
@@ -26,10 +25,6 @@ namespace NugieApp {
 
     for (auto &&forwardMaterialImage : this->forwardMaterialImages) {
       if (forwardMaterialImage != nullptr) delete forwardMaterialImage;
-    }
-
-    for (auto &&forwardShadowCoordImage : this->forwardShadowCoordImages) {
-      if (forwardShadowCoordImage != nullptr) delete forwardShadowCoordImage;
     }
 
     for (auto &&depthImage : this->forwardDepthImages) {
@@ -73,15 +68,6 @@ namespace NugieApp {
     return descInfos;
   }
 
-  std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getShadowCoordInfoResources() {
-    std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardShadowCoordImage : this->forwardShadowCoordImages) {
-      descInfos.emplace_back(forwardShadowCoordImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-    }
-
-    return descInfos;
-  }
-
   std::vector<std::vector<VkImageView>> ForwardSubPartRenderer::getAttachments() {
     std::vector<std::vector<VkImageView>> attachments;
 
@@ -113,13 +99,6 @@ namespace NugieApp {
 
     attachments.emplace_back(forwardMaterialAttachment);
 
-    std::vector<VkImageView> forwardShadowCoordAttachment;
-    for (size_t i = 0; i < this->forwardShadowCoordImages.size(); i++) {
-      forwardShadowCoordAttachment.emplace_back(this->forwardShadowCoordImages[i]->getImageView());
-    }
-
-    attachments.emplace_back(forwardShadowCoordAttachment);
-
     std::vector<VkImageView> forwardDepthAttachment;
     for (size_t i = 0; i < this->forwardDepthImages.size(); i++) {
       forwardDepthAttachment.emplace_back(this->forwardDepthImages[i]->getImageView());
@@ -131,7 +110,7 @@ namespace NugieApp {
   }
 
   std::vector<VkAttachmentDescription> ForwardSubPartRenderer::getAttachmentDescs() {
-    VkFormat colorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+    VkFormat colorFormat = this->findColorFormat();
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -176,16 +155,6 @@ namespace NugieApp {
     forwardMaterialAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     forwardMaterialAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkAttachmentDescription forwardShadowCoordAttachment{};
-    forwardShadowCoordAttachment.format = colorFormat;
-    forwardShadowCoordAttachment.samples = msaaSamples;
-    forwardShadowCoordAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardShadowCoordAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    forwardShadowCoordAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    forwardShadowCoordAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    forwardShadowCoordAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    forwardShadowCoordAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
     VkAttachmentDescription forwardDepthAttachment{};
     forwardDepthAttachment.format = depthFormat;
     forwardDepthAttachment.samples = msaaSamples;
@@ -201,7 +170,6 @@ namespace NugieApp {
     attachmentDescs.emplace_back(forwardNormalAttachment);
     attachmentDescs.emplace_back(forwardColorAttachment);
     attachmentDescs.emplace_back(forwardMaterialAttachment);
-    attachmentDescs.emplace_back(forwardShadowCoordAttachment);
     attachmentDescs.emplace_back(forwardDepthAttachment);
 
     return attachmentDescs;
@@ -224,30 +192,25 @@ namespace NugieApp {
     forwardMaterialAttachmentRef.attachment = 3;
     forwardMaterialAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference forwardShadowCoordAttachmentRef{};
-    forwardShadowCoordAttachmentRef.attachment = 4;
-    forwardShadowCoordAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
     std::vector<VkAttachmentReference> outputAttachmentRefs;
     outputAttachmentRefs.emplace_back(forwardPositionAttachmentRef);
     outputAttachmentRefs.emplace_back(forwardNormalAttachmentRef);
     outputAttachmentRefs.emplace_back(forwardColorAttachmentRef);
     outputAttachmentRefs.emplace_back(forwardMaterialAttachmentRef);
-    outputAttachmentRefs.emplace_back(forwardShadowCoordAttachmentRef);
 
     return outputAttachmentRefs;
   }
 
   VkAttachmentReference ForwardSubPartRenderer::getDepthAttachmentRef() {
     VkAttachmentReference forwardDepthAttachmentRef{};
-    forwardDepthAttachmentRef.attachment = 5;
+    forwardDepthAttachmentRef.attachment = 4;
     forwardDepthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     return forwardDepthAttachmentRef;
   }
 
   void ForwardSubPartRenderer::createForwardResources(uint32_t imageCount) {
-    VkFormat colorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+    VkFormat colorFormat = this->findColorFormat();
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -257,7 +220,7 @@ namespace NugieApp {
       this->forwardPositionImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
@@ -266,7 +229,7 @@ namespace NugieApp {
       this->forwardNormalImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
@@ -275,7 +238,7 @@ namespace NugieApp {
       this->forwardColorImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
@@ -284,16 +247,7 @@ namespace NugieApp {
       this->forwardMaterialImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT
-      ));
-    }
-
-    this->forwardShadowCoordImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
-      this->forwardShadowCoordImages.push_back(new NugieVulkan::Image(
-        this->device, this->width, this->height, 1, msaaSamples, colorFormat,
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
@@ -302,14 +256,21 @@ namespace NugieApp {
       this->forwardDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, 
-        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
     }
   }
 
+  VkFormat ForwardSubPartRenderer::findColorFormat() {
+     return this->device->findSupportedFormat(
+      { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT },
+      VK_IMAGE_TILING_OPTIMAL,
+      VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+  }
+
   VkFormat ForwardSubPartRenderer::findDepthFormat() {
     return this->device->findSupportedFormat(
-      {VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+      { VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
       VK_IMAGE_TILING_OPTIMAL,
       VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
   }

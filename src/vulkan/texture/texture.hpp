@@ -19,8 +19,11 @@ namespace NugieVulkan
         VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);
       
       ~Texture();
-
+      
+      bool hasBeenMipmapped() const { return this->hasMipmapped; }
       VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+      
+      void generateMipmap(CommandBuffer* commandBuffer);
 
     private:
       Device* device;
@@ -29,6 +32,7 @@ namespace NugieVulkan
 
       VkSampler sampler;
       uint32_t mipLevels;
+      bool hasMipmapped = false;
 
       void createTextureImage(CommandBuffer* commandBuffer, const char* textureFileName);
       void createTextureSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);

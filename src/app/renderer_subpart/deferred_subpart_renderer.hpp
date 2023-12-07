@@ -29,8 +29,8 @@ namespace NugieApp {
       std::vector<NugieVulkan::Image*> deferredDepthImages;
       std::vector<NugieVulkan::Image*> swapChainImages;
 
-      VkFormat findDepthFormat();
       VkFormat swapChainImageFormat;
+      VkFormat findDepthFormat();
 
       void createDeferredResources(uint32_t imageCount);
   };

@@ -4,10 +4,10 @@
 #include <array>
 
 namespace NugieApp {
-  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height)
+  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum)
     : device{device}, width{width}, height{height}
   {
-    this->createShadowResources();
+    this->createShadowResources(layerNum);
   }
 
   ShadowSubPartRenderer::~ShadowSubPartRenderer() {
@@ -44,7 +44,7 @@ namespace NugieApp {
 
   std::vector<VkAttachmentDescription> ShadowSubPartRenderer::getAttachmentDescs() {
     VkFormat depthFormat = this->findDepthFormat();
-    auto msaaSamples = this->device->getMSAASamples();
+    auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
     VkAttachmentDescription shadowDepthAttachment{};
     shadowDepthAttachment.format = depthFormat;
@@ -70,9 +70,9 @@ namespace NugieApp {
     return shadowDepthAttachmentRef;
   }
 
-  void ShadowSubPartRenderer::createShadowResources() {
+  void ShadowSubPartRenderer::createShadowResources(uint32_t layerNum) {
     VkFormat depthFormat = this->findDepthFormat();
-    auto msaaSamples = this->device->getMSAASamples();
+    auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
     this->shadowDepthImages.clear();
     this->shadowDepthTextures.clear();
@@ -81,12 +81,12 @@ namespace NugieApp {
       auto image = new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, layerNum
       );
       
       this->shadowDepthImages.push_back(image);
       this->shadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, image, VK_FILTER_LINEAR, 
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
         VK_SAMPLER_MIPMAP_MODE_LINEAR));
     }
   }

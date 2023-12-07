@@ -1,6 +1,7 @@
 #version 460
 
 #define KEPSILON 0.00001
+#define LIGHT_NUM 6
 
 #include "core/struct.glsl"
 
@@ -16,14 +17,16 @@ layout(set = 1, binding = 0) uniform readonly DeferredUniform {
 } ubo;
 
 layout(set = 1, binding = 1) uniform readonly ShadowUniform {
-	mat4 transforms;
-} shadowUbo;
-
-layout(set = 1, binding = 2) buffer readonly SpotLightSsbo {
-  SpotLight lights[];
+	mat4 lightTransforms[LIGHT_NUM];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DMS shadowMapTexture;
+layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
+  PointLight lights[];
+};
+
+layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
+
+// ---------------------------------------------------------------------------
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -85,28 +88,23 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-float computeShadowFactor(vec4 lightSpacePos)
-{
-  	// Convert light space position to NDC
-  	vec3 lightSpaceNDC = lightSpacePos.xyz /= lightSpacePos.w;
- 
-  	// If the fragment is outside the light's projection then it is outside
-  	// the light's influence, which means it is in the shadow (notice that
-  	// such sample would be outside the shadow map image)
-  	if (abs(lightSpaceNDC.x) > 1.0 || abs(lightSpaceNDC.y) > 1.0 || abs(lightSpaceNDC.z) > 1.0) {
-			return 0.0;	
-		} 	
- 
-  	// Translate from NDC to shadow map space (Vulkan's Z is already in [0..1])
-  	vec2 shadowMapCoord = lightSpaceNDC.xy * 0.5 + 0.5;
- 
-  	// Check if the sample is in the light or in the shadow
-  	ivec2 texCoord = ivec2(shadowMapCoord.xy * textureSize(shadowMapTexture));
-   	if (lightSpaceNDC.z > texelFetch(shadowMapTexture, texCoord, gl_SampleID).x)
-    	return 0.0; // In the shadow
- 
-  	// In the light
-  	return 1.0;
+vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
+  for (uint i = 0u; i < LIGHT_NUM; i++) {
+    vec4 shadowCoord = lightTransforms[i] * surfacePosition;
+
+    shadowCoord = shadowCoord / shadowCoord.w;
+    shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+
+    float dist = texture(shadowMapTexture, vec3(shadowCoord.xy, i)).x;
+
+    bool isShadow = shadowCoord.w > 0.0f
+      && abs(shadowCoord.z) < 1.0f
+      && dist < shadowCoord.z;
+
+    totalRadiance *= isShadow ? 0.25f : 1.0f;
+  }
+
+  return totalRadiance;
 }
 
 void main() {
@@ -115,15 +113,23 @@ void main() {
   vec4 surfaceColor = subpassLoad(inputColor, gl_SampleID);
   vec4 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID);
 
-  vec4 shadowCoord = shadowUbo.transforms * surfacePosition;
-  float shadowFactor = computeShadowFactor(shadowCoord);
   vec4 totalRadiance = vec4(0.0f);
 
   for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {
     vec4 lightDirection = lights[i].position - surfacePosition;
+    
     vec4 unitLightDirection = normalize(lightDirection);
+    vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
 
-    float DoL = dot(lights[i].direction, -1.0f * unitLightDirection);
+    vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
+      surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+
+    float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
+    vec4 irradiance = lights[i].color / (4 * PI * dot(lightDirection, lightDirection)) * NoL;
+    
+    totalRadiance += brdf * irradiance;
+
+    /* float DoL = dot(lights[i].direction, -1.0f * unitLightDirection);
 
     if (DoL > cos(lights[i].angle)) {
       vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
@@ -135,8 +141,8 @@ void main() {
       vec4 irradiance = lights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
       
       totalRadiance += brdf * irradiance * shadowFactor;
-    }
+    } */
   }
 
-  outColor = totalRadiance;
+  outColor = computeTotalRadianceAfterShadow(surfacePosition, totalRadiance);
 }

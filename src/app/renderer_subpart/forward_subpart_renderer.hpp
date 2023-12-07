@@ -10,14 +10,13 @@
 namespace NugieApp {
   class ForwardSubPartRenderer {
     public:
-      ForwardSubPartRenderer(NugieVulkan::Device* device, VkFormat swapChainImageFormat, uint32_t imageCount, uint32_t width, uint32_t height);
+      ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height);
       ~ForwardSubPartRenderer();
 
       std::vector<VkDescriptorImageInfo> getPositionInfoResources();
       std::vector<VkDescriptorImageInfo> getNormalInfoResources();
       std::vector<VkDescriptorImageInfo> getColorInfoResources();
       std::vector<VkDescriptorImageInfo> getMaterialInfoResources();
-      std::vector<VkDescriptorImageInfo> getShadowCoordInfoResources();
 
       std::vector<std::vector<VkImageView>> getAttachments();
       std::vector<VkAttachmentDescription> getAttachmentDescs();
@@ -32,11 +31,10 @@ namespace NugieApp {
       std::vector<NugieVulkan::Image*> forwardNormalImages;
       std::vector<NugieVulkan::Image*> forwardColorImages;
       std::vector<NugieVulkan::Image*> forwardMaterialImages;
-      std::vector<NugieVulkan::Image*> forwardShadowCoordImages;
       std::vector<NugieVulkan::Image*> forwardDepthImages;
 
       VkFormat findDepthFormat();
-      VkFormat swapChainImageFormat;
+      VkFormat findColorFormat();
 
       void createForwardResources(uint32_t imageCount);
   };

@@ -4,7 +4,7 @@
 #include <array>
 
 namespace NugieApp {
-  ShadowSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height) : device{device}, width{width}, height{height} 
+  ShadowSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum) : device{device}, width{width}, height{height}, layerNum{layerNum} 
   {
 
   }
@@ -35,14 +35,14 @@ namespace NugieApp {
   }
 
   ShadowSubRenderer* ShadowSubRenderer::Builder::build() {
-    return new ShadowSubRenderer(this->device, this->width, this->height, this->attachments, this->attachmentDescs, 
+    return new ShadowSubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments, this->attachmentDescs, 
       this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef);
   }
 
-  ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
     std::vector<VkAttachmentReference> resolveAttachmentRef)
-    : device{device}, width{width}, height{height}
+    : device{device}, width{width}, height{height}, layerNum{layerNum}
   {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
   }
@@ -88,7 +88,7 @@ namespace NugieApp {
       subpasses[subpasses.size() - 1].pResolveAttachments = &resolveAttachmentRef[0];
     }
 
-    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height);
+    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, this->layerNum);
     for (size_t i = 0; i < subpasses.size(); i++) {
       renderPassBuilder = renderPassBuilder
         .addSubpass(subpasses[i]);
@@ -170,7 +170,7 @@ namespace NugieApp {
     
 		vkCmdSetViewport(commandBuffer->getCommandBuffer(), 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);
-    vkCmdSetDepthBias(commandBuffer->getCommandBuffer(), 6.0f, 1.0f, 1.5f);
+    vkCmdSetDepthBias(commandBuffer->getCommandBuffer(), 1.0f, 0.0f, 1.0f);
 	}
 
   void ShadowSubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {

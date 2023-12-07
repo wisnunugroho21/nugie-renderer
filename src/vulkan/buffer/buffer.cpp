@@ -29,18 +29,37 @@ namespace NugieVulkan {
   }
   
   Buffer::Buffer(
-      Device* device,
-      VkDeviceSize instanceSize,
-      uint32_t instanceCount,
-      VkBufferUsageFlags usageFlags,
-      VkMemoryPropertyFlags memoryPropertyFlags,
-      VkDeviceSize minOffsetAlignment
-    )
-      : device{device},
-        instanceSize{instanceSize},
-        instanceCount{instanceCount},
-        usageFlags{usageFlags},
-        memoryPropertyFlags{memoryPropertyFlags} 
+    Device* device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkBufferUsageFlags usageFlags,
+    VkMemoryPropertyFlags memoryPropertyFlag,
+    VkDeviceSize minOffsetAlignment
+  )
+    : device{device},
+      instanceSize{instanceSize},
+      instanceCount{instanceCount},
+      usageFlags{usageFlags},
+      memoryPropertyFlag{memoryPropertyFlag} 
+  {
+    this->alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
+    this->bufferSize = alignmentSize * instanceCount;
+
+    this->createBuffer(bufferSize, usageFlags, memoryPropertyFlag);
+  }
+
+  Buffer::Buffer(
+    Device* device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkBufferUsageFlags usageFlags,
+    const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment
+  )
+    : device{device},
+      instanceSize{instanceSize},
+      instanceCount{instanceCount},
+      usageFlags{usageFlags} 
   {
     this->alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
     this->bufferSize = alignmentSize * instanceCount;
@@ -300,7 +319,7 @@ namespace NugieVulkan {
     );
   }
 
-  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
+  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlag) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
@@ -317,7 +336,33 @@ namespace NugieVulkan {
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, properties);
+    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, memoryPropertyFlag);
+
+    if (vkAllocateMemory(this->device->getLogicalDevice(), &allocInfo, nullptr, &this->memory) != VK_SUCCESS) {
+      throw std::runtime_error("failed to allocate buffer memory!");
+    }
+
+    vkBindBufferMemory(this->device->getLogicalDevice(), this->buffer, this->memory, 0);
+  }
+
+  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags) {
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(this->device->getLogicalDevice(), &bufferInfo, nullptr, &this->buffer) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create buffer!");
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(this->device->getLogicalDevice(), this->buffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, memoryPropertyFlags, &this->memoryPropertyFlag);
 
     if (vkAllocateMemory(this->device->getLogicalDevice(), &allocInfo, nullptr, &this->memory) != VK_SUCCESS) {
       throw std::runtime_error("failed to allocate buffer memory!");

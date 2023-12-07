@@ -17,15 +17,17 @@ namespace NugieVulkan {
   struct QueueFamilyIndices {
     uint32_t graphicsFamily;
     uint32_t presentFamily;
-    uint32_t computeFamily;
     uint32_t transferFamily;
+
+    uint32_t graphicsCount;
+    uint32_t presentCount;
+    uint32_t transferCount;
 
     bool graphicsFamilyHasValue = false;
     bool presentFamilyHasValue = false;
-    bool computeFamilyHasValue = false;
     bool transferFamilyHasValue = false;
 
-    bool isComplete() { return graphicsFamilyHasValue && presentFamilyHasValue && computeFamilyHasValue && transferFamilyHasValue; }
+    bool isComplete() { return graphicsFamilyHasValue && presentFamilyHasValue && transferFamilyHasValue; }
   };
 
   class Device {
@@ -36,7 +38,7 @@ namespace NugieVulkan {
       const bool enableValidationLayers = true;
     #endif
 
-      static constexpr int MAX_FRAMES_IN_FLIGHT = 1;
+      static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
 
       Device(Window* window);
       ~Device();
@@ -45,10 +47,9 @@ namespace NugieVulkan {
       VkPhysicalDevice getPhysicalDevice() const { return this->physicalDevice; }
       VkSurfaceKHR getSurface() const { return this->surface; }
 
-      VkQueue getGraphicsQueue(uint32_t index) const { return this->graphicsQueue[index]; }
-      VkQueue getPresentQueue(uint32_t index) const { return this->presentQueue[index]; }
-      VkQueue getComputeQueue(uint32_t index) const { return this->computeQueue[index]; }
-      VkQueue getTransferQueue(uint32_t index) const { return this->transferQueue[index]; }
+      VkQueue getGraphicsQueue() const { return this->graphicsQueue; }
+      VkQueue getPresentQueue() const { return this->presentQueue; }
+      VkQueue getTransferQueue() const { return this->transferQueue; }
 
       QueueFamilyIndices getFamilyIndices() const { return this->familyIndices; }
       
@@ -57,7 +58,10 @@ namespace NugieVulkan {
 
       SwapChainSupportDetails getSwapChainSupport() { return this->querySwapChainSupport(this->physicalDevice); }
       QueueFamilyIndices getPhysicalQueueFamilies() { return this->findQueueFamilies(this->physicalDevice); }
-      uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
+      uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags property);
+      uint32_t findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> properties, VkMemoryPropertyFlags *selectedProperty);
+
       VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
     private:
@@ -69,11 +73,11 @@ namespace NugieVulkan {
       void createLogicalDevice();
 
       // helper creation functions
-      bool isDeviceSuitable(VkPhysicalDevice device);
       bool checkDeviceExtensionSupport(VkPhysicalDevice device);
       bool checkValidationLayerSupport();
       void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
       void hasGflwRequiredInstanceExtensions();
+      uint32_t rateDeviceSuitability(VkPhysicalDevice device);
       std::vector<const char *> getRequiredExtensions();
       QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
       SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
@@ -93,10 +97,9 @@ namespace NugieVulkan {
       VkSurfaceKHR surface;
 
       // queue
-      std::vector<VkQueue> graphicsQueue;
-      std::vector<VkQueue> presentQueue;
-      std::vector<VkQueue> computeQueue;
-      std::vector<VkQueue> transferQueue;
+      VkQueue graphicsQueue;
+      VkQueue presentQueue;
+      VkQueue transferQueue;
 
       // Queue Family Index
       QueueFamilyIndices familyIndices;
@@ -104,8 +107,8 @@ namespace NugieVulkan {
       // Anti-aliasing
       VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
-      const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-      const std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
+      std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+      std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
   };
 
 }  // namespace lve

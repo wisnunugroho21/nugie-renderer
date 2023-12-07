@@ -3,7 +3,7 @@
 
 namespace NugieApp {
   ShadowDescSet::ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[1]) 
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]) 
 	{
 		this->createDescriptor(device, descriptorPool, uniformBufferInfo, modelsInfo);
   }
@@ -13,12 +13,13 @@ namespace NugieApp {
 	}
 
   void ShadowDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[1]) 
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]) 
 	{
     this->descSetLayout = 
 			NugieVulkan::DescriptorSetLayout::Builder(device)
-				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT)
 				.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build();
 		
 	this->descriptorSets.clear();
@@ -28,6 +29,7 @@ namespace NugieApp {
 			auto x = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
 				.writeBuffer(0, uniformBufferInfo[i])
 				.writeBuffer(1, modelsInfo[0])
+				.writeBuffer(2, modelsInfo[1])
 				.build(&descSet);
 			
 			this->descriptorSets.emplace_back(descSet);

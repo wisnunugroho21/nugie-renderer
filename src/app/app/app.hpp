@@ -13,7 +13,7 @@
 #include "../data/model/reference_model.hpp"
 #include "../data/model/material_model.hpp"
 #include "../data/model/transformation_model.hpp"
-#include "../data/model/spot_light_model.hpp"
+#include "../data/model/point_light_model.hpp"
 #include "../data/buffer/shadow_uniform.hpp"
 #include "../data/buffer/forward_uniform.hpp"
 #include "../data/buffer/deferred_uniform.hpp"
@@ -36,13 +36,14 @@
 
 #define APP_TITLE "Testing Vulkan"
 
+#define WIDTH 800
+#define HEIGHT 800
+#define SHADOW_RESOLUTION 1024
+
 namespace NugieApp {
 	class App
 	{
 		public:
-			static constexpr int WIDTH = 800;
-			static constexpr int HEIGHT = 800;
-
 			App();
 			~App();
 
@@ -80,7 +81,7 @@ namespace NugieApp {
 			ReferenceModel* referenceModel;
 			MaterialModel* materialModel;
 			TransformationModel* transformationModel;
-			SpotLightModel* spotLightModel;
+			PointLightModel* pointLightModel;
 
 			ShadowUniform* shadowUniform;
 			ForwardUniform* forwardUniform;
@@ -93,7 +94,7 @@ namespace NugieApp {
 
 			uint32_t randomSeed = 0, numLight = 0;
 			bool isRendering = true;
-			float frameTime = 0;
+			float frameTime;
 
 			ShadowUbo shadowUbo;
 			ForwardUbo forwardUbo;

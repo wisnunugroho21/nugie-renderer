@@ -54,7 +54,7 @@ namespace NugieApp {
 			.build();
 	}
 
-	void DeferredPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, std::vector<VkDescriptorSet> descriptorSets, uint32_t randomSeed) 
+	void DeferredPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, std::vector<VkDescriptorSet> descriptorSets) 
 	{
 		this->pipeline->bindPipeline(commandBuffer);
 

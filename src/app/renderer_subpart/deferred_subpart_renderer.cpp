@@ -93,7 +93,7 @@ namespace NugieApp {
 
   std::vector<VkAttachmentReference> DeferredSubPartRenderer::getOutputAttachmentRefs() {
     VkAttachmentReference deferredColorAttachmentRef{};
-    deferredColorAttachmentRef.attachment = 6;
+    deferredColorAttachmentRef.attachment = 5;
     deferredColorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     std::vector<VkAttachmentReference> outputAttachmentRefs;
@@ -118,24 +118,19 @@ namespace NugieApp {
     VkAttachmentReference deferredMaterialInputRef;
     deferredMaterialInputRef.attachment = 3;
     deferredMaterialInputRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkAttachmentReference deferredShadowCoordInputRef;
-    deferredShadowCoordInputRef.attachment = 4;
-    deferredShadowCoordInputRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     
     std::vector<VkAttachmentReference> inputAttachmentRefs;
     inputAttachmentRefs.emplace_back(deferredPositionInputRef);
     inputAttachmentRefs.emplace_back(deferredNormalInputRef);
     inputAttachmentRefs.emplace_back(deferredColorInputRef);
     inputAttachmentRefs.emplace_back(deferredMaterialInputRef);
-    inputAttachmentRefs.emplace_back(deferredShadowCoordInputRef);
 
     return inputAttachmentRefs;
   }
 
   VkAttachmentReference DeferredSubPartRenderer::getDepthAttachmentRef() {
     VkAttachmentReference deferredDepthAttachmentRef{};
-    deferredDepthAttachmentRef.attachment = 7;
+    deferredDepthAttachmentRef.attachment = 6;
     deferredDepthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     return deferredDepthAttachmentRef;
@@ -143,7 +138,7 @@ namespace NugieApp {
 
   VkAttachmentReference DeferredSubPartRenderer::getResolveAttachmentRef() {
     VkAttachmentReference resolveAttachmentRef{};
-    resolveAttachmentRef.attachment = 8;
+    resolveAttachmentRef.attachment = 7;
     resolveAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     return resolveAttachmentRef;
@@ -160,7 +155,7 @@ namespace NugieApp {
       this->deferredColorImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_IMAGE_ASPECT_COLOR_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
@@ -169,14 +164,14 @@ namespace NugieApp {
       this->deferredDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
+        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
     }
   }
 
   VkFormat DeferredSubPartRenderer::findDepthFormat() {
     return this->device->findSupportedFormat(
-      {VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+      { VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
       VK_IMAGE_TILING_OPTIMAL,
       VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
   }
