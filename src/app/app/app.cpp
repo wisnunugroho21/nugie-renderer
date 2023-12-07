@@ -113,9 +113,7 @@ namespace NugieApp {
 
 				if (!this->renderer->presentFrame()) {
 					this->recreateSubRendererAndSubsystem();
-					
 					this->randomSeed = 0;
-					this->countedFrame = 0;
 
 					continue;
 				}				
@@ -130,8 +128,7 @@ namespace NugieApp {
 			}
 
 			auto newTime = std::chrono::high_resolution_clock::now();
-			this->frameTime[this->countedFrame] = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
-			this->countedFrame++;
+			this->frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
 		}
 	}
 
@@ -150,19 +147,11 @@ namespace NugieApp {
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
 
-			if (t == 25) {
-				float avgFrameTime = 0;
-				for (uint32_t i = 0; i < this->countedFrame; i++) {
-					avgFrameTime += this->frameTime[i];
-				}
-
-				avgFrameTime /= this->countedFrame;
-				
-				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / avgFrameTime));
+			if (t == 10) {
+				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / this->frameTime));
 				glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
 				t = 0;
-				this->countedFrame = 0;
 			} else {
 				t++;
 			}
