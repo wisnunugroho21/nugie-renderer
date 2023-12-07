@@ -66,9 +66,8 @@ namespace NugieVulkan {
     presentInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
     presentInfo.pWaitSemaphores = waitSemaphores.data();
 
-    VkSwapchainKHR swapChains[] = { this->swapChain };
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapChains;
+    presentInfo.swapchainCount = 1u;
+    presentInfo.pSwapchains = &this->swapChain;
 
     presentInfo.pImageIndices = imageIndex;
 

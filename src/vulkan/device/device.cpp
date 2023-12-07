@@ -147,34 +147,34 @@ namespace NugieVulkan {
   }
 
   void Device::createLogicalDevice() {
+    VkDeviceCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
     this->familyIndices = this->findQueueFamilies(this->physicalDevice);
+    float queuePriority = 1.0f;
 
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> sharedQueueFamilies = {
-      this->familyIndices.graphicsFamily, 
-      this->familyIndices.presentFamily, 
-      this->familyIndices.computeFamily,
-      this->familyIndices.transferFamily
-    };
+    VkDeviceQueueCreateInfo graphicQueueCreateInfo = {};
+    graphicQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    graphicQueueCreateInfo.queueFamilyIndex = this->familyIndices.graphicsFamily;
+    graphicQueueCreateInfo.queueCount = 1u;
+    graphicQueueCreateInfo.pQueuePriorities = &queuePriority;
 
-    std::vector<float> queuePriority;
+    VkDeviceQueueCreateInfo presentQueueCreateInfo = {};
+    presentQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    presentQueueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+    presentQueueCreateInfo.queueCount = 1u;
+    presentQueueCreateInfo.pQueuePriorities = &queuePriority;
 
-    for (int i = 0; i < Device::MAX_FRAMES_IN_FLIGHT; i++) {
-      if (i == 0) {
-        queuePriority.emplace_back(1.0f);
-      } else {
-        queuePriority.emplace_back(queuePriority[i - 1] * 0.5f);
-      }
-    }
+    VkDeviceQueueCreateInfo transferQueueCreateInfo = {};
+    transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    transferQueueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
+    transferQueueCreateInfo.queueCount = 1u;
+    transferQueueCreateInfo.pQueuePriorities = &queuePriority;
 
-    for (uint32_t queueFamily : sharedQueueFamilies) {
-      VkDeviceQueueCreateInfo queueCreateInfo = {};
-      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-      queueCreateInfo.queueFamilyIndex = queueFamily;
-      queueCreateInfo.queueCount = static_cast<uint32_t>(queuePriority.size());
-      queueCreateInfo.pQueuePriorities = queuePriority.data();
-      queueCreateInfos.push_back(queueCreateInfo);
-    }
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = { graphicQueueCreateInfo, presentQueueCreateInfo, transferQueueCreateInfo };
+
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
@@ -183,11 +183,6 @@ namespace NugieVulkan {
     deviceFeatures.depthBiasClamp = VK_TRUE;
     deviceFeatures.geometryShader = VK_TRUE;
 
-    VkDeviceCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
-    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-    createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.pEnabledFeatures = &deviceFeatures;
 
     #ifdef __APPLE__
@@ -210,17 +205,9 @@ namespace NugieVulkan {
       throw std::runtime_error("failed to create logical device!");
     }
 
-    this->graphicsQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-    this->presentQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-    this->computeQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-    this->transferQueue.resize(Device::MAX_FRAMES_IN_FLIGHT);
-
-    for (int i = 0; i < Device::MAX_FRAMES_IN_FLIGHT; i++) {
-      vkGetDeviceQueue(this->device, this->familyIndices.graphicsFamily, i, &this->graphicsQueue[i]);
-      vkGetDeviceQueue(this->device, this->familyIndices.presentFamily, i, &this->presentQueue[i]);
-      vkGetDeviceQueue(this->device, this->familyIndices.computeFamily, i, &this->computeQueue[i]);
-      vkGetDeviceQueue(this->device, this->familyIndices.transferFamily, i, &this->transferQueue[i]);
-    }
+    vkGetDeviceQueue(this->device, this->familyIndices.graphicsFamily, 0, &this->graphicsQueue);
+    vkGetDeviceQueue(this->device, this->familyIndices.presentFamily, 0, &this->presentQueue);
+    vkGetDeviceQueue(this->device, this->familyIndices.transferFamily, 0, &this->transferQueue);
   }
 
   void Device::createSurface() { 
@@ -381,35 +368,48 @@ namespace NugieVulkan {
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-    int i = 0;
-    for (const auto &queueFamily : queueFamilies) {
-      if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+      if (queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
         indices.graphicsFamily = i;
+        indices.graphicsCount = queueFamilies[i].queueCount;
         indices.graphicsFamilyHasValue = true;
-      }
-
-      if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-        indices.computeFamily = i;
-        indices.computeFamilyHasValue = true;
-      }
-
-      if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
-        indices.transferFamily = i;
-        indices.transferFamilyHasValue = true;
       }
 
       VkBool32 presentSupport = false;
       vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->surface, &presentSupport);
-      if (queueFamily.queueCount > 0 && presentSupport) {
+      if (queueFamilies[i].queueCount > 0 && presentSupport) {
         indices.presentFamily = i;
+        indices.presentCount = queueFamilies[i].queueCount;
         indices.presentFamilyHasValue = true;
       }
 
-      if (indices.isComplete()) {
+      if (indices.graphicsFamilyHasValue && indices.presentFamilyHasValue) {
         break;
       }
+    }
 
-      i++;
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+      if (indices.graphicsFamily == i) {
+        continue;
+      }
+
+      if (queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+        indices.transferFamily = i;
+        indices.transferCount = queueFamilies[i].queueCount;
+        indices.transferFamilyHasValue = true;
+      }
+
+      if (indices.transferFamilyHasValue) {
+        break;
+      }
+    }
+    
+    if (!indices.transferFamilyHasValue) {
+      if (queueFamilies[indices.graphicsFamily].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+        indices.transferFamily = indices.graphicsFamily;
+        indices.transferCount = indices.graphicsCount;
+        indices.transferFamilyHasValue = true;
+      }
     }
 
     return indices;

@@ -171,7 +171,7 @@ namespace NugieApp {
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
-		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(this->currentFrameIndex), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
 	void HybridRenderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
@@ -182,7 +182,7 @@ namespace NugieApp {
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
-		commandBuffer->submitCommand(this->device->getGraphicsQueue(this->currentFrameIndex), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		commandBuffer->submitCommand(this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
 	void HybridRenderer::submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
@@ -192,14 +192,14 @@ namespace NugieApp {
 		std::vector<VkSemaphore> signalSemaphores = {  };
 		std::vector<VkPipelineStageFlags> waitStages = {  };
 
-		commandBuffer->submitCommand(this->device->getTransferQueue(0), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		commandBuffer->submitCommand(this->device->getTransferQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
 	bool HybridRenderer::presentFrame() {
 		assert(this->isFrameStarted && "can't present frame if frame is not in progress");
 
 		std::vector<VkSemaphore> waitSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
-		auto result = this->swapChain->presentRenders(this->device->getPresentQueue(this->currentFrameIndex), &this->currentImageIndex, waitSemaphores);
+		auto result = this->swapChain->presentRenders(this->device->getPresentQueue(), &this->currentImageIndex, waitSemaphores);
 
 		this->currentFrameIndex = (this->currentFrameIndex + 1) % NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT;
 		this->isFrameStarted = false;

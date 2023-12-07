@@ -17,15 +17,17 @@ namespace NugieVulkan {
   struct QueueFamilyIndices {
     uint32_t graphicsFamily;
     uint32_t presentFamily;
-    uint32_t computeFamily;
     uint32_t transferFamily;
+
+    uint32_t graphicsCount;
+    uint32_t presentCount;
+    uint32_t transferCount;
 
     bool graphicsFamilyHasValue = false;
     bool presentFamilyHasValue = false;
-    bool computeFamilyHasValue = false;
     bool transferFamilyHasValue = false;
 
-    bool isComplete() { return graphicsFamilyHasValue && presentFamilyHasValue && computeFamilyHasValue && transferFamilyHasValue; }
+    bool isComplete() { return graphicsFamilyHasValue && presentFamilyHasValue && transferFamilyHasValue; }
   };
 
   class Device {
@@ -36,7 +38,7 @@ namespace NugieVulkan {
       const bool enableValidationLayers = true;
     #endif
 
-      static constexpr int MAX_FRAMES_IN_FLIGHT = 1;
+      static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
 
       Device(Window* window);
       ~Device();
@@ -45,10 +47,9 @@ namespace NugieVulkan {
       VkPhysicalDevice getPhysicalDevice() const { return this->physicalDevice; }
       VkSurfaceKHR getSurface() const { return this->surface; }
 
-      VkQueue getGraphicsQueue(uint32_t index) const { return this->graphicsQueue[index]; }
-      VkQueue getPresentQueue(uint32_t index) const { return this->presentQueue[index]; }
-      VkQueue getComputeQueue(uint32_t index) const { return this->computeQueue[index]; }
-      VkQueue getTransferQueue(uint32_t index) const { return this->transferQueue[index]; }
+      VkQueue getGraphicsQueue() const { return this->graphicsQueue; }
+      VkQueue getPresentQueue() const { return this->presentQueue; }
+      VkQueue getTransferQueue() const { return this->transferQueue; }
 
       QueueFamilyIndices getFamilyIndices() const { return this->familyIndices; }
       
@@ -96,10 +97,9 @@ namespace NugieVulkan {
       VkSurfaceKHR surface;
 
       // queue
-      std::vector<VkQueue> graphicsQueue;
-      std::vector<VkQueue> presentQueue;
-      std::vector<VkQueue> computeQueue;
-      std::vector<VkQueue> transferQueue;
+      VkQueue graphicsQueue;
+      VkQueue presentQueue;
+      VkQueue transferQueue;
 
       // Queue Family Index
       QueueFamilyIndices familyIndices;
