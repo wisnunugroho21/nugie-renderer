@@ -54,7 +54,7 @@ namespace NugieVulkan {
     uint32_t instanceCount,
     VkBufferUsageFlags usageFlags,
     const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags,
-    VkDeviceSize minOffsetAlignment = 1
+    VkDeviceSize minOffsetAlignment
   )
     : device{device},
       instanceSize{instanceSize},

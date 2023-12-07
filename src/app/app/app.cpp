@@ -342,8 +342,7 @@ namespace NugieApp {
 
 		this->updateCamera(width, height);
 
-		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
-			imageCount, width, height);
+		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
 		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * 6);
@@ -376,8 +375,7 @@ namespace NugieApp {
 			this->forwardSubPartRenderer->getPositionInfoResources(),
 			this->forwardSubPartRenderer->getNormalInfoResources(),
 			this->forwardSubPartRenderer->getColorInfoResources(),
-			this->forwardSubPartRenderer->getMaterialInfoResources(),
-			this->forwardSubPartRenderer->getShadowCoordInfoResources()
+			this->forwardSubPartRenderer->getMaterialInfoResources()
 		};
 
 		VkDescriptorBufferInfo deferredModelInfo[1] {
