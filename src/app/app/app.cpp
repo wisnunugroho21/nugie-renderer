@@ -88,7 +88,11 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
-				auto commandBuffer = this->renderer->beginCommand();
+				auto commandBuffer = this->renderer->beginRenderCommand();
+
+				if (!this->colorTexture->hasBeenMipmapped()) {
+					this->colorTexture->generateMipmap(commandBuffer);
+				}
 
 				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
 				this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});

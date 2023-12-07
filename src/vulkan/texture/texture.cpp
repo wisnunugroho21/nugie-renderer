@@ -68,7 +68,6 @@ namespace NugieVulkan {
       0, VK_ACCESS_TRANSFER_WRITE_BIT);
       
     this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
-    this->image->generateMipMap(commandBuffer);
     // this->image->transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   }
 
@@ -110,5 +109,10 @@ namespace NugieVulkan {
     imageInfo.sampler = this->sampler;
 
     return imageInfo;
+  }
+
+  void Texture::generateMipmap(CommandBuffer* commandBuffer) {
+    this->image->generateMipMap(commandBuffer);
+    this->hasMipmapped = true;
   }
 } // namespace NugieVulkan
