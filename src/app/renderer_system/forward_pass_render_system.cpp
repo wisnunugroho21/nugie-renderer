@@ -41,8 +41,8 @@ namespace NugieApp {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(4);
-		std::vector<VkVertexInputAttributeDescription> attributeDescription(4);
-		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(5);
+		std::vector<VkVertexInputAttributeDescription> attributeDescription(5);
+		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(4);
 
 		bindingDescriptions[0].binding = 0;
 		bindingDescriptions[0].stride = sizeof(Position);

@@ -48,7 +48,7 @@ namespace NugieApp {
   }
 
   std::vector<VkAttachmentDescription> DeferredSubPartRenderer::getAttachmentDescs() {
-    VkFormat colorFormat = this->findColorFormat();
+    VkFormat colorFormat = this->swapChainImageFormat;
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -145,7 +145,7 @@ namespace NugieApp {
   }
 
   void DeferredSubPartRenderer::createDeferredResources(uint32_t imageCount) {
-    VkFormat colorFormat = this->findColorFormat();
+    VkFormat colorFormat = this->swapChainImageFormat;
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -167,13 +167,6 @@ namespace NugieApp {
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
     }
-  }
-
-  VkFormat DeferredSubPartRenderer::findColorFormat() {
-    return this->device->findSupportedFormat(
-        { VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R16G16B16A16_UNORM, VK_FORMAT_R32G32B32A32_SFLOAT },
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
   }
 
   VkFormat DeferredSubPartRenderer::findDepthFormat() {

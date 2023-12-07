@@ -132,7 +132,7 @@ namespace NugieVulkan {
 
     std::multimap<uint32_t, VkPhysicalDevice> candidates;
     for (const auto& device : devices) {
-      int score = this->rateDeviceSuitability(device);
+      uint32_t score = this->rateDeviceSuitability(device);
       candidates.insert(std::make_pair(score, device));
     }
 
@@ -248,7 +248,7 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    if (supportedFeatures.samplerAnisotropy && supportedFeatures.geometryShader) {
+    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.geometryShader) {
       return score;
     }
 
