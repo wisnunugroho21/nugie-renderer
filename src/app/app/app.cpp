@@ -113,7 +113,9 @@ namespace NugieApp {
 
 				if (!this->renderer->presentFrame()) {
 					this->recreateSubRendererAndSubsystem();
+					
 					this->randomSeed = 0;
+					this->countedFrame = 0;
 
 					continue;
 				}				
@@ -128,7 +130,8 @@ namespace NugieApp {
 			}
 
 			auto newTime = std::chrono::high_resolution_clock::now();
-			this->frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
+			this->frameTime[this->countedFrame] = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
+			this->countedFrame++;
 		}
 	}
 
@@ -136,20 +139,30 @@ namespace NugieApp {
 		auto currentTime = std::chrono::high_resolution_clock::now();
 		uint32_t t = 0;
 
-		this->forwardUniform->writeGlobalData(0, this->forwardUbo);
-		this->deferredUniform->writeGlobalData(0, this->deferredUbo);
-		this->shadowUniform->writeGlobalData(0, this->shadowUbo);
+		for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
+			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
+			this->shadowUniform->writeGlobalData(i, this->shadowUbo);
+		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
 
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
 
-			if (t == 10) {
-				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / this->frameTime));
+			if (t == 25) {
+				float avgFrameTime = 0;
+				for (uint32_t i = 0; i < this->countedFrame; i++) {
+					avgFrameTime += this->frameTime[i];
+				}
+
+				avgFrameTime /= this->countedFrame;
+				
+				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / avgFrameTime));
 				glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
 				t = 0;
+				this->countedFrame = 0;
 			} else {
 				t++;
 			}

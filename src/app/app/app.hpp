@@ -92,9 +92,9 @@ namespace NugieApp {
 			ModelDeferredDescSet* modelDeferredDescSet;
 			ShadowDescSet* shadowDescSet;
 
-			uint32_t randomSeed = 0, numLight = 0;
+			uint32_t randomSeed = 0, numLight = 0, countedFrame = 0;
 			bool isRendering = true;
-			float frameTime = 0.0f;
+			float frameTime[50];
 
 			ShadowUbo shadowUbo;
 			ForwardUbo forwardUbo;
