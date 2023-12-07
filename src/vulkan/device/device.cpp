@@ -159,6 +159,59 @@ namespace NugieVulkan {
     graphicQueueCreateInfo.queueCount = 1u;
     graphicQueueCreateInfo.pQueuePriorities = &queuePriority;
 
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = { graphicQueueCreateInfo };
+
+    if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
+      && this->familyIndices.transferFamily != this->familyIndices.graphicsFamily
+      && this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) 
+    {
+      VkDeviceQueueCreateInfo presentQueueCreateInfo = {};
+      presentQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      presentQueueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      presentQueueCreateInfo.queueCount = 1u;
+      presentQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(presentQueueCreateInfo);
+
+      VkDeviceQueueCreateInfo transferQueueCreateInfo = {};
+      transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      transferQueueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
+      transferQueueCreateInfo.queueCount = 1u;
+      transferQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(transferQueueCreateInfo);
+    } else if (this->familyIndices.presentFamily == this->familyIndices.transferFamily 
+      && this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) 
+    {
+      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      queueCreateInfo.queueCount = 1u;
+      queueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(queueCreateInfo);
+    } else if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
+      && this->familyIndices.presentFamily == this->familyIndices.graphicsFamily) 
+    {
+      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
+      queueCreateInfo.queueCount = 1u;
+      queueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(queueCreateInfo);
+    } else if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
+      && this->familyIndices.transferFamily == this->familyIndices.graphicsFamily)
+    {
+      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      queueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      queueCreateInfo.queueCount = 1u;
+      queueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(queueCreateInfo);
+    }
+
     VkDeviceQueueCreateInfo transferQueueCreateInfo = {};
     transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     transferQueueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
@@ -183,7 +236,6 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
-    deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
     deviceFeatures.depthBiasClamp = VK_TRUE;
     deviceFeatures.geometryShader = VK_TRUE;
 
@@ -239,7 +291,9 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.geometryShader) {
+    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.geometryShader 
+      ||  !supportedFeatures.sampleRateShading || !supportedFeatures.depthBiasClamp) 
+    {
       return score;
     }
 
@@ -379,15 +433,7 @@ namespace NugieVulkan {
         indices.graphicsFamilyHasValue = true;
       }
 
-      VkBool32 presentSupport = false;
-      vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->surface, &presentSupport);
-      if (queueFamilies[i].queueCount > 0 && presentSupport) {
-        indices.presentFamily = i;
-        indices.presentCount = queueFamilies[i].queueCount;
-        indices.presentFamilyHasValue = true;
-      }
-
-      if (indices.graphicsFamilyHasValue && indices.presentFamilyHasValue) {
+      if (indices.graphicsFamilyHasValue) {
         break;
       }
     }
@@ -397,13 +443,21 @@ namespace NugieVulkan {
         continue;
       }
 
+      VkBool32 presentSupport = false;
+      vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->surface, &presentSupport);
+      if (queueFamilies[i].queueCount > 0 && presentSupport) {
+        indices.presentFamily = i;
+        indices.presentCount = queueFamilies[i].queueCount;
+        indices.presentFamilyHasValue = true;
+      }
+
       if (queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
         indices.transferFamily = i;
         indices.transferCount = queueFamilies[i].queueCount;
         indices.transferFamilyHasValue = true;
       }
 
-      if (indices.transferFamilyHasValue) {
+      if (indices.transferFamilyHasValue && indices.presentFamilyHasValue) {
         break;
       }
     }
@@ -413,6 +467,17 @@ namespace NugieVulkan {
         indices.transferFamily = indices.graphicsFamily;
         indices.transferCount = indices.graphicsCount;
         indices.transferFamilyHasValue = true;
+      }
+    }
+
+    if (!indices.presentFamilyHasValue) {
+      VkBool32 presentSupport = false;
+      vkGetPhysicalDeviceSurfaceSupportKHR(device, indices.graphicsFamily, this->surface, &presentSupport);
+
+      if (queueFamilies[indices.graphicsFamily].queueFlags & presentSupport) {
+        indices.presentFamily = indices.graphicsFamily;
+        indices.presentCount = indices.graphicsCount;
+        indices.presentFamilyHasValue = true;
       }
     }
 
