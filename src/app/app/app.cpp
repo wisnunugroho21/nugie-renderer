@@ -77,6 +77,8 @@ namespace NugieApp {
 		shadowBuffers.emplace_back(this->positionModel->getBuffer());
 		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
 
+		bool hasTransfer = true;
+
 		while (this->isRendering) {
 			auto oldTime = std::chrono::high_resolution_clock::now();
 
@@ -107,7 +109,7 @@ namespace NugieApp {
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				this->renderer->endRenderCommand(commandBuffer);
-				this->renderer->submitRenderCommand(commandBuffer);
+				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
 
 				if (!this->renderer->presentFrame()) {
 					this->recreateSubRendererAndSubsystem();
@@ -118,6 +120,10 @@ namespace NugieApp {
 
 				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->randomSeed++;
+				}
+
+				if (hasTransfer) {
+					hasTransfer = false;
 				}				
 			}
 

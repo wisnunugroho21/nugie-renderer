@@ -39,8 +39,8 @@ namespace NugieApp {
 			void endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer);
 			void endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
 
-			void submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffer);
-			void submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer);
+			void submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffe, bool isWaitTransfer);
+			void submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer);
 
 			void submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
 

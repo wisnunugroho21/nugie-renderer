@@ -178,22 +178,22 @@ namespace NugieApp {
 		commandBuffer->endCommand();
 	}
 
-	void HybridRenderer::submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffers) {
+	void HybridRenderer::submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffers, bool isWaitTransfer) {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
-		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
+		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex], this->transferFinishSemaphores[0] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
-		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT };
 
 		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
-	void HybridRenderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
+	void HybridRenderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer) {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
-		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
+		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex], this->transferFinishSemaphores[0] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
@@ -204,7 +204,7 @@ namespace NugieApp {
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
 		std::vector<VkSemaphore> waitSemaphores = {  };
-		std::vector<VkSemaphore> signalSemaphores = {  };
+		std::vector<VkSemaphore> signalSemaphores = { this->transferFinishSemaphores[0] };
 		std::vector<VkPipelineStageFlags> waitStages = {  };
 
 		commandBuffer->submitCommand(this->device->getTransferQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
