@@ -159,19 +159,23 @@ namespace NugieVulkan {
     graphicQueueCreateInfo.queueCount = 1u;
     graphicQueueCreateInfo.pQueuePriorities = &queuePriority;
 
-    VkDeviceQueueCreateInfo presentQueueCreateInfo = {};
-    presentQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    presentQueueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
-    presentQueueCreateInfo.queueCount = 1u;
-    presentQueueCreateInfo.pQueuePriorities = &queuePriority;
-
     VkDeviceQueueCreateInfo transferQueueCreateInfo = {};
     transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     transferQueueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
     transferQueueCreateInfo.queueCount = 1u;
     transferQueueCreateInfo.pQueuePriorities = &queuePriority;
 
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = { graphicQueueCreateInfo, presentQueueCreateInfo, transferQueueCreateInfo };
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = { graphicQueueCreateInfo, transferQueueCreateInfo };
+
+    if (this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) {
+      VkDeviceQueueCreateInfo presentQueueCreateInfo = {};
+      presentQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      presentQueueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
+      presentQueueCreateInfo.queueCount = 1u;
+      presentQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+      queueCreateInfos.emplace_back(presentQueueCreateInfo);
+    }
 
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
