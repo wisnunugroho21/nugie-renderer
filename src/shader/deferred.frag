@@ -16,15 +16,15 @@ layout(set = 1, binding = 0) uniform readonly DeferredUniform {
   vec4 originNumLights;
 } ubo;
 
-layout(set = 1, binding = 1) uniform readonly ShadowUniform {
-	mat4 lightTransforms[LIGHT_NUM];
+layout(set = 1, binding = 1) buffer readonly ShadowTransformationSsbo {
+	ShadowTransformation shadowTransformations[];
 };
 
 layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
   PointLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
+layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture[1];
 
 // ---------------------------------------------------------------------------
 
@@ -89,19 +89,21 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 }
 
 vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint i = 0u; i < LIGHT_NUM; i++) {
-    vec4 shadowCoord = lightTransforms[i] * surfacePosition;
+  for (uint i = 0u; i < uint(ubo.originNumLights.w); i++) {
+    for (uint j = 0u; j < 6u; j++) {
+      vec4 shadowCoord = shadowTransformations[j].viewProjectionMatrix * surfacePosition;
 
-    shadowCoord = shadowCoord / shadowCoord.w;
-    shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+      shadowCoord = shadowCoord / shadowCoord.w;
+      shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-    float dist = texture(shadowMapTexture, vec3(shadowCoord.xy, i)).x;
+      float dist = texture(shadowMapTexture[i], vec3(shadowCoord.xy, j)).x;
 
-    bool isShadow = shadowCoord.w > 0.0f
-      && abs(shadowCoord.z) < 1.0f
-      && dist < shadowCoord.z;
+      bool isShadow = shadowCoord.w > 0.0f
+        && abs(shadowCoord.z) < 1.0f
+        && dist < shadowCoord.z;
 
-    totalRadiance *= isShadow ? 0.25f : 1.0f;
+      totalRadiance *= isShadow ? 0.25f : 1.0f;
+    }
   }
 
   return totalRadiance;

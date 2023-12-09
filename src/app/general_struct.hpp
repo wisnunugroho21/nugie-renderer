@@ -43,6 +43,10 @@ namespace NugieApp {
     glm::mat4 normalMatrix{1.0f};
   };
 
+  struct ShadowTransformation {
+    glm::mat4 viewProjectionMatrix{1.0f};
+  };
+
   struct PointLight {
     glm::vec4 position;
     glm::vec4 color;
@@ -60,11 +64,7 @@ namespace NugieApp {
   };
 
   struct ForwardUbo {
-    glm::mat4 transforms;
-  };
-
-  struct ShadowUbo {
-    glm::mat4 lightTransforms[LIGHT_NUM];
+    glm::mat4 cameraTransforms;
   };
 
   struct ShadowPushConstant {

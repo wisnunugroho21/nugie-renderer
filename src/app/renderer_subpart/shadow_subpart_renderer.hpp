@@ -11,7 +11,7 @@
 namespace NugieApp {
   class ShadowSubPartRenderer {
     public:
-      ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum = 1u);
+      ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum = 1u);
       ~ShadowSubPartRenderer();
 
       std::vector<VkDescriptorImageInfo> getDepthInfoResources();
@@ -21,14 +21,14 @@ namespace NugieApp {
       VkAttachmentReference getDepthAttachmentRef();
       
     private:
-      uint32_t width, height;
+      uint32_t width, height, pointLightNum;
       NugieVulkan::Device* device;
 
       std::vector<NugieVulkan::Image*> shadowDepthImages;
       std::vector<NugieVulkan::Texture*> shadowDepthTextures;
 
       VkFormat findDepthFormat();
-      void createShadowResources(uint32_t layerNum);
+      void createShadowResources();
   };
   
 } // namespace NugieApp

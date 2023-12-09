@@ -4,7 +4,7 @@
 #include <array>
 
 namespace NugieApp {
-  ShadowSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum) : device{device}, width{width}, height{height}, layerNum{layerNum} 
+  ShadowSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum) : device{device}, width{width}, height{height}, pointLightNum{pointLightNum} 
   {
 
   }
@@ -35,14 +35,14 @@ namespace NugieApp {
   }
 
   ShadowSubRenderer* ShadowSubRenderer::Builder::build() {
-    return new ShadowSubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments, this->attachmentDescs, 
+    return new ShadowSubRenderer(this->device, this->width, this->height, this->pointLightNum, this->attachments, this->attachmentDescs, 
       this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef);
   }
 
-  ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
     std::vector<VkAttachmentReference> resolveAttachmentRef)
-    : device{device}, width{width}, height{height}, layerNum{layerNum}
+    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}
   {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
   }
@@ -88,7 +88,7 @@ namespace NugieApp {
       subpasses[subpasses.size() - 1].pResolveAttachments = &resolveAttachmentRef[0];
     }
 
-    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, this->layerNum);
+    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, 6);
     for (size_t i = 0; i < subpasses.size(); i++) {
       renderPassBuilder = renderPassBuilder
         .addSubpass(subpasses[i]);
@@ -145,13 +145,15 @@ namespace NugieApp {
       .build();
   }
 
-  void ShadowSubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, int currentImageIndex) {
+  void ShadowSubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t currentFrameIndex, uint32_t lightIndex) {
+    uint32_t totalIndex = currentFrameIndex * this->pointLightNum + lightIndex;
+
 		VkRenderPassBeginInfo renderBeginInfo{};
 		renderBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderBeginInfo.renderPass = this->getRenderPass()->getRenderPass();
-		renderBeginInfo.framebuffer = this->getRenderPass()->getFramebuffers(currentImageIndex);
+		renderBeginInfo.framebuffer = this->getRenderPass()->getFramebuffers(totalIndex);
 
-		renderBeginInfo.renderArea.offset = {0, 0};
+		renderBeginInfo.renderArea.offset = { 0, 0 };
 		renderBeginInfo.renderArea.extent = { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) };
 		renderBeginInfo.clearValueCount = static_cast<uint32_t>(this->clearValues.size());
 		renderBeginInfo.pClearValues = this->clearValues.data();
@@ -166,7 +168,7 @@ namespace NugieApp {
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
-		VkRect2D scissor{{0, 0}, { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) }};
+		VkRect2D scissor{ {0, 0}, { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) }};
     
 		vkCmdSetViewport(commandBuffer->getCommandBuffer(), 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);

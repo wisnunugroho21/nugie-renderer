@@ -2,24 +2,21 @@
 #include "../../../vulkan/descriptor/descriptor_writer.hpp"
 
 namespace NugieApp {
-  ShadowDescSet::ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]) 
+  ShadowDescSet::ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
 	{
-		this->createDescriptor(device, descriptorPool, uniformBufferInfo, modelsInfo);
+		this->createDescriptor(device, descriptorPool, modelsInfo);
   }
 
 	ShadowDescSet::~ShadowDescSet() {
 		if (this->descSetLayout != nullptr) delete this->descSetLayout;
 	}
 
-  void ShadowDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo, VkDescriptorBufferInfo modelsInfo[2]) 
+  void ShadowDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
 	{
     this->descSetLayout = 
 			NugieVulkan::DescriptorSetLayout::Builder(device)
-				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT)
-				.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+				.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT)
 				.build();
 		
 	this->descriptorSets.clear();
@@ -27,9 +24,8 @@ namespace NugieApp {
 			VkDescriptorSet descSet;
 
 			auto x = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
-				.writeBuffer(0, uniformBufferInfo[i])
-				.writeBuffer(1, modelsInfo[0])
-				.writeBuffer(2, modelsInfo[1])
+				.writeBuffer(0, modelsInfo[0])
+				.writeBuffer(1, modelsInfo[1])
 				.build(&descSet);
 			
 			this->descriptorSets.emplace_back(descSet);
