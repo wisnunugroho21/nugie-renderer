@@ -118,7 +118,7 @@ void main() {
   vec4 surfacePosition = subpassLoad(inputPosition, gl_SampleID);
   vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
   vec2 surfaceTextCoord = subpassLoad(inputTextCoord, gl_SampleID).xy;
-  uint surfaceMaterialIndex = uint(subpassLoad(inputMaterialIndex, gl_SampleID).x);
+  uint surfaceMaterialIndex = subpassLoad(inputMaterialIndex, gl_SampleID).x;
 
   vec4 surfaceMaterialParams = materials[surfaceMaterialIndex].params;
   uint colorTextureIndex = materials[surfaceMaterialIndex].colorTextureIndex;
