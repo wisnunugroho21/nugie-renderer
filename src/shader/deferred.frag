@@ -16,8 +16,8 @@ layout(set = 1, binding = 0) uniform readonly DeferredUniform {
   vec4 originNumLights;
 } ubo;
 
-layout(set = 1, binding = 1) uniform readonly ShadowUniform {
-	mat4 lightTransforms[LIGHT_NUM];
+layout(set = 1, binding = 1) buffer readonly ShadowTransformationSsbo {
+	ShadowTransformation shadowTransformations[];
 };
 
 layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
@@ -91,7 +91,7 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
   for (uint i = 0u; i < uint(ubo.originNumLights.w); i++) {
     for (uint j = 0u; j < 6u; j++) {
-      vec4 shadowCoord = lightTransforms[j] * surfacePosition;
+      vec4 shadowCoord = shadowTransformations[j].viewProjectionMatrix * surfacePosition;
 
       shadowCoord = shadowCoord / shadowCoord.w;
       shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;

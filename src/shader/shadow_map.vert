@@ -5,7 +5,7 @@
 layout(location = 0) in vec4 position;
 layout(location = 1) in uint transformIndex;
 
-layout(set = 0, binding = 1) buffer readonly TransformationSsbo {
+layout(set = 0, binding = 0) buffer readonly TransformationSsbo {
   Transformation transformations[];
 };
 

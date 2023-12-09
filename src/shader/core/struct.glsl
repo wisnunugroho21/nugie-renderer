@@ -30,6 +30,10 @@ struct Transformation {
   mat4 normalMatrix;
 };
 
+struct ShadowTransformation {
+  mat4 viewProjectionMatrix;
+};
+
 struct PointLight {
   vec4 position;
   vec4 color;
@@ -47,5 +51,5 @@ struct DeferredUbo {
 };
 
 struct ForwardUbo {
-  mat4 transforms;
+  mat4 cameraTransforms;
 };
