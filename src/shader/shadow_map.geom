@@ -9,7 +9,7 @@ layout(triangle_strip, max_vertices = 3) out;
 
 layout(location = 0) out vec4 fragPosition;
 
-layout(set = 0, binding = 1) buffer readonly ShadowTransformationSsbo {
+layout(set = 0, binding = 1) buffer readonly ShadowTransformationModel {
 	ShadowTransformation shadowTransformations[];
 };
 

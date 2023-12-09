@@ -9,22 +9,27 @@ layout(location = 0) out vec4 outColor;
 
 layout (input_attachment_index = 0, set = 0, binding = 0) uniform subpassInputMS inputPosition;
 layout (input_attachment_index = 1, set = 0, binding = 1) uniform subpassInputMS inputNormal;
-layout (input_attachment_index = 2, set = 0, binding = 2) uniform subpassInputMS inputColor;
-layout (input_attachment_index = 3, set = 0, binding = 3) uniform subpassInputMS inputMaterial;
+layout (input_attachment_index = 2, set = 0, binding = 2) uniform subpassInputMS inputTextCoord;
+layout (input_attachment_index = 3, set = 0, binding = 3) uniform subpassInputMS inputMaterialIndex;
 
 layout(set = 1, binding = 0) uniform readonly DeferredUniform {
   vec4 originNumLights;
 } ubo;
 
-layout(set = 1, binding = 1) buffer readonly ShadowTransformationSsbo {
+layout(set = 1, binding = 1) buffer readonly ShadowTransformationModel {
 	ShadowTransformation shadowTransformations[];
 };
 
-layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
+layout(set = 1, binding = 2) buffer readonly PointLightModel {
   PointLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture[1];
+layout(set = 1, binding = 3) buffer readonly MaterialModel {
+  Material materials[];
+};
+
+layout(set = 1, binding = 4) uniform sampler2DArray shadowMapTexture[1];
+layout(set = 1, binding = 5) uniform sampler2D colorTexture[1];
 
 // ---------------------------------------------------------------------------
 
@@ -112,8 +117,15 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
 void main() {
   vec4 surfacePosition = subpassLoad(inputPosition, gl_SampleID);
   vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
-  vec4 surfaceColor = subpassLoad(inputColor, gl_SampleID);
-  vec4 surfaceMaterialParams = subpassLoad(inputMaterial, gl_SampleID);
+  vec2 surfaceTextCoord = subpassLoad(inputTextCoord, gl_SampleID).xy;
+  uint surfaceMaterialIndex = uint(subpassLoad(inputMaterialIndex, gl_SampleID).x);
+
+  vec4 surfaceMaterialParams = materials[surfaceMaterialIndex].params;
+  uint colorTextureIndex = materials[surfaceMaterialIndex].colorTextureIndex;
+  
+  vec4 surfaceColor = colorTextureIndex == 0 
+    ? materials[surfaceMaterialIndex].baseColor 
+    : texture(colorTexture[colorTextureIndex - 1u], surfaceTextCoord);
 
   vec4 totalRadiance = vec4(0.0f);
 

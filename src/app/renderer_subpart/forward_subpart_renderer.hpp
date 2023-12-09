@@ -15,8 +15,8 @@ namespace NugieApp {
 
       std::vector<VkDescriptorImageInfo> getPositionInfoResources();
       std::vector<VkDescriptorImageInfo> getNormalInfoResources();
-      std::vector<VkDescriptorImageInfo> getColorInfoResources();
-      std::vector<VkDescriptorImageInfo> getMaterialInfoResources();
+      std::vector<VkDescriptorImageInfo> getTextCoordInfoResources();
+      std::vector<VkDescriptorImageInfo> getMaterialIndexInfoResources();
 
       std::vector<std::vector<VkImageView>> getAttachments();
       std::vector<VkAttachmentDescription> getAttachmentDescs();
@@ -29,12 +29,12 @@ namespace NugieApp {
       
       std::vector<NugieVulkan::Image*> forwardPositionImages;
       std::vector<NugieVulkan::Image*> forwardNormalImages;
-      std::vector<NugieVulkan::Image*> forwardColorImages;
-      std::vector<NugieVulkan::Image*> forwardMaterialImages;
+      std::vector<NugieVulkan::Image*> forwardTextCoordImages;
+      std::vector<NugieVulkan::Image*> forwardMaterialIndexImages;
       std::vector<NugieVulkan::Image*> forwardDepthImages;
 
       VkFormat findDepthFormat();
-      VkFormat findColorFormat();
+      VkFormat findColorFormat(std::vector<VkFormat> colorFormats);
 
       void createForwardResources(uint32_t imageCount);
   };

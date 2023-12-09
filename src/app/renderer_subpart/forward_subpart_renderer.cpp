@@ -19,12 +19,12 @@ namespace NugieApp {
       if (normalImage != nullptr) delete normalImage;
     }
 
-    for (auto &&forwardColorImage : this->forwardColorImages) {
-      if (forwardColorImage != nullptr) delete forwardColorImage;
+    for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
+      if (forwardTextCoordImage != nullptr) delete forwardTextCoordImage;
     }
 
-    for (auto &&forwardMaterialImage : this->forwardMaterialImages) {
-      if (forwardMaterialImage != nullptr) delete forwardMaterialImage;
+    for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
+      if (forwardMaterialIndexImage != nullptr) delete forwardMaterialIndexImage;
     }
 
     for (auto &&depthImage : this->forwardDepthImages) {
@@ -50,19 +50,19 @@ namespace NugieApp {
     return descInfos;
   }
 
-  std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getColorInfoResources() {
+  std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getTextCoordInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardColorImage : this->forwardColorImages) {
-      descInfos.emplace_back(forwardColorImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
+      descInfos.emplace_back(forwardTextCoordImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
   }
 
-  std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getMaterialInfoResources() {
+  std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getMaterialIndexInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardMaterialImage : this->forwardMaterialImages) {
-      descInfos.emplace_back(forwardMaterialImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
+      descInfos.emplace_back(forwardMaterialIndexImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -85,19 +85,19 @@ namespace NugieApp {
 
     attachments.emplace_back(forwardNormalAttachment);
 
-    std::vector<VkImageView> forwardColorAttachment;
-    for (size_t i = 0; i < this->forwardColorImages.size(); i++) {
-      forwardColorAttachment.emplace_back(this->forwardColorImages[i]->getImageView());
+    std::vector<VkImageView> forwardTextCoordAttachment;
+    for (size_t i = 0; i < this->forwardTextCoordImages.size(); i++) {
+      forwardTextCoordAttachment.emplace_back(this->forwardTextCoordImages[i]->getImageView());
     }
 
-    attachments.emplace_back(forwardColorAttachment);
+    attachments.emplace_back(forwardTextCoordAttachment);
 
-    std::vector<VkImageView> forwardMaterialAttachment;
-    for (size_t i = 0; i < this->forwardMaterialImages.size(); i++) {
-      forwardMaterialAttachment.emplace_back(this->forwardMaterialImages[i]->getImageView());
+    std::vector<VkImageView> forwardMaterialIndexAttachment;
+    for (size_t i = 0; i < this->forwardMaterialIndexImages.size(); i++) {
+      forwardMaterialIndexAttachment.emplace_back(this->forwardMaterialIndexImages[i]->getImageView());
     }
 
-    attachments.emplace_back(forwardMaterialAttachment);
+    attachments.emplace_back(forwardMaterialIndexAttachment);
 
     std::vector<VkImageView> forwardDepthAttachment;
     for (size_t i = 0; i < this->forwardDepthImages.size(); i++) {
@@ -110,13 +110,11 @@ namespace NugieApp {
   }
 
   std::vector<VkAttachmentDescription> ForwardSubPartRenderer::getAttachmentDescs() {
-    VkFormat colorFormat = this->findColorFormat();
     VkFormat depthFormat = this->findDepthFormat();
-
     auto msaaSamples = this->device->getMSAASamples();
 
     VkAttachmentDescription forwardPositionAttachment{};
-    forwardPositionAttachment.format = colorFormat;
+    forwardPositionAttachment.format = this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT });
     forwardPositionAttachment.samples = msaaSamples;
     forwardPositionAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     forwardPositionAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -126,7 +124,7 @@ namespace NugieApp {
     forwardPositionAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentDescription forwardNormalAttachment{};
-    forwardNormalAttachment.format = colorFormat;
+    forwardNormalAttachment.format = this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT });
     forwardNormalAttachment.samples = msaaSamples;
     forwardNormalAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     forwardNormalAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -135,25 +133,25 @@ namespace NugieApp {
     forwardNormalAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     forwardNormalAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkAttachmentDescription forwardColorAttachment{};
-    forwardColorAttachment.format = colorFormat;
-    forwardColorAttachment.samples = msaaSamples;
-    forwardColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    forwardColorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    forwardColorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    forwardColorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    forwardColorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkAttachmentDescription forwardTextCoordAttachment{};
+    forwardTextCoordAttachment.format = this->findColorFormat({ VK_FORMAT_R8G8_UNORM, VK_FORMAT_R16G16_UNORM, VK_FORMAT_R32G32_SFLOAT });
+    forwardTextCoordAttachment.samples = msaaSamples;
+    forwardTextCoordAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    forwardTextCoordAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardTextCoordAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardTextCoordAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    forwardTextCoordAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    forwardTextCoordAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkAttachmentDescription forwardMaterialAttachment{};
-    forwardMaterialAttachment.format = colorFormat;
-    forwardMaterialAttachment.samples = msaaSamples;
-    forwardMaterialAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardMaterialAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    forwardMaterialAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    forwardMaterialAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    forwardMaterialAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    forwardMaterialAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkAttachmentDescription forwardMaterialIndexAttachment{};
+    forwardMaterialIndexAttachment.format = this->findColorFormat({ VK_FORMAT_R8_UINT, VK_FORMAT_R16_UINT, VK_FORMAT_R32_UINT });
+    forwardMaterialIndexAttachment.samples = msaaSamples;
+    forwardMaterialIndexAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    forwardMaterialIndexAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardMaterialIndexAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardMaterialIndexAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    forwardMaterialIndexAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    forwardMaterialIndexAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentDescription forwardDepthAttachment{};
     forwardDepthAttachment.format = depthFormat;
@@ -168,8 +166,8 @@ namespace NugieApp {
     std::vector<VkAttachmentDescription> attachmentDescs;
     attachmentDescs.emplace_back(forwardPositionAttachment);
     attachmentDescs.emplace_back(forwardNormalAttachment);
-    attachmentDescs.emplace_back(forwardColorAttachment);
-    attachmentDescs.emplace_back(forwardMaterialAttachment);
+    attachmentDescs.emplace_back(forwardTextCoordAttachment);
+    attachmentDescs.emplace_back(forwardMaterialIndexAttachment);
     attachmentDescs.emplace_back(forwardDepthAttachment);
 
     return attachmentDescs;
@@ -184,19 +182,19 @@ namespace NugieApp {
     forwardNormalAttachmentRef.attachment = 1;
     forwardNormalAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference forwardColorAttachmentRef{};
-    forwardColorAttachmentRef.attachment = 2;
-    forwardColorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference forwardTextCoordAttachmentRef{};
+    forwardTextCoordAttachmentRef.attachment = 2;
+    forwardTextCoordAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference forwardMaterialAttachmentRef{};
-    forwardMaterialAttachmentRef.attachment = 3;
-    forwardMaterialAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference forwardMaterialIndexAttachmentRef{};
+    forwardMaterialIndexAttachmentRef.attachment = 3;
+    forwardMaterialIndexAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     std::vector<VkAttachmentReference> outputAttachmentRefs;
     outputAttachmentRefs.emplace_back(forwardPositionAttachmentRef);
     outputAttachmentRefs.emplace_back(forwardNormalAttachmentRef);
-    outputAttachmentRefs.emplace_back(forwardColorAttachmentRef);
-    outputAttachmentRefs.emplace_back(forwardMaterialAttachmentRef);
+    outputAttachmentRefs.emplace_back(forwardTextCoordAttachmentRef);
+    outputAttachmentRefs.emplace_back(forwardMaterialIndexAttachmentRef);
 
     return outputAttachmentRefs;
   }
@@ -210,7 +208,6 @@ namespace NugieApp {
   }
 
   void ForwardSubPartRenderer::createForwardResources(uint32_t imageCount) {
-    VkFormat colorFormat = this->findColorFormat();
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
@@ -218,7 +215,7 @@ namespace NugieApp {
     this->forwardPositionImages.clear();
     for (uint32_t i = 0; i < imageCount; i++) {
       this->forwardPositionImages.push_back(new NugieVulkan::Image(
-        this->device, this->width, this->height, 1, msaaSamples, colorFormat,
+        this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
@@ -227,25 +224,25 @@ namespace NugieApp {
     this->forwardNormalImages.clear();
     for (uint32_t i = 0; i < imageCount; i++) {
       this->forwardNormalImages.push_back(new NugieVulkan::Image(
-        this->device, this->width, this->height, 1, msaaSamples, colorFormat,
+        this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
-    this->forwardColorImages.clear();
+    this->forwardTextCoordImages.clear();
     for (uint32_t i = 0; i < imageCount; i++) {
-      this->forwardColorImages.push_back(new NugieVulkan::Image(
-        this->device, this->width, this->height, 1, msaaSamples, colorFormat,
+      this->forwardTextCoordImages.push_back(new NugieVulkan::Image(
+        this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R8G8_UNORM, VK_FORMAT_R16G16_UNORM, VK_FORMAT_R32G32_SFLOAT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
-    this->forwardMaterialImages.clear();
+    this->forwardMaterialIndexImages.clear();
     for (uint32_t i = 0; i < imageCount; i++) {
-      this->forwardMaterialImages.push_back(new NugieVulkan::Image(
-        this->device, this->width, this->height, 1, msaaSamples, colorFormat,
+      this->forwardMaterialIndexImages.push_back(new NugieVulkan::Image(
+        this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R8_UINT, VK_FORMAT_R16_UINT, VK_FORMAT_R32_UINT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
@@ -261,9 +258,9 @@ namespace NugieApp {
     }
   }
 
-  VkFormat ForwardSubPartRenderer::findColorFormat() {
+  VkFormat ForwardSubPartRenderer::findColorFormat(std::vector<VkFormat> colorFormats) {
      return this->device->findSupportedFormat(
-      { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT },
+      colorFormats,
       VK_IMAGE_TILING_OPTIMAL,
       VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
   }

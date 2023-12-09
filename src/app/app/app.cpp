@@ -387,28 +387,28 @@ namespace NugieApp {
 			this->shadowTransformationModel->getTransformationInfo()
 		};
 
-		VkDescriptorBufferInfo forwardModelInfos[2] = {
-			this->transformationModel->getTransformationInfo(),
-			this->materialModel->getMaterialInfo()
+		VkDescriptorBufferInfo forwardModelInfos[1] = {
+			this->transformationModel->getTransformationInfo()
 		};
 
-		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[5] = {
+		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
 			this->forwardSubPartRenderer->getPositionInfoResources(),
 			this->forwardSubPartRenderer->getNormalInfoResources(),
-			this->forwardSubPartRenderer->getColorInfoResources(),
-			this->forwardSubPartRenderer->getMaterialInfoResources()
+			this->forwardSubPartRenderer->getTextCoordInfoResources(),
+			this->forwardSubPartRenderer->getMaterialIndexInfoResources()
 		};
 
-		VkDescriptorBufferInfo deferredModelInfo[2] {
+		VkDescriptorBufferInfo deferredModelInfo[3] {
 			this->shadowTransformationModel->getTransformationInfo(),
-			this->pointLightModel->getLightInfo()
+			this->pointLightModel->getLightInfo(),
+			this->materialModel->getMaterialInfo()
 		};
 
 		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[1] {
 			this->shadowSubPartRenderer->getDepthInfoResources()
 		};
 
-		VkDescriptorImageInfo texturesInfo[1] {
+		VkDescriptorImageInfo deferredObjectTexturesInfo[1] {
 			this->colorTexture->getDescriptorInfo()
 		};
 		
@@ -424,10 +424,10 @@ namespace NugieApp {
 		};
 		
 		this->shadowDescSet = new ShadowDescSet(this->device, this->renderer->getDescriptorPool(), shadowModelInfos);
-		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos, texturesInfo);
+		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
 		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->numLight, this->renderer->getDescriptorPool(), deferredUniformInfo, 
-			deferredModelInfo, deferredRenderTextureInfo);
+			deferredModelInfo, deferredRenderTextureInfo, deferredObjectTexturesInfo);
 
 		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;
 		deferredDescSetLayouts.emplace_back(this->attachmentDeferredDescSet->getDescSetLayout());

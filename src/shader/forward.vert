@@ -17,7 +17,7 @@ layout(set = 0, binding = 0) uniform readonly ForwardUniform {
 	mat4 cameraTransforms;
 } forwardUbo;
 
-layout(set = 0, binding = 1) buffer readonly TransformationSsbo {
+layout(set = 0, binding = 1) buffer readonly TransformationModel {
   Transformation transformations[];
 };
 
