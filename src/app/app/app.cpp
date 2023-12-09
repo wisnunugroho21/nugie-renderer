@@ -57,8 +57,10 @@ namespace NugieApp {
 		if (this->transformationModel != nullptr) delete this->transformationModel;
 		if (this->shadowTransformationModel != nullptr) delete this->shadowTransformationModel;
 		if (this->pointLightModel != nullptr) delete this->pointLightModel;
-
-		if (this->colorTexture != nullptr) delete this->colorTexture;
+		
+		for (auto &&colorTexture : this->colorTextures) {
+			if (colorTexture != nullptr) delete colorTexture;
+		}
 
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
@@ -92,8 +94,10 @@ namespace NugieApp {
 
 				auto commandBuffer = this->renderer->beginRenderCommand();
 
-				if (!this->colorTexture->hasBeenMipmapped()) {
-					this->colorTexture->generateMipmap(commandBuffer);
+				for (auto &&colorTexture : this->colorTextures) {
+					if (!colorTexture->hasBeenMipmapped()) {
+						colorTexture->generateMipmap(commandBuffer);
+					}
 				}
 
 				for (uint32_t i = 0; i < this->numLight; i++) {
@@ -321,7 +325,8 @@ namespace NugieApp {
 		this->shadowTransformationModel = new ShadowTransformationModel(this->device);
 		this->shadowTransformationModel->update(commandBuffer, shadowTransforms);
 
-		this->colorTexture = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
+		this->colorTextures.resize(1);
+		this->colorTextures[0] = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
 			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
 
 		this->renderer->endTransferCommand(commandBuffer);
@@ -408,9 +413,11 @@ namespace NugieApp {
 			this->shadowSubPartRenderer->getDepthInfoResources()
 		};
 
-		VkDescriptorImageInfo deferredObjectTexturesInfo[1] {
-			this->colorTexture->getDescriptorInfo()
-		};
+		std::vector<VkDescriptorImageInfo> deferredObjectTexturesInfos[1];
+		for (auto &&colorTexture : this->colorTextures) {
+			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
+		}
+		
 		
 		this->forwardUniform = new ForwardUniform(this->device);
 		this->deferredUniform = new DeferredUniform(this->device);
@@ -427,7 +434,7 @@ namespace NugieApp {
 		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
 		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->numLight, this->renderer->getDescriptorPool(), deferredUniformInfo, 
-			deferredModelInfo, deferredRenderTextureInfo, deferredObjectTexturesInfo);
+			deferredModelInfo, deferredRenderTextureInfo, deferredObjectTexturesInfos);
 
 		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;
 		deferredDescSetLayouts.emplace_back(this->attachmentDeferredDescSet->getDescSetLayout());

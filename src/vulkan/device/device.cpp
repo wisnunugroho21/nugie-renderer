@@ -215,6 +215,13 @@ namespace NugieVulkan {
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
+    descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    
+    descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+    descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
@@ -222,6 +229,7 @@ namespace NugieVulkan {
     deviceFeatures.geometryShader = VK_TRUE;
 
     createInfo.pEnabledFeatures = &deviceFeatures;
+    createInfo.pNext = &descriptorIndexingFeatures;
 
     #ifdef __APPLE__
       this->deviceExtensions.emplace_back("VK_KHR_portability_subset");

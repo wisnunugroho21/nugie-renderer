@@ -1,4 +1,5 @@
 #version 460
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #define KEPSILON 0.00001
 #define LIGHT_NUM 6
@@ -28,8 +29,8 @@ layout(set = 1, binding = 3) buffer readonly MaterialModel {
   Material materials[];
 };
 
-layout(set = 1, binding = 4) uniform sampler2DArray shadowMapTexture[1];
-layout(set = 1, binding = 5) uniform sampler2D colorTexture[1];
+layout(set = 1, binding = 4) uniform sampler2DArray shadowMapTexture[];
+layout(set = 1, binding = 5) uniform sampler2D colorTexture[];
 
 // ---------------------------------------------------------------------------
 
@@ -101,7 +102,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
       shadowCoord = shadowCoord / shadowCoord.w;
       shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-      float dist = texture(shadowMapTexture[i], vec3(shadowCoord.xy, j)).x;
+      float dist = texture(shadowMapTexture[nonuniformEXT(i)], vec3(shadowCoord.xy, j)).x;
 
       bool isShadow = shadowCoord.w > 0.0f
         && abs(shadowCoord.z) < 1.0f
@@ -125,7 +126,7 @@ void main() {
   
   vec4 surfaceColor = colorTextureIndex == 0 
     ? materials[surfaceMaterialIndex].baseColor 
-    : texture(colorTexture[colorTextureIndex - 1u], surfaceTextCoord);
+    : texture(colorTexture[nonuniformEXT(colorTextureIndex - 1u)], surfaceTextCoord);
 
   vec4 totalRadiance = vec4(0.0f);
 

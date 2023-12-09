@@ -45,7 +45,7 @@ namespace NugieVulkan {
     return *this;
   }
 
-  DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding, std::vector<VkDescriptorImageInfo> *imageInfos) {
+  DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding, std::vector<VkDescriptorImageInfo> &imageInfos) {
     assert(this->setLayout->getBindings().count(binding) == 1 && "Layout does not contain specified binding");
   
     auto bindingDescription = this->setLayout->getBindings()[binding];
@@ -54,8 +54,8 @@ namespace NugieVulkan {
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write.descriptorType = bindingDescription.descriptorType;
     write.dstBinding = binding;
-    write.pImageInfo = imageInfos->data();
-    write.descriptorCount = static_cast<uint32_t>(imageInfos->size());
+    write.pImageInfo = imageInfos.data();
+    write.descriptorCount = static_cast<uint32_t>(imageInfos.size());
   
     writes.push_back(write);
     return *this;
