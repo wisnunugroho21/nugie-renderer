@@ -99,6 +99,6 @@ namespace NugieApp {
 			ForwardUbo forwardUbo;
 			DeferredUbo deferredUbo;
 
-			NugieVulkan::Texture* colorTexture;
+			std::vector<NugieVulkan::Texture*> colorTextures;
 	};
 }

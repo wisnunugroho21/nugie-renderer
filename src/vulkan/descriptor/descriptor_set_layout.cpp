@@ -24,6 +24,16 @@ namespace NugieVulkan {
     this->bindings[binding] = layoutBinding;
     return *this;
   }
+
+  DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::addFlag(
+    uint32_t binding,
+    VkDescriptorBindingFlags flag) 
+  {
+    assert(this->flags.count(binding) == 0 && "Flag already in use");
+
+    this->flags[binding] = flag;
+    return *this;
+  }
   
   DescriptorSetLayout* DescriptorSetLayout::Builder::build() const {
     return new DescriptorSetLayout(this->device, this->bindings);
@@ -44,6 +54,26 @@ namespace NugieVulkan {
     descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
     descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
+
+    if (this->flags.size() > 0) {
+      std::vector<VkDescriptorBindingFlags> setLayoutFlags{};
+      for (auto& kv : this->bindings) {
+        if (this->flags.count(kv.first) == 0) {
+          setLayoutFlags.push_back(0);
+        }
+
+        else {
+          setLayoutFlags.push_back(this->flags[kv.first]);
+        }
+      }
+
+      VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
+      bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+      bindingFlags.bindingCount = static_cast<uint32_t>(setLayoutFlags.size());
+      bindingFlags.pBindingFlags = setLayoutFlags.data();
+
+      descriptorSetLayoutInfo.pNext = &bindingFlags;
+    }
   
     if (vkCreateDescriptorSetLayout(
       this->device->getLogicalDevice(),

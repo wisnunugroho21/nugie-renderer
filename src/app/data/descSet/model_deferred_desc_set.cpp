@@ -4,7 +4,7 @@
 namespace NugieApp {
   ModelDeferredDescSet::ModelDeferredDescSet(NugieVulkan::Device* device, uint32_t pointLightNum, NugieVulkan::DescriptorPool* descriptorPool,
 		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[3],
-		std::vector<VkDescriptorImageInfo> renderTextureInfo[1], VkDescriptorImageInfo objectRexturesInfo[1]) 
+		std::vector<VkDescriptorImageInfo> renderTextureInfo[1], std::vector<VkDescriptorImageInfo> objectRexturesInfo[1]) 
 	{
 		this->createDescriptor(device, pointLightNum, descriptorPool, uniformBufferInfo, 
 			modelsInfo, renderTextureInfo, objectRexturesInfo);
@@ -16,7 +16,7 @@ namespace NugieApp {
 
   void ModelDeferredDescSet::createDescriptor(NugieVulkan::Device* device, uint32_t pointLightNum, NugieVulkan::DescriptorPool* descriptorPool,
 		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[3],
-		std::vector<VkDescriptorImageInfo> renderTextureInfo[1], VkDescriptorImageInfo objectRexturesInfo[1])
+		std::vector<VkDescriptorImageInfo> renderTextureInfo[1], std::vector<VkDescriptorImageInfo> objectRexturesInfo[1])
 	{
     this->descSetLayout = 
 			NugieVulkan::DescriptorSetLayout::Builder(device)
@@ -24,20 +24,20 @@ namespace NugieApp {
 				.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-				.addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-				.addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, pointLightNum)
+				.addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, static_cast<uint32_t>(objectRexturesInfo[0].size()))
 				.build();
 
-		std::vector<VkDescriptorImageInfo> *newRenderTextureInfos = new std::vector<VkDescriptorImageInfo>();
+		std::vector<VkDescriptorImageInfo> newRenderTextureInfos;
 		this->descriptorSets.clear();
 		
 		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			newRenderTextureInfos->clear();
+			newRenderTextureInfos.clear();
 			VkDescriptorSet descSet;
 			
 			for (uint32_t j = 0; j < pointLightNum; j++) {
 				uint32_t totalIndex = i * pointLightNum + j;
-				newRenderTextureInfos->emplace_back(renderTextureInfo[0][totalIndex]);
+				newRenderTextureInfos.emplace_back(renderTextureInfo[0][totalIndex]);
 			}
 
 			NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)

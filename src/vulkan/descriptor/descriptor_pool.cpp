@@ -48,22 +48,32 @@ namespace NugieVulkan {
     vkDestroyDescriptorPool(this->device->getLogicalDevice(), descriptorPool, nullptr);
   }
   
-  bool DescriptorPool::allocate(const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet *descriptor) const {
+  bool DescriptorPool::allocate(const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet *descriptor, std::vector<uint32_t> variableSetCounts) const {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = this->descriptorPool;
     allocInfo.pSetLayouts = &descriptorSetLayout;
     allocInfo.descriptorSetCount = 1;
+
+    if (variableSetCounts.size() > 0) {
+      VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
+      setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+      setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
+      setCounts.pDescriptorCounts = variableSetCounts.data();
+
+      allocInfo.pNext = &setCounts;
+    }
   
     // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
     // a new pool whenever an old pool fills up. But this is beyond our current scope
     if (vkAllocateDescriptorSets(this->device->getLogicalDevice(), &allocInfo, descriptor) != VK_SUCCESS) {
       return false;
     }
+    
     return true;
   }
 
-  bool DescriptorPool::allocate(std::vector<VkDescriptorSetLayout> descriptorSetLayout, std::vector<VkDescriptorSet*> descriptors) const {
+  bool DescriptorPool::allocate(std::vector<VkDescriptorSetLayout> descriptorSetLayout, std::vector<VkDescriptorSet*> descriptors, std::vector<uint32_t> variableSetCounts) const {
     std::vector<VkDescriptorSet> newDescriptors { descriptors.size() };
     for (uint32_t i = 0; i < descriptors.size(); i++) {
       newDescriptors[i] = *descriptors[i];
@@ -74,6 +84,15 @@ namespace NugieVulkan {
     allocInfo.descriptorPool = this->descriptorPool;
     allocInfo.pSetLayouts = descriptorSetLayout.data();
     allocInfo.descriptorSetCount = static_cast<uint32_t>(newDescriptors.size());
+
+    if (variableSetCounts.size() > 0) {
+      VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
+      setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+      setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
+      setCounts.pDescriptorCounts = variableSetCounts.data();
+
+      allocInfo.pNext = &setCounts;
+    }
   
     // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
     // a new pool whenever an old pool fills up. But this is beyond our current scope
