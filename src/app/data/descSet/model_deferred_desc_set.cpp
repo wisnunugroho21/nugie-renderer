@@ -32,7 +32,7 @@ namespace NugieApp {
 			newRenderTextureInfos->clear();
 			VkDescriptorSet descSet;
 			
-			for (uint32_t j = 0; j < pointLightNum; i++) {
+			for (uint32_t j = 0; j < pointLightNum; j++) {
 				uint32_t totalIndex = i * pointLightNum + j;
 				newRenderTextureInfos->emplace_back(renderTextureInfo[0][totalIndex]);
 			}
