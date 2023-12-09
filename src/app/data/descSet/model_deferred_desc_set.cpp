@@ -3,10 +3,11 @@
 
 namespace NugieApp {
   ModelDeferredDescSet::ModelDeferredDescSet(NugieVulkan::Device* device, uint32_t pointLightNum, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[2],
-		std::vector<VkDescriptorImageInfo> renderTextureInfo[1]) 
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[3],
+		std::vector<VkDescriptorImageInfo> renderTextureInfo[1], VkDescriptorImageInfo objectRexturesInfo[1]) 
 	{
-		this->createDescriptor(device, pointLightNum, descriptorPool, uniformBufferInfo, modelsInfo, renderTextureInfo);
+		this->createDescriptor(device, pointLightNum, descriptorPool, uniformBufferInfo, 
+			modelsInfo, renderTextureInfo, objectRexturesInfo);
   }
 
 	ModelDeferredDescSet::~ModelDeferredDescSet() {
@@ -14,15 +15,17 @@ namespace NugieApp {
 	}
 
   void ModelDeferredDescSet::createDescriptor(NugieVulkan::Device* device, uint32_t pointLightNum, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[2],
-		std::vector<VkDescriptorImageInfo> renderTextureInfo[1])
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[3],
+		std::vector<VkDescriptorImageInfo> renderTextureInfo[1], VkDescriptorImageInfo objectRexturesInfo[1])
 	{
     this->descSetLayout = 
 			NugieVulkan::DescriptorSetLayout::Builder(device)
 				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-				.addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build();
 
 		std::vector<VkDescriptorImageInfo> *newRenderTextureInfos = new std::vector<VkDescriptorImageInfo>();
@@ -41,7 +44,9 @@ namespace NugieApp {
 				.writeBuffer(0, uniformBufferInfo[0][i])
 				.writeBuffer(1, modelsInfo[0])
 				.writeBuffer(2, modelsInfo[1])
-				.writeImage(3, newRenderTextureInfos)
+				.writeBuffer(3, modelsInfo[2])
+				.writeImage(4, newRenderTextureInfos)
+				.writeImage(5, objectRexturesInfo[0])
 				.build(&descSet);
 
 			this->descriptorSets.emplace_back(descSet);
