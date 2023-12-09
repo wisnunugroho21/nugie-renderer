@@ -2,18 +2,18 @@
 #include "../../../vulkan/descriptor/descriptor_writer.hpp"
 
 namespace NugieApp {
-  ModelDeferredDescSet::ModelDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
+  ModelDeferredDescSet::ModelDeferredDescSet(NugieVulkan::Device* device, uint32_t pointLightNum, NugieVulkan::DescriptorPool* descriptorPool,
 		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[1], 
 		std::vector<VkDescriptorImageInfo> renderTextureInfo[1]) 
 	{
-		this->createDescriptor(device, descriptorPool, uniformBufferInfo, modelsInfo, renderTextureInfo);
+		this->createDescriptor(device, pointLightNum, descriptorPool, uniformBufferInfo, modelsInfo, renderTextureInfo);
   }
 
 	ModelDeferredDescSet::~ModelDeferredDescSet() {
 		if (this->descSetLayout != nullptr) delete this->descSetLayout;
 	}
 
-  void ModelDeferredDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
+  void ModelDeferredDescSet::createDescriptor(NugieVulkan::Device* device, uint32_t pointLightNum, NugieVulkan::DescriptorPool* descriptorPool,
 		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[2], VkDescriptorBufferInfo modelsInfo[1],
 		std::vector<VkDescriptorImageInfo> renderTextureInfo[1])
 	{
@@ -24,16 +24,24 @@ namespace NugieApp {
 				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build();
-		
+
+		std::vector<VkDescriptorImageInfo> *newRenderTextureInfos = new std::vector<VkDescriptorImageInfo>();
 		this->descriptorSets.clear();
+		
 		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+			newRenderTextureInfos->clear();
 			VkDescriptorSet descSet;
+			
+			for (uint32_t j = 0; j < pointLightNum; i++) {
+				uint32_t totalIndex = i * pointLightNum + j;
+				newRenderTextureInfos->emplace_back(renderTextureInfo[0][totalIndex]);
+			}
 
 			NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
 				.writeBuffer(0, uniformBufferInfo[0][i])
 				.writeBuffer(1, uniformBufferInfo[1][i])
 				.writeBuffer(2, modelsInfo[0])
-				.writeImage(3, renderTextureInfo[0][i])
+				.writeImage(3, newRenderTextureInfos)
 				.build(&descSet);
 
 			this->descriptorSets.emplace_back(descSet);

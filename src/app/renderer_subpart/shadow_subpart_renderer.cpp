@@ -4,10 +4,10 @@
 #include <array>
 
 namespace NugieApp {
-  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum)
-    : device{device}, width{width}, height{height}
+  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum)
+    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}
   {
-    this->createShadowResources(layerNum);
+    this->createShadowResources();
   }
 
   ShadowSubPartRenderer::~ShadowSubPartRenderer() {
@@ -70,18 +70,18 @@ namespace NugieApp {
     return shadowDepthAttachmentRef;
   }
 
-  void ShadowSubPartRenderer::createShadowResources(uint32_t layerNum) {
+  void ShadowSubPartRenderer::createShadowResources() {
     VkFormat depthFormat = this->findDepthFormat();
     auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
     this->shadowDepthImages.clear();
     this->shadowDepthTextures.clear();
     
-    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointLightNum; i++) {
       auto image = new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, layerNum
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, 6
       );
       
       this->shadowDepthImages.push_back(image);
@@ -93,7 +93,7 @@ namespace NugieApp {
 
   VkFormat ShadowSubPartRenderer::findDepthFormat() {
     return this->device->findSupportedFormat(
-      {VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+      { VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
       VK_IMAGE_TILING_OPTIMAL,
       VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
   }

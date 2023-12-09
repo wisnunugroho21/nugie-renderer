@@ -24,7 +24,7 @@ layout(set = 1, binding = 2) buffer readonly PointLightSsbo {
   PointLight lights[];
 };
 
-layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture;
+layout(set = 1, binding = 3) uniform sampler2DArray shadowMapTexture[1];
 
 // ---------------------------------------------------------------------------
 
@@ -89,7 +89,7 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 }
 
 vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint i = 0u; i < LIGHT_NUM; i++) {
+  for (uint i = 0u; i < LIGHT_NUM * uint(ubo.originNumLights.w); i++) {
     vec4 shadowCoord = lightTransforms[i] * surfacePosition;
 
     shadowCoord = shadowCoord / shadowCoord.w;
