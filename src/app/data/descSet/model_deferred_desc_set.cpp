@@ -49,6 +49,7 @@ namespace NugieApp {
 				.writeBuffer(3, modelsInfo[2])
 				.writeImage(4, newRenderTextureInfos)
 				.writeImage(5, objectRexturesInfo[0])
+				.setVariableSetCounts({ 32, 32 })
 				.build(&descSet);
 
 			this->descriptorSets.emplace_back(descSet);

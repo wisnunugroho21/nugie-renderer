@@ -25,7 +25,7 @@ namespace NugieVulkan {
     write.pBufferInfo = &bufferInfo;
     write.descriptorCount = 1u;
   
-    writes.push_back(write);
+    this->writes.push_back(write);
     return *this;
   }
   
@@ -41,7 +41,7 @@ namespace NugieVulkan {
     write.pImageInfo = &imageInfo;
     write.descriptorCount = 1u;
   
-    writes.push_back(write);
+    this->writes.push_back(write);
     return *this;
   }
 
@@ -57,12 +57,17 @@ namespace NugieVulkan {
     write.pImageInfo = imageInfos.data();
     write.descriptorCount = static_cast<uint32_t>(imageInfos.size());
   
-    writes.push_back(write);
+    this->writes.push_back(write);
+    return *this;
+  }
+  
+  DescriptorWriter& DescriptorWriter::setVariableSetCounts(std::vector<uint32_t> variableSetCounts) {
+    this->variableSetCounts = variableSetCounts;
     return *this;
   }
   
   bool DescriptorWriter::build(VkDescriptorSet *set) {
-    bool success = this->pool->allocate(this->setLayout->getDescriptorSetLayout(), set);
+    bool success = this->pool->allocate(this->setLayout->getDescriptorSetLayout(), set, this->variableSetCounts);
     if (!success) {
       return false;
     }

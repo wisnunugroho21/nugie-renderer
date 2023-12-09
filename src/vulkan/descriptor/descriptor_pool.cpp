@@ -49,17 +49,20 @@ namespace NugieVulkan {
   }
   
   bool DescriptorPool::allocate(const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet *descriptor, std::vector<uint32_t> variableSetCounts) const {
-    VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
-    setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
-    setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
-    setCounts.pDescriptorCounts = variableSetCounts.data();
-    
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = this->descriptorPool;
     allocInfo.pSetLayouts = &descriptorSetLayout;
     allocInfo.descriptorSetCount = 1;
-    allocInfo.pNext = &setCounts;
+
+    if (variableSetCounts.size() > 0) {
+      VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
+      setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+      setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
+      setCounts.pDescriptorCounts = variableSetCounts.data();
+
+      allocInfo.pNext = &setCounts;
+    }
   
     // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
     // a new pool whenever an old pool fills up. But this is beyond our current scope
@@ -71,11 +74,6 @@ namespace NugieVulkan {
   }
 
   bool DescriptorPool::allocate(std::vector<VkDescriptorSetLayout> descriptorSetLayout, std::vector<VkDescriptorSet*> descriptors, std::vector<uint32_t> variableSetCounts) const {
-    VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
-    setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
-    setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
-    setCounts.pDescriptorCounts = variableSetCounts.data();
-
     std::vector<VkDescriptorSet> newDescriptors { descriptors.size() };
     for (uint32_t i = 0; i < descriptors.size(); i++) {
       newDescriptors[i] = *descriptors[i];
@@ -86,7 +84,15 @@ namespace NugieVulkan {
     allocInfo.descriptorPool = this->descriptorPool;
     allocInfo.pSetLayouts = descriptorSetLayout.data();
     allocInfo.descriptorSetCount = static_cast<uint32_t>(newDescriptors.size());
-    allocInfo.pNext = &setCounts;
+
+    if (variableSetCounts.size() > 0) {
+      VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
+      setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+      setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
+      setCounts.pDescriptorCounts = variableSetCounts.data();
+
+      allocInfo.pNext = &setCounts;
+    }
   
     // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
     // a new pool whenever an old pool fills up. But this is beyond our current scope

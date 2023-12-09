@@ -18,6 +18,8 @@ namespace NugieVulkan {
     
     DescriptorWriter& writeImage(uint32_t binding, VkDescriptorImageInfo imageInfo);
     DescriptorWriter& writeImage(uint32_t binding, std::vector<VkDescriptorImageInfo> &imageInfos);
+
+    DescriptorWriter& setVariableSetCounts(std::vector<uint32_t> variableSetCounts);
   
     bool build(VkDescriptorSet *set);
     void overwrite(VkDescriptorSet *set);
@@ -28,5 +30,6 @@ namespace NugieVulkan {
     DescriptorPool *pool;
     
     std::vector<VkWriteDescriptorSet> writes;
+    std::vector<uint32_t> variableSetCounts;
   };
 }  // namespace lve
