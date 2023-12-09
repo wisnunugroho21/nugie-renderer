@@ -239,11 +239,13 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 0u });
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
-		PointLight light{};
-		light.position = glm::vec4{ 0.0f, 50.0f, -50.0f, 1.0f };
-		light.color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
-		
-		lights.emplace_back(light);
+		lights.resize(2);
+
+		lights[0].position = glm::vec4{ 50.0f, 50.0f, -50.0f, 1.0f };
+		lights[0].color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+
+		lights[1].position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
+		lights[1].color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
 
 		this->numLight = static_cast<uint32_t>(lights.size());
 		shadowTransforms.resize(this->numLight * 6);
