@@ -102,7 +102,7 @@ namespace NugieApp {
 
 				for (uint32_t i = 0; i < this->numLight; i++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex, i);
-					this->shadowPassRenderer->render(commandBuffer, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
+					this->shadowPassRenderer->render(commandBuffer, i, this->shadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
 					this->shadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
