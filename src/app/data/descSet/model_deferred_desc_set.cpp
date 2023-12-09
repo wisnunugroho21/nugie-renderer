@@ -25,9 +25,7 @@ namespace NugieApp {
 				.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, pointLightNum)
-				.addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, objectRexturesInfo[0].size())
-				.addFlag(4, VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT)
-				.addFlag(5, VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT)
+				.addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, static_cast<uint32_t>(objectRexturesInfo[0].size()))
 				.build();
 
 		std::vector<VkDescriptorImageInfo> newRenderTextureInfos;
@@ -49,7 +47,6 @@ namespace NugieApp {
 				.writeBuffer(3, modelsInfo[2])
 				.writeImage(4, newRenderTextureInfos)
 				.writeImage(5, objectRexturesInfo[0])
-				.setVariableSetCounts({ 32, 32 })
 				.build(&descSet);
 
 			this->descriptorSets.emplace_back(descSet);

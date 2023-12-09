@@ -79,14 +79,14 @@ namespace NugieVulkan {
       throw std::runtime_error("validation layers requested, but not available!");
     }
 
-    VkApplicationInfo appInfo = {};
+    VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "Nugie App";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_2;
 
-    VkInstanceCreateInfo createInfo = {};
+    VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
@@ -147,13 +147,13 @@ namespace NugieVulkan {
   }
 
   void Device::createLogicalDevice() {
-    VkDeviceCreateInfo createInfo = {};
+    VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
     this->familyIndices = this->findQueueFamilies(this->physicalDevice);
     float queuePriority = 1.0f;
 
-    VkDeviceQueueCreateInfo graphicQueueCreateInfo = {};
+    VkDeviceQueueCreateInfo graphicQueueCreateInfo{};
     graphicQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     graphicQueueCreateInfo.queueFamilyIndex = this->familyIndices.graphicsFamily;
     graphicQueueCreateInfo.queueCount = 1u;
@@ -165,7 +165,7 @@ namespace NugieVulkan {
       && this->familyIndices.transferFamily != this->familyIndices.graphicsFamily
       && this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) 
     {
-      VkDeviceQueueCreateInfo presentQueueCreateInfo = {};
+      VkDeviceQueueCreateInfo presentQueueCreateInfo{};
       presentQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
       presentQueueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
       presentQueueCreateInfo.queueCount = 1u;
@@ -173,7 +173,7 @@ namespace NugieVulkan {
 
       queueCreateInfos.emplace_back(presentQueueCreateInfo);
 
-      VkDeviceQueueCreateInfo transferQueueCreateInfo = {};
+      VkDeviceQueueCreateInfo transferQueueCreateInfo{};
       transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
       transferQueueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
       transferQueueCreateInfo.queueCount = 1u;
@@ -183,7 +183,7 @@ namespace NugieVulkan {
     } else if (this->familyIndices.presentFamily == this->familyIndices.transferFamily 
       && this->familyIndices.presentFamily != this->familyIndices.graphicsFamily) 
     {
-      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      VkDeviceQueueCreateInfo queueCreateInfo{};
       queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
       queueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
       queueCreateInfo.queueCount = 1u;
@@ -193,7 +193,7 @@ namespace NugieVulkan {
     } else if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
       && this->familyIndices.presentFamily == this->familyIndices.graphicsFamily) 
     {
-      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      VkDeviceQueueCreateInfo queueCreateInfo{};
       queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
       queueCreateInfo.queueFamilyIndex = this->familyIndices.transferFamily;
       queueCreateInfo.queueCount = 1u;
@@ -203,7 +203,7 @@ namespace NugieVulkan {
     } else if (this->familyIndices.presentFamily != this->familyIndices.transferFamily 
       && this->familyIndices.transferFamily == this->familyIndices.graphicsFamily)
     {
-      VkDeviceQueueCreateInfo queueCreateInfo = {};
+      VkDeviceQueueCreateInfo queueCreateInfo{};
       queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
       queueCreateInfo.queueFamilyIndex = this->familyIndices.presentFamily;
       queueCreateInfo.queueCount = 1u;
@@ -217,12 +217,10 @@ namespace NugieVulkan {
 
     VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
     descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    
     descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-    descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
 
-    VkPhysicalDeviceFeatures deviceFeatures = {};
+    VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
     deviceFeatures.depthBiasClamp = VK_TRUE;
