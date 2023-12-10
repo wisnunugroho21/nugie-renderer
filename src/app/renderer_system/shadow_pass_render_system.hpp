@@ -18,7 +18,7 @@ namespace NugieApp {
 			ShadowPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass);
 			~ShadowPassRenderSystem();
 
-			void render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
+			void render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, VkDescriptorSet descriptorSets, 
 				std::vector<NugieVulkan::Buffer*> vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		

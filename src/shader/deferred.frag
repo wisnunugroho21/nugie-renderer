@@ -2,7 +2,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #define KEPSILON 0.00001
-#define LIGHT_NUM 6
+#define POINT_SHADOW_MAP_NUM 6u
 
 #include "core/struct.glsl"
 
@@ -96,8 +96,8 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
 
 vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
   for (uint i = 0u; i < uint(ubo.originNumLights.w); i++) {
-    for (uint j = 0u; j < 6u; j++) {
-      vec4 shadowCoord = shadowTransformations[j].viewProjectionMatrix * surfacePosition;
+    for (uint j = 0u; j < POINT_SHADOW_MAP_NUM; j++) {
+      vec4 shadowCoord = shadowTransformations[i * POINT_SHADOW_MAP_NUM + j].viewProjectionMatrix * surfacePosition;
 
       shadowCoord = shadowCoord / shadowCoord.w;
       shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
