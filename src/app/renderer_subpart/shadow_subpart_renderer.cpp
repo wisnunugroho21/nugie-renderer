@@ -4,26 +4,43 @@
 #include <array>
 
 namespace NugieApp {
-  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum)
-    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}
+  ShadowSubPartRenderer::ShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum, uint32_t spotLightNum)
+    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}, spotLightNum{spotLightNum}
   {
     this->createShadowResources();
   }
 
   ShadowSubPartRenderer::~ShadowSubPartRenderer() {
-    for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
-      if (shadowDepthTexture != nullptr) delete shadowDepthTexture;
+    for (auto &&pointShadowDepthTexture : this->pointShadowDepthTextures) {
+      if (pointShadowDepthTexture != nullptr) delete pointShadowDepthTexture;
     }
 
-    for (auto &&depthImage : this->shadowDepthImages) {
-      if (depthImage != nullptr) delete depthImage;
+    for (auto &&pointShadowDepthImage : this->pointShadowDepthImages) {
+      if (pointShadowDepthImage != nullptr) delete pointShadowDepthImage;
+    }
+
+    for (auto &&spotShadowDepthTexture : this->spotShadowDepthTextures) {
+      if (spotShadowDepthTexture != nullptr) delete spotShadowDepthTexture;
+    }
+
+    for (auto &&spotShadowDepthImage : this->spotShadowDepthImages) {
+      if (spotShadowDepthImage != nullptr) delete spotShadowDepthImage;
     }
   }
 
-  std::vector<VkDescriptorImageInfo> ShadowSubPartRenderer::getDepthInfoResources() {
+  std::vector<VkDescriptorImageInfo> ShadowSubPartRenderer::getPointDepthInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
-      descInfos.emplace_back(shadowDepthTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+    for (auto &&pointShadowDepthTexture : this->pointShadowDepthTextures) {
+      descInfos.emplace_back(pointShadowDepthTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+    }
+
+    return descInfos;
+  }
+
+  std::vector<VkDescriptorImageInfo> ShadowSubPartRenderer::getSpotDepthInfoResources() {
+    std::vector<VkDescriptorImageInfo> descInfos{};
+    for (auto &&spotShadowDepthTexture : this->spotShadowDepthTextures) {
+      descInfos.emplace_back(spotShadowDepthTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -33,8 +50,12 @@ namespace NugieApp {
     std::vector<std::vector<VkImageView>> attachments;
 
     std::vector<VkImageView> shadowDepthAttachment;
-    for (size_t i = 0; i < this->shadowDepthImages.size(); i++) {
-      shadowDepthAttachment.emplace_back(this->shadowDepthImages[i]->getImageView());
+    for (size_t i = 0; i < this->pointShadowDepthImages.size(); i++) {
+      shadowDepthAttachment.emplace_back(this->pointShadowDepthImages[i]->getImageView());
+    }
+
+    for (size_t i = 0; i < this->spotShadowDepthImages.size(); i++) {
+      shadowDepthAttachment.emplace_back(this->spotShadowDepthImages[i]->getImageView());
     }
 
     attachments.emplace_back(shadowDepthAttachment);
@@ -74,8 +95,8 @@ namespace NugieApp {
     VkFormat depthFormat = this->findDepthFormat();
     auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
-    this->shadowDepthImages.clear();
-    this->shadowDepthTextures.clear();
+    this->pointShadowDepthImages.clear();
+    this->pointShadowDepthTextures.clear();
     
     for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointLightNum; i++) {
       auto image = new NugieVulkan::Image(
@@ -84,8 +105,24 @@ namespace NugieApp {
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, 6
       );
       
-      this->shadowDepthImages.push_back(image);
-      this->shadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, image, VK_FILTER_LINEAR, 
+      this->pointShadowDepthImages.push_back(image);
+      this->pointShadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, image, VK_FILTER_LINEAR, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+    }
+
+    this->spotShadowDepthImages.clear();
+    this->spotShadowDepthTextures.clear();
+    
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->spotLightNum; i++) {
+      auto image = new NugieVulkan::Image(
+        this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
+      );
+      
+      this->spotShadowDepthImages.push_back(image);
+      this->spotShadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, image, VK_FILTER_LINEAR, 
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
         VK_SAMPLER_MIPMAP_MODE_LINEAR));
     }

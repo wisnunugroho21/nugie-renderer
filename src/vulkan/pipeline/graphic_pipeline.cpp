@@ -108,7 +108,7 @@ namespace NugieVulkan {
 		return *this;
 	}
 
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultShadow(
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultVertexGeometry(
 		const std::string& vertFilePath, 
 		const std::string& geomFilePath,
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
@@ -137,8 +137,12 @@ namespace NugieVulkan {
 		this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
 		
 		this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		this->multisampleInfo.sampleShadingEnable = VK_FALSE;
-		this->multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		this->multisampleInfo.sampleShadingEnable = VK_TRUE;
+		this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
+		this->multisampleInfo.minSampleShading = 0.2f;           
+		this->multisampleInfo.pSampleMask = nullptr;             // Optional
+		this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
+		this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
 		
 		this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		this->depthStencilInfo.depthTestEnable = VK_TRUE;
@@ -151,7 +155,7 @@ namespace NugieVulkan {
 		this->depthStencilInfo.front = {};  // Optional
 		this->depthStencilInfo.back = {};   // Optional
 
-		this->dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+		this->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
 		this->dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
@@ -188,6 +192,80 @@ namespace NugieVulkan {
 		geometryShaderStageInfo.pSpecializationInfo = nullptr;
 
 		this->shaderStagesInfo = { vertexShaderStageInfo, geometryShaderStageInfo };
+
+		return *this;
+	}
+
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultVertex(
+		const std::string& vertFilePath,
+		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
+		std::vector<VkVertexInputAttributeDescription> attributeDescriptions
+	) {
+		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+
+		this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		this->colorBlendInfo.logicOpEnable = VK_FALSE;
+		this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
+		this->colorBlendInfo.attachmentCount = 0;
+		this->colorBlendInfo.pAttachments = nullptr;
+		
+		this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		this->rasterizationInfo.depthClampEnable = VK_FALSE;
+		this->rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+		this->rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		this->rasterizationInfo.lineWidth = 1.0f;
+		this->rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+		this->rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		this->rasterizationInfo.depthBiasEnable = VK_FALSE;
+		this->rasterizationInfo.depthBiasConstantFactor = 0.0f;  // Optional
+		this->rasterizationInfo.depthBiasClamp = 0.0f;           // Optional
+		this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
+		
+		this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		this->multisampleInfo.sampleShadingEnable = VK_TRUE;
+		this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
+		this->multisampleInfo.minSampleShading = 0.2f;           
+		this->multisampleInfo.pSampleMask = nullptr;             // Optional
+		this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
+		this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
+		
+		this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		this->depthStencilInfo.depthTestEnable = VK_TRUE;
+		this->depthStencilInfo.depthWriteEnable = VK_TRUE;
+		this->depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+		this->depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+		this->depthStencilInfo.minDepthBounds = 0.0f;  // Optional
+		this->depthStencilInfo.maxDepthBounds = 1.0f;  // Optional
+		this->depthStencilInfo.stencilTestEnable = VK_FALSE;
+		this->depthStencilInfo.front = {};  // Optional
+		this->depthStencilInfo.back = {};   // Optional
+
+		this->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+		this->dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
+		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
+		this->dynamicStateInfo.flags = 0;
+
+		this->bindingDescriptions = bindingDescriptions;
+		this->attributeDescriptions = attributeDescriptions;
+
+		VkShaderModule vertShaderModule;
+		auto vertCode = GraphicPipeline::readFile(vertFilePath);
+		GraphicPipeline::createShaderModule(this->device, vertCode, &vertShaderModule);
+
+		VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
+		vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertexShaderStageInfo.module = vertShaderModule;
+		vertexShaderStageInfo.pName = "main";
+		vertexShaderStageInfo.flags = 0;
+		vertexShaderStageInfo.pNext = nullptr;
+		vertexShaderStageInfo.pSpecializationInfo = nullptr;
+
+		this->shaderStagesInfo = { vertexShaderStageInfo };
 
 		return *this;
 	}

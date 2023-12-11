@@ -1,4 +1,4 @@
-#include "shadow_pass_render_system.hpp"
+#include "point_shadow_pass_render_system.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,19 +10,19 @@
 #include <string>
 
 namespace NugieApp {
-	ShadowPassRenderSystem::ShadowPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass)
+	PointShadowPassRenderSystem::PointShadowPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass)
 		: device{device}
 	{
 		this->createPipelineLayout(descriptorSetLayout);
 		this->createPipeline(renderPass);
 	}
 
-	ShadowPassRenderSystem::~ShadowPassRenderSystem() {
+	PointShadowPassRenderSystem::~PointShadowPassRenderSystem() {
 		vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
 		if (this->pipeline != nullptr) delete this->pipeline;
 	}
 
-	void ShadowPassRenderSystem::createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout) {
+	void PointShadowPassRenderSystem::createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout) {
 		VkPushConstantRange pushConstantRange{};
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_GEOMETRY_BIT;
 		pushConstantRange.offset = 0;
@@ -42,7 +42,7 @@ namespace NugieApp {
 		}
 	}
 
-	void ShadowPassRenderSystem::createPipeline(NugieVulkan::RenderPass* renderPass) {
+	void PointShadowPassRenderSystem::createPipeline(NugieVulkan::RenderPass* renderPass) {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(2);
@@ -75,8 +75,13 @@ namespace NugieApp {
 		rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
 		rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_TRUE;
+		
+		VkPipelineMultisampleStateCreateInfo multisampleInfo{};
+		multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisampleInfo.sampleShadingEnable = VK_FALSE;
+		multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-		std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS};
+		std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
 
 		VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
 		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -85,13 +90,14 @@ namespace NugieApp {
 		dynamicStateInfo.flags = 0;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)
-			.setDefaultShadow("shader/shadow_map.vert.spv", "shader/shadow_map.geom.spv", bindingDescriptions, attributeDescription)
+			.setDefaultVertexGeometry("shader/point_shadow_map.vert.spv", "shader/point_shadow_map.geom.spv", bindingDescriptions, attributeDescription)
 			.setRasterizationInfo(rasterizationInfo)
 			.setDynamicStateInfo(dynamicStateInfo)
+			.setMultisampleInfo(multisampleInfo)
 			.build();
 	}
 
-	void ShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, 
+	void PointShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, 
 		VkDescriptorSet descriptorSets, std::vector<NugieVulkan::Buffer*> vertexBuffers, 
 		NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, std::vector<VkDeviceSize> offsets) 
 	{

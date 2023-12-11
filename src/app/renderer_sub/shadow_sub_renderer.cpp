@@ -4,7 +4,8 @@
 #include <array>
 
 namespace NugieApp {
-  ShadowSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum) : device{device}, width{width}, height{height}, pointLightNum{pointLightNum} 
+  ShadowSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum, uint32_t spotLightNum) 
+    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}, spotLightNum{spotLightNum} 
   {
 
   }
@@ -35,13 +36,13 @@ namespace NugieApp {
   }
 
   ShadowSubRenderer* ShadowSubRenderer::Builder::build() {
-    return new ShadowSubRenderer(this->device, this->width, this->height, this->pointLightNum, this->attachments, this->attachmentDescs, 
+    return new ShadowSubRenderer(this->device, this->width, this->height, this->pointLightNum, this->spotLightNum, this->attachments, this->attachmentDescs, 
       this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef);
   }
 
-  ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-    std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
-    std::vector<VkAttachmentReference> resolveAttachmentRef)
+  ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum, uint32_t spotLightNum, std::vector<std::vector<VkImageView>> attachments, 
+    std::vector<VkAttachmentDescription> attachmentDescs, std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 
+    std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, std::vector<VkAttachmentReference> resolveAttachmentRef)
     : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}
   {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
@@ -109,7 +110,7 @@ namespace NugieApp {
     }
 
     for (size_t i = 0; i < subpasses.size() - 1; i++) {
-      VkSubpassDependency dependency = {};
+      VkSubpassDependency dependency{};
       dependency.srcSubpass = i;
       dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
       dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -121,7 +122,7 @@ namespace NugieApp {
       renderPassBuilder = renderPassBuilder.addDependency(dependency);
     }
 
-    VkSubpassDependency postColorDependency = {};
+    VkSubpassDependency postColorDependency{};
     postColorDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
     postColorDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     postColorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -130,7 +131,7 @@ namespace NugieApp {
     postColorDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     postColorDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-    VkSubpassDependency postDepthDependency = {};
+    VkSubpassDependency postDepthDependency{};
     postDepthDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
     postDepthDependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     postDepthDependency.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
@@ -146,12 +147,10 @@ namespace NugieApp {
   }
 
   void ShadowSubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t currentFrameIndex, uint32_t lightIndex) {
-    uint32_t totalIndex = currentFrameIndex * this->pointLightNum + lightIndex;
-
 		VkRenderPassBeginInfo renderBeginInfo{};
 		renderBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderBeginInfo.renderPass = this->getRenderPass()->getRenderPass();
-		renderBeginInfo.framebuffer = this->getRenderPass()->getFramebuffers(totalIndex);
+		renderBeginInfo.framebuffer = this->getRenderPass()->getFramebuffers(lightIndex);
 
 		renderBeginInfo.renderArea.offset = { 0, 0 };
 		renderBeginInfo.renderArea.extent = { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) };
@@ -173,6 +172,19 @@ namespace NugieApp {
 		vkCmdSetViewport(commandBuffer->getCommandBuffer(), 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);
     vkCmdSetDepthBias(commandBuffer->getCommandBuffer(), 1.0f, 0.0f, 1.0f);
+	}
+
+  void ShadowSubRenderer::beginPointRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t currentFrameIndex, uint32_t lightIndex) {
+    uint32_t totalIndex = currentFrameIndex * this->pointLightNum + lightIndex;
+		this->beginRenderPass(commandBuffer, currentFrameIndex, totalIndex);
+	}
+
+  void ShadowSubRenderer::beginSpotRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t currentFrameIndex, uint32_t lightIndex) {
+    uint32_t totalIndex = NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointLightNum 
+      + currentFrameIndex * this->spotLightNum 
+      + lightIndex;
+
+		this->beginRenderPass(commandBuffer, currentFrameIndex, totalIndex);
 	}
 
   void ShadowSubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {

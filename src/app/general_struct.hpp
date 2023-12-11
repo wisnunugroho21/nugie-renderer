@@ -60,14 +60,20 @@ namespace NugieApp {
   };
 
   struct DeferredUbo {
-    glm::vec4 originNumLights;
+    glm::vec4 origin;
+    glm::uvec4 numLights;
   };
 
   struct ForwardUbo {
     glm::mat4 cameraTransforms;
   };
 
-  struct ShadowPushConstant {
-    float farPlane = 0.0f;
+  struct PointShadowPushConstant {
+    uint32_t lightIndex;
+  };
+
+  struct SpotShadowPushConstant {
+    uint32_t lightIndex;
+    uint32_t offsetIndex;
   };
 }
