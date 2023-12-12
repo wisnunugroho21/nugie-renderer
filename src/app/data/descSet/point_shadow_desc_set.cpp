@@ -1,17 +1,17 @@
-#include "shadow_desc_set.hpp"
+#include "point_shadow_desc_set.hpp"
 #include "../../../vulkan/descriptor/descriptor_writer.hpp"
 
 namespace NugieApp {
-  ShadowDescSet::ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
+  PointShadowDescSet::PointShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
 	{
 		this->createDescriptor(device, descriptorPool, modelsInfo);
   }
 
-	ShadowDescSet::~ShadowDescSet() {
+	PointShadowDescSet::~PointShadowDescSet() {
 		if (this->descSetLayout != nullptr) delete this->descSetLayout;
 	}
 
-  void ShadowDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
+  void PointShadowDescSet::createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
 	{
     this->descSetLayout = 
 			NugieVulkan::DescriptorSetLayout::Builder(device)

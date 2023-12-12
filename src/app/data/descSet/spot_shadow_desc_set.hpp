@@ -8,10 +8,10 @@
 #include <memory>
 
 namespace NugieApp {
-	class ShadowDescSet {
+	class SpotShadowDescSet {
 		public:
-			ShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]);
-			~ShadowDescSet();
+			SpotShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]);
+			~SpotShadowDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }

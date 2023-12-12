@@ -1,11 +1,11 @@
-#include "hybrid_renderer.hpp"
+#include "renderer.hpp"
 
 #include <stdexcept>
 #include <array>
 #include <string>
 
 namespace NugieApp {
-	HybridRenderer::HybridRenderer(NugieVulkan::Window* window, NugieVulkan::Device* device) : device{device}, window{window} {
+	Renderer::Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device) : device{device}, window{window} {
 		this->recreateSwapChain();
 		this->createSyncObjects(static_cast<uint32_t>(this->swapChain->imageCount()));
 
@@ -14,7 +14,7 @@ namespace NugieApp {
 		this->createCommandBuffers();
 	}
 
-	HybridRenderer::~HybridRenderer() {
+	Renderer::~Renderer() {
 		this->descriptorPool->reset();
 		
     for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -35,7 +35,7 @@ namespace NugieApp {
 		if (this->swapChain != nullptr) delete this->swapChain;
 	}
 
-	void HybridRenderer::recreateSwapChain() {
+	void Renderer::recreateSwapChain() {
 		auto extent = this->window->getExtent();
 		while(extent.width == 0 || extent.height == 0) {
 			extent = this->window->getExtent();
@@ -56,7 +56,7 @@ namespace NugieApp {
 		}
 	}
 
-	void HybridRenderer::createDescriptorPool() {
+	void Renderer::createDescriptorPool() {
 		this->descriptorPool = 
 			NugieVulkan::DescriptorPool::Builder(this->device)
 				.setMaxSets(100)
@@ -68,7 +68,7 @@ namespace NugieApp {
 				.build();
 	}
 
-	void HybridRenderer::createCommandPool() {
+	void Renderer::createCommandPool() {
 		auto queueFamily = this->device->getPhysicalQueueFamilies();
 		this->graphicCommandPool = new NugieVulkan::CommandPool(
 			this->device, 
@@ -83,7 +83,7 @@ namespace NugieApp {
 		);
 	}
 
-	void HybridRenderer::createSyncObjects(uint32_t imageCount) {
+	void Renderer::createSyncObjects(uint32_t imageCount) {
 		imageAvailableSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 		renderFinishedSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 		inFlightFences.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
@@ -110,7 +110,7 @@ namespace NugieApp {
 		}
 	}
 
-	void HybridRenderer::createCommandBuffers() {
+	void Renderer::createCommandBuffers() {
 		std::vector<VkCommandBuffer*> newCommandBuffers;
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			newCommandBuffers.emplace_back(new VkCommandBuffer());
@@ -134,7 +134,7 @@ namespace NugieApp {
 		this->transferCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, *newCommandBuffers[0]));
 	}
 
-	bool HybridRenderer::acquireFrame() {
+	bool Renderer::acquireFrame() {
 		assert(!this->isFrameStarted && "can't acquire frame while frame still in progress");
 
 		std::vector<VkFence> acquireFrameFences = { this->inFlightFences[this->currentFrameIndex] };
@@ -153,7 +153,7 @@ namespace NugieApp {
 		return true;
 	}
 
-	NugieVulkan::CommandBuffer* HybridRenderer::beginRenderCommand() {
+	NugieVulkan::CommandBuffer* Renderer::beginRenderCommand() {
 		assert(this->isFrameStarted && "can't start command while frame still in progress");
 
 		this->graphicCommandBuffers[this->currentFrameIndex]->resetCommand();
@@ -162,23 +162,23 @@ namespace NugieApp {
 		return this->graphicCommandBuffers[this->currentFrameIndex];
 	}
 
-	NugieVulkan::CommandBuffer* HybridRenderer::beginTransferCommand() {
+	NugieVulkan::CommandBuffer* Renderer::beginTransferCommand() {
 		this->transferCommandBuffers[0]->resetCommand();
 		this->transferCommandBuffers[0]->beginReccuringCommand();
 
 		return this->transferCommandBuffers[0];
 	}
 
-	void HybridRenderer::endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
+	void Renderer::endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
 		assert(this->isFrameStarted && "can't start command while frame still in progress");
 		commandBuffer->endCommand();
 	}
 
-	void HybridRenderer::endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
+	void Renderer::endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
 		commandBuffer->endCommand();
 	}
 
-	void HybridRenderer::submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffers, bool isWaitTransfer) {
+	void Renderer::submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffers, bool isWaitTransfer) {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
@@ -194,7 +194,7 @@ namespace NugieApp {
 		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
-	void HybridRenderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer) {
+	void Renderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer) {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
@@ -210,7 +210,7 @@ namespace NugieApp {
 		commandBuffer->submitCommand(this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
-	void HybridRenderer::submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
+	void Renderer::submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
 		std::vector<VkSemaphore> waitSemaphores = {  };
@@ -220,7 +220,7 @@ namespace NugieApp {
 		commandBuffer->submitCommand(this->device->getTransferQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
-	bool HybridRenderer::presentFrame() {
+	bool Renderer::presentFrame() {
 		assert(this->isFrameStarted && "can't present frame if frame is not in progress");
 
 		std::vector<VkSemaphore> waitSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};

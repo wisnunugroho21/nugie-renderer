@@ -15,19 +15,22 @@
 #include "../data/model/transformation_model.hpp"
 #include "../data/model/shadow_transformation_model.hpp"
 #include "../data/model/point_light_model.hpp"
+#include "../data/model/spot_light_model.hpp"
 #include "../data/buffer/forward_uniform.hpp"
 #include "../data/buffer/deferred_uniform.hpp"
-#include "../data/descSet/shadow_desc_set.hpp"
+#include "../data/descSet/point_shadow_desc_set.hpp"
+#include "../data/descSet/spot_shadow_desc_set.hpp"
 #include "../data/descSet/forward_desc_set.hpp"
 #include "../data/descSet/model_deferred_desc_set.hpp"
 #include "../data/descSet/attachment_deferred_desc_set.hpp"
-#include "../renderer/hybrid_renderer.hpp"
-#include "../renderer_sub/final_sub_renderer.hpp"
-#include "../renderer_sub/shadow_sub_renderer.hpp"
+#include "../renderer/renderer.hpp"
+#include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_subpart/forward_subpart_renderer.hpp"
 #include "../renderer_subpart/deferred_subpart_renderer.hpp"
-#include "../renderer_subpart/shadow_subpart_renderer.hpp"
-#include "../renderer_system/shadow_pass_render_system.hpp"
+#include "../renderer_subpart/point_shadow_subpart_renderer.hpp"
+#include "../renderer_subpart/spot_shadow_subpart_renderer.hpp"
+#include "../renderer_system/point_shadow_pass_render_system.hpp"
+#include "../renderer_system/spot_shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/deferred_pass_render_system.hpp"
 
@@ -61,18 +64,21 @@ namespace NugieApp {
 
 			Camera* camera;
 
-			HybridRenderer* renderer;
+			Renderer* renderer;
 
-			FinalSubRenderer* finalSubRenderer;
-			ShadowSubRenderer* shadowSubRenderer;
+			SubRenderer* finalSubRenderer;
+			SubRenderer* pointShadowSubRenderer;
+			SubRenderer* spotShadowSubRenderer;
 
 			ForwardSubPartRenderer* forwardSubPartRenderer;
 			DeferredSubPartRenderer* deferredSubPartRenderer;
-			ShadowSubPartRenderer* shadowSubPartRenderer;
+			PointShadowSubPartRenderer* pointShadowSubPartRenderer;
+			SpotShadowSubPartRenderer* spotShadowSubPartRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
 			DeferredPassRenderSystem* deferredPasRenderer;
-			ShadowPassRenderSystem* shadowPassRenderer;
+			PointShadowPassRenderSystem* pointShadowPassRenderer;
+			SpotShadowPassRenderSystem* spotShadowPassRenderer;
 
 			IndexModel* indexModel;
 			PositionModel* positionModel;
@@ -83,6 +89,7 @@ namespace NugieApp {
 			TransformationModel* transformationModel;
 			ShadowTransformationModel *shadowTransformationModel;
 			PointLightModel* pointLightModel;
+			SpotLightModel* spotLightModel;
 
 			ForwardUniform* forwardUniform;
 			DeferredUniform* deferredUniform;
@@ -90,9 +97,10 @@ namespace NugieApp {
 			ForwardDescSet* forwardDescSet;
 			AttachmentDeferredDescSet* attachmentDeferredDescSet;
 			ModelDeferredDescSet* modelDeferredDescSet;
-			ShadowDescSet* shadowDescSet;
+			PointShadowDescSet* pointShadowDescSet;
+			SpotShadowDescSet* spotShadowDescSet;
 
-			uint32_t randomSeed = 0, numLight = 0;
+			uint32_t randomSeed = 0, pointNumLight = 0, spotNumLight = 0;
 			bool isRendering = true;
 			float frameTime;
 
