@@ -320,7 +320,7 @@ namespace NugieApp {
 			shadowTransforms[i * 6u + 5u].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 		}
 		
-		for (uint32_t i = 0; i < this->pointNumLight; i++) {
+		for (uint32_t i = 0; i < this->spotNumLight; i++) {
 			glm::vec3 upVector = glm::vec3(0.0f, -1.0f, 0.0f);
 			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction, upVector);
 			shadowTransforms[initialSpotIndex + i].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
