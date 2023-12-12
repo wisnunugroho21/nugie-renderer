@@ -27,7 +27,8 @@
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_subpart/forward_subpart_renderer.hpp"
 #include "../renderer_subpart/deferred_subpart_renderer.hpp"
-#include "../renderer_subpart/shadow_subpart_renderer.hpp"
+#include "../renderer_subpart/point_shadow_subpart_renderer.hpp"
+#include "../renderer_subpart/spot_shadow_subpart_renderer.hpp"
 #include "../renderer_system/point_shadow_pass_render_system.hpp"
 #include "../renderer_system/spot_shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
@@ -66,11 +67,13 @@ namespace NugieApp {
 			Renderer* renderer;
 
 			SubRenderer* finalSubRenderer;
-			SubRenderer* shadowSubRenderer;
+			SubRenderer* pointShadowSubRenderer;
+			SubRenderer* spotShadowSubRenderer;
 
 			ForwardSubPartRenderer* forwardSubPartRenderer;
 			DeferredSubPartRenderer* deferredSubPartRenderer;
-			ShadowSubPartRenderer* shadowSubPartRenderer;
+			PointShadowSubPartRenderer* pointShadowSubPartRenderer;
+			SpotShadowSubPartRenderer* spotShadowSubPartRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
 			DeferredPassRenderSystem* deferredPasRenderer;

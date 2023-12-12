@@ -1,16 +1,16 @@
-#include "point_shadow_subpart_renderer.hpp"
+#include "spot_shadow_subpart_renderer.hpp"
 
 #include <assert.h>
 #include <array>
 
 namespace NugieApp {
-  PointShadowSubPartRenderer::PointShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum)
-    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}
+  SpotShadowSubPartRenderer::SpotShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t spotLightNum)
+    : device{device}, width{width}, height{height}, spotLightNum{spotLightNum}
   {
     this->createShadowResources();
   }
 
-  PointShadowSubPartRenderer::~PointShadowSubPartRenderer() {
+  SpotShadowSubPartRenderer::~SpotShadowSubPartRenderer() {
     for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
       if (shadowDepthTexture != nullptr) delete shadowDepthTexture;
     }
@@ -20,7 +20,7 @@ namespace NugieApp {
     }
   }
 
-  std::vector<VkDescriptorImageInfo> PointShadowSubPartRenderer::getDepthInfoResources() {
+  std::vector<VkDescriptorImageInfo> SpotShadowSubPartRenderer::getDepthInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
     for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
       descInfos.emplace_back(shadowDepthTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
@@ -29,7 +29,7 @@ namespace NugieApp {
     return descInfos;
   }
 
-  std::vector<std::vector<VkImageView>> PointShadowSubPartRenderer::getAttachments() {
+  std::vector<std::vector<VkImageView>> SpotShadowSubPartRenderer::getAttachments() {
     std::vector<std::vector<VkImageView>> attachments;
 
     std::vector<VkImageView> shadowDepthAttachment;
@@ -42,7 +42,7 @@ namespace NugieApp {
     return attachments;
   }
 
-  std::vector<VkAttachmentDescription> PointShadowSubPartRenderer::getAttachmentDescs() {
+  std::vector<VkAttachmentDescription> SpotShadowSubPartRenderer::getAttachmentDescs() {
     VkFormat depthFormat = this->findDepthFormat();
     auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
@@ -62,7 +62,7 @@ namespace NugieApp {
     return attachmentDescs;
   }
 
-  VkAttachmentReference PointShadowSubPartRenderer::getDepthAttachmentRef() {
+  VkAttachmentReference SpotShadowSubPartRenderer::getDepthAttachmentRef() {
     VkAttachmentReference shadowDepthAttachmentRef{};
     shadowDepthAttachmentRef.attachment = 0;
     shadowDepthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -70,18 +70,18 @@ namespace NugieApp {
     return shadowDepthAttachmentRef;
   }
 
-  void PointShadowSubPartRenderer::createShadowResources() {
+  void SpotShadowSubPartRenderer::createShadowResources() {
     VkFormat depthFormat = this->findDepthFormat();
     auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
     this->shadowDepthImages.clear();
     this->shadowDepthTextures.clear();
     
-    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointLightNum; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->spotLightNum; i++) {
       auto image = new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, 6
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT
       );
       
       this->shadowDepthImages.push_back(image);
@@ -91,7 +91,7 @@ namespace NugieApp {
     }
   }
 
-  VkFormat PointShadowSubPartRenderer::findDepthFormat() {
+  VkFormat SpotShadowSubPartRenderer::findDepthFormat() {
     return this->device->findSupportedFormat(
       { VK_FORMAT_D16_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
       VK_IMAGE_TILING_OPTIMAL,
