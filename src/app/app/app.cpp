@@ -20,7 +20,7 @@ namespace NugieApp {
 	App::App() {
 		this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
 		this->device = new NugieVulkan::Device(this->window);
-		this->renderer = new HybridRenderer(this->window, this->device);
+		this->renderer = new Renderer(this->window, this->device);
 
 		this->camera = new Camera();
 
@@ -104,14 +104,20 @@ namespace NugieApp {
 					}
 				}
 
+				uint32_t lightIndex = frameIndex * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT;
 				for (uint32_t i = 0; i < this->pointNumLight; i++) {
-					this->shadowSubRenderer->beginPointRenderPass(commandBuffer, frameIndex, i);
+					lightIndex += i;
+
+					this->shadowSubRenderer->beginRenderPass(commandBuffer, lightIndex);
 					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
 					this->shadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
+				lightIndex = frameIndex * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT + NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointNumLight;
 				for (uint32_t i = 0; i < this->spotNumLight; i++) {
-					this->shadowSubRenderer->beginSpotRenderPass(commandBuffer, frameIndex, i);
+					lightIndex += i;
+
+					this->shadowSubRenderer->beginRenderPass(commandBuffer, lightIndex);
 					this->spotShadowPassRenderer->render(commandBuffer, i, initialSpotIndex, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
 					this->shadowSubRenderer->endRenderPass(commandBuffer);
 				}
@@ -397,7 +403,7 @@ namespace NugieApp {
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
 		this->shadowSubPartRenderer = new ShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->pointNumLight, this->spotNumLight);
 
-		this->finalSubRenderer = FinalSubRenderer::Builder(this->device, width, height)
+		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
 				this->forwardSubPartRenderer->getOutputAttachmentRefs(), this->forwardSubPartRenderer->getDepthAttachmentRef())
 			.addSubPass(this->deferredSubPartRenderer->getAttachments(), this->deferredSubPartRenderer->getAttachmentDescs(),
@@ -406,7 +412,7 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
-		this->shadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->pointNumLight, this->spotNumLight)
+		this->shadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 6)
 			.addSubPass(this->shadowSubPartRenderer->getAttachments(), this->shadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->shadowSubPartRenderer->getDepthAttachmentRef())
 			.build();

@@ -1,15 +1,16 @@
-#include "final_sub_renderer.hpp"
+#include "sub_renderer.hpp"
 
 #include <assert.h>
 #include <array>
 
 namespace NugieApp {
-  FinalSubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height) : device{device}, width{width}, height{height} 
+  SubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum) 
+    : device{device}, width{width}, height{height}, layerNum{layerNum}
   {
 
   }
 
-  FinalSubRenderer::Builder& FinalSubRenderer::Builder::addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  SubRenderer::Builder& SubRenderer::Builder::addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs) 
   {
     for (auto &&attachment : attachments) {
@@ -27,31 +28,32 @@ namespace NugieApp {
     return *this;
   }
 
-  FinalSubRenderer::Builder& FinalSubRenderer::Builder::addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef) {
+  SubRenderer::Builder& SubRenderer::Builder::addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef) {
     this->resolveAttachmentRef.clear();
     this->resolveAttachmentRef.emplace_back(resolveAttachmentRef);
 
     return *this;
   }
 
-  FinalSubRenderer* FinalSubRenderer::Builder::build() {
-    return new FinalSubRenderer(this->device, this->width, this->height, this->attachments, this->attachmentDescs, 
+  SubRenderer* SubRenderer::Builder::build() {
+    return new SubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments, this->attachmentDescs, 
       this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef);
   }
 
-  FinalSubRenderer::FinalSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-    std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
+  SubRenderer::SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, std::vector<std::vector<VkImageView>> attachments, 
+    std::vector<VkAttachmentDescription> attachmentDescs, std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, 
+    std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
     std::vector<VkAttachmentReference> resolveAttachmentRef)
-    : device{device}, width{width}, height{height}
+    : device{device}, width{width}, height{height}, layerNum{layerNum}
   {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
   }
 
-  FinalSubRenderer::~FinalSubRenderer() {
+  SubRenderer::~SubRenderer() {
     if (this->renderPass != nullptr) delete this->renderPass;
   }
 
-  void FinalSubRenderer::createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
+  void SubRenderer::createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
     std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 
     std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, std::vector<VkAttachmentReference> resolveAttachmentRef)
   {
@@ -88,7 +90,7 @@ namespace NugieApp {
       subpasses[subpasses.size() - 1].pResolveAttachments = &resolveAttachmentRef[0];
     }
 
-    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height);
+    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, 6);
     for (size_t i = 0; i < subpasses.size(); i++) {
       renderPassBuilder = renderPassBuilder
         .addSubpass(subpasses[i]);
@@ -109,7 +111,7 @@ namespace NugieApp {
     }
 
     for (size_t i = 0; i < subpasses.size() - 1; i++) {
-      VkSubpassDependency dependency = {};
+      VkSubpassDependency dependency{};
       dependency.srcSubpass = i;
       dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
       dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -121,16 +123,42 @@ namespace NugieApp {
       renderPassBuilder = renderPassBuilder.addDependency(dependency);
     }
 
+    if (outputAttachmentRefs.size() > 0 && resolveAttachmentRef.size() == 0) {
+      VkSubpassDependency postColorDependency{};
+      postColorDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
+      postColorDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      postColorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+      postColorDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+      postColorDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      postColorDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+      postColorDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+      renderPassBuilder = renderPassBuilder.addDependency(postColorDependency);
+    } 
+    
+    else if (depthAttachmentRefs.size() > 0) {
+      VkSubpassDependency postDepthDependency{};
+      postDepthDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
+      postDepthDependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+      postDepthDependency.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+      postDepthDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+      postDepthDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+      postDepthDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+      postDepthDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+      renderPassBuilder = renderPassBuilder.addDependency(postDepthDependency);
+    }
+
     this->renderPass = renderPassBuilder.build();
   }
 
-  void FinalSubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, int currentImageIndex) {
+  void SubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t imageIndex) {
 		VkRenderPassBeginInfo renderBeginInfo{};
 		renderBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderBeginInfo.renderPass = this->getRenderPass()->getRenderPass();
-		renderBeginInfo.framebuffer = this->getRenderPass()->getFramebuffers(currentImageIndex);
+		renderBeginInfo.framebuffer = this->getRenderPass()->getFramebuffers(imageIndex);
 
-		renderBeginInfo.renderArea.offset = {0, 0};
+		renderBeginInfo.renderArea.offset = { 0, 0 };
 		renderBeginInfo.renderArea.extent = { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) };
 		renderBeginInfo.clearValueCount = static_cast<uint32_t>(this->clearValues.size());
 		renderBeginInfo.pClearValues = this->clearValues.data();
@@ -145,16 +173,18 @@ namespace NugieApp {
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
-		VkRect2D scissor{{0, 0}, { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) }};
+		VkRect2D scissor{ {0, 0}, { static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height) }};
+    
 		vkCmdSetViewport(commandBuffer->getCommandBuffer(), 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);
+    vkCmdSetDepthBias(commandBuffer->getCommandBuffer(), 1.0f, 0.0f, 1.0f);
 	}
 
-  void FinalSubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
+  void SubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
     vkCmdNextSubpass(commandBuffer->getCommandBuffer(), subPassContent);
   }
 
-	void FinalSubRenderer::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
+	void SubRenderer::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
 		vkCmdEndRenderPass(commandBuffer->getCommandBuffer());
 	}
   

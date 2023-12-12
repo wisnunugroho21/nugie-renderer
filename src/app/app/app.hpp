@@ -23,9 +23,8 @@
 #include "../data/descSet/forward_desc_set.hpp"
 #include "../data/descSet/model_deferred_desc_set.hpp"
 #include "../data/descSet/attachment_deferred_desc_set.hpp"
-#include "../renderer/hybrid_renderer.hpp"
-#include "../renderer_sub/final_sub_renderer.hpp"
-#include "../renderer_sub/shadow_sub_renderer.hpp"
+#include "../renderer/renderer.hpp"
+#include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_subpart/forward_subpart_renderer.hpp"
 #include "../renderer_subpart/deferred_subpart_renderer.hpp"
 #include "../renderer_subpart/shadow_subpart_renderer.hpp"
@@ -64,10 +63,10 @@ namespace NugieApp {
 
 			Camera* camera;
 
-			HybridRenderer* renderer;
+			Renderer* renderer;
 
-			FinalSubRenderer* finalSubRenderer;
-			ShadowSubRenderer* shadowSubRenderer;
+			SubRenderer* finalSubRenderer;
+			SubRenderer* shadowSubRenderer;
 
 			ForwardSubPartRenderer* forwardSubPartRenderer;
 			DeferredSubPartRenderer* deferredSubPartRenderer;

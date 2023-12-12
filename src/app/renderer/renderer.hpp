@@ -13,11 +13,11 @@
 #include <cassert>
 
 namespace NugieApp {
-	class HybridRenderer
+	class Renderer
 	{
 		public:
-			HybridRenderer(NugieVulkan::Window* window, NugieVulkan::Device* device);
-			~HybridRenderer();
+			Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device);
+			~Renderer();
 
 			NugieVulkan::SwapChain* getSwapChain() const { return this->swapChain; }
 			NugieVulkan::DescriptorPool* getDescriptorPool() const { return this->descriptorPool; }
@@ -29,7 +29,7 @@ namespace NugieApp {
 			}
 
 			uint32_t getImageIndex() {
-				assert(this->isFrameStarted && "cannot get frame index when frame is not in progress");
+				assert(this->isFrameStarted && "cannot get image index when frame is not in progress");
 				return this->currentImageIndex;
 			}
 
