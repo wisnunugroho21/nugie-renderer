@@ -90,7 +90,7 @@ namespace NugieApp {
       subpasses[subpasses.size() - 1].pResolveAttachments = &resolveAttachmentRef[0];
     }
 
-    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, 6);
+    auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, this->layerNum);
     for (size_t i = 0; i < subpasses.size(); i++) {
       renderPassBuilder = renderPassBuilder
         .addSubpass(subpasses[i]);

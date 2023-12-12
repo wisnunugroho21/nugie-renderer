@@ -25,7 +25,7 @@ namespace NugieApp {
 
 			auto x = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
 				.writeBuffer(0, modelsInfo[0])
-				.writeBuffer(0, modelsInfo[1])
+				.writeBuffer(1, modelsInfo[1])
 				.build(&descSet);
 			
 			this->descriptorSets.emplace_back(descSet);

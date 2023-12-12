@@ -107,7 +107,7 @@ namespace NugieApp {
 					}
 				}
 
-				uint32_t lightIndex = frameIndex * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT;
+				uint32_t lightIndex = frameIndex * this->pointNumLight;
 				for (uint32_t i = 0; i < this->pointNumLight; i++) {
 					lightIndex += i;
 
@@ -116,7 +116,7 @@ namespace NugieApp {
 					this->pointShadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
-				lightIndex = NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointNumLight;
+				lightIndex = frameIndex * this->spotNumLight;
 				for (uint32_t i = 0; i < this->spotNumLight; i++) {
 					lightIndex += i;
 
@@ -353,6 +353,9 @@ namespace NugieApp {
 
 		this->pointLightModel = new PointLightModel(this->device);
 		this->pointLightModel->update(commandBuffer, pointLights);
+
+		this->spotLightModel = new SpotLightModel(this->device);
+		this->spotLightModel->update(commandBuffer, spotLights);
 
 		this->shadowTransformationModel = new ShadowTransformationModel(this->device);
 		this->shadowTransformationModel->update(commandBuffer, shadowTransforms);
