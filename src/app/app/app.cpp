@@ -1,5 +1,6 @@
 #include "app.hpp"
 
+#include "../renderer_sub/shadow_sub_renderer.hpp"
 #include "../utils/load_model/load_model.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -419,12 +420,12 @@ namespace NugieApp {
 			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
 
-		this->pointShadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 6u)
+		this->pointShadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 6u)
 			.addSubPass(this->pointShadowSubPartRenderer->getAttachments(), this->pointShadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->pointShadowSubPartRenderer->getDepthAttachmentRef())
 			.build();
 
-		this->spotShadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 1u)
+		this->spotShadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 1u)
 			.addSubPass(this->spotShadowSubPartRenderer->getAttachments(), this->spotShadowSubPartRenderer->getAttachmentDescs(),
 				{}, this->spotShadowSubPartRenderer->getDepthAttachmentRef())
 			.build();
