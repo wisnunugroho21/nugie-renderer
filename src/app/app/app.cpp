@@ -24,6 +24,8 @@ namespace NugieApp {
 		this->renderer = new Renderer(this->window, this->device);
 
 		this->camera = new Camera();
+		this->mouseController = new MouseController();
+		this->keyboardController = new KeyboardController();
 
 		this->loadObjects();
 		this->recreateSubRendererAndSubsystem();
