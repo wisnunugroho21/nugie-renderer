@@ -7,6 +7,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 
 #include <memory>
+#include "../../general_struct.hpp"
 
 namespace NugieApp {
 	struct TransformComponent {
@@ -17,4 +18,6 @@ namespace NugieApp {
 		glm::mat4 getModelMatrix();
     glm::mat3 getNormalMatrix();
 	};
+
+	std::vector<Transformation> ConvertComponentToTransform(std::vector<TransformComponent> transformations);
 }

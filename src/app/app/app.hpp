@@ -33,6 +33,7 @@
 #include "../renderer_system/spot_shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/deferred_pass_render_system.hpp"
+#include "../data/model/ssbo.hpp"
 
 #include <memory>
 #include <vector>
@@ -80,16 +81,16 @@ namespace NugieApp {
 			PointShadowPassRenderSystem* pointShadowPassRenderer;
 			SpotShadowPassRenderSystem* spotShadowPassRenderer;
 
-			IndexModel* indexModel;
-			PositionModel* positionModel;
-			NormalModel* normalModel;
-			TextCoordModel* textCoordModel;
-			ReferenceModel* referenceModel;
-			MaterialModel* materialModel;
-			TransformationModel* transformationModel;
-			ShadowTransformationModel *shadowTransformationModel;
-			PointLightModel* pointLightModel;
-			SpotLightModel* spotLightModel;
+			ShaderStorageBufferObject<uint32_t>* indexModel;
+			ShaderStorageBufferObject<Position>* positionModel;
+			ShaderStorageBufferObject<Normal>* normalModel;
+			ShaderStorageBufferObject<TextCoord>* textCoordModel;
+			ShaderStorageBufferObject<Reference>* referenceModel;
+			ShaderStorageBufferObject<Material>* materialModel;
+			ShaderStorageBufferObject<Transformation>* transformationModel;
+			ShaderStorageBufferObject<ShadowTransformation>* shadowTransformationModel;
+			ShaderStorageBufferObject<PointLight>* pointLightModel;
+			ShaderStorageBufferObject<SpotLight>* spotLightModel;
 
 			ForwardUniform* forwardUniform;
 			DeferredUniform* deferredUniform;
