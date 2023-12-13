@@ -159,10 +159,9 @@ namespace NugieApp {
 	}
 
 	void App::run() {
-		auto currentTime = std::chrono::high_resolution_clock::now();
 		uint32_t t = 0;
 
-		for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
 			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
 		}
