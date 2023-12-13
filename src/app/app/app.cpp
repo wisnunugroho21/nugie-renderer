@@ -102,8 +102,9 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
-				if (this->isCameraMoved) {
+				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->cameraUpdateCount++;
 				}
 
 				auto commandBuffer = this->renderer->beginRenderCommand();
@@ -148,10 +149,6 @@ namespace NugieApp {
 
 				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->randomSeed++;
-
-					if (this->isCameraMoved) {
-						this->isCameraMoved = false;
-					}
 				}
 
 				if (hasTransfer) {
@@ -194,7 +191,7 @@ namespace NugieApp {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
 				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 				
-				this->isCameraMoved = true;
+				this->cameraUpdateCount = 0u;
 			}
 
 			if (t == 10) {
