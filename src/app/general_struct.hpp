@@ -6,9 +6,8 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
-#include <vector>
 
-#define LIGHT_NUM 6
+#include <vector>
 
 namespace NugieApp {
   struct Position {
@@ -68,12 +67,7 @@ namespace NugieApp {
     glm::mat4 cameraTransforms;
   };
 
-  struct PointShadowPushConstant {
+  struct ShadowPushConstant {
     uint32_t lightIndex;
-  };
-
-  struct SpotShadowPushConstant {
-    uint32_t lightIndex;
-    uint32_t offsetIndex;
   };
 }

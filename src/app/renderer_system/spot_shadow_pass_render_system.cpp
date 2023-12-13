@@ -26,7 +26,7 @@ namespace NugieApp {
 		VkPushConstantRange pushConstantRange{};
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(SpotShadowPushConstant);
+		pushConstantRange.size = sizeof(ShadowPushConstant);
 
 		VkDescriptorSetLayout setLayout = descriptorSetLayout->getDescriptorSetLayout();
 
@@ -97,10 +97,9 @@ namespace NugieApp {
 			.build();
 	}
 
-	void SpotShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, uint32_t offsetIndex,
+	void SpotShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, 
 		VkDescriptorSet descriptorSets, std::vector<NugieVulkan::Buffer*> vertexBuffers, 
-		NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, 
-		std::vector<VkDeviceSize> offsets) 
+		NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, std::vector<VkDeviceSize> offsets)
 	{
 		this->pipeline->bindPipeline(commandBuffer);
 
@@ -108,23 +107,22 @@ namespace NugieApp {
 			commandBuffer->getCommandBuffer(),
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			this->pipelineLayout,
-			0,
-			1,
+			0u,
+			1u,
 			&descriptorSets,
-			0,
+			0u,
 			nullptr
 		);
 
-		SpotShadowPushConstant spotShadowPushConstant{};
+		ShadowPushConstant spotShadowPushConstant{};
 		spotShadowPushConstant.lightIndex = lightIndex;
-		spotShadowPushConstant.offsetIndex = offsetIndex;
 
 		vkCmdPushConstants(
 			commandBuffer->getCommandBuffer(), 
 			this->pipelineLayout, 
 			VK_SHADER_STAGE_VERTEX_BIT,
-			0,
-			sizeof(SpotShadowPushConstant),
+			0u,
+			sizeof(ShadowPushConstant),
 			&spotShadowPushConstant
 		);
 

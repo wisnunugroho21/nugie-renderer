@@ -4,7 +4,6 @@
 #include "../../../vulkan/device/device.hpp"
 #include "../../../vulkan/pipeline/compute_pipeline.hpp"
 #include "../../../vulkan/buffer/buffer.hpp"
-#include "../../general_struct.hpp"
 
 #include <memory>
 #include <vector>

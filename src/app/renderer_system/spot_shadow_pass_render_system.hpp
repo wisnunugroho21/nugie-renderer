@@ -18,10 +18,9 @@ namespace NugieApp {
 			SpotShadowPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass);
 			~SpotShadowPassRenderSystem();
 
-			void render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, uint32_t offsetIndex,
-				VkDescriptorSet descriptorSets, std::vector<NugieVulkan::Buffer*> vertexBuffers, 
-				NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, 
-				std::vector<VkDeviceSize> offsets = {});
+			void render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, VkDescriptorSet descriptorSets, 
+				std::vector<NugieVulkan::Buffer*> vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		
 		private:
 			void createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout);

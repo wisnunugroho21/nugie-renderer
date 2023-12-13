@@ -110,19 +110,15 @@ namespace NugieApp {
 
 				uint32_t lightIndex = frameIndex * this->pointNumLight;
 				for (uint32_t i = 0; i < this->pointNumLight; i++) {
-					lightIndex += i;
-
 					this->pointShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex);
-					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
+					this->pointShadowPassRenderer->render(commandBuffer, lightIndex + i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
 					this->pointShadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
 				lightIndex = frameIndex * this->spotNumLight;
 				for (uint32_t i = 0; i < this->spotNumLight; i++) {
-					lightIndex += i;
-
 					this->spotShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex);
-					this->spotShadowPassRenderer->render(commandBuffer, i, initialSpotIndex, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
+					this->spotShadowPassRenderer->render(commandBuffer, initialSpotIndex + lightIndex + i, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
 					this->spotShadowSubRenderer->endRenderPass(commandBuffer);
 				}
 

@@ -15,9 +15,8 @@ layout(set = 0, binding = 1) buffer readonly ShadowTransformationModel {
 
 layout(push_constant) uniform Push {
   uint lightIndex;
-  uint offsetIndex;
 };
 
 void main() {
-  gl_Position = shadowTransformations[lightIndex + offsetIndex].viewProjectionMatrix * transformations[transformIndex].modelMatrix * position; 
+  gl_Position = shadowTransformations[lightIndex].viewProjectionMatrix * transformations[transformIndex].modelMatrix * position; 
 }
