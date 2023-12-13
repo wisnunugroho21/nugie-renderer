@@ -6,6 +6,8 @@
 #include "../../vulkan/buffer/buffer.hpp"
 #include "../../vulkan/texture/texture.hpp"
 #include "../camera/camera.hpp"
+#include "../controller/keyboard/keyboard_controller.hpp"
+#include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/ssbo.hpp"
 #include "../data/buffer/ubo.hpp"
 #include "../data/buffer/vertex.hpp"
@@ -49,13 +51,15 @@ namespace NugieApp {
 		private:
 			void loadObjects();
 
-			void updateCamera(uint32_t width, uint32_t height);
+			void initCamera(uint32_t width, uint32_t height);
 			void recreateSubRendererAndSubsystem();
 
 			NugieVulkan::Window* window;
 			NugieVulkan::Device* device;
 
 			Camera* camera;
+			KeyboardController* keyboardController;
+			MouseController* mouseController;
 
 			Renderer* renderer;
 
@@ -95,9 +99,9 @@ namespace NugieApp {
 			PointShadowDescSet* pointShadowDescSet;
 			SpotShadowDescSet* spotShadowDescSet;
 
-			uint32_t randomSeed = 0, pointNumLight = 0, spotNumLight = 0;
-			bool isRendering = true;
-			float frameTime;
+			uint32_t randomSeed = 0u, pointNumLight = 0u, spotNumLight = 0u;
+			bool isRendering = true, isCameraMoved = false;
+			float frameTime = 0.0f;
 
 			ForwardUbo forwardUbo;
 			DeferredUbo deferredUbo;

@@ -7,6 +7,9 @@
 namespace NugieApp {
   class Camera {
     public:
+      glm::vec3 getPosition() const { return this->position; }
+      glm::vec3 getDirection() const { return this->direction; }
+
       void setOrthographicProjection(float left, float right, float top, float bottom, float near, float far);
       void setPerspectiveProjection(float fovy, float aspect_ratio, float near, float far);
 
@@ -22,5 +25,7 @@ namespace NugieApp {
       glm::mat4 projectionMatrix{1.0f};
       glm::mat4 viewMatrix{1.0f};
       glm::mat4 inverseViewMatrix{1.0f};
+
+      glm::vec3 position, direction;
   };
 } // namespace nugiEngine
