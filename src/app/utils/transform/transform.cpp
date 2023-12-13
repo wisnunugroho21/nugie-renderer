@@ -60,4 +60,16 @@ namespace NugieApp {
       },
     };
   }
+
+  std::vector<Transformation> ConvertComponentToTransform(std::vector<TransformComponent> transformations) {
+		auto newTransforms = std::vector<Transformation>();
+		for (auto &&transform : transformations) {
+			newTransforms.emplace_back(Transformation{ 
+				transform.getModelMatrix(),
+				transform.getNormalMatrix() 
+			});
+		}
+
+		return newTransforms;
+	}
 } // namespace NugieApp

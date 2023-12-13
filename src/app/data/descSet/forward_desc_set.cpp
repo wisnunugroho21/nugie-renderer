@@ -25,7 +25,7 @@ namespace NugieApp {
 		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			VkDescriptorSet descSet;
 
-			auto x = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
+			NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool)
 				.writeBuffer(0, uniformBufferInfo[0][i])
 				.writeBuffer(1, modelsInfo[0])
 				.build(&descSet);

@@ -113,7 +113,7 @@ namespace NugieApp {
 					lightIndex += i;
 
 					this->pointShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex);
-					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
+					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
 					this->pointShadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
@@ -122,13 +122,13 @@ namespace NugieApp {
 					lightIndex += i;
 
 					this->spotShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex);
-					this->spotShadowPassRenderer->render(commandBuffer, i, initialSpotIndex, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount(), {});
+					this->spotShadowPassRenderer->render(commandBuffer, i, initialSpotIndex, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
 					this->spotShadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
-				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->getIndexCount());
+				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
 
@@ -159,10 +159,9 @@ namespace NugieApp {
 	}
 
 	void App::run() {
-		auto currentTime = std::chrono::high_resolution_clock::now();
 		uint32_t t = 0;
 
-		for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
 			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
 		}
@@ -331,35 +330,35 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginTransferCommand();
 
-		this->positionModel = new PositionModel(this->device);
-		this->positionModel->update(commandBuffer, positions);
+		this->indexModel = new IndexBufferObject<uint32_t>(this->device);
+		this->indexModel->replace(commandBuffer, indices);
 
-		this->normalModel = new NormalModel(this->device);
-		this->normalModel->update(commandBuffer, normals);
+		this->positionModel = new VertexBufferObject<Position>(this->device);
+		this->positionModel->replace(commandBuffer, positions);
 
-		this->textCoordModel = new TextCoordModel(this->device);
-		this->textCoordModel->update(commandBuffer, textCoords);
+		this->normalModel = new VertexBufferObject<Normal>(this->device);
+		this->normalModel->replace(commandBuffer, normals);
 
-		this->indexModel = new IndexModel(this->device);
-		this->indexModel->update(commandBuffer, indices);
+		this->textCoordModel = new VertexBufferObject<TextCoord>(this->device);
+		this->textCoordModel->replace(commandBuffer, textCoords);
 
-		this->referenceModel = new ReferenceModel(this->device);
-		this->referenceModel->update(commandBuffer, references);
+		this->referenceModel = new VertexBufferObject<Reference>(this->device);
+		this->referenceModel->replace(commandBuffer, references);
 
-		this->materialModel = new MaterialModel(this->device);
-		this->materialModel->update(commandBuffer, materials);
+		this->materialModel = new ShaderStorageBufferObject<Material>(this->device);
+		this->materialModel->replace(commandBuffer, materials);
 
-		this->transformationModel = new TransformationModel(this->device);
-		this->transformationModel->update(commandBuffer, transforms);
+		this->transformationModel = new ShaderStorageBufferObject<Transformation>(this->device);
+		this->transformationModel->replace(commandBuffer, ConvertComponentToTransform(transforms));
 
-		this->pointLightModel = new PointLightModel(this->device);
-		this->pointLightModel->update(commandBuffer, pointLights);
+		this->pointLightModel = new ShaderStorageBufferObject<PointLight>(this->device);
+		this->pointLightModel->replace(commandBuffer, pointLights);
 
-		this->spotLightModel = new SpotLightModel(this->device);
-		this->spotLightModel->update(commandBuffer, spotLights);
+		this->spotLightModel = new ShaderStorageBufferObject<SpotLight>(this->device);
+		this->spotLightModel->replace(commandBuffer, spotLights);
 
-		this->shadowTransformationModel = new ShadowTransformationModel(this->device);
-		this->shadowTransformationModel->update(commandBuffer, shadowTransforms);
+		this->shadowTransformationModel = new ShaderStorageBufferObject<ShadowTransformation>(this->device);
+		this->shadowTransformationModel->replace(commandBuffer, shadowTransforms);
 
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
@@ -431,17 +430,17 @@ namespace NugieApp {
 			.build();
 
 		VkDescriptorBufferInfo pointShadowModelInfos[2] = {
-			this->transformationModel->getTransformationInfo(),
-			this->shadowTransformationModel->getTransformationInfo()
+			this->transformationModel->getInfo(),
+			this->shadowTransformationModel->getInfo()
 		};
 
 		VkDescriptorBufferInfo spotShadowModelInfos[2] = {
-			this->transformationModel->getTransformationInfo(),
-			this->shadowTransformationModel->getTransformationInfo()
+			this->transformationModel->getInfo(),
+			this->shadowTransformationModel->getInfo()
 		};
 
 		VkDescriptorBufferInfo forwardModelInfos[1] = {
-			this->transformationModel->getTransformationInfo()
+			this->transformationModel->getInfo()
 		};
 
 		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
@@ -452,10 +451,10 @@ namespace NugieApp {
 		};
 
 		VkDescriptorBufferInfo deferredModelInfo[4] {
-			this->materialModel->getMaterialInfo(),
-			this->shadowTransformationModel->getTransformationInfo(),
-			this->pointLightModel->getLightInfo(),
-			this->spotLightModel->getLightInfo()
+			this->materialModel->getInfo(),
+			this->shadowTransformationModel->getInfo(),
+			this->pointLightModel->getInfo(),
+			this->spotLightModel->getInfo()
 		};
 
 		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[2] {
@@ -468,15 +467,15 @@ namespace NugieApp {
 			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
 		}
 		
-		this->forwardUniform = new ForwardUniform(this->device);
-		this->deferredUniform = new DeferredUniform(this->device);
+		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
+		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
 
 		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
-			this->forwardUniform->getBuffersInfo()
+			this->forwardUniform->getInfo()
 		};
 
 		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
-			this->deferredUniform->getBuffersInfo()
+			this->deferredUniform->getInfo()
 		};
 		
 		this->pointShadowDescSet = new PointShadowDescSet(this->device, this->renderer->getDescriptorPool(), pointShadowModelInfos);
