@@ -6,18 +6,10 @@
 #include "../../vulkan/buffer/buffer.hpp"
 #include "../../vulkan/texture/texture.hpp"
 #include "../camera/camera.hpp"
-#include "../data/model/index_model.hpp"
-#include "../data/model/position_model.hpp"
-#include "../data/model/normal_model.hpp"
-#include "../data/model/textCoord_model.hpp"
-#include "../data/model/reference_model.hpp"
-#include "../data/model/material_model.hpp"
-#include "../data/model/transformation_model.hpp"
-#include "../data/model/shadow_transformation_model.hpp"
-#include "../data/model/point_light_model.hpp"
-#include "../data/model/spot_light_model.hpp"
-#include "../data/buffer/forward_uniform.hpp"
-#include "../data/buffer/deferred_uniform.hpp"
+#include "../data/buffer/ssbo.hpp"
+#include "../data/buffer/ubo.hpp"
+#include "../data/buffer/vertex.hpp"
+#include "../data/buffer/index.hpp"
 #include "../data/descSet/point_shadow_desc_set.hpp"
 #include "../data/descSet/spot_shadow_desc_set.hpp"
 #include "../data/descSet/forward_desc_set.hpp"
@@ -33,7 +25,7 @@
 #include "../renderer_system/spot_shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/deferred_pass_render_system.hpp"
-#include "../data/model/ssbo.hpp"
+#include "../utils/transform/transform.hpp"
 
 #include <memory>
 #include <vector>
@@ -81,19 +73,21 @@ namespace NugieApp {
 			PointShadowPassRenderSystem* pointShadowPassRenderer;
 			SpotShadowPassRenderSystem* spotShadowPassRenderer;
 
-			ShaderStorageBufferObject<uint32_t>* indexModel;
-			ShaderStorageBufferObject<Position>* positionModel;
-			ShaderStorageBufferObject<Normal>* normalModel;
-			ShaderStorageBufferObject<TextCoord>* textCoordModel;
-			ShaderStorageBufferObject<Reference>* referenceModel;
+			IndexBufferObject<uint32_t>* indexModel;
+
+			VertexBufferObject<Position>* positionModel;
+			VertexBufferObject<Normal>* normalModel;
+			VertexBufferObject<TextCoord>* textCoordModel;
+			VertexBufferObject<Reference>* referenceModel;
+			
 			ShaderStorageBufferObject<Material>* materialModel;
 			ShaderStorageBufferObject<Transformation>* transformationModel;
 			ShaderStorageBufferObject<ShadowTransformation>* shadowTransformationModel;
 			ShaderStorageBufferObject<PointLight>* pointLightModel;
 			ShaderStorageBufferObject<SpotLight>* spotLightModel;
 
-			ForwardUniform* forwardUniform;
-			DeferredUniform* deferredUniform;
+			UniformBufferObject<ForwardUbo>* forwardUniform;
+			UniformBufferObject<DeferredUbo>* deferredUniform;
 			
 			ForwardDescSet* forwardDescSet;
 			AttachmentDeferredDescSet* attachmentDeferredDescSet;

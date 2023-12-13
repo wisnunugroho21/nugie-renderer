@@ -331,19 +331,19 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginTransferCommand();
 
-		this->positionModel = new ShaderStorageBufferObject<Position>(this->device);
-		this->positionModel->replace(commandBuffer, positions);
-
-		this->normalModel = new ShaderStorageBufferObject<Normal>(this->device);
-		this->normalModel->replace(commandBuffer, normals);
-
-		this->textCoordModel = new ShaderStorageBufferObject<TextCoord>(this->device);
-		this->textCoordModel->replace(commandBuffer, textCoords);
-
-		this->indexModel = new ShaderStorageBufferObject<uint32_t>(this->device);
+		this->indexModel = new IndexBufferObject<uint32_t>(this->device);
 		this->indexModel->replace(commandBuffer, indices);
 
-		this->referenceModel = new ShaderStorageBufferObject<Reference>(this->device);
+		this->positionModel = new VertexBufferObject<Position>(this->device);
+		this->positionModel->replace(commandBuffer, positions);
+
+		this->normalModel = new VertexBufferObject<Normal>(this->device);
+		this->normalModel->replace(commandBuffer, normals);
+
+		this->textCoordModel = new VertexBufferObject<TextCoord>(this->device);
+		this->textCoordModel->replace(commandBuffer, textCoords);
+
+		this->referenceModel = new VertexBufferObject<Reference>(this->device);
 		this->referenceModel->replace(commandBuffer, references);
 
 		this->materialModel = new ShaderStorageBufferObject<Material>(this->device);
@@ -468,15 +468,15 @@ namespace NugieApp {
 			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
 		}
 		
-		this->forwardUniform = new ForwardUniform(this->device);
-		this->deferredUniform = new DeferredUniform(this->device);
+		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
+		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
 
 		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
-			this->forwardUniform->getBuffersInfo()
+			this->forwardUniform->getInfo()
 		};
 
 		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
-			this->deferredUniform->getBuffersInfo()
+			this->deferredUniform->getInfo()
 		};
 		
 		this->pointShadowDescSet = new PointShadowDescSet(this->device, this->renderer->getDescriptorPool(), pointShadowModelInfos);
