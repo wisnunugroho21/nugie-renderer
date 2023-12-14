@@ -48,8 +48,19 @@ namespace NugieApp {
 		colorBlendAttachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[0].blendEnable = VK_FALSE;
 
+		VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
+		rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizationInfo.depthClampEnable = VK_FALSE;
+		rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+		rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizationInfo.lineWidth = 1.0f;
+		rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationInfo.depthBiasEnable = VK_TRUE;
+
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)
 			.setDefault("shader/deferred.vert.spv", "shader/deferred.frag.spv", colorBlendAttachment, {}, {})
+			.setRasterizationInfo(rasterizationInfo)
 			.setSubpass(1u)
 			.build();
 	}
