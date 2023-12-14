@@ -106,16 +106,20 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
     for (uint j = 0u; j < POINT_SHADOW_MAP_NUM; j++) {
       vec4 shadowCoord = shadowTransformations[i * POINT_SHADOW_MAP_NUM + j].viewProjectionMatrix * surfacePosition;
 
-      shadowCoord = shadowCoord / shadowCoord.w;
+      shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
       shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
       float dist = texture(pointShadowMapTexture[nonuniformEXT(i)], vec3(shadowCoord.xy, j)).x;
 
       bool isShadow = shadowCoord.w > 0.0f
-        && abs(shadowCoord.z) < 1.0f
+        && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
+        && shadowCoord.y >= 0.0f && shadowCoord.z <= 1.0f
         && dist < shadowCoord.z;
 
-      totalRadiance *= isShadow ? 0.25f : 1.0f;
+      if (isShadow) {
+        totalRadiance *= 0.25f;
+        break;
+      }
     }
   }
 
@@ -124,13 +128,14 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
   for (uint i = 0u; i < ubo.numLights.y; i++) {
     vec4 shadowCoord = shadowTransformations[initialIndex + i].viewProjectionMatrix * surfacePosition;
 
-    shadowCoord = shadowCoord / shadowCoord.w;
+    shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
     shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
     float dist = texture(spotShadowMapTexture[nonuniformEXT(i)], shadowCoord.xy).x;
 
     bool isShadow = shadowCoord.w > 0.0f
-      && abs(shadowCoord.z) < 1.0f
+      && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
+      && shadowCoord.y >= 0.0f && shadowCoord.z <= 1.0f
       && dist < shadowCoord.z;
 
     totalRadiance *= isShadow ? 0.25f : 1.0f;
