@@ -24,6 +24,8 @@ namespace NugieApp {
 		this->renderer = new Renderer(this->window, this->device);
 
 		this->camera = new Camera();
+		this->mouseController = new MouseController();
+		this->keyboardController = new KeyboardController();
 
 		this->loadObjects();
 		this->recreateSubRendererAndSubsystem();
@@ -72,6 +74,8 @@ namespace NugieApp {
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
 
+		if (this->mouseController != nullptr) delete this->mouseController;
+		if (this->keyboardController != nullptr) delete this->keyboardController;
 		if (this->camera != nullptr) delete this->camera;
 	}
 
@@ -99,6 +103,11 @@ namespace NugieApp {
 				std::vector<VkDescriptorSet> descriptorSets;
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
+
+				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->cameraUpdateCount++;
+				}
 
 				auto commandBuffer = this->renderer->beginRenderCommand();
 
@@ -155,6 +164,7 @@ namespace NugieApp {
 	}
 
 	void App::run() {
+		auto oldTime = std::chrono::high_resolution_clock::now();
 		uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -166,6 +176,25 @@ namespace NugieApp {
 
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
+
+			auto newTime = std::chrono::high_resolution_clock::now();
+			float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
+
+			auto cameraPosition = this->camera->getPosition();
+			auto cameraDirection = this->camera->getDirection();
+
+			bool isMousePressed = false;
+			bool isKeyboardPressed = false;
+
+			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
+			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
+
+			if (isMousePressed || isKeyboardPressed) {
+				this->camera->setViewDirection(cameraPosition, cameraDirection);
+				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+				
+				this->cameraUpdateCount = 0u;
+			}
 
 			if (t == 10) {
 				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / this->frameTime));
@@ -322,6 +351,8 @@ namespace NugieApp {
 			shadowTransforms[initialSpotIndex + i].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
 		}
 
+		this->deferredUbo.numLights = glm::uvec4(this->pointNumLight, this->spotNumLight, 0u, 0u);
+
 		// ----------------------------------------------------------------------------
 
 		auto commandBuffer = this->renderer->beginTransferCommand();
@@ -364,7 +395,7 @@ namespace NugieApp {
 		this->renderer->submitTransferCommand(commandBuffer);
 	}
 
-	void App::updateCamera(uint32_t width, uint32_t height) {
+	void App::initCamera(uint32_t width, uint32_t height) {
 		glm::vec3 position = glm::vec3(0.0f, 30.0f, -60.0f);
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -383,14 +414,6 @@ namespace NugieApp {
 
 		this->forwardUbo.cameraTransforms = projection * view;
 		this->deferredUbo.origin = glm::vec4(position, 1.0f);
-		this->deferredUbo.numLights = glm::uvec4(this->pointNumLight, this->spotNumLight, 0u, 0u);
-
-		/* float phi = glm::radians(45.0f);
-		float theta = glm::radians(45.0f);
-
-		float sunX = glm::sin(theta) * glm::cos(phi);
-		float sunY = glm::sin(theta) * glm::sin(phi);
-		float sunZ = glm::cos(theta); */
 	}
 
 	void App::recreateSubRendererAndSubsystem() {
@@ -398,7 +421,7 @@ namespace NugieApp {
 		uint32_t height = this->renderer->getSwapChain()->height();
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->imageCount());
 
-		this->updateCamera(width, height);
+		this->initCamera(width, height);
 
 		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
