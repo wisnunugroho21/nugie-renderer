@@ -34,7 +34,7 @@ namespace NugieApp {
       std::vector<NugieVulkan::Image*> forwardDepthImages;
 
       VkFormat findDepthFormat();
-      VkFormat findColorFormat(std::vector<VkFormat> colorFormats);
+      VkFormat findColorFormat(const std::vector<VkFormat> &colorFormats);
 
       void createForwardResources(uint32_t imageCount);
   };

@@ -12,6 +12,8 @@ namespace NugieVulkan {
 			Window(uint32_t w, uint32_t h, std::string name);
 			~Window();
 
+			GLFWwindow* getWindow() const { return this->window; } 
+
 			bool shouldClose();
 			void pollEvents();
 
@@ -19,7 +21,6 @@ namespace NugieVulkan {
 			VkExtent2D getExtent();
 			void resetResizedFlag();
 			bool wasResized() { return this->frameBufferResized; }
-			GLFWwindow* getWindow() const { return this->window; } 
 
 		private:
 			uint32_t width, height;

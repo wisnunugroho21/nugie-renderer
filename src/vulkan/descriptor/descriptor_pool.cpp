@@ -26,11 +26,11 @@ namespace NugieVulkan {
   // *************** Descriptor Pool *********************
   
   DescriptorPool::DescriptorPool(
-      Device* device,
-      uint32_t maxSets,
-      VkDescriptorPoolCreateFlags poolFlags,
-      const std::vector<VkDescriptorPoolSize> poolSizes)
-      : device{device} 
+    Device* device,
+    uint32_t maxSets,
+    VkDescriptorPoolCreateFlags poolFlags,
+    const std::vector<VkDescriptorPoolSize> &poolSizes)
+    : device{device} 
   {
     VkDescriptorPoolCreateInfo descriptorPoolInfo{};
     descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -48,7 +48,7 @@ namespace NugieVulkan {
     vkDestroyDescriptorPool(this->device->getLogicalDevice(), descriptorPool, nullptr);
   }
   
-  bool DescriptorPool::allocate(const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet *descriptor, std::vector<uint32_t> variableSetCounts) const {
+  bool DescriptorPool::allocate(VkDescriptorSet *descriptor, VkDescriptorSetLayout descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts) const {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = this->descriptorPool;
@@ -73,17 +73,12 @@ namespace NugieVulkan {
     return true;
   }
 
-  bool DescriptorPool::allocate(std::vector<VkDescriptorSetLayout> descriptorSetLayout, std::vector<VkDescriptorSet*> descriptors, std::vector<uint32_t> variableSetCounts) const {
-    std::vector<VkDescriptorSet> newDescriptors { descriptors.size() };
-    for (uint32_t i = 0; i < descriptors.size(); i++) {
-      newDescriptors[i] = *descriptors[i];
-    }
-    
+  bool DescriptorPool::allocate(std::vector<VkDescriptorSet> &descriptors, std::vector<VkDescriptorSetLayout> &descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts) const {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = this->descriptorPool;
     allocInfo.pSetLayouts = descriptorSetLayout.data();
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(newDescriptors.size());
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(descriptors.size());
 
     if (variableSetCounts.size() > 0) {
       VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
@@ -96,37 +91,32 @@ namespace NugieVulkan {
   
     // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
     // a new pool whenever an old pool fills up. But this is beyond our current scope
-    if (vkAllocateDescriptorSets(this->device->getLogicalDevice(), &allocInfo, newDescriptors.data()) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(this->device->getLogicalDevice(), &allocInfo, descriptors.data()) != VK_SUCCESS) {
       return false;
-    }
-
-    for (uint32_t i = 0; i < descriptors.size(); i++) {
-      *descriptors[i] = newDescriptors[i];
     }
 
     return true;
   }
-  
-  void DescriptorPool::free(std::vector<VkDescriptorSet*> descriptors) const {
-    std::vector<VkDescriptorSet> newDescriptors { descriptors.size() };
-    for (uint32_t i = 0; i < descriptors.size(); i++) {
-      newDescriptors[i] = *descriptors[i];
-    }
 
+  void DescriptorPool::free(VkDescriptorSet* descriptors) const {
     vkFreeDescriptorSets(
       this->device->getLogicalDevice(),
       this->descriptorPool,
-      static_cast<uint32_t>(newDescriptors.size()),
-      newDescriptors.data()
+      1u,
+      descriptors
     );
-
-    for (uint32_t i = 0; i < descriptors.size(); i++) {
-      *descriptors[i] = newDescriptors[i];
-    }
+  }
+  
+  void DescriptorPool::free(const std::vector<VkDescriptorSet> &descriptors) const {
+    vkFreeDescriptorSets(
+      this->device->getLogicalDevice(),
+      this->descriptorPool,
+      static_cast<uint32_t>(descriptors.size()),
+      descriptors.data()
+    );
   }
   
   void DescriptorPool::reset() {
     vkResetDescriptorPool(this->device->getLogicalDevice(), this->descriptorPool, 0);
   }
-
 }

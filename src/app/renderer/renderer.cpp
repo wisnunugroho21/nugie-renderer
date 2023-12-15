@@ -7,7 +7,7 @@
 namespace NugieApp {
 	Renderer::Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device) : device{device}, window{window} {
 		this->recreateSwapChain();
-		this->createSyncObjects(static_cast<uint32_t>(this->swapChain->imageCount()));
+		this->createSyncObjects(static_cast<uint32_t>(this->swapChain->getImageCount()));
 
 		this->createDescriptorPool();
 		this->createCommandPool();
@@ -111,27 +111,21 @@ namespace NugieApp {
 	}
 
 	void Renderer::createCommandBuffers() {
-		std::vector<VkCommandBuffer*> newCommandBuffers;
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			newCommandBuffers.emplace_back(new VkCommandBuffer());
-		}
+		std::vector<VkCommandBuffer> commandBuffers;
+		commandBuffers.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-		this->graphicCommandPool->allocate(newCommandBuffers);
+		this->graphicCommandPool->allocate(commandBuffers);
 		this->graphicCommandBuffers.clear();
 		
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->graphicCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, *newCommandBuffers[i]));
+			this->graphicCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, commandBuffers[i]));
 		}
 
-		newCommandBuffers.clear();
-		for (uint32_t i = 0; i < 1; i++) {
-			newCommandBuffers.emplace_back(new VkCommandBuffer());
-		}
+		VkCommandBuffer transferCommandBuffer;
+		this->transferCommandPool->allocate(&transferCommandBuffer);
 
-		this->transferCommandPool->allocate(newCommandBuffers);
 		this->transferCommandBuffers.clear();
-
-		this->transferCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, *newCommandBuffers[0]));
+		this->transferCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, transferCommandBuffer));
 	}
 
 	bool Renderer::acquireFrame() {

@@ -16,7 +16,7 @@ namespace NugieApp {
 				std::vector<VkDescriptorImageInfo> objectRexturesInfo[1]);
 			~ModelDeferredDescSet();
 
-			VkDescriptorSet getDescriptorSets(int frameIndex) { return this->descriptorSets[frameIndex]; }
+			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
 		private:

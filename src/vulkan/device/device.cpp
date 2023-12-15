@@ -530,7 +530,7 @@ namespace NugieVulkan {
     throw std::runtime_error("failed to find suitable memory type!");
   }
 
-  uint32_t Device::findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> properties, VkMemoryPropertyFlags *selectedProperty) {
+  uint32_t Device::findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> &properties, VkMemoryPropertyFlags *selectedProperty) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(this->physicalDevice, &memProperties);
 

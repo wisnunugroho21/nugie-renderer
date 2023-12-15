@@ -14,7 +14,7 @@ namespace NugieApp {
 				std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount);
 			~AttachmentDeferredDescSet();
 
-			VkDescriptorSet getDescriptorSets(int imageIndex) { return this->descriptorSets[imageIndex]; }
+			VkDescriptorSet getDescriptorSets(int imageIndex) const { return this->descriptorSets[imageIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
 		private:

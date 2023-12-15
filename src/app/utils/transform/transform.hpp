@@ -15,9 +15,9 @@ namespace NugieApp {
 		glm::vec3 scale{1.0f};
 		glm::vec3 rotation{0.0f};
 
-		glm::mat4 getModelMatrix();
-    glm::mat3 getNormalMatrix();
+		glm::mat4 getModelMatrix() const;
+    glm::mat3 getNormalMatrix() const;
 	};
 
-	std::vector<Transformation> ConvertComponentToTransform(std::vector<TransformComponent> transformations);
+	std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations);
 }

@@ -4,7 +4,7 @@
 #include <array>
 
 namespace NugieApp {
-  DeferredSubPartRenderer::DeferredSubPartRenderer(NugieVulkan::Device* device, std::vector<NugieVulkan::Image*> swapChainImages, VkFormat swapChainImageFormat, uint32_t imageCount, uint32_t width, uint32_t height) 
+  DeferredSubPartRenderer::DeferredSubPartRenderer(NugieVulkan::Device* device, const std::vector<NugieVulkan::Image*> &swapChainImages, VkFormat swapChainImageFormat, uint32_t imageCount, uint32_t width, uint32_t height) 
     : device{device}, swapChainImages{swapChainImages}, swapChainImageFormat{swapChainImageFormat}, width{width}, height{height}
   {
     this->createDeferredResources(imageCount);

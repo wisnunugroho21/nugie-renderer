@@ -43,45 +43,36 @@ namespace NugieVulkan {
     return true;
   }
 
-  bool CommandPool::allocate(std::vector<VkCommandBuffer*> commandBuffers) const {
-    std::vector<VkCommandBuffer> newCommandBuffers { commandBuffers.size() };
-    for (uint32_t i = 0; i < commandBuffers.size(); i++) {
-      newCommandBuffers[i] = *commandBuffers[i];
-    }
-
+  bool CommandPool::allocate(std::vector<VkCommandBuffer> &commandBuffers) const {
     VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandPool = this->commandPool;
-		allocInfo.commandBufferCount = static_cast<uint32_t>(newCommandBuffers.size());
+		allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
-		if (vkAllocateCommandBuffers(this->device->getLogicalDevice(), &allocInfo, newCommandBuffers.data()) != VK_SUCCESS) {
+		if (vkAllocateCommandBuffers(this->device->getLogicalDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
 			return false;
 		}
 
-    for (uint32_t i = 0; i < commandBuffers.size(); i++) {
-      *commandBuffers[i] = newCommandBuffers[i];
-    }
-
     return true;
   }
-  
-  void CommandPool::free(std::vector<VkCommandBuffer*> commandBuffers) const {
-    std::vector<VkCommandBuffer> newCommandBuffers { commandBuffers.size() };
-    for (uint32_t i = 0; i < commandBuffers.size(); i++) {
-      newCommandBuffers[i] = *commandBuffers[i];
-    }
-    
+
+  void CommandPool::free(VkCommandBuffer* commandBuffer) const {
     vkFreeCommandBuffers(
       this->device->getLogicalDevice(), 
       this->commandPool, 
-      static_cast<uint32_t>(newCommandBuffers.size()), 
-      newCommandBuffers.data()
+      1u,
+      commandBuffer
     );
+  }
 
-    for (uint32_t i = 0; i < commandBuffers.size(); i++) {
-      *commandBuffers[i] = newCommandBuffers[i];
-    }
+  void CommandPool::free(const std::vector<VkCommandBuffer> &commandBuffers) const {
+    vkFreeCommandBuffers(
+      this->device->getLogicalDevice(), 
+      this->commandPool, 
+      static_cast<uint32_t>(commandBuffers.size()), 
+      commandBuffers.data()
+    );
   }
   
   void CommandPool::reset() {

@@ -18,7 +18,7 @@ namespace NugieVulkan
         VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
 
       Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
-        VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> memoryProperties, 
+        VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties, 
         VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
 
       Image(Device* device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format, 
@@ -35,8 +35,8 @@ namespace NugieVulkan
       uint32_t getMipLevels() const { return this->mipLevels; }
       uint32_t getLayerNum() const { return this->layerNum; }
 
-      uint32_t getWidth() { return this->width; }
-      uint32_t getHeight() { return this->height; }
+      uint32_t getWidth() const { return this->width; }
+      uint32_t getHeight() const { return this->height; }
 
       VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout);
       
@@ -50,7 +50,7 @@ namespace NugieVulkan
       void transitionImageLayout(CommandBuffer* commandBuffer, VkImageLayout oldLayout, VkImageLayout newLayout, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
         VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 
-      static void transitionImageLayout(CommandBuffer* commandBuffer, std::vector<Image*> images, VkImageLayout oldLayout, VkImageLayout newLayout, 
+      static void transitionImageLayout(CommandBuffer* commandBuffer, const std::vector<Image*> &images, VkImageLayout oldLayout, VkImageLayout newLayout, 
         VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess, VkAccessFlags dstAccess, 
         uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 
@@ -68,7 +68,7 @@ namespace NugieVulkan
       bool isImageCreatedByUs = false;
 
       void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property);
-      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> memoryProperties);
+      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties);
 
       void createImageView();
   };

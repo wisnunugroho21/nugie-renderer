@@ -38,7 +38,7 @@ namespace NugieVulkan {
     if (this->oldSwapChain != nullptr) delete this->oldSwapChain;
   }
 
-  VkResult SwapChain::acquireNextImage(uint32_t *imageIndex, std::vector<VkFence> inFlightFences, VkSemaphore imageAvailableSemaphore) {
+  VkResult SwapChain::acquireNextImage(uint32_t *imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore) {
     vkWaitForFences(
       this->device->getLogicalDevice(),
       static_cast<uint32_t>(inFlightFences.size()),
@@ -59,7 +59,7 @@ namespace NugieVulkan {
     return result;
   }
 
-  VkResult SwapChain::presentRenders(VkQueue queue, uint32_t *imageIndex, std::vector<VkSemaphore> waitSemaphores) {
+  VkResult SwapChain::presentRenders(VkQueue queue, uint32_t *imageIndex,const std::vector<VkSemaphore> &waitSemaphores) {
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 

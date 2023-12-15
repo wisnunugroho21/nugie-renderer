@@ -14,7 +14,7 @@ namespace NugieApp {
 				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[1]);
 			~ForwardDescSet();
 
-			VkDescriptorSet getDescriptorSets(int frameIndex) { return this->descriptorSets[frameIndex]; }
+			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
 		private:

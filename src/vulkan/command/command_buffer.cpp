@@ -38,8 +38,8 @@ namespace NugieVulkan {
 		}
 	}
 
-	void CommandBuffer::submitCommand(VkQueue queue, std::vector<VkSemaphore> waitSemaphores, 
-    std::vector<VkPipelineStageFlags> waitStages, std::vector<VkSemaphore> signalSemaphores, VkFence fence) 
+	void CommandBuffer::submitCommand(VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores, 
+    const std::vector<VkPipelineStageFlags> &waitStages, const std::vector<VkSemaphore> &signalSemaphores, VkFence fence) 
 	{
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -69,8 +69,8 @@ namespace NugieVulkan {
 		}
 	}
 
-	void CommandBuffer::submitCommands(std::vector<CommandBuffer*> commandBuffers, VkQueue queue, std::vector<VkSemaphore> waitSemaphores, 
-		std::vector<VkPipelineStageFlags> waitStages, std::vector<VkSemaphore> signalSemaphores, VkFence fence) 
+	void CommandBuffer::submitCommands(const std::vector<CommandBuffer*> &commandBuffers, VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores, 
+		const std::vector<VkPipelineStageFlags> &waitStages, const std::vector<VkSemaphore> &signalSemaphores, VkFence fence) 
 	{
 		std::vector<VkCommandBuffer> buffers{};
 		for (auto& commandBuffer : commandBuffers) {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../device/device.hpp"
-#include "./command_buffer.hpp"
+#include "command_buffer.hpp"
 
 #include <vector>
 #include <memory>
@@ -17,9 +17,11 @@ namespace NugieVulkan {
       ~CommandPool();
 
       bool allocate(VkCommandBuffer* commandBuffer) const;
-      bool allocate(std::vector<VkCommandBuffer*> commandBuffers) const;
+      bool allocate(std::vector<VkCommandBuffer> &commandBuffers) const;
 
-      void free(std::vector<VkCommandBuffer*> commandBuffers) const;
+      void free(VkCommandBuffer* commandBuffer) const;
+      void free(const std::vector<VkCommandBuffer> &commandBuffers) const;
+      
       void reset();
 
     private:

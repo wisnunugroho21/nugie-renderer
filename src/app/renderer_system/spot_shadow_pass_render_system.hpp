@@ -19,7 +19,7 @@ namespace NugieApp {
 			~SpotShadowPassRenderSystem();
 
 			void render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, VkDescriptorSet descriptorSets, 
-				std::vector<NugieVulkan::Buffer*> vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		
 		private:
