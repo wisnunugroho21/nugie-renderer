@@ -10,7 +10,7 @@
 namespace NugieApp {
   class DeferredSubPartRenderer {
     public:
-      DeferredSubPartRenderer(NugieVulkan::Device* device, std::vector<NugieVulkan::Image*> swapChainImages, VkFormat swapChainImageFormat, 
+      DeferredSubPartRenderer(NugieVulkan::Device* device, const std::vector<NugieVulkan::Image*> &swapChainImages, VkFormat swapChainImageFormat, 
         uint32_t imageCount, uint32_t width, uint32_t height);
       ~DeferredSubPartRenderer();
 

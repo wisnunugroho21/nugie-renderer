@@ -60,7 +60,7 @@ namespace NugieVulkan {
       QueueFamilyIndices getPhysicalQueueFamilies() { return this->findQueueFamilies(this->physicalDevice); }
 
       uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags property);
-      uint32_t findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> properties, VkMemoryPropertyFlags *selectedProperty);
+      uint32_t findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> &properties, VkMemoryPropertyFlags *selectedProperty);
 
       VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 

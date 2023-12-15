@@ -21,22 +21,19 @@ namespace NugieVulkan {
       ~SwapChain();
       
       VkFormat getSwapChainImageFormat() const { return this->swapChainImageFormat; }
-      VkExtent2D getSwapChainExtent() { return this->swapChainExtent; }
-      size_t imageCount() const { return this->swapChainImages.size(); }
-      uint32_t width() const { return this->swapChainExtent.width; }
-      uint32_t height() const { return this->swapChainExtent.height; }
+      VkExtent2D getSwapChainExtent() const { return this->swapChainExtent; }
+      size_t getImageCount() const { return this->swapChainImages.size(); }
+      uint32_t getWidth() const { return this->swapChainExtent.width; }
+      uint32_t getHeight() const { return this->swapChainExtent.height; }
       std::vector<Image*> getswapChainImages() const { return this->swapChainImages; }
-
-      float extentAspectRatio() {
-        return static_cast<float>(this->swapChainExtent.width) / static_cast<float>(this->swapChainExtent.height);
-      }
-
-      VkResult acquireNextImage(uint32_t* imageIndex, std::vector<VkFence> inFlightFences, VkSemaphore imageAvailableSemaphore);
-      VkResult presentRenders(VkQueue queue, uint32_t* imageIndex, std::vector<VkSemaphore> waitSemaphores);
+      float getAspectRatio() const { return static_cast<float>(this->swapChainExtent.width) / static_cast<float>(this->swapChainExtent.height); }
 
       bool compareSwapFormat(const SwapChain* swapChain) {
         return swapChain->swapChainImageFormat == this->swapChainImageFormat;
       }
+
+      VkResult acquireNextImage(uint32_t* imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore);
+      VkResult presentRenders(VkQueue queue, uint32_t* imageIndex, const std::vector<VkSemaphore> &waitSemaphores);
 
     private:
       void init();

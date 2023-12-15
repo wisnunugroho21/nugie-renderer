@@ -13,23 +13,25 @@ namespace NugieVulkan {
 	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefault(
 		const std::string& vertFilePath, 
 		const std::string& fragFilePath, 
-		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments,
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions) 
+		const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
+		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
+		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) 
 	{
-		// auto msaaSamples = this->device->getMSAASamples();
+		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
+		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
 
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
-		this->colorBlendAttachments = colorBlendAttachments;
-
 		this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		this->colorBlendInfo.logicOpEnable = VK_FALSE;
 		this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-		this->colorBlendInfo.attachmentCount = static_cast<uint32_t>(this->colorBlendAttachments.size());
-		this->colorBlendInfo.pAttachments = this->colorBlendAttachments.size() > 0 ? this->colorBlendAttachments.data() : nullptr;
+		this->colorBlendInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+		this->colorBlendInfo.pAttachments = colorBlendAttachments.size() > 0 ? colorBlendAttachments.data() : nullptr;
 		this->colorBlendInfo.blendConstants[0] = 0.0f;  // Optional
 		this->colorBlendInfo.blendConstants[1] = 0.0f;  // Optional
 		this->colorBlendInfo.blendConstants[2] = 0.0f;  // Optional
@@ -73,9 +75,6 @@ namespace NugieVulkan {
 		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
 		this->dynamicStateInfo.flags = 0;
 
-		this->bindingDescriptions = bindingDescriptions;
-		this->attributeDescriptions = attributeDescriptions;
-
 		VkShaderModule vertShaderModule;
 		VkShaderModule fragShaderModule;
 
@@ -111,9 +110,15 @@ namespace NugieVulkan {
 	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultVertexGeometry(
 		const std::string& vertFilePath, 
 		const std::string& geomFilePath,
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions
+		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
+		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 	) {
+		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
+		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
+
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
@@ -161,9 +166,6 @@ namespace NugieVulkan {
 		this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
 		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
 		this->dynamicStateInfo.flags = 0;
-
-		this->bindingDescriptions = bindingDescriptions;
-		this->attributeDescriptions = attributeDescriptions;
 
 		VkShaderModule vertShaderModule;
 		auto vertCode = GraphicPipeline::readFile(vertFilePath);
@@ -198,9 +200,15 @@ namespace NugieVulkan {
 
 	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultVertex(
 		const std::string& vertFilePath,
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions
+		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
+		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 	) {
+		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
+		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
+		
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
@@ -249,9 +257,6 @@ namespace NugieVulkan {
 		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
 		this->dynamicStateInfo.flags = 0;
 
-		this->bindingDescriptions = bindingDescriptions;
-		this->attributeDescriptions = attributeDescriptions;
-
 		VkShaderModule vertShaderModule;
 		auto vertCode = GraphicPipeline::readFile(vertFilePath);
 		GraphicPipeline::createShaderModule(this->device, vertCode, &vertShaderModule);
@@ -275,13 +280,8 @@ namespace NugieVulkan {
 		return *this;
 	}
 
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setBindingDescriptions(std::vector<VkVertexInputBindingDescription> bindingDescriptions) {
-		this->bindingDescriptions = bindingDescriptions;
-		return *this;
-	}
-
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setAttributeDescriptions (std::vector<VkVertexInputAttributeDescription> attributeDescriptions) {
-		this->attributeDescriptions = attributeDescriptions;
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo) {
+		this->vertexInputInfo = vertexInputInfo;
 		return *this;
 	}
 
@@ -315,7 +315,7 @@ namespace NugieVulkan {
 		return *this;
 	}
 
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setShaderStagesInfo(std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo) {
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setShaderStagesInfo(const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo) {
 		this->shaderStagesInfo = shaderStagesInfo;
 		return *this;
 	}
@@ -326,8 +326,7 @@ namespace NugieVulkan {
 			this->pipelineLayout,
 			this->renderPass,
 			this->subpass,
-			this->bindingDescriptions,
-			this->attributeDescriptions,
+			this->vertexInputInfo,
 			this->inputAssemblyInfo,
 			this->rasterizationInfo,
 			this->multisampleInfo,
@@ -343,23 +342,21 @@ namespace NugieVulkan {
 		VkPipelineLayout pipelineLayout,
 		VkRenderPass renderPass,
 		uint32_t subpass,
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions,
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo,
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
 		VkPipelineRasterizationStateCreateInfo rasterizationInfo,
 		VkPipelineMultisampleStateCreateInfo multisampleInfo,
 		VkPipelineColorBlendStateCreateInfo colorBlendInfo,
 		VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
 		VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-		std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo
+		const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo
 	) : device{device} 
 	{
 		this->createGraphicPipeline(
 			pipelineLayout,
 			renderPass,
 			subpass,
-			bindingDescriptions,
-			attributeDescriptions,
+			vertexInputInfo,
 			inputAssemblyInfo,
 			rasterizationInfo,
 			multisampleInfo,
@@ -399,29 +396,19 @@ namespace NugieVulkan {
 		VkPipelineLayout pipelineLayout,
 		VkRenderPass renderPass,
 		uint32_t subpass,
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions,
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions,
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo,
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
 		VkPipelineRasterizationStateCreateInfo rasterizationInfo,
 		VkPipelineMultisampleStateCreateInfo multisampleInfo,
 		VkPipelineColorBlendStateCreateInfo colorBlendInfo,
 		VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
 		VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-		std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo) 
+		const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo) 
 	{
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-		vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
-		vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
-		vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
-
 		VkPipelineViewportStateCreateInfo viewportInfo{};
 		viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportInfo.viewportCount = 1;
-		viewportInfo.pViewports = nullptr;
 		viewportInfo.scissorCount = 1;
-		viewportInfo.pScissors = nullptr;
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -468,7 +455,7 @@ namespace NugieVulkan {
 		vkCmdBindPipeline(commandBuffer->getCommandBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphicPipeline);
 	}
 
-	void GraphicPipeline::bindBuffers(CommandBuffer* commandBuffer, std::vector<Buffer*> vertexBuffers, std::vector<VkDeviceSize> vertexOffsets, Buffer* indexBuffer) {
+	void GraphicPipeline::bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize> &vertexOffsets, Buffer* indexBuffer) {
 		std::vector<VkBuffer> vBuffers;
 
 		for (auto &&vertexBuffer : vertexBuffers) {

@@ -14,7 +14,7 @@ namespace NugieApp {
         public:
           Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum = 1u);
 
-          Builder& addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs = {});
+          Builder& addSubPass(const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, const std::vector<VkAttachmentReference> &outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, const std::vector<VkAttachmentReference> &inputAttachmentRefs = {});
           Builder& addResolveAttachmentRef(VkAttachmentReference resolveAttachmentRef);
 
           SubRenderer* build();
@@ -31,9 +31,9 @@ namespace NugieApp {
           std::vector<VkAttachmentReference> resolveAttachmentRef;
       };
 
-      SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-        std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
-        std::vector<VkAttachmentReference> resolveAttachmentRef);
+      SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+        const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, 
+        const std::vector<VkAttachmentReference> &resolveAttachmentRef);
       ~SubRenderer();
       
       NugieVulkan::RenderPass* getRenderPass() const { return this->renderPass; }
@@ -49,9 +49,9 @@ namespace NugieApp {
       NugieVulkan::Device* device;
       NugieVulkan::RenderPass* renderPass;
 
-      void createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-        std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 
-        std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, std::vector<VkAttachmentReference> resolveAttachmentRef);
+      void createRenderPass(const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+        const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
+        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRef);
   };
   
 } // namespace NugieApp

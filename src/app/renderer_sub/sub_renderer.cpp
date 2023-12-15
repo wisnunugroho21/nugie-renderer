@@ -10,8 +10,8 @@ namespace NugieApp {
 
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-    std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs) 
+  SubRenderer::Builder& SubRenderer::Builder::addSubPass(const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+    const std::vector<VkAttachmentReference> &outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, const std::vector<VkAttachmentReference> &inputAttachmentRefs) 
   {
     for (auto &&attachment : attachments) {
       this->attachments.emplace_back(attachment);
@@ -40,10 +40,10 @@ namespace NugieApp {
       this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef);
   }
 
-  SubRenderer::SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, std::vector<std::vector<VkImageView>> attachments, 
-    std::vector<VkAttachmentDescription> attachmentDescs, std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, 
-    std::vector<VkAttachmentReference> depthAttachmentRefs, std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, 
-    std::vector<VkAttachmentReference> resolveAttachmentRef)
+  SubRenderer::SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<VkImageView>> &attachments, 
+    const std::vector<VkAttachmentDescription> &attachmentDescs, const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, 
+    const std::vector<VkAttachmentReference> &depthAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, 
+    const std::vector<VkAttachmentReference> &resolveAttachmentRef)
     : device{device}, width{width}, height{height}, layerNum{layerNum}
   {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
@@ -53,9 +53,9 @@ namespace NugieApp {
     if (this->renderPass != nullptr) delete this->renderPass;
   }
 
-  void SubRenderer::createRenderPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-    std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 
-    std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, std::vector<VkAttachmentReference> resolveAttachmentRef)
+  void SubRenderer::createRenderPass(const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+    const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
+    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRef)
   {
     std::vector<VkSubpassDescription> subpasses;
     std::vector<VkSubpassDependency> subpassDependencies;

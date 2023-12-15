@@ -25,7 +25,7 @@ class Buffer {
     VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkBufferUsageFlags usageFlags,
-    const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags,
+    const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment = 1);
 
   ~Buffer();
@@ -40,7 +40,7 @@ class Buffer {
   VkMemoryPropertyFlags getMemoryPropertyFlags() const { return this->memoryPropertyFlag; }
 
   void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlag);
-  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> memoryPropertyFlag);
+  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlag);
 
   void copyFromAnotherBuffer(CommandBuffer* commandBuffer, Buffer* srcBuffer, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
   void copyToAnotherBuffer(CommandBuffer* commandBuffer,Buffer* destBuffer, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
@@ -66,7 +66,7 @@ class Buffer {
     VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, 
     uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 
-  static void transitionBuffer(CommandBuffer* commandBuffer, std::vector<Buffer*> buffers, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
+  static void transitionBuffer(CommandBuffer* commandBuffer, const std::vector<Buffer*> &buffers, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
     VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, 
     uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
  

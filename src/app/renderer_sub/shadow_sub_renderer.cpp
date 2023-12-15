@@ -10,8 +10,9 @@ namespace NugieApp {
 
   }
 
-  ShadowSubRenderer::Builder& ShadowSubRenderer::Builder::addSubPass(std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-    std::vector<VkAttachmentReference> outputAttachmentRefs, VkAttachmentReference depthAttachmentRefs, std::vector<VkAttachmentReference> inputAttachmentRefs) 
+  ShadowSubRenderer::Builder& ShadowSubRenderer::Builder::addSubPass(const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+    const std::vector<VkAttachmentReference> &outputAttachmentRefs, const VkAttachmentReference &depthAttachmentRefs, 
+    const std::vector<VkAttachmentReference> &inputAttachmentRefs) 
   {
     for (auto &&attachment : attachments) {
       this->attachments.emplace_back(attachment);
@@ -41,9 +42,9 @@ namespace NugieApp {
   }
 
   ShadowSubRenderer::ShadowSubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, 
-    std::vector<std::vector<VkImageView>> attachments, std::vector<VkAttachmentDescription> attachmentDescs, 
-    std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs, std::vector<VkAttachmentReference> depthAttachmentRefs, 
-    std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs, std::vector<VkAttachmentReference> resolveAttachmentRef)
+    const std::vector<std::vector<VkImageView>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+    const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
+    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRef)
     : SubRenderer(device, width, height, layerNum, attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef)
   {
 

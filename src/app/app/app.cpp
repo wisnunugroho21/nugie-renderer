@@ -298,8 +298,8 @@ namespace NugieApp {
 
 		// ---------------------------------------------------------------------
 
-		uint32_t width = this->renderer->getSwapChain()->width();
-		uint32_t height = this->renderer->getSwapChain()->height();
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
 
 		Camera shadowCamera;
 		float near = 0.1f;
@@ -417,9 +417,9 @@ namespace NugieApp {
 	}
 
 	void App::recreateSubRendererAndSubsystem() {
-		uint32_t width = this->renderer->getSwapChain()->width();
-		uint32_t height = this->renderer->getSwapChain()->height();
-		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->imageCount());
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
 		this->initCamera(width, height);
 
