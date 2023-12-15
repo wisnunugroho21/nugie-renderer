@@ -17,8 +17,6 @@ namespace NugieVulkan {
 		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) 
 	{
-		// auto msaaSamples = this->device->getMSAASamples();
-
 		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
 		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
@@ -115,6 +113,12 @@ namespace NugieVulkan {
 		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 	) {
+		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
+		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
+
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
@@ -199,6 +203,12 @@ namespace NugieVulkan {
 		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 	) {
+		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
+		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
+		
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
