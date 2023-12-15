@@ -102,7 +102,7 @@ namespace NugieVulkan {
     }
   }
 
-  VkDescriptorImageInfo Texture::getDescriptorInfo(VkImageLayout desiredImageLayout) {
+  VkDescriptorImageInfo Texture::getDescriptorInfo(VkImageLayout desiredImageLayout) const {
     VkDescriptorImageInfo imageInfo{};
     imageInfo.imageLayout = desiredImageLayout;
     imageInfo.imageView = this->image->getImageView();

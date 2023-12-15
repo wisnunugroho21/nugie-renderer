@@ -143,7 +143,7 @@ namespace NugieApp {
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
 
 				if (!this->renderer->presentFrame()) {
-					this->recreateSubRendererAndSubsystem();
+					this->resize();
 					this->randomSeed = 0;
 
 					continue;
@@ -512,5 +512,81 @@ namespace NugieApp {
 		this->spotShadowPassRenderer = new SpotShadowPassRenderSystem(this->device, this->spotShadowDescSet->getDescSetLayout(), this->spotShadowSubRenderer->getRenderPass());
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
 		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
+	}
+
+	void App::resize() {
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
+
+		this->forwardSubPartRenderer->recreateResources(width, height);
+		this->deferredSubPartRenderer->recreateResources(width, height);
+		this->pointShadowSubPartRenderer->recreateResources(width, height);
+		this->spotShadowSubPartRenderer->recreateResources(width, height);
+
+		std::vector<std::vector<VkImageView>> finalSubImageViews;
+		for (auto &&attachment : this->forwardSubPartRenderer->getAttachments()) {
+			finalSubImageViews.emplace_back(attachment);
+		}
+
+		for (auto &&attachment : this->deferredSubPartRenderer->getAttachments()) {
+			finalSubImageViews.emplace_back(attachment);
+		}
+
+		this->finalSubRenderer->recreateResources(finalSubImageViews, width, height);
+		this->pointShadowSubRenderer->recreateResources(this->pointShadowSubPartRenderer->getAttachments(), width, height);
+		this->spotShadowSubRenderer->recreateResources(this->spotShadowSubPartRenderer->getAttachments(), width, height);
+
+		VkDescriptorBufferInfo pointShadowModelInfos[2] = {
+			this->transformationModel->getInfo(),
+			this->shadowTransformationModel->getInfo()
+		};
+
+		VkDescriptorBufferInfo spotShadowModelInfos[2] = {
+			this->transformationModel->getInfo(),
+			this->shadowTransformationModel->getInfo()
+		};
+
+		VkDescriptorBufferInfo forwardModelInfos[1] = {
+			this->transformationModel->getInfo()
+		};
+
+		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
+			this->forwardSubPartRenderer->getPositionInfoResources(),
+			this->forwardSubPartRenderer->getNormalInfoResources(),
+			this->forwardSubPartRenderer->getTextCoordInfoResources(),
+			this->forwardSubPartRenderer->getMaterialIndexInfoResources()
+		};
+
+		VkDescriptorBufferInfo deferredModelInfo[4] {
+			this->materialModel->getInfo(),
+			this->shadowTransformationModel->getInfo(),
+			this->pointLightModel->getInfo(),
+			this->spotLightModel->getInfo()
+		};
+
+		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[2] {
+			this->pointShadowSubPartRenderer->getDepthInfoResources(),
+			this->spotShadowSubPartRenderer->getDepthInfoResources()
+		};
+
+		std::vector<VkDescriptorImageInfo> deferredObjectTexturesInfos[1];
+		for (auto &&colorTexture : this->colorTextures) {
+			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
+		}
+
+		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
+			this->forwardUniform->getInfo()
+		};
+
+		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
+			this->deferredUniform->getInfo()
+		};
+		
+		this->pointShadowDescSet->recreateDescriptorSet(pointShadowModelInfos);
+		this->spotShadowDescSet->recreateDescriptorSet(spotShadowModelInfos);
+		this->forwardDescSet->recreateDescriptorSet(forwardUniformInfo, forwardModelInfos);
+		this->attachmentDeferredDescSet->recreateDescriptorSet(deferredAttachmentInfos);
+		this->modelDeferredDescSet->recreateDescriptorSet(deferredUniformInfo, deferredModelInfo, 
+			deferredRenderTextureInfo, deferredObjectTexturesInfos);
 	}
 }

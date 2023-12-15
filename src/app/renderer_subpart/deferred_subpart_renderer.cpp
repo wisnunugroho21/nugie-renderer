@@ -5,19 +5,13 @@
 
 namespace NugieApp {
   DeferredSubPartRenderer::DeferredSubPartRenderer(NugieVulkan::Device* device, const std::vector<NugieVulkan::Image*> &swapChainImages, VkFormat swapChainImageFormat, uint32_t imageCount, uint32_t width, uint32_t height) 
-    : device{device}, swapChainImages{swapChainImages}, swapChainImageFormat{swapChainImageFormat}, width{width}, height{height}
+    : device{device}, swapChainImages{swapChainImages}, swapChainImageFormat{swapChainImageFormat}, imageCount{imageCount}, width{width}, height{height}
   {
-    this->createDeferredResources(imageCount);
+    this->createImages();
   }
 
   DeferredSubPartRenderer::~DeferredSubPartRenderer() {
-    for (auto &&colorImage : this->deferredColorImages) {
-      if (colorImage != nullptr) delete colorImage;
-    }
-
-    for (auto &&depthImage : this->deferredDepthImages) {
-      if (depthImage != nullptr) delete depthImage;
-    }
+    this->deleteImages();
   }
 
   std::vector<std::vector<VkImageView>> DeferredSubPartRenderer::getAttachments() {
@@ -144,14 +138,14 @@ namespace NugieApp {
     return resolveAttachmentRef;
   }
 
-  void DeferredSubPartRenderer::createDeferredResources(uint32_t imageCount) {
+  void DeferredSubPartRenderer::createImages() {
     VkFormat colorFormat = this->swapChainImageFormat;
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
 
     this->deferredColorImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < this->imageCount; i++) {
       this->deferredColorImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, colorFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
@@ -160,13 +154,31 @@ namespace NugieApp {
     }
 
     this->deferredDepthImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < this->imageCount; i++) {
       this->deferredDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
     }
+  }
+
+  void DeferredSubPartRenderer::deleteImages() {
+    for (auto &&colorImage : this->deferredColorImages) {
+      if (colorImage != nullptr) delete colorImage;
+    }
+
+    for (auto &&depthImage : this->deferredDepthImages) {
+      if (depthImage != nullptr) delete depthImage;
+    }
+  }
+
+  void DeferredSubPartRenderer::recreateResources(uint32_t width, uint32_t height) {
+    this->width = width;
+    this->height = height;
+    
+    this->deleteImages();
+    this->createImages();
   }
 
   VkFormat DeferredSubPartRenderer::findDepthFormat() {

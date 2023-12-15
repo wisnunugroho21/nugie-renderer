@@ -179,11 +179,13 @@ namespace NugieVulkan {
     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
       return capabilities.currentExtent;
     } else {
-      VkExtent2D actualExtent = windowExtent;
+      VkExtent2D actualExtent = this->windowExtent;
+
       actualExtent.width = std::max(
         capabilities.minImageExtent.width,
         std::min(capabilities.maxImageExtent.width, actualExtent.width)
       );
+      
       actualExtent.height = std::max(
         capabilities.minImageExtent.height,
         std::min(capabilities.maxImageExtent.height, actualExtent.height)

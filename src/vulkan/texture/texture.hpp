@@ -21,8 +21,9 @@ namespace NugieVulkan
       ~Texture();
       
       bool hasBeenMipmapped() const { return this->hasMipmapped; }
-      VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-      
+      void setImage(Image* image) { this->image = image; }
+
+      VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
       void generateMipmap(CommandBuffer* commandBuffer);
 
     private:

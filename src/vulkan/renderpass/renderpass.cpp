@@ -58,10 +58,7 @@ namespace NugieVulkan {
   }
 
   RenderPass::~RenderPass() {
-    for (auto framebuffer : this->framebuffers) {
-      vkDestroyFramebuffer(this->device->getLogicalDevice(), framebuffer, nullptr);
-    }
-
+    this->deleteFramebuffers();
     vkDestroyRenderPass(this->device->getLogicalDevice(), this->renderPass, nullptr);
   }
   
@@ -92,6 +89,17 @@ namespace NugieVulkan {
       {
         throw std::runtime_error("failed to create framebuffer!");
       }
+    }
+  }
+
+  void RenderPass::recreateFrameBuffer(const std::vector<std::vector<VkImageView>> &viewImages, uint32_t width, uint32_t height, uint32_t layerNum) {
+    this->deleteFramebuffers();
+    this->createFramebuffers(viewImages, width, height, layerNum);
+  }
+
+  void RenderPass::deleteFramebuffers() {
+    for (auto framebuffer : this->framebuffers) {
+      vkDestroyFramebuffer(this->device->getLogicalDevice(), framebuffer, nullptr);
     }
   }
 } // namespace NugieVulkan
