@@ -53,7 +53,7 @@ namespace NugieVulkan {
     VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkBufferUsageFlags usageFlags,
-    const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags,
+    const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment
   )
     : device{device},
@@ -283,7 +283,7 @@ namespace NugieVulkan {
     );
   }
 
-  void Buffer::transitionBuffer(CommandBuffer* commandBuffer, std::vector<Buffer*> buffers, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
+  void Buffer::transitionBuffer(CommandBuffer* commandBuffer, const std::vector<Buffer*> &buffers, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
     VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
   {
     std::vector<VkBufferMemoryBarrier> barriers{};
@@ -345,7 +345,7 @@ namespace NugieVulkan {
     vkBindBufferMemory(this->device->getLogicalDevice(), this->buffer, this->memory, 0);
   }
 
-  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> memoryPropertyFlags) {
+  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlags) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;

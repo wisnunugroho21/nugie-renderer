@@ -30,14 +30,17 @@ namespace NugieVulkan {
         Device* device,
         uint32_t maxSets,
         VkDescriptorPoolCreateFlags poolFlags,
-        const std::vector<VkDescriptorPoolSize> poolSizes
+        const std::vector<VkDescriptorPoolSize> &poolSizes
       );
+
       ~DescriptorPool();
     
-      bool allocate(VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet* descriptor, std::vector<uint32_t> variableSetCounts = {}) const;
-      bool allocate(std::vector<VkDescriptorSetLayout> descriptorSetLayout, std::vector<VkDescriptorSet*> descriptors, std::vector<uint32_t> variableSetCounts = {}) const;
+      bool allocate(VkDescriptorSet* descriptor, VkDescriptorSetLayout descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts = {}) const;
+      bool allocate(std::vector<VkDescriptorSet> &descriptors, std::vector<VkDescriptorSetLayout> &descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts = {}) const;
 
-      void free(std::vector<VkDescriptorSet*> descriptors) const;
+      void free(VkDescriptorSet* descriptors) const;
+      void free(const std::vector<VkDescriptorSet> &descriptors) const;
+
       void reset();
     
     private:

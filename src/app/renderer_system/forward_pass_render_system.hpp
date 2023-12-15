@@ -19,7 +19,7 @@ namespace NugieApp {
 			~ForwardPassRenderSystem();
 
 			void render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
-				std::vector<NugieVulkan::Buffer*> vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		
 		private:

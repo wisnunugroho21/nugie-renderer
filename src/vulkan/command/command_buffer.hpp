@@ -12,19 +12,19 @@ namespace NugieVulkan
     public:
       CommandBuffer(Device* device, VkCommandBuffer commandBuffer);
 
+      VkCommandBuffer getCommandBuffer() const { return this->commandBuffer; }
+
       void resetCommand();
       void beginSingleTimeCommand();
       void beginReccuringCommand();
       void endCommand();
-      void submitCommand(VkQueue queue, std::vector<VkSemaphore> waitSemaphores = {}, 
-        std::vector<VkPipelineStageFlags> waitStages = {}, std::vector<VkSemaphore> signalSemaphores = {}, 
+      void submitCommand(VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores = {}, 
+        const std::vector<VkPipelineStageFlags> &waitStages = {}, const std::vector<VkSemaphore> &signalSemaphores = {}, 
         VkFence fence = VK_NULL_HANDLE);
 
-      static void submitCommands(std::vector<CommandBuffer*> commandBuffers, VkQueue queue, std::vector<VkSemaphore> waitSemaphores = {}, 
-        std::vector<VkPipelineStageFlags> waitStages = {}, std::vector<VkSemaphore> signalSemaphores = {}, 
+      static void submitCommands(const std::vector<CommandBuffer*> &commandBuffers, VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores = {}, 
+        const std::vector<VkPipelineStageFlags> &waitStages = {}, const std::vector<VkSemaphore> &signalSemaphores = {}, 
         VkFence fence = VK_NULL_HANDLE);
-
-      VkCommandBuffer getCommandBuffer() { return this->commandBuffer; }
 
     private:
       Device* device;

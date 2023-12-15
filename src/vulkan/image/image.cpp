@@ -14,7 +14,7 @@ namespace NugieVulkan {
 
   Image::Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
     VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, 
-    const std::vector<VkMemoryPropertyFlags> memoryProperties, 
+    const std::vector<VkMemoryPropertyFlags> &memoryProperties, 
     VkImageAspectFlags aspectFlags, uint32_t layerNum) 
     : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format}, aspectFlags{aspectFlags}, layerNum{layerNum}
   {
@@ -83,7 +83,7 @@ namespace NugieVulkan {
   }
 
   void Image::createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, 
-    const std::vector<VkMemoryPropertyFlags> memoryProperties) 
+    const std::vector<VkMemoryPropertyFlags> &memoryProperties) 
   {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -181,7 +181,7 @@ namespace NugieVulkan {
     );
   }
   
-  void Image::transitionImageLayout(CommandBuffer* commandBuffer, std::vector<Image*> images, VkImageLayout oldLayout, VkImageLayout newLayout, 
+  void Image::transitionImageLayout(CommandBuffer* commandBuffer, const std::vector<Image*> &images, VkImageLayout oldLayout, VkImageLayout newLayout, 
     VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex, 
     uint32_t dstQueueFamilyIndex) 
   {

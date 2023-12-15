@@ -258,7 +258,7 @@ namespace NugieApp {
     }
   }
 
-  VkFormat ForwardSubPartRenderer::findColorFormat(std::vector<VkFormat> colorFormats) {
+  VkFormat ForwardSubPartRenderer::findColorFormat(const std::vector<VkFormat> &colorFormats) {
      return this->device->findSupportedFormat(
       colorFormats,
       VK_IMAGE_TILING_OPTIMAL,

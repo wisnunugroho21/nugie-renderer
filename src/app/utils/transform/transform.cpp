@@ -1,7 +1,7 @@
 #include "transform.hpp"
 
 namespace NugieApp {
-  glm::mat4 TransformComponent::getModelMatrix() {
+  glm::mat4 TransformComponent::getModelMatrix() const {
     const float c3 = glm::cos(this->rotation.z);
     const float s3 = glm::sin(this->rotation.z);
     const float c2 = glm::cos(this->rotation.x);
@@ -32,7 +32,7 @@ namespace NugieApp {
     };
   }
 
-  glm::mat3 TransformComponent::getNormalMatrix() {
+  glm::mat3 TransformComponent::getNormalMatrix() const {
     const float c3 = glm::cos(this->rotation.z);
     const float s3 = glm::sin(this->rotation.z);
     const float c2 = glm::cos(this->rotation.x);
@@ -61,7 +61,7 @@ namespace NugieApp {
     };
   }
 
-  std::vector<Transformation> ConvertComponentToTransform(std::vector<TransformComponent> transformations) {
+  std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations) {
 		auto newTransforms = std::vector<Transformation>();
 		for (auto &&transform : transformations) {
 			newTransforms.emplace_back(Transformation{ 
