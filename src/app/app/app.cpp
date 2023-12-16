@@ -515,15 +515,10 @@ namespace NugieApp {
 	}
 
 	void App::resize() {
-		this->pointShadowDescSet->deleteDescriptorSet();
-		this->spotShadowDescSet->deleteDescriptorSet();
-		this->forwardDescSet->deleteDescriptorSet();
-		this->attachmentDeferredDescSet->deleteDescriptorSet();
-		this->modelDeferredDescSet->deleteDescriptorSet();
+		this->renderer->getDescriptorPool()->reset();
 
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
-		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
 		this->forwardSubPartRenderer->recreateResources(width, height);
 		this->deferredSubPartRenderer->recreateResources(this->renderer->getSwapChain()->getswapChainImages(), width, height);
@@ -534,40 +529,40 @@ namespace NugieApp {
 		std::vector<std::vector<VkImageView>> pointSubImageViews;
 		std::vector<std::vector<VkImageView>> spotSubImageViews;
 
-		for (uint32_t i = 0; i < imageCount; i++) {
+		auto forwardAttachments = this->forwardSubPartRenderer->getAttachments();
+		auto deferredAttachments = this->deferredSubPartRenderer->getAttachments();
+		auto pointAttachments = this->pointShadowSubPartRenderer->getAttachments();
+		auto spotAttachments = this->spotShadowSubPartRenderer->getAttachments();
+
+		for (size_t i = 0; i < forwardAttachments[0].size(); i++) {
 			std::vector<VkImageView> imageViews;
 
-			auto forwardAttachments = this->forwardSubPartRenderer->getAttachments();
-			auto deferredAttachments = this->deferredSubPartRenderer->getAttachments();
-
-			for (size_t j = 0; j < forwardAttachments[0].size(); j++) {
+			for (size_t j = 0; j < forwardAttachments.size(); j++) {
 				imageViews.emplace_back(forwardAttachments[j][i]);
 			}
 
-			for (size_t j = 0; j < deferredAttachments[0].size(); j++) {
+			for (size_t j = 0; j < deferredAttachments.size(); j++) {
 				imageViews.emplace_back(deferredAttachments[j][i]);
 			}
 
 			finalSubImageViews.emplace_back(imageViews);
 		}
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (size_t i = 0; i < pointAttachments.size(); i++) {
 			std::vector<VkImageView> imageViews;
-			auto attachments = this->pointShadowSubPartRenderer->getAttachments();
 
-			for (size_t j = 0; j < attachments[0].size(); j++) {
-				imageViews.emplace_back(attachments[j][i]);
+			for (size_t j = 0; j < pointAttachments[0].size(); j++) {
+				imageViews.emplace_back(pointAttachments[j][i]);
 			}
 
 			pointSubImageViews.emplace_back(imageViews);
 		}
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (size_t i = 0; i < spotAttachments.size(); i++) {
 			std::vector<VkImageView> imageViews;
-			auto attachments = this->spotShadowSubPartRenderer->getAttachments();
 
-			for (size_t j = 0; j < attachments[0].size(); j++) {
-				imageViews.emplace_back(attachments[j][i]);
+			for (size_t j = 0; j < spotAttachments[0].size(); j++) {
+				imageViews.emplace_back(spotAttachments[j][i]);
 			}
 
 			spotSubImageViews.emplace_back(imageViews);
