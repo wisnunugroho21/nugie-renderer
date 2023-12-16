@@ -21,8 +21,6 @@ namespace NugieVulkan {
   SwapChain::SwapChain(Device* device, VkExtent2D extent, SwapChain* previous) 
     : device{device}, windowExtent{extent}
   {
-    this->init();
-
     if (previous != nullptr) {
       if (this->oldSwapChain != nullptr) {
         delete this->oldSwapChain;
@@ -30,19 +28,18 @@ namespace NugieVulkan {
 
       this->oldSwapChain = previous;
     }
+
+    this->init();
   }
 
   SwapChain::~SwapChain() {
-    if (this->swapChain != nullptr) {
-      vkDestroySwapchainKHR(this->device->getLogicalDevice(), this->swapChain, nullptr);
-      this->swapChain = nullptr;
-    }
+    if (this->oldSwapChain != nullptr) delete this->oldSwapChain;
 
     for (auto &&swapChainImage : this->swapChainImages) {
       if (swapChainImage != nullptr) delete swapChainImage;
     }
 
-    if (this->oldSwapChain != nullptr) delete this->oldSwapChain;
+    vkDestroySwapchainKHR(this->device->getLogicalDevice(), this->swapChain, nullptr);
   }
 
   VkResult SwapChain::acquireNextImage(uint32_t *imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore) {
