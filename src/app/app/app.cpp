@@ -601,5 +601,16 @@ namespace NugieApp {
 		this->attachmentDeferredDescSet->overwrite(deferredAttachmentInfos);
 		this->modelDeferredDescSet->overwrite(deferredUniformInfo, deferredModelInfo, 
 			deferredRenderTextureInfo, deferredObjectTexturesInfos);
+
+		float near = 0.1f;
+		float far = 2000.0f;
+
+		float theta = glm::radians(45.0f);
+		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+		this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+
+		this->cameraUpdateCount = 0u;
 	}
 }
