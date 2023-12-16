@@ -11,7 +11,7 @@ namespace NugieApp {
 		this->objectTexturesInfoSize = objectTexturesInfo[0].size();
 
 		this->createDescriptorLayout();
-		this->createDescriptorSet(uniformBufferInfo, modelsInfo, objectTexturesInfo, objectTexturesInfo);
+		this->createDescriptorSet(uniformBufferInfo, modelsInfo, renderTextureInfo, objectTexturesInfo);
   }
 
 	ModelDeferredDescSet::~ModelDeferredDescSet() {

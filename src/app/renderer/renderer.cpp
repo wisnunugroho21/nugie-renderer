@@ -59,6 +59,7 @@ namespace NugieApp {
 	void Renderer::createDescriptorPool() {
 		this->descriptorPool = 
 			NugieVulkan::DescriptorPool::Builder(this->device)
+				.setPoolFlags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)
 				.setMaxSets(100)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100)
