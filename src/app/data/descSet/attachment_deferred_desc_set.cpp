@@ -41,7 +41,14 @@ namespace NugieApp {
 		}
   }
 
-	void AttachmentDeferredDescSet::deleteDescriptorSet() {
-		this->descriptorPool->free(this->descriptorSets);
+	void AttachmentDeferredDescSet::overwrite(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]) {
+		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)
+				.writeImage(0, attachmentsInfo[0][i])
+				.writeImage(1, attachmentsInfo[1][i])
+				.writeImage(2, attachmentsInfo[2][i])
+				.writeImage(3, attachmentsInfo[3][i])
+				.overwrite(&this->descriptorSets[i]);
+		}
 	}
 }

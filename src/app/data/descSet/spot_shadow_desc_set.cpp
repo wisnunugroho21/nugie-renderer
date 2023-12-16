@@ -36,7 +36,12 @@ namespace NugieApp {
 		}
 	}
 
-	void SpotShadowDescSet::deleteDescriptorSet() {
-		this->descriptorPool->free(this->descriptorSets);
+	void SpotShadowDescSet::overwrite(VkDescriptorBufferInfo modelsInfo[2]) {
+		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)
+				.writeBuffer(0, modelsInfo[0])
+				.writeBuffer(1, modelsInfo[1])
+				.overwrite(&this->descriptorSets[i]);
+		}
 	}
 }

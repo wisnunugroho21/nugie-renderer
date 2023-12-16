@@ -515,8 +515,6 @@ namespace NugieApp {
 	}
 
 	void App::resize() {
-		this->renderer->getDescriptorPool()->reset();
-
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 
@@ -572,20 +570,6 @@ namespace NugieApp {
 		this->pointShadowSubRenderer->recreateResources(pointSubImageViews, width, height);
 		this->spotShadowSubRenderer->recreateResources(spotSubImageViews, width, height);
 
-		VkDescriptorBufferInfo pointShadowModelInfos[2] = {
-			this->transformationModel->getInfo(),
-			this->shadowTransformationModel->getInfo()
-		};
-
-		VkDescriptorBufferInfo spotShadowModelInfos[2] = {
-			this->transformationModel->getInfo(),
-			this->shadowTransformationModel->getInfo()
-		};
-
-		VkDescriptorBufferInfo forwardModelInfos[1] = {
-			this->transformationModel->getInfo()
-		};
-
 		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
 			this->forwardSubPartRenderer->getPositionInfoResources(),
 			this->forwardSubPartRenderer->getNormalInfoResources(),
@@ -610,19 +594,12 @@ namespace NugieApp {
 			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
 		}
 
-		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
-			this->forwardUniform->getInfo()
-		};
-
 		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
 			this->deferredUniform->getInfo()
 		};
 		
-		this->pointShadowDescSet->createDescriptorSet(pointShadowModelInfos);
-		this->spotShadowDescSet->createDescriptorSet(spotShadowModelInfos);
-		this->forwardDescSet->createDescriptorSet(forwardUniformInfo, forwardModelInfos);
-		this->attachmentDeferredDescSet->createDescriptorSet(deferredAttachmentInfos);
-		this->modelDeferredDescSet->createDescriptorSet(deferredUniformInfo, deferredModelInfo, 
+		this->attachmentDeferredDescSet->overwrite(deferredAttachmentInfos);
+		this->modelDeferredDescSet->overwrite(deferredUniformInfo, deferredModelInfo, 
 			deferredRenderTextureInfo, deferredObjectTexturesInfos);
 	}
 }

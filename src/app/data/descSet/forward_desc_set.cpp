@@ -38,7 +38,14 @@ namespace NugieApp {
 		}
   }
 
-	void ForwardDescSet::deleteDescriptorSet() {
-		this->descriptorPool->free(this->descriptorSets);
+	void ForwardDescSet::overwrite(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
+		VkDescriptorBufferInfo modelsInfo[1]) 
+	{
+		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)
+				.writeBuffer(0, uniformBufferInfo[0][i])
+				.writeBuffer(1, modelsInfo[0])
+				.overwrite(&this->descriptorSets[i]);
+		}
 	}
 }

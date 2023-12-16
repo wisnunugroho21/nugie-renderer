@@ -21,8 +21,7 @@ namespace NugieApp {
 				.build();
 	}
 
-  void PointShadowDescSet::createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2])
-	{	
+  void PointShadowDescSet::createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]) {	
 		this->descriptorSets.clear();
 		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			VkDescriptorSet descSet;
@@ -36,7 +35,12 @@ namespace NugieApp {
 		}
   }
 
-	void PointShadowDescSet::deleteDescriptorSet() {
-		this->descriptorPool->free(this->descriptorSets);
+	void PointShadowDescSet::overwrite(VkDescriptorBufferInfo modelsInfo[2]) {
+		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)
+				.writeBuffer(0, modelsInfo[0])
+				.writeBuffer(1, modelsInfo[1])
+				.overwrite(&this->descriptorSets[i]);
+		}
 	}
 }
