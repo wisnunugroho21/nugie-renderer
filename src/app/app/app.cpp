@@ -515,26 +515,67 @@ namespace NugieApp {
 	}
 
 	void App::resize() {
+		this->pointShadowDescSet->deleteDescriptorSet();
+		this->spotShadowDescSet->deleteDescriptorSet();
+		this->forwardDescSet->deleteDescriptorSet();
+		this->attachmentDeferredDescSet->deleteDescriptorSet();
+		this->modelDeferredDescSet->deleteDescriptorSet();
+
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
 		this->forwardSubPartRenderer->recreateResources(width, height);
-		this->deferredSubPartRenderer->recreateResources(width, height);
+		this->deferredSubPartRenderer->recreateResources(this->renderer->getSwapChain()->getswapChainImages(), width, height);
 		this->pointShadowSubPartRenderer->recreateResources(width, height);
 		this->spotShadowSubPartRenderer->recreateResources(width, height);
 
 		std::vector<std::vector<VkImageView>> finalSubImageViews;
-		for (auto &&attachment : this->forwardSubPartRenderer->getAttachments()) {
-			finalSubImageViews.emplace_back(attachment);
+		std::vector<std::vector<VkImageView>> pointSubImageViews;
+		std::vector<std::vector<VkImageView>> spotSubImageViews;
+
+		for (uint32_t i = 0; i < imageCount; i++) {
+			std::vector<VkImageView> imageViews;
+
+			auto forwardAttachments = this->forwardSubPartRenderer->getAttachments();
+			auto deferredAttachments = this->deferredSubPartRenderer->getAttachments();
+
+			for (size_t j = 0; j < forwardAttachments[0].size(); j++) {
+				imageViews.emplace_back(forwardAttachments[j][i]);
+			}
+
+			for (size_t j = 0; j < deferredAttachments[0].size(); j++) {
+				imageViews.emplace_back(deferredAttachments[j][i]);
+			}
+
+			finalSubImageViews.emplace_back(imageViews);
 		}
 
-		for (auto &&attachment : this->deferredSubPartRenderer->getAttachments()) {
-			finalSubImageViews.emplace_back(attachment);
+		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+			std::vector<VkImageView> imageViews;
+			auto attachments = this->pointShadowSubPartRenderer->getAttachments();
+
+			for (size_t j = 0; j < attachments[0].size(); j++) {
+				imageViews.emplace_back(attachments[j][i]);
+			}
+
+			pointSubImageViews.emplace_back(imageViews);
+		}
+
+		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+			std::vector<VkImageView> imageViews;
+			auto attachments = this->spotShadowSubPartRenderer->getAttachments();
+
+			for (size_t j = 0; j < attachments[0].size(); j++) {
+				imageViews.emplace_back(attachments[j][i]);
+			}
+
+			spotSubImageViews.emplace_back(imageViews);
 		}
 
 		this->finalSubRenderer->recreateResources(finalSubImageViews, width, height);
-		this->pointShadowSubRenderer->recreateResources(this->pointShadowSubPartRenderer->getAttachments(), width, height);
-		this->spotShadowSubRenderer->recreateResources(this->spotShadowSubPartRenderer->getAttachments(), width, height);
+		this->pointShadowSubRenderer->recreateResources(pointSubImageViews, width, height);
+		this->spotShadowSubRenderer->recreateResources(spotSubImageViews, width, height);
 
 		VkDescriptorBufferInfo pointShadowModelInfos[2] = {
 			this->transformationModel->getInfo(),
@@ -582,11 +623,11 @@ namespace NugieApp {
 			this->deferredUniform->getInfo()
 		};
 		
-		this->pointShadowDescSet->recreateDescriptorSet(pointShadowModelInfos);
-		this->spotShadowDescSet->recreateDescriptorSet(spotShadowModelInfos);
-		this->forwardDescSet->recreateDescriptorSet(forwardUniformInfo, forwardModelInfos);
-		this->attachmentDeferredDescSet->recreateDescriptorSet(deferredAttachmentInfos);
-		this->modelDeferredDescSet->recreateDescriptorSet(deferredUniformInfo, deferredModelInfo, 
+		this->pointShadowDescSet->createDescriptorSet(pointShadowModelInfos);
+		this->spotShadowDescSet->createDescriptorSet(spotShadowModelInfos);
+		this->forwardDescSet->createDescriptorSet(forwardUniformInfo, forwardModelInfos);
+		this->attachmentDeferredDescSet->createDescriptorSet(deferredAttachmentInfos);
+		this->modelDeferredDescSet->createDescriptorSet(deferredUniformInfo, deferredModelInfo, 
 			deferredRenderTextureInfo, deferredObjectTexturesInfos);
 	}
 }

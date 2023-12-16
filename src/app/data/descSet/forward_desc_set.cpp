@@ -38,10 +38,7 @@ namespace NugieApp {
 		}
   }
 
-	void ForwardDescSet::recreateDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
-		VkDescriptorBufferInfo modelsInfo[1])
-	{
+	void ForwardDescSet::deleteDescriptorSet() {
 		this->descriptorPool->free(this->descriptorSets);
-		this->createDescriptorSet(uniformBufferInfo, modelsInfo);
 	}
 }

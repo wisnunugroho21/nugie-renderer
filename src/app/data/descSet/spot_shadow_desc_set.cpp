@@ -36,8 +36,7 @@ namespace NugieApp {
 		}
 	}
 
-	void SpotShadowDescSet::recreateDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]) {
+	void SpotShadowDescSet::deleteDescriptorSet() {
 		this->descriptorPool->free(this->descriptorSets);
-		this->createDescriptorSet(modelsInfo);
 	}
 }

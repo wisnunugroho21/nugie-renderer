@@ -19,7 +19,8 @@ namespace NugieApp {
 			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
-			void recreateDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
+			void deleteDescriptorSet();
+			void createDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
 				VkDescriptorBufferInfo modelsInfo[4], std::vector<VkDescriptorImageInfo> renderTextureInfo[2], 
 				std::vector<VkDescriptorImageInfo> objectTexturesInfo[1]);
 
@@ -32,8 +33,6 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[4], 
-				std::vector<VkDescriptorImageInfo> renderTextureInfo[2], std::vector<VkDescriptorImageInfo> objectTexturesInfo[1]);
 	};
 	
 }

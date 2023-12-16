@@ -17,7 +17,8 @@ namespace NugieApp {
 			VkDescriptorSet getDescriptorSets(int imageIndex) const { return this->descriptorSets[imageIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
-			void recreateDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
+			void deleteDescriptorSet();
+			void createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
 
 		private:
 			NugieVulkan::Device* device;
@@ -28,7 +29,6 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
 	};
 	
 }

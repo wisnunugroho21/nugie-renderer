@@ -70,11 +70,7 @@ namespace NugieApp {
 		}
   }
 
-	void ModelDeferredDescSet::recreateDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
-		VkDescriptorBufferInfo modelsInfo[4], std::vector<VkDescriptorImageInfo> renderTextureInfo[2], 
-		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1]) 
-	{
+	void ModelDeferredDescSet::deleteDescriptorSet() {
 		this->descriptorPool->free(this->descriptorSets);
-		this->createDescriptorSet(uniformBufferInfo, modelsInfo, objectTexturesInfo, objectTexturesInfo);
 	}
 }

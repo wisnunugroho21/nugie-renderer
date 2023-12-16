@@ -173,7 +173,10 @@ namespace NugieApp {
     }
   }
 
-  void DeferredSubPartRenderer::recreateResources(uint32_t width, uint32_t height) {
+  void DeferredSubPartRenderer::recreateResources(const std::vector<NugieVulkan::Image*> &swapChainImages, 
+    uint32_t width, uint32_t height) 
+  {
+    this->swapChainImages = swapChainImages;
     this->width = width;
     this->height = height;
     

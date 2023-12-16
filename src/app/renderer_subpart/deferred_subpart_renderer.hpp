@@ -21,7 +21,8 @@ namespace NugieApp {
       VkAttachmentReference getDepthAttachmentRef();
       VkAttachmentReference getResolveAttachmentRef();
 
-      void recreateResources(uint32_t width, uint32_t height);
+      void recreateResources(const std::vector<NugieVulkan::Image*> &swapChainImages, 
+        uint32_t width, uint32_t height);
       
     private:
       uint32_t width, height, imageCount;

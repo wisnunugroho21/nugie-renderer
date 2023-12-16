@@ -16,7 +16,8 @@ namespace NugieApp {
 			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
-			void recreateDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]);
+			void deleteDescriptorSet();
+			void createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]);
 
 		private:
 			NugieVulkan::Device* device;
@@ -26,7 +27,6 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]);
 	};
 	
 }

@@ -41,9 +41,7 @@ namespace NugieApp {
 		}
   }
 
-	void AttachmentDeferredDescSet::recreateDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]) 
-	{
+	void AttachmentDeferredDescSet::deleteDescriptorSet() {
 		this->descriptorPool->free(this->descriptorSets);
-		this->createDescriptorSet(attachmentsInfo);
 	}
 }
