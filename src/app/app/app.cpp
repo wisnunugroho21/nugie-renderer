@@ -546,20 +546,20 @@ namespace NugieApp {
 			finalSubImageViews.emplace_back(imageViews);
 		}
 
-		for (size_t i = 0; i < pointAttachments.size(); i++) {
+		for (size_t i = 0; i < pointAttachments[0].size(); i++) {
 			std::vector<VkImageView> imageViews;
 
-			for (size_t j = 0; j < pointAttachments[0].size(); j++) {
+			for (size_t j = 0; j < pointAttachments.size(); j++) {
 				imageViews.emplace_back(pointAttachments[j][i]);
 			}
 
 			pointSubImageViews.emplace_back(imageViews);
 		}
 
-		for (size_t i = 0; i < spotAttachments.size(); i++) {
+		for (size_t i = 0; i < spotAttachments[0].size(); i++) {
 			std::vector<VkImageView> imageViews;
 
-			for (size_t j = 0; j < spotAttachments[0].size(); j++) {
+			for (size_t j = 0; j < spotAttachments.size(); j++) {
 				imageViews.emplace_back(spotAttachments[j][i]);
 			}
 
