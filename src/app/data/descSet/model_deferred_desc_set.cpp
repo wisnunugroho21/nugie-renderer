@@ -75,7 +75,6 @@ namespace NugieApp {
 		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1])
 	{
 		std::vector<VkDescriptorImageInfo> newRenderTextureInfos[2];
-		this->descriptorSets.clear();
 
 		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
 			newRenderTextureInfos[0].clear();
@@ -90,7 +89,7 @@ namespace NugieApp {
 				uint32_t totalIndex = i * spotLightNum + j;
 				newRenderTextureInfos[1].emplace_back(renderTextureInfo[1][totalIndex]);
 			}
-			
+
 			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)
 				.writeBuffer(0, uniformBufferInfo[0][i])
 				.writeBuffer(1, modelsInfo[0])
