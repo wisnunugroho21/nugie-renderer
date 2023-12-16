@@ -16,9 +16,7 @@ namespace NugieApp {
       if (shadowDepthTexture != nullptr) delete shadowDepthTexture;
     }
 
-    for (auto &&shadowDepthImage : this->shadowDepthImages) {
-      if (shadowDepthImage != nullptr) delete shadowDepthImage;
-    }
+    this->deleteImages();
   }
 
   std::vector<VkDescriptorImageInfo> PointShadowSubPartRenderer::getDepthInfoResources() {

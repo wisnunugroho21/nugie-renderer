@@ -19,10 +19,17 @@ namespace NugieVulkan {
   }
 
   SwapChain::SwapChain(Device* device, VkExtent2D extent, SwapChain* previous) 
-    : device{device}, windowExtent{extent}, oldSwapChain{previous}
+    : device{device}, windowExtent{extent}
   {
     this->init();
-    this->oldSwapChain = nullptr;
+
+    if (previous != nullptr) {
+      if (this->oldSwapChain != nullptr) {
+        delete this->oldSwapChain;
+      }
+
+      this->oldSwapChain = previous;
+    }
   }
 
   SwapChain::~SwapChain() {
