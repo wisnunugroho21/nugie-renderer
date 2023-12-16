@@ -41,6 +41,8 @@ namespace NugieApp {
       virtual void beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t imageIndex);
       virtual void nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent);
 			virtual void endRenderPass(NugieVulkan::CommandBuffer* commandBuffer);
+
+      void recreateResources(const std::vector<std::vector<VkImageView>> &attachments, uint32_t width, uint32_t height);
       
     private:
       uint32_t width, height, layerNum;

@@ -19,23 +19,27 @@ namespace NugieVulkan {
   }
 
   SwapChain::SwapChain(Device* device, VkExtent2D extent, SwapChain* previous) 
-    : device{device}, windowExtent{extent}, oldSwapChain{previous}
+    : device{device}, windowExtent{extent}
   {
+    if (previous != nullptr) {
+      if (this->oldSwapChain != nullptr) {
+        delete this->oldSwapChain;
+      }
+
+      this->oldSwapChain = previous;
+    }
+
     this->init();
-    this->oldSwapChain = nullptr;
   }
 
   SwapChain::~SwapChain() {
-    if (this->swapChain != nullptr) {
-      vkDestroySwapchainKHR(this->device->getLogicalDevice(), this->swapChain, nullptr);
-      this->swapChain = nullptr;
-    }
+    if (this->oldSwapChain != nullptr) delete this->oldSwapChain;
 
     for (auto &&swapChainImage : this->swapChainImages) {
       if (swapChainImage != nullptr) delete swapChainImage;
     }
 
-    if (this->oldSwapChain != nullptr) delete this->oldSwapChain;
+    vkDestroySwapchainKHR(this->device->getLogicalDevice(), this->swapChain, nullptr);
   }
 
   VkResult SwapChain::acquireNextImage(uint32_t *imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore) {
@@ -179,11 +183,13 @@ namespace NugieVulkan {
     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
       return capabilities.currentExtent;
     } else {
-      VkExtent2D actualExtent = windowExtent;
+      VkExtent2D actualExtent = this->windowExtent;
+
       actualExtent.width = std::max(
         capabilities.minImageExtent.width,
         std::min(capabilities.maxImageExtent.width, actualExtent.width)
       );
+      
       actualExtent.height = std::max(
         capabilities.minImageExtent.height,
         std::min(capabilities.maxImageExtent.height, actualExtent.height)

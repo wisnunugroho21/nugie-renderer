@@ -5,31 +5,13 @@
 
 namespace NugieApp {
   ForwardSubPartRenderer::ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height)
-    : device{device}, width{width}, height{height}
+    : device{device}, imageCount{imageCount}, width{width}, height{height}
   {
-    this->createForwardResources(imageCount);
+    this->createImages();
   }
 
   ForwardSubPartRenderer::~ForwardSubPartRenderer() {
-    for (auto &&positionImage : this->forwardPositionImages) {
-      if (positionImage != nullptr) delete positionImage;
-    }
-
-    for (auto &&normalImage : this->forwardNormalImages) {
-      if (normalImage != nullptr) delete normalImage;
-    }
-
-    for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
-      if (forwardTextCoordImage != nullptr) delete forwardTextCoordImage;
-    }
-
-    for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
-      if (forwardMaterialIndexImage != nullptr) delete forwardMaterialIndexImage;
-    }
-
-    for (auto &&depthImage : this->forwardDepthImages) {
-      if (depthImage != nullptr) delete depthImage;
-    }
+    this->deleteImages();
   }
 
   std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getPositionInfoResources() {
@@ -207,13 +189,13 @@ namespace NugieApp {
     return forwardDepthAttachmentRef;
   }
 
-  void ForwardSubPartRenderer::createForwardResources(uint32_t imageCount) {
+  void ForwardSubPartRenderer::createImages() {
     VkFormat depthFormat = this->findDepthFormat();
 
     auto msaaSamples = this->device->getMSAASamples();
 
     this->forwardPositionImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < this->imageCount; i++) {
       this->forwardPositionImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
@@ -222,7 +204,7 @@ namespace NugieApp {
     }
 
     this->forwardNormalImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < this->imageCount; i++) {
       this->forwardNormalImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
@@ -231,7 +213,7 @@ namespace NugieApp {
     }
 
     this->forwardTextCoordImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < this->imageCount; i++) {
       this->forwardTextCoordImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R8G8_UNORM, VK_FORMAT_R16G16_UNORM, VK_FORMAT_R32G32_SFLOAT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
@@ -240,7 +222,7 @@ namespace NugieApp {
     }
 
     this->forwardMaterialIndexImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < this->imageCount; i++) {
       this->forwardMaterialIndexImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R8_UINT, VK_FORMAT_R16_UINT, VK_FORMAT_R32_UINT }),
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
@@ -256,6 +238,36 @@ namespace NugieApp {
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
     }
+  }
+
+  void ForwardSubPartRenderer::deleteImages() {
+    for (auto &&positionImage : this->forwardPositionImages) {
+      if (positionImage != nullptr) delete positionImage;
+    }
+
+    for (auto &&normalImage : this->forwardNormalImages) {
+      if (normalImage != nullptr) delete normalImage;
+    }
+
+    for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
+      if (forwardTextCoordImage != nullptr) delete forwardTextCoordImage;
+    }
+
+    for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
+      if (forwardMaterialIndexImage != nullptr) delete forwardMaterialIndexImage;
+    }
+
+    for (auto &&depthImage : this->forwardDepthImages) {
+      if (depthImage != nullptr) delete depthImage;
+    }
+  }
+
+  void ForwardSubPartRenderer::recreateResources(uint32_t width, uint32_t height) {
+    this->width = width;
+    this->height = height;
+    
+    this->deleteImages();
+    this->createImages();
   }
 
   VkFormat ForwardSubPartRenderer::findColorFormat(const std::vector<VkFormat> &colorFormats) {

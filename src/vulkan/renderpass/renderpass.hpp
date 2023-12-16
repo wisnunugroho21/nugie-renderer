@@ -38,6 +38,8 @@ namespace NugieVulkan {
       VkFramebuffer getFramebuffers(int index) const { return this->framebuffers[index]; }
       VkRenderPass getRenderPass() const { return this->renderPass; }
 
+      void recreateFrameBuffer(const std::vector<std::vector<VkImageView>> &viewImages, uint32_t width, uint32_t height, uint32_t layerNum);
+
     private:
       Device* device;
 
@@ -46,6 +48,8 @@ namespace NugieVulkan {
 
       void createRenderPass(VkRenderPassCreateInfo renderPassInfo);
       void createFramebuffers(const std::vector<std::vector<VkImageView>> &viewImages, uint32_t width, uint32_t height, uint32_t layerNum);
+
+      void deleteFramebuffers();
   };
 } // namespace nugiEngin 
 

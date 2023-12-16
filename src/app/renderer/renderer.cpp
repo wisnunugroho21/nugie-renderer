@@ -226,7 +226,6 @@ namespace NugieApp {
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || this->window->wasResized()) {
 			this->window->resetResizedFlag();
 			this->recreateSwapChain();
-			this->descriptorPool->reset();
 
 			return false;
 		} else if (result != VK_SUCCESS) {

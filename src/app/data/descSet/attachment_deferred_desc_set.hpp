@@ -17,12 +17,18 @@ namespace NugieApp {
 			VkDescriptorSet getDescriptorSets(int imageIndex) const { return this->descriptorSets[imageIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
+			void overwrite(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
+
 		private:
+			NugieVulkan::Device* device;
+			NugieVulkan::DescriptorPool* descriptorPool;
+			uint32_t imageCount;
+			
       NugieVulkan::DescriptorSetLayout* descSetLayout;
 			std::vector<VkDescriptorSet> descriptorSets;
 
-			void createDescriptor(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount);
+			void createDescriptorLayout();
+			void createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
 	};
 	
 }

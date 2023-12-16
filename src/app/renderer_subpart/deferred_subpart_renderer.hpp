@@ -20,9 +20,12 @@ namespace NugieApp {
       std::vector<VkAttachmentReference> getInputAttachmentRefs();
       VkAttachmentReference getDepthAttachmentRef();
       VkAttachmentReference getResolveAttachmentRef();
+
+      void recreateResources(const std::vector<NugieVulkan::Image*> &swapChainImages, 
+        uint32_t width, uint32_t height);
       
     private:
-      uint32_t width, height;
+      uint32_t width, height, imageCount;
       NugieVulkan::Device* device;
 
       std::vector<NugieVulkan::Image*> deferredColorImages;
@@ -32,7 +35,8 @@ namespace NugieApp {
       VkFormat swapChainImageFormat;
       VkFormat findDepthFormat();
 
-      void createDeferredResources(uint32_t imageCount);
+      void createImages();
+      void deleteImages();
   };
   
 } // namespace NugieApp

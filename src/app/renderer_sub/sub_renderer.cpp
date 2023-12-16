@@ -186,5 +186,12 @@ namespace NugieApp {
 	void SubRenderer::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
 		vkCmdEndRenderPass(commandBuffer->getCommandBuffer());
 	}
+
+  void SubRenderer::recreateResources(const std::vector<std::vector<VkImageView>> &attachments, uint32_t width, uint32_t height) {
+    this->width = width;
+    this->height = height;
+
+    this->renderPass->recreateFrameBuffer(attachments, this->width, this->height, this->layerNum);
+  }
   
 } // namespace NugieApp

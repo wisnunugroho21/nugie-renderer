@@ -143,7 +143,7 @@ namespace NugieApp {
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
 
 				if (!this->renderer->presentFrame()) {
-					this->recreateSubRendererAndSubsystem();
+					this->resize();
 					this->randomSeed = 0;
 
 					continue;
@@ -512,5 +512,105 @@ namespace NugieApp {
 		this->spotShadowPassRenderer = new SpotShadowPassRenderSystem(this->device, this->spotShadowDescSet->getDescSetLayout(), this->spotShadowSubRenderer->getRenderPass());
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
 		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
+	}
+
+	void App::resize() {
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
+
+		this->forwardSubPartRenderer->recreateResources(width, height);
+		this->deferredSubPartRenderer->recreateResources(this->renderer->getSwapChain()->getswapChainImages(), width, height);
+		this->pointShadowSubPartRenderer->recreateResources(width, height);
+		this->spotShadowSubPartRenderer->recreateResources(width, height);
+
+		std::vector<std::vector<VkImageView>> finalSubImageViews;
+		std::vector<std::vector<VkImageView>> pointSubImageViews;
+		std::vector<std::vector<VkImageView>> spotSubImageViews;
+
+		auto forwardAttachments = this->forwardSubPartRenderer->getAttachments();
+		auto deferredAttachments = this->deferredSubPartRenderer->getAttachments();
+		auto pointAttachments = this->pointShadowSubPartRenderer->getAttachments();
+		auto spotAttachments = this->spotShadowSubPartRenderer->getAttachments();
+
+		for (size_t i = 0; i < forwardAttachments[0].size(); i++) {
+			std::vector<VkImageView> imageViews;
+
+			for (size_t j = 0; j < forwardAttachments.size(); j++) {
+				imageViews.emplace_back(forwardAttachments[j][i]);
+			}
+
+			for (size_t j = 0; j < deferredAttachments.size(); j++) {
+				imageViews.emplace_back(deferredAttachments[j][i]);
+			}
+
+			finalSubImageViews.emplace_back(imageViews);
+		}
+
+		for (size_t i = 0; i < pointAttachments[0].size(); i++) {
+			std::vector<VkImageView> imageViews;
+
+			for (size_t j = 0; j < pointAttachments.size(); j++) {
+				imageViews.emplace_back(pointAttachments[j][i]);
+			}
+
+			pointSubImageViews.emplace_back(imageViews);
+		}
+
+		for (size_t i = 0; i < spotAttachments[0].size(); i++) {
+			std::vector<VkImageView> imageViews;
+
+			for (size_t j = 0; j < spotAttachments.size(); j++) {
+				imageViews.emplace_back(spotAttachments[j][i]);
+			}
+
+			spotSubImageViews.emplace_back(imageViews);
+		}
+
+		this->finalSubRenderer->recreateResources(finalSubImageViews, width, height);
+		this->pointShadowSubRenderer->recreateResources(pointSubImageViews, width, height);
+		this->spotShadowSubRenderer->recreateResources(spotSubImageViews, width, height);
+
+		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
+			this->forwardSubPartRenderer->getPositionInfoResources(),
+			this->forwardSubPartRenderer->getNormalInfoResources(),
+			this->forwardSubPartRenderer->getTextCoordInfoResources(),
+			this->forwardSubPartRenderer->getMaterialIndexInfoResources()
+		};
+
+		VkDescriptorBufferInfo deferredModelInfo[4] {
+			this->materialModel->getInfo(),
+			this->shadowTransformationModel->getInfo(),
+			this->pointLightModel->getInfo(),
+			this->spotLightModel->getInfo()
+		};
+
+		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[2] {
+			this->pointShadowSubPartRenderer->getDepthInfoResources(),
+			this->spotShadowSubPartRenderer->getDepthInfoResources()
+		};
+
+		std::vector<VkDescriptorImageInfo> deferredObjectTexturesInfos[1];
+		for (auto &&colorTexture : this->colorTextures) {
+			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
+		}
+
+		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
+			this->deferredUniform->getInfo()
+		};
+		
+		this->attachmentDeferredDescSet->overwrite(deferredAttachmentInfos);
+		this->modelDeferredDescSet->overwrite(deferredUniformInfo, deferredModelInfo, 
+			deferredRenderTextureInfo, deferredObjectTexturesInfos);
+
+		float near = 0.1f;
+		float far = 2000.0f;
+
+		float theta = glm::radians(45.0f);
+		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+		this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+
+		this->cameraUpdateCount = 0u;
 	}
 }

@@ -53,6 +53,7 @@ namespace NugieApp {
 
 			void initCamera(uint32_t width, uint32_t height);
 			void recreateSubRendererAndSubsystem();
+			void resize();
 
 			NugieVulkan::Window* window;
 			NugieVulkan::Device* device;

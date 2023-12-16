@@ -19,6 +19,8 @@ namespace NugieApp {
       std::vector<std::vector<VkImageView>> getAttachments();
       std::vector<VkAttachmentDescription> getAttachmentDescs();
       VkAttachmentReference getDepthAttachmentRef();
+
+      void recreateResources(uint32_t width, uint32_t height);
       
     private:
       uint32_t width, height, spotLightNum;
@@ -28,7 +30,11 @@ namespace NugieApp {
       std::vector<NugieVulkan::Texture*> shadowDepthTextures;
 
       VkFormat findDepthFormat();
-      void createShadowResources();
+
+      void createImages();
+      void createTextures();
+
+      void deleteImages();
   };
   
 } // namespace NugieApp
