@@ -33,7 +33,8 @@ namespace NugieVulkan
 
       VkSampler sampler;
       uint32_t mipLevels;
-      bool hasMipmapped = false;
+
+      bool hasMipmapped = false, isImageCreateHere = false;
 
       void createTextureImage(CommandBuffer* commandBuffer, const char* textureFileName);
       void createTextureSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);

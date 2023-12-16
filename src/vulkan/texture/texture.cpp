@@ -16,6 +16,7 @@ namespace NugieVulkan {
   {
     this->createTextureImage(commandBuffer, textureFileName);
     this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
+    this->isImageCreateHere = true;
   }
 
   Texture::Texture(Device* device, Image* image, VkFilter filterMode, VkSamplerAddressMode addressMode, 
@@ -23,12 +24,13 @@ namespace NugieVulkan {
     : device{device}, image{image} 
   {
     this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
+    this->isImageCreateHere = false;
   }
 
   Texture::~Texture() {
     vkDestroySampler(this->device->getLogicalDevice(), this->sampler, nullptr);
     if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
-    if (this->image != nullptr) delete this->image;
+    if (this->image != nullptr && this->isImageCreateHere) delete this->image;
   }
 
   void Texture::createTextureImage(CommandBuffer* commandBuffer, const char* textureFileName) {
