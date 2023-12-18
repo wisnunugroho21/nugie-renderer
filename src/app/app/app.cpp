@@ -17,6 +17,10 @@
 
 #include <thread>
 
+#include "../../../libraries/imgui/imgui.h"
+#include "../../../libraries/imgui/imgui_impl_glfw.h"
+#include "../../../libraries/imgui/imgui_impl_vulkan.h"
+
 namespace NugieApp {
 	App::App() {
 		this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
@@ -31,6 +35,10 @@ namespace NugieApp {
 	}
 
 	App::~App() {
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->deferredPasRenderer != nullptr) delete this->deferredPasRenderer;
 		if (this->pointShadowPassRenderer != nullptr) delete this->pointShadowPassRenderer;
@@ -103,6 +111,11 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
+				ImGui_ImplVulkan_NewFrame();
+				ImGui_ImplGlfw_NewFrame();
+				ImGui::NewFrame();
+				ImGui::ShowDemoWindow();
+
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
 					this->cameraUpdateCount++;
@@ -137,6 +150,9 @@ namespace NugieApp {
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
+
+				ImGui::Render();
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
 
 				this->renderer->endRenderCommand(commandBuffer);
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
@@ -513,6 +529,24 @@ namespace NugieApp {
 		this->spotShadowPassRenderer = new SpotShadowPassRenderSystem(this->device, this->spotShadowDescSet->getDescSetLayout(), this->spotShadowSubRenderer->getRenderPass());
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
 		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
+
+		ImGui::CreateContext();
+		ImGui_ImplGlfw_InitForVulkan(this->window->getWindow(), false);
+
+		ImGui_ImplVulkan_InitInfo imguiVulkanInfo{};
+		imguiVulkanInfo.Instance = this->device->getInstance();
+		imguiVulkanInfo.PhysicalDevice = this->device->getPhysicalDevice();
+		imguiVulkanInfo.Device = this->device->getLogicalDevice();
+		imguiVulkanInfo.QueueFamily = this->device->getFamilyIndices().graphicsFamily;
+		imguiVulkanInfo.Queue = this->device->getGraphicsQueue();
+		imguiVulkanInfo.DescriptorPool = this->renderer->getDescriptorPool()->getDescriptorPool();
+		imguiVulkanInfo.Subpass = 1u;
+		imguiVulkanInfo.ImageCount = this->renderer->getSwapChain()->getImageCount();
+		imguiVulkanInfo.MinImageCount = this->renderer->getSwapChain()->getImageCount();
+		imguiVulkanInfo.MSAASamples = this->device->getMSAASamples();
+		ImGui_ImplVulkan_Init(&imguiVulkanInfo, this->finalSubRenderer->getRenderPass()->getRenderPass());
+
+		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
 	void App::resize() {

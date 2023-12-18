@@ -34,6 +34,8 @@ namespace NugieVulkan {
       );
 
       ~DescriptorPool();
+
+      VkDescriptorPool getDescriptorPool() const { return this->descriptorPool; }
     
       bool allocate(VkDescriptorSet* descriptor, VkDescriptorSetLayout descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts = {}) const;
       bool allocate(std::vector<VkDescriptorSet> &descriptors, std::vector<VkDescriptorSetLayout> &descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts = {}) const;
