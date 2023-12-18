@@ -227,6 +227,102 @@ namespace NugieApp {
 		vkDeviceWaitIdle(this->device->getLogicalDevice());
 	}
 
+	void App::singleThreadRun() {
+		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
+			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
+		}
+
+		std::vector<NugieVulkan::Buffer*> forwardBuffers;
+		forwardBuffers.emplace_back(this->positionModel->getBuffer());
+		forwardBuffers.emplace_back(this->normalModel->getBuffer());
+		forwardBuffers.emplace_back(this->textCoordModel->getBuffer());
+		forwardBuffers.emplace_back(this->referenceModel->getBuffer());
+
+		std::vector<NugieVulkan::Buffer*> shadowBuffers;
+		shadowBuffers.emplace_back(this->positionModel->getBuffer());
+		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
+
+		bool hasTransfer = true;
+		uint32_t initialSpotIndex = this->pointNumLight * 6;
+
+		while (!this->window->shouldClose()) {
+			this->window->pollEvents();
+
+			if (this->renderer->acquireFrame()) {
+				uint32_t frameIndex = this->renderer->getFrameIndex();
+				uint32_t imageIndex = this->renderer->getImageIndex();
+
+				std::vector<VkDescriptorSet> descriptorSets;
+				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
+				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
+
+				ImGui_ImplVulkan_NewFrame();
+				ImGui_ImplGlfw_NewFrame();
+				ImGui::NewFrame();
+				ImGui::ShowDemoWindow();
+
+				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->cameraUpdateCount++;
+				}
+
+				auto commandBuffer = this->renderer->beginRenderCommand();
+
+				for (auto &&colorTexture : this->colorTextures) {
+					if (!colorTexture->hasBeenMipmapped()) {
+						colorTexture->generateMipmap(commandBuffer);
+					}
+				}
+
+				uint32_t lightIndex = frameIndex * this->pointNumLight;
+				for (uint32_t i = 0; i < this->pointNumLight; i++) {
+					this->pointShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex + i);
+					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
+					this->pointShadowSubRenderer->endRenderPass(commandBuffer);
+				}
+
+				lightIndex = frameIndex * this->spotNumLight;
+				for (uint32_t i = 0; i < this->spotNumLight; i++) {
+					this->spotShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex + i);
+					this->spotShadowPassRenderer->render(commandBuffer, initialSpotIndex + i, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
+					this->spotShadowSubRenderer->endRenderPass(commandBuffer);
+				}
+
+				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
+
+				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
+				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
+
+				this->finalSubRenderer->endRenderPass(commandBuffer);
+
+				ImGui::Render();
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
+
+				this->renderer->endRenderCommand(commandBuffer);
+				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
+
+				if (!this->renderer->presentFrame()) {
+					this->resize();
+					this->randomSeed = 0;
+
+					continue;
+				}				
+
+				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+					this->randomSeed++;
+				}
+
+				if (hasTransfer) {
+					hasTransfer = false;
+				}				
+			}
+		}
+
+		vkDeviceWaitIdle(this->device->getLogicalDevice());
+	}
+
 	void App::loadObjects() {
 		std::vector<Position> positions;
 		std::vector<Normal> normals;
