@@ -50,9 +50,9 @@ namespace NugieApp {
 
 		private:
 			void loadObjects();
-
 			void initCamera(uint32_t width, uint32_t height);
-			void recreateSubRendererAndSubsystem();
+			
+			void init();
 			void resize();
 
 			NugieVulkan::Window* window;
@@ -100,7 +100,9 @@ namespace NugieApp {
 			PointShadowDescSet* pointShadowDescSet;
 			SpotShadowDescSet* spotShadowDescSet;
 
-			uint32_t randomSeed = 0u, pointNumLight = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
+			uint32_t randomSeed = 0u, pointNumLight = 0u, 
+				spotNumLight = 0u, cameraUpdateCount = 0u;
+
 			bool isRendering = true;
 			float frameTime = 0.0f;
 
