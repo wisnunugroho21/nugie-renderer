@@ -21,14 +21,13 @@ namespace NugieApp {
 	App::App() {
 		this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
 		this->device = new NugieVulkan::Device(this->window);
-		this->renderer = new Renderer(this->window, this->device);
 
 		this->camera = new Camera();
 		this->mouseController = new MouseController();
 		this->keyboardController = new KeyboardController();
 
 		this->loadObjects();
-		this->recreateSubRendererAndSubsystem();
+		this->init();
 	}
 
 	App::~App() {
@@ -416,7 +415,9 @@ namespace NugieApp {
 		this->deferredUbo.origin = glm::vec4(position, 1.0f);
 	}
 
-	void App::recreateSubRendererAndSubsystem() {
+	void App::init() {
+		this->renderer = new Renderer(this->window, this->device);
+
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
@@ -602,15 +603,10 @@ namespace NugieApp {
 		this->modelDeferredDescSet->overwrite(deferredUniformInfo, deferredModelInfo, 
 			deferredRenderTextureInfo, deferredObjectTexturesInfos);
 
-		float near = 0.1f;
-		float far = 2000.0f;
-
-		float theta = glm::radians(45.0f);
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		this->camera->setAspect(aspectRatio);
 
-		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
 		this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
-
 		this->cameraUpdateCount = 0u;
 	}
 }

@@ -14,15 +14,33 @@ namespace NugieApp {
     this->projectionMatrix[3][2] = -near / (far - near);
   }
     
-  void Camera::setPerspectiveProjection(float fovy, float aspect, float near, float far) {
-    assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+  void Camera::setPerspectiveProjection(float fovy, float aspectRatio, float near, float far) {
+    this->fovy = fovy;
+    this->aspectRatio = aspectRatio;
+    this->near = near;
+    this->far = far;
+
+    assert(glm::abs(aspectRatio - std::numeric_limits<float>::epsilon()) > 0.0f);
     const float tanHalfFovy = tan(fovy / 2.0f);
     this->projectionMatrix = glm::mat4{0.0f};
-    this->projectionMatrix[0][0] = 1.f / (aspect * tanHalfFovy);
+    this->projectionMatrix[0][0] = 1.f / (aspectRatio * tanHalfFovy);
     this->projectionMatrix[1][1] = 1.f / (tanHalfFovy);
     this->projectionMatrix[2][2] = far / (far - near);
     this->projectionMatrix[2][3] = 1.f;
     this->projectionMatrix[3][2] = -(far * near) / (far - near);
+  }
+
+  void Camera::setAspect(float aspectRatio) {
+    this->aspectRatio = aspectRatio;
+
+    assert(glm::abs(aspectRatio - std::numeric_limits<float>::epsilon()) > 0.0f);
+    const float tanHalfFovy = tan(this->fovy / 2.0f);
+    this->projectionMatrix = glm::mat4{0.0f};
+    this->projectionMatrix[0][0] = 1.f / (this->aspectRatio * tanHalfFovy);
+    this->projectionMatrix[1][1] = 1.f / (tanHalfFovy);
+    this->projectionMatrix[2][2] = this->far / (this->far - this->near);
+    this->projectionMatrix[2][3] = 1.f;
+    this->projectionMatrix[3][2] = -(this->far * this->near) / (this->far - this->near);
   }
 
   void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up) {
