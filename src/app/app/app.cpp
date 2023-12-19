@@ -25,6 +25,7 @@ namespace NugieApp {
 	App::App() {
 		this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
 		this->device = new NugieVulkan::Device(this->window);
+		this->renderer = new Renderer(this->window, this->device);
 
 		this->camera = new Camera();
 		this->mouseController = new MouseController();
@@ -528,8 +529,6 @@ namespace NugieApp {
 	}
 
 	void App::init() {
-		this->renderer = new Renderer(this->window, this->device);
-
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());

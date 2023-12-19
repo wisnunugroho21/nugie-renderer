@@ -15,8 +15,6 @@ namespace NugieApp {
 	}
 
 	Renderer::~Renderer() {
-		this->descriptorPool->reset();
-		
     for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(this->device->getLogicalDevice(), this->renderFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(this->device->getLogicalDevice(), this->imageAvailableSemaphores[i], nullptr);
