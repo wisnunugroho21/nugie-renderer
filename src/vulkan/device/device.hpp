@@ -46,6 +46,7 @@ namespace NugieVulkan {
       VkDevice getLogicalDevice() const { return this->device; }
       VkPhysicalDevice getPhysicalDevice() const { return this->physicalDevice; }
       VkSurfaceKHR getSurface() const { return this->surface; }
+      VkInstance getInstance() const { return this->instance; }
 
       VkQueue getGraphicsQueue() const { return this->graphicsQueue; }
       VkQueue getPresentQueue() const { return this->presentQueue; }

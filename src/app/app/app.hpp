@@ -48,6 +48,8 @@ namespace NugieApp {
 			void run();
 			void renderLoop();
 
+			void singleThreadRun();
+
 		private:
 			void loadObjects();
 			void initCamera(uint32_t width, uint32_t height);
