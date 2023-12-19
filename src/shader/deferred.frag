@@ -112,8 +112,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
       float dist = texture(pointShadowMapTexture[nonuniformEXT(i)], vec3(shadowCoord.xy, j)).x;
 
       bool isShadow = shadowCoord.w > 0.0f
-        && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-        && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
+        && shadowCoord.z <= 1.0f
         && dist < shadowCoord.z;
 
       if (isShadow) {
@@ -134,8 +133,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
     float dist = texture(spotShadowMapTexture[nonuniformEXT(i)], shadowCoord.xy).x;
 
     bool isShadow = shadowCoord.w > 0.0f
-      && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-      && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
+      && shadowCoord.z <= 1.0f
       && dist < shadowCoord.z;
 
     totalRadiance *= isShadow ? 0.25f : 1.0f;
