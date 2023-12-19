@@ -69,6 +69,12 @@ if (NOT STB_PATH)
   set(STB_PATH libraries/stb_image)
 endif()
 
+# If IMGUI_PATH not specified in .env.cmake, try fetching from git repo
+if (NOT IMGUI_PATH)
+  message(STATUS "IMGUI_PATH not specified in .env.cmake, using libraries/imgui")
+  set(IMGUI_PATH libraries/imgui)
+endif()
+
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
