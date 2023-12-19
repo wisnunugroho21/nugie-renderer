@@ -188,13 +188,6 @@ namespace NugieApp {
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
 
-			ImGui_ImplVulkan_NewFrame();
-			ImGui_ImplGlfw_NewFrame();
-			ImGui::NewFrame();
-
-			ImGui::ShowDemoWindow();
-			ImGui::Render();
-
 			cameraPosition = this->camera->getPosition();
 			cameraDirection = this->camera->getDirection();
 
@@ -259,6 +252,7 @@ namespace NugieApp {
 				ImGui_ImplGlfw_NewFrame();
 				ImGui::NewFrame();
 
+				ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
 				ImGui::Begin("Hello, world!");
 
 				ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
