@@ -77,7 +77,7 @@ namespace NugieApp {
     
     for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->spotLightNum; i++) {
       this->shadowDepthImages.emplace_back(
-        new NugieVulkan::Image(this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
+        new NugieVulkan::Image(this->device, this->width, this->height, 1u, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT)
       );
@@ -87,7 +87,7 @@ namespace NugieApp {
   void SpotShadowSubPartRenderer::createTextures() {
     for (auto &&shadowDepthImage : shadowDepthImages) {
       this->shadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, shadowDepthImage, VK_FILTER_NEAREST,
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
         VK_SAMPLER_MIPMAP_MODE_LINEAR));
     }
   }
