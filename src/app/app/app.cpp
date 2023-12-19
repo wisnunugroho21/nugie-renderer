@@ -225,6 +225,9 @@ namespace NugieApp {
 	}
 
 	void App::singleThreadRun() {
+		glm::vec3 cameraPosition, cameraDirection;
+		bool isMousePressed = false, isKeyboardPressed = false;
+
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
 			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
@@ -244,8 +247,30 @@ namespace NugieApp {
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
+		auto oldTime = std::chrono::high_resolution_clock::now();
+
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
+
+			cameraPosition = this->camera->getPosition();
+			cameraDirection = this->camera->getDirection();
+
+			isMousePressed = false;
+			isKeyboardPressed = false;
+
+			auto newTime = std::chrono::high_resolution_clock::now();
+			float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
+			oldTime = newTime;
+
+			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
+			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
+
+			if (isMousePressed || isKeyboardPressed) {
+				this->camera->setViewDirection(cameraPosition, cameraDirection);
+				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+				
+				this->cameraUpdateCount = 0u;
+			}
 
 			if (this->renderer->acquireFrame()) {
 				ImGui_ImplVulkan_NewFrame();
