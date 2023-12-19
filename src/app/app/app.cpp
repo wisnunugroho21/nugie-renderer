@@ -105,17 +105,17 @@ namespace NugieApp {
 			auto oldTime = std::chrono::high_resolution_clock::now();
 
 			if (this->renderer->acquireFrame()) {
+				ImGui_ImplVulkan_NewFrame();
+				ImGui_ImplGlfw_NewFrame();
+				ImGui::NewFrame();
+				ImGui::ShowDemoWindow();
+
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 				uint32_t imageIndex = this->renderer->getImageIndex();
 
 				std::vector<VkDescriptorSet> descriptorSets;
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
-
-				ImGui_ImplVulkan_NewFrame();
-				ImGui_ImplGlfw_NewFrame();
-				ImGui::NewFrame();
-				ImGui::ShowDemoWindow();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
@@ -150,10 +150,10 @@ namespace NugieApp {
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
 
-				this->finalSubRenderer->endRenderPass(commandBuffer);
-
 				ImGui::Render();
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
+
+				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				this->renderer->endRenderCommand(commandBuffer);
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
@@ -251,17 +251,17 @@ namespace NugieApp {
 			this->window->pollEvents();
 
 			if (this->renderer->acquireFrame()) {
+				ImGui_ImplVulkan_NewFrame();
+				ImGui_ImplGlfw_NewFrame();
+				ImGui::NewFrame();
+				ImGui::ShowDemoWindow();
+
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 				uint32_t imageIndex = this->renderer->getImageIndex();
 
 				std::vector<VkDescriptorSet> descriptorSets;
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
-
-				ImGui_ImplVulkan_NewFrame();
-				ImGui_ImplGlfw_NewFrame();
-				ImGui::NewFrame();
-				ImGui::ShowDemoWindow();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
@@ -296,10 +296,10 @@ namespace NugieApp {
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
 
-				this->finalSubRenderer->endRenderPass(commandBuffer);
-
 				ImGui::Render();
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
+
+				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				this->renderer->endRenderCommand(commandBuffer);
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
@@ -626,7 +626,7 @@ namespace NugieApp {
 		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
 
 		ImGui::CreateContext();
-		ImGui_ImplGlfw_InitForVulkan(this->window->getWindow(), false);
+		ImGui_ImplGlfw_InitForVulkan(this->window->getWindow(), true);
 
 		ImGui_ImplVulkan_InitInfo imguiVulkanInfo{};
 		imguiVulkanInfo.Instance = this->device->getInstance();
