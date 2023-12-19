@@ -14,14 +14,14 @@ namespace NugieApp {
       glfwGetCursorPos(window, &curDragged_x, &curDragged_y);
 
       if (!this->isFirstPressed) {
-        float theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed * -1.0);
-        float phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
+        double theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed * -1.0);
+        double phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
 
-        newCameraDirection.x = glm::cos(phi) * currentCameraDirection.x + glm::sin(phi) * currentCameraDirection.z;
-        newCameraDirection.z = -1.0f * glm::sin(phi) * currentCameraDirection.x + glm::cos(phi) * currentCameraDirection.z;
+        newCameraDirection.x = static_cast<float>(glm::cos(phi) * currentCameraDirection.x + glm::sin(phi) * currentCameraDirection.z);
+        newCameraDirection.z = static_cast<float>(-1.0f * glm::sin(phi) * currentCameraDirection.x + glm::cos(phi) * currentCameraDirection.z);
 
-        newCameraDirection.y = glm::cos(theta) * currentCameraDirection.y - glm::sin(theta) * currentCameraDirection.z;
-        newCameraDirection.z = glm::sin(theta) * currentCameraDirection.y + glm::cos(theta) * currentCameraDirection.z;
+        newCameraDirection.y = static_cast<float>(glm::cos(theta) * currentCameraDirection.y - glm::sin(theta) * currentCameraDirection.z);
+        newCameraDirection.z = static_cast<float>(glm::sin(theta) * currentCameraDirection.y + glm::cos(theta) * currentCameraDirection.z);
       }
 
       this->lastDragged_x = curDragged_x;
