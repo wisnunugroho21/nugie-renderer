@@ -133,6 +133,7 @@ float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer, out 
 	float shadowFactor = 0.0;
 	int count = 0;
 	int range = 1;
+  isHit = false;
 
   for (int x = -range; x <= range; x++) {
 		for (int y = -range; y <= range; y++) {
@@ -141,7 +142,7 @@ float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer, out 
 
 			shadowFactor += isHitLight
         ? 0.25f
-        : 0.0f;
+        : 1.0f;
 
       if (isHitLight && x == 0 && y == 0) {
         isHit = true;
@@ -168,7 +169,7 @@ float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
       count++;
 			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, vec2(dx * x, dy * y))
         ? 0.25f
-        : 0.0f;
+        : 1.0f;
 		}
 	}
   
