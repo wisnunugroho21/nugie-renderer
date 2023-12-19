@@ -105,11 +105,6 @@ namespace NugieApp {
 			auto oldTime = std::chrono::high_resolution_clock::now();
 
 			if (this->renderer->acquireFrame()) {
-				ImGui_ImplVulkan_NewFrame();
-				ImGui_ImplGlfw_NewFrame();
-				ImGui::NewFrame();
-				ImGui::ShowDemoWindow();
-
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 				uint32_t imageIndex = this->renderer->getImageIndex();
 
@@ -149,8 +144,7 @@ namespace NugieApp {
 				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
-
-				ImGui::Render();
+				
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
@@ -180,8 +174,10 @@ namespace NugieApp {
 	}
 
 	void App::run() {
-		auto oldTime = std::chrono::high_resolution_clock::now();
-		uint32_t t = 0;
+		glm::vec3 cameraPosition, cameraDirection;
+		bool isMousePressed = false, isKeyboardPressed = false;
+
+		// uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
@@ -189,18 +185,27 @@ namespace NugieApp {
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
+		auto oldTime = std::chrono::high_resolution_clock::now();
 
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
 
+			ImGui_ImplVulkan_NewFrame();
+			ImGui_ImplGlfw_NewFrame();
+			ImGui::NewFrame();
+
+			ImGui::ShowDemoWindow();
+			ImGui::Render();
+
+			cameraPosition = this->camera->getPosition();
+			cameraDirection = this->camera->getDirection();
+
+			isMousePressed = false;
+			isKeyboardPressed = false;
+
 			auto newTime = std::chrono::high_resolution_clock::now();
 			float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
-
-			auto cameraPosition = this->camera->getPosition();
-			auto cameraDirection = this->camera->getDirection();
-
-			bool isMousePressed = false;
-			bool isKeyboardPressed = false;
+			oldTime = newTime;
 
 			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
 			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
@@ -212,14 +217,14 @@ namespace NugieApp {
 				this->cameraUpdateCount = 0u;
 			}
 
-			if (t == 10) {
+			/* if (t == 10) {
 				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / this->frameTime));
 				glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
 				t = 0;
 			} else {
 				t++;
-			}
+			} */
 		}
 
 		this->isRendering = false;
