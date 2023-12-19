@@ -32,7 +32,7 @@
 #include <memory>
 #include <vector>
 
-#define APP_TITLE "Testing Vulkan"
+#define APP_TITLE "Nugie Renderer"
 
 #define WIDTH 800
 #define HEIGHT 800

@@ -102,7 +102,7 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-float isHitShadowPointLight(uint lightIndex, vec4 shadowCoord, float layer, vec2 offset) {
+bool isHitShadowPointLight(uint lightIndex, vec4 shadowCoord, float layer, vec2 offset) {
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
@@ -111,12 +111,10 @@ float isHitShadowPointLight(uint lightIndex, vec4 shadowCoord, float layer, vec2
 
   return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
     && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
-    ? 0.25f
-    : 1.0f;
+    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f;
 }
 
-float isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
+bool isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
@@ -125,9 +123,7 @@ float isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
 
   return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
     && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
-    ? 0.25f
-    : 1.0f;
+    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f;
 }
 
 float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
@@ -135,12 +131,13 @@ float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
 
 	float dx = 1.0 / float(texDim.x);
 	float dy = 1.0 / float(texDim.y);
-
 	float shadowFactor = 0.0;
 
   for (int x = -1; x <= 1; x++) {
 		for (int y = -1; y <= 1; y++) {
-      shadowFactor += isHitShadowPointLight(lightIndex, shadowCoord, layer, vec2(dx * x, dy * y));
+      shadowFactor += isHitShadowPointLight(lightIndex, shadowCoord, layer, vec2(dx * x, dy * y))
+        ? 0.25f
+        : 1.0f;
 		}
 	}
 
@@ -152,12 +149,13 @@ float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
 
 	float dx = 1.0 / float(texDim.x);
 	float dy = 1.0 / float(texDim.y);
-
 	float shadowFactor = 0.0;
 
   for (int x = -1; x <= 1; x++) {
 		for (int y = -1; y <= 1; y++) {
-			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, vec2(dx * x, dy * y));
+			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, vec2(dx * x, dy * y))
+        ? 0.25f
+        : 1.0f;
 		}
 	}
   
