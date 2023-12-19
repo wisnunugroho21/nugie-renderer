@@ -113,7 +113,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
 
       bool isShadow = shadowCoord.w > 0.0f
         && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-        && shadowCoord.y >= 0.0f && shadowCoord.z <= 1.0f
+        && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
         && dist < shadowCoord.z;
 
       if (isShadow) {
@@ -135,7 +135,7 @@ vec4 computeTotalRadianceAfterShadow(vec4 surfacePosition, vec4 totalRadiance) {
 
     bool isShadow = shadowCoord.w > 0.0f
       && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-      && shadowCoord.y >= 0.0f && shadowCoord.z <= 1.0f
+      && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
       && dist < shadowCoord.z;
 
     totalRadiance *= isShadow ? 0.25f : 1.0f;
