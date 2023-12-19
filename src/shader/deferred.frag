@@ -106,20 +106,24 @@ float isHitShadowPointLight(uint lightIndex, vec4 shadowCoord, float layer, vec2
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-  vec4 uvc = vec4(shadowCoord.xy + offset, shadowCoord.z + EPSILON, layer);
+  vec4 uvc = vec4(shadowCoord.xy + offset, layer, shadowCoord.z);
   float dist = texture(pointShadowMapTexture[nonuniformEXT(lightIndex)], uvc).x;
 
-  return dist;
+  return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
+    ? 0.0f
+    : 1.0f;
 }
 
 float isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-  vec3 uvc = vec3(shadowCoord.xy + offset, shadowCoord.z + EPSILON);
+  vec3 uvc = vec3(shadowCoord.xy + offset, shadowCoord.z);
   float dist = texture(spotShadowMapTexture[nonuniformEXT(lightIndex)], uvc).x;
 
-  return dist;
+  return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
+    ? 0.0f
+    : 1.0f;
 }
 
 float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
