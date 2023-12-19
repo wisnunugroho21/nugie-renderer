@@ -66,8 +66,7 @@ namespace NugieVulkan {
       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
     this->image->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 
-      0, VK_ACCESS_TRANSFER_WRITE_BIT);
+      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_ACCESS_TRANSFER_WRITE_BIT);
       
     this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
     // this->image->transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -78,6 +77,7 @@ namespace NugieVulkan {
   {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
     samplerInfo.magFilter = filterMode;
     samplerInfo.minFilter = filterMode;
 
@@ -86,7 +86,7 @@ namespace NugieVulkan {
     samplerInfo.addressModeW = addressMode;
 
     samplerInfo.anisotropyEnable = anistropyEnable;
-    samplerInfo.maxAnisotropy = this->device->getProperties().limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = anistropyEnable ? this->device->getProperties().limits.maxSamplerAnisotropy : 1.0f;
 
     samplerInfo.borderColor = borderColor;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;

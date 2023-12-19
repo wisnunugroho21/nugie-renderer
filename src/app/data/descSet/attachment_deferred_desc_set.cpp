@@ -27,7 +27,7 @@ namespace NugieApp {
   void AttachmentDeferredDescSet::createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]) 
 	{	
 		this->descriptorSets.clear();
-		for (int i = 0; i < this->imageCount; i++) {
+		for (uint32_t i = 0; i < this->imageCount; i++) {
 			VkDescriptorSet descSet;
 
 			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)

@@ -278,9 +278,9 @@ namespace NugieApp {
 				ImGui::NewFrame();
 
 				ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-				ImGui::Begin("Hello, world!");
+				ImGui::Begin("Peformace Overlay");
 
-				ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+				ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 				ImGui::End();
 
 				ImGui::Render();

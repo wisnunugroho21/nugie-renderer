@@ -12,10 +12,10 @@ namespace NugieApp {
         int rightButton = GLFW_MOUSE_BUTTON_RIGHT;
       };
 
-      glm::vec3 rotateInPlaceXZ(GLFWwindow* window, float dt, glm::vec3 currentCameraDirection, bool* isPressed);
+      glm::vec3 rotateInPlaceXZ(GLFWwindow* window, double dt, glm::vec3 currentCameraDirection, bool* isPressed);
 
       KeyMappings keymaps{};
-      float lookSpeed{20.0f};
+      double lookSpeed{20.0};
 
       double lastDragged_x = 0;
       double lastDragged_y = 0;
