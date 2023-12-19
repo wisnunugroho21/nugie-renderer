@@ -110,7 +110,9 @@ float isHitShadowPointLight(uint lightIndex, vec4 shadowCoord, float layer, vec2
   float dist = texture(pointShadowMapTexture[nonuniformEXT(lightIndex)], uvc).x;
 
   return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
-    ? 0.0f
+    && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
+    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
+    ? 0.25f
     : 1.0f;
 }
 
@@ -122,7 +124,9 @@ float isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
   float dist = texture(spotShadowMapTexture[nonuniformEXT(lightIndex)], uvc).x;
 
   return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
-    ? 0.0f
+    && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
+    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f
+    ? 0.25f
     : 1.0f;
 }
 
@@ -133,17 +137,14 @@ float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
 	float dy = 1.0 / float(texDim.y);
 
 	float shadowFactor = 0.0;
-	int count = 0;
-	int range = 1;
 
-  for (int x = -range; x <= range; x++) {
-		for (int y = -range; y <= range; y++) {
-      count++;
+  for (int x = -1; x <= 1; x++) {
+		for (int y = -1; y <= 1; y++) {
       shadowFactor += isHitShadowPointLight(lightIndex, shadowCoord, layer, vec2(dx * x, dy * y));
 		}
 	}
 
-	return (0.5 + (shadowFactor / 18.0));
+	return shadowFactor / 9.0f;
 }
 
 float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
@@ -153,17 +154,14 @@ float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
 	float dy = 1.0 / float(texDim.y);
 
 	float shadowFactor = 0.0;
-	int count = 0;
-	int range = 1;
 
-  for (int x = -range; x <= range; x++) {
-		for (int y = -range; y <= range; y++) {
-      count++;
+  for (int x = -1; x <= 1; x++) {
+		for (int y = -1; y <= 1; y++) {
 			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, vec2(dx * x, dy * y));
 		}
 	}
   
-	return (0.5 + (shadowFactor / 18.0));
+	return shadowFactor / 9.0f;
 }
 
 /* vec4 computeRadianceShadow(vec4 surfacePosition, vec4 totalRadiance) {
