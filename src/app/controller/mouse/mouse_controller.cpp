@@ -14,7 +14,7 @@ namespace NugieApp {
       glfwGetCursorPos(window, &curDragged_x, &curDragged_y);
 
       if (!this->isFirstPressed) {
-        float theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed);
+        float theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed * -1.0f);
         float phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
 
         newCameraDirection.x = glm::cos(phi) * currentCameraDirection.x + glm::sin(phi) * currentCameraDirection.z;
