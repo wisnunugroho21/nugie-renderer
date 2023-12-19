@@ -101,9 +101,8 @@ namespace NugieApp {
 		bool hasTransfer = true;
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
 
+		auto oldTime = std::chrono::high_resolution_clock::now();
 		while (this->isRendering) {
-			auto oldTime = std::chrono::high_resolution_clock::now();
-
 			if (this->renderer->acquireFrame()) {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 				uint32_t imageIndex = this->renderer->getImageIndex();
@@ -170,6 +169,7 @@ namespace NugieApp {
 
 			auto newTime = std::chrono::high_resolution_clock::now();
 			this->frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
+			oldTime = newTime;
 		}
 	}
 
@@ -177,7 +177,7 @@ namespace NugieApp {
 		glm::vec3 cameraPosition, cameraDirection;
 		bool isMousePressed = false, isKeyboardPressed = false;
 
-		// uint32_t t = 0;
+		uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
@@ -217,14 +217,14 @@ namespace NugieApp {
 				this->cameraUpdateCount = 0u;
 			}
 
-			/* if (t == 10) {
+			if (t == 10) {
 				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / this->frameTime));
 				glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
 				t = 0;
 			} else {
 				t++;
-			} */
+			}
 		}
 
 		this->isRendering = false;
@@ -251,6 +251,7 @@ namespace NugieApp {
 
 		bool hasTransfer = true;
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
@@ -259,7 +260,13 @@ namespace NugieApp {
 				ImGui_ImplVulkan_NewFrame();
 				ImGui_ImplGlfw_NewFrame();
 				ImGui::NewFrame();
-				ImGui::ShowDemoWindow();
+
+				ImGui::Begin("Hello, world!");
+
+				ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+				ImGui::End();
+
+				ImGui::Render();
 
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 				uint32_t imageIndex = this->renderer->getImageIndex();
@@ -301,7 +308,6 @@ namespace NugieApp {
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
 
-				ImGui::Render();
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
