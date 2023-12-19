@@ -110,7 +110,7 @@ namespace NugieApp {
       renderPassBuilder = renderPassBuilder.addViewImages(imageViews);
     }
 
-    for (size_t i = 0; i < subpasses.size() - 1; i++) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(subpasses.size() - 1); i++) {
       VkSubpassDependency dependency{};
       dependency.srcSubpass = i;
       dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;

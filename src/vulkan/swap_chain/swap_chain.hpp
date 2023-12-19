@@ -22,7 +22,7 @@ namespace NugieVulkan {
       
       VkFormat getSwapChainImageFormat() const { return this->swapChainImageFormat; }
       VkExtent2D getSwapChainExtent() const { return this->swapChainExtent; }
-      size_t getImageCount() const { return this->swapChainImages.size(); }
+      uint32_t getImageCount() const { return static_cast<uint32_t>(this->swapChainImages.size()); }
       uint32_t getWidth() const { return this->swapChainExtent.width; }
       uint32_t getHeight() const { return this->swapChainExtent.height; }
       std::vector<Image*> getswapChainImages() const { return this->swapChainImages; }

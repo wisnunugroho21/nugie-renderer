@@ -8,7 +8,7 @@ namespace NugieApp {
 		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1]) 
 		: device{device}, descriptorPool{descriptorPool}, pointLightNum{pointLightNum}, spotLightNum{spotLightNum} 
 	{
-		this->objectTexturesInfoSize = objectTexturesInfo[0].size();
+		this->objectTexturesInfoSize = static_cast<uint32_t>(objectTexturesInfo[0].size());
 
 		this->createDescriptorLayout();
 		this->createDescriptorSet(uniformBufferInfo, modelsInfo, renderTextureInfo, objectTexturesInfo);
@@ -76,7 +76,7 @@ namespace NugieApp {
 	{
 		std::vector<VkDescriptorImageInfo> newRenderTextureInfos[2];
 
-		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+		for (uint32_t i = 0; i < static_cast<uint32_t>(this->descriptorSets.size()); i++) {
 			newRenderTextureInfos[0].clear();
 			newRenderTextureInfos[1].clear();
 			
