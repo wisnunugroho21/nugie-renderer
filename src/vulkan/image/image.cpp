@@ -146,9 +146,9 @@ namespace NugieVulkan {
 
     if (viewType == VK_IMAGE_VIEW_TYPE_1D && this->layerNum > 1) {
       viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-    } if (viewType == VK_IMAGE_VIEW_TYPE_2D && this->layerNum > 1) {
+    } else if (viewType == VK_IMAGE_VIEW_TYPE_2D && this->layerNum > 1) {
       viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    } if (viewType == VK_IMAGE_VIEW_TYPE_CUBE && this->layerNum > 1) {
+    } else if (viewType == VK_IMAGE_VIEW_TYPE_CUBE && this->layerNum > 1) {
       viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
     } else {
       viewInfo.viewType = viewType;
