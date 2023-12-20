@@ -129,14 +129,13 @@ bool isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
 float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
   ivec2 texDim = textureSize(pointShadowMapTexture[nonuniformEXT(lightIndex)], 0).xy;
 
-	float dx = 1.0 / float(texDim.x);
-	float dy = 1.0 / float(texDim.y);
+  vec2 dOffset = 1.0f / vec2(texDim);
 	float shadowFactor = 0.0;
 
   for (int x = -1; x <= 1; x++) {
 		for (int y = -1; y <= 1; y++) {
-      shadowFactor += isHitShadowPointLight(lightIndex, shadowCoord, layer, vec2(dx * x, dy * y))
-        ? 0.25f
+      shadowFactor += isHitShadowPointLight(lightIndex, shadowCoord, layer, dOffset * vec2(x, y))
+        ? 0.1f
         : 1.0f;
 		}
 	}
@@ -147,14 +146,13 @@ float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
 float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
   ivec2 texDim = textureSize(spotShadowMapTexture[nonuniformEXT(lightIndex)], 0).xy;
 
-	float dx = 1.0 / float(texDim.x);
-	float dy = 1.0 / float(texDim.y);
+	vec2 dOffset = 1.0f / vec2(texDim);
 	float shadowFactor = 0.0;
 
   for (int x = -1; x <= 1; x++) {
 		for (int y = -1; y <= 1; y++) {
-			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, vec2(dx * x, dy * y))
-        ? 0.25f
+			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, dOffset * vec2(x, y))
+        ? 0.1f
         : 1.0f;
 		}
 	}

@@ -265,7 +265,7 @@ namespace NugieApp {
 			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
 			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
 
-			if (isMousePressed || isKeyboardPressed) {
+			if ((isMousePressed || isKeyboardPressed) && !io.WantCaptureKeyboard && !io.WantCaptureMouse) {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
 				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 				
