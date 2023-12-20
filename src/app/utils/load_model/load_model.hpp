@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../../general_struct.hpp"
 
 #include <string>

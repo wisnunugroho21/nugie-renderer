@@ -26,6 +26,10 @@ namespace NugieApp {
     glm::vec2 textCoord;
   };
 
+  struct Terrain {
+    glm::vec2 terrain;
+  };
+
   struct Reference {
     uint32_t materialIndex;
     uint32_t transformIndex;

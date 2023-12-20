@@ -7,4 +7,6 @@ glslc src/shader/deferred.vert -o build/shader/deferred.vert.spv
 glslc src/shader/point_shadow_map.geom -o build/shader/point_shadow_map.geom.spv
 glslc src/shader/point_shadow_map.vert -o build/shader/point_shadow_map.vert.spv
 glslc src/shader/spot_shadow_map.vert -o build/shader/spot_shadow_map.vert.spv
+glslc src/shader/terrain.frag -o build/shader/terrain.frag.spv
+glslc src/shader/terrain.vert -o build/shader/terrain.vert.spv
 

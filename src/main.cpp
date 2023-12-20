@@ -2,11 +2,11 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "app/app/app.hpp"
+#include "app/app/terrain_app.hpp"
 
 int main(int argc, char const *argv[])
 {
-    NugieApp::App app{};
+    NugieApp::TerrainApp app{};
 
     try {
         app.singleThreadRun();
