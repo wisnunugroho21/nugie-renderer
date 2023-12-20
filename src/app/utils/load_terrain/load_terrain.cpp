@@ -15,17 +15,37 @@ namespace NugieApp {
     unsigned char* p = (unsigned char*)ReadBinaryFile(filePath, fileSize);
 		int terrainSize = static_cast<int>(sqrtf(static_cast<float>(fileSize) / sizeof(float)));
 
+		loadedTerrain.positions.clear();
+		loadedTerrain.indices.clear();
+
 		for (int z = 0; z < terrainSize; z++) {
 			for (int x = 0; x < terrainSize; x++) {
 				float y = static_cast<float>(p[x + terrainSize * z]);
 
 				Position position{};
-				position.position = glm::vec4 { x,  y, z, 1.0f };
+				position.position = glm::vec4 { x, y, z, 1.0f };
 
 				loadedTerrain.positions.emplace_back(position);
 			}
 		}
 
+		for (int z = 0; z < terrainSize - 1; z++) {
+			for (int x = 0; x < terrainSize - 1; x++) {
+				uint32_t indexBottomLeft = z * terrainSize + x;
+				uint32_t indexTopLeft = (z + 1) * terrainSize + x;
+				uint32_t indexTopRight = (z + 1) * terrainSize + x + 1;
+				uint32_t indexBottomRight = z * terrainSize + x + 1;
+
+				loadedTerrain.indices.emplace_back(indexBottomLeft);
+				loadedTerrain.indices.emplace_back(indexTopLeft);
+				loadedTerrain.indices.emplace_back(indexTopRight);
+
+				loadedTerrain.indices.emplace_back(indexBottomLeft);
+				loadedTerrain.indices.emplace_back(indexTopRight);
+				loadedTerrain.indices.emplace_back(indexBottomRight);
+			}
+		}
+		
 		return loadedTerrain;
   }
 

@@ -19,8 +19,8 @@ namespace NugieApp {
 			~TerrainPassRenderSystem();
 
 			void render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
-				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, uint32_t vertexCount, 
-				std::vector<VkDeviceSize> offsets = {});
+				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		
 		private:
 			void createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout);

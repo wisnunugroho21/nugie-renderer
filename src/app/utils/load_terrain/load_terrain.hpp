@@ -6,6 +6,7 @@
 namespace NugieApp {
   struct LoadedTerrain {
     std::vector<Position> positions;
+    std::vector<uint32_t> indices;
   };
 
   LoadedTerrain loadTerrain(const char* filePath);

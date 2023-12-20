@@ -63,8 +63,8 @@ namespace NugieApp {
 	}
 
 	void TerrainPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
-				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, uint32_t vertexCount, 
-				std::vector<VkDeviceSize> offsets) 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+		uint32_t indexCount, std::vector<VkDeviceSize> offsets) 
 	{
 		this->pipeline->bindPipeline(commandBuffer);
 
@@ -85,7 +85,7 @@ namespace NugieApp {
 			}
 		}
 
-		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets);
-		this->pipeline->draw(commandBuffer, vertexCount);
+		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
+		this->pipeline->drawIndexed(commandBuffer, indexCount);
 	}
 }

@@ -124,7 +124,7 @@ namespace NugieApp {
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
-				this->terrainPassRenderer->render(commandBuffer, this->terrainDescSet->getDescriptorSets(frameIndex), terrainBuffers, this->positionModel->size());
+				this->terrainPassRenderer->render(commandBuffer, this->terrainDescSet->getDescriptorSets(frameIndex), terrainBuffers, this->indexModel->getBuffer(), this->indexModel->size());
 				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
@@ -154,10 +154,16 @@ namespace NugieApp {
 
 	void TerrainApp::loadObjects() {
 		std::vector<Position> positions;
+		std::vector<uint32_t> indices;
 
 		// ----------------------------------------------------------------------------
 
 		LoadedTerrain loadedTerrain = loadTerrain("assets/terrain/heightmap.save");
+
+		auto positionSize = static_cast<uint32_t>(positions.size());
+		for (auto &&index : loadedTerrain.indices) {
+			indices.emplace_back(positionSize + index);
+		}
 
 		for (auto &&position : loadedTerrain.positions) {
 			positions.emplace_back(position);
@@ -166,6 +172,9 @@ namespace NugieApp {
 		// ----------------------------------------------------------------------------
 
 		auto commandBuffer = this->renderer->beginTransferCommand();
+
+		this->indexModel = new IndexBufferObject<uint32_t>(this->device);
+		this->indexModel->replace(commandBuffer, indices);
 
 		this->positionModel = new VertexBufferObject<Position>(this->device);
 		this->positionModel->replace(commandBuffer, positions);
