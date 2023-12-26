@@ -102,8 +102,8 @@ namespace NugieApp {
 			PointShadowDescSet* pointShadowDescSet;
 			SpotShadowDescSet* spotShadowDescSet;
 
-			uint32_t randomSeed = 0u, pointNumLight = 0u, 
-				spotNumLight = 0u, cameraUpdateCount = 0u;
+			uint32_t pointNumLight = 0u, spotNumLight = 0u, 
+				cameraUpdateCount = 0u;
 
 			bool isRendering = true;
 			float frameTime = 0.0f;

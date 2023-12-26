@@ -5,13 +5,13 @@ namespace NugieApp {
   ModelDeferredDescSet::ModelDeferredDescSet(NugieVulkan::Device* device, uint32_t pointLightNum, uint32_t spotLightNum, 
 		NugieVulkan::DescriptorPool* descriptorPool, std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
 		VkDescriptorBufferInfo modelsInfo[4], std::vector<VkDescriptorImageInfo> renderTextureInfo[2], 
-		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1]) 
+		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1], uint32_t imageCount) 
 		: device{device}, descriptorPool{descriptorPool}, pointLightNum{pointLightNum}, spotLightNum{spotLightNum} 
 	{
 		this->objectTexturesInfoSize = static_cast<uint32_t>(objectTexturesInfo[0].size());
 
 		this->createDescriptorLayout();
-		this->createDescriptorSet(uniformBufferInfo, modelsInfo, renderTextureInfo, objectTexturesInfo);
+		this->createDescriptorSet(uniformBufferInfo, modelsInfo, renderTextureInfo, objectTexturesInfo, imageCount);
   }
 
 	ModelDeferredDescSet::~ModelDeferredDescSet() {
@@ -34,12 +34,12 @@ namespace NugieApp {
 
   void ModelDeferredDescSet::createDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
 		VkDescriptorBufferInfo modelsInfo[4], std::vector<VkDescriptorImageInfo> renderTextureInfo[2], 
-		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1])
+		std::vector<VkDescriptorImageInfo> objectTexturesInfo[1], uint32_t imageCount)
 	{
 		std::vector<VkDescriptorImageInfo> newRenderTextureInfos[2];
 		this->descriptorSets.clear();
 		
-		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (int i = 0; i < imageCount; i++) {
 			newRenderTextureInfos[0].clear();
 			newRenderTextureInfos[1].clear();
 			

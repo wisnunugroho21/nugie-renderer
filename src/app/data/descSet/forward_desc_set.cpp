@@ -3,11 +3,12 @@
 
 namespace NugieApp {
   ForwardDescSet::ForwardDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[1])
+		std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[1],
+		uint32_t imageCount)
 		: device{device}, descriptorPool{descriptorPool} 
 	{
 		this->createDescriptorLayout();
-		this->createDescriptorSet(uniformBufferInfo, modelsInfo);
+		this->createDescriptorSet(uniformBufferInfo, modelsInfo, imageCount);
   }
 
 	ForwardDescSet::~ForwardDescSet() {
@@ -23,10 +24,10 @@ namespace NugieApp {
 	}
 
   void ForwardDescSet::createDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
-		VkDescriptorBufferInfo modelsInfo[1]) 
+		VkDescriptorBufferInfo modelsInfo[1], uint32_t imageCount) 
 	{	
 		this->descriptorSets.clear();
-		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (int i = 0; i < imageCount; i++) {
 			VkDescriptorSet descSet;
 
 			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)

@@ -22,13 +22,12 @@ namespace NugieApp {
 		private:
 			NugieVulkan::Device* device;
 			NugieVulkan::DescriptorPool* descriptorPool;
-			uint32_t imageCount;
 			
       NugieVulkan::DescriptorSetLayout* descSetLayout;
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
+			void createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount);
 	};
 	
 }

@@ -4,10 +4,10 @@
 namespace NugieApp {
   AttachmentDeferredDescSet::AttachmentDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
 		std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount) 
-		: device{device}, descriptorPool{descriptorPool}, imageCount{imageCount} 
+		: device{device}, descriptorPool{descriptorPool}
 	{
 		this->createDescriptorLayout();
-		this->createDescriptorSet(attachmentsInfo);
+		this->createDescriptorSet(attachmentsInfo, imageCount);
   }
 
 	AttachmentDeferredDescSet::~AttachmentDeferredDescSet() {
@@ -24,10 +24,10 @@ namespace NugieApp {
 				.build();
 	}
 
-  void AttachmentDeferredDescSet::createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]) 
+  void AttachmentDeferredDescSet::createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount) 
 	{	
 		this->descriptorSets.clear();
-		for (uint32_t i = 0; i < this->imageCount; i++) {
+		for (uint32_t i = 0; i < imageCount; i++) {
 			VkDescriptorSet descSet;
 
 			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)

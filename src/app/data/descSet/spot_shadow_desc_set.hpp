@@ -10,7 +10,7 @@
 namespace NugieApp {
 	class SpotShadowDescSet {
 		public:
-			SpotShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]);
+			SpotShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2], uint32_t imageCount);
 			~SpotShadowDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
@@ -26,7 +26,7 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]);
+			void createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2], uint32_t imageCount);
 	};
 	
 }

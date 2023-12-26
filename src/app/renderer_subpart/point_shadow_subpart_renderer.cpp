@@ -4,8 +4,8 @@
 #include <array>
 
 namespace NugieApp {
-  PointShadowSubPartRenderer::PointShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum)
-    : device{device}, width{width}, height{height}, pointLightNum{pointLightNum}
+  PointShadowSubPartRenderer::PointShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height, uint32_t pointLightNum)
+    : device{device}, imageCount{imageCount}, width{width}, height{height}, pointLightNum{pointLightNum}
   {
     this->createImages();
     this->createTextures();
@@ -75,7 +75,7 @@ namespace NugieApp {
 
     this->shadowDepthImages.clear();
     
-    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->pointLightNum; i++) {
+    for (uint32_t i = 0; i < this->imageCount * this->pointLightNum; i++) {
       this->shadowDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1u, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,

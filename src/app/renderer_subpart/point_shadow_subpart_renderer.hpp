@@ -11,7 +11,7 @@
 namespace NugieApp {
   class PointShadowSubPartRenderer {
     public:
-      PointShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t pointLightNum = 1u);
+      PointShadowSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height, uint32_t pointLightNum = 1u);
       ~PointShadowSubPartRenderer();
 
       std::vector<VkDescriptorImageInfo> getDepthInfoResources();
@@ -23,7 +23,7 @@ namespace NugieApp {
       void recreateResources(uint32_t width, uint32_t height);
       
     private:
-      uint32_t width, height, pointLightNum;
+      uint32_t width, height, imageCount, pointLightNum;
       NugieVulkan::Device* device;
 
       std::vector<NugieVulkan::Image*> shadowDepthImages;

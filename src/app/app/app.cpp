@@ -88,6 +88,8 @@ namespace NugieApp {
 	}
 
 	void App::renderLoop() {
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->positionModel->getBuffer());
 		forwardBuffers.emplace_back(this->normalModel->getBuffer());
@@ -111,7 +113,7 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
-				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+				if (this->cameraUpdateCount < imageCount) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
 					this->cameraUpdateCount++;
 				}
@@ -146,19 +148,14 @@ namespace NugieApp {
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
-				this->renderer->endRenderCommand(commandBuffer);
+				commandBuffer->endCommand();
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
-					this->randomSeed = 0;
 
 					continue;
 				}				
-
-				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->randomSeed++;
-				}
 
 				if (hasTransfer) {
 					hasTransfer = false;
@@ -175,9 +172,10 @@ namespace NugieApp {
 		glm::vec3 cameraPosition, cameraDirection;
 		bool isMousePressed = false, isKeyboardPressed = false;
 
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 		uint32_t t = 0;
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < imageCount; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
 			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
 		}
@@ -227,8 +225,9 @@ namespace NugieApp {
 	void App::singleThreadRun() {
 		glm::vec3 cameraPosition, cameraDirection;
 		bool isMousePressed = false, isKeyboardPressed = false;
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < imageCount; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
 			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
 		}
@@ -292,7 +291,7 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
-				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+				if (this->cameraUpdateCount < imageCount) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
 					this->cameraUpdateCount++;
 				}
@@ -329,20 +328,15 @@ namespace NugieApp {
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
-				this->renderer->endRenderCommand(commandBuffer);
+				commandBuffer->endCommand();
 				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
-					this->randomSeed = 0;
 
 					continue;
-				}				
-
-				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->randomSeed++;
 				}
-
+				
 				if (hasTransfer) {
 					hasTransfer = false;
 				}				
@@ -531,7 +525,7 @@ namespace NugieApp {
 		this->colorTextures[0] = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
 			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
 
-		this->renderer->endTransferCommand(commandBuffer);
+		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand(commandBuffer);
 	}
 
@@ -626,8 +620,8 @@ namespace NugieApp {
 			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
 		}
 		
-		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
-		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
+		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device, imageCount);
+		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device, imageCount);
 
 		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
 			this->forwardUniform->getInfo()
@@ -637,12 +631,12 @@ namespace NugieApp {
 			this->deferredUniform->getInfo()
 		};
 		
-		this->pointShadowDescSet = new PointShadowDescSet(this->device, this->renderer->getDescriptorPool(), pointShadowModelInfos);
-		this->spotShadowDescSet = new SpotShadowDescSet(this->device, this->renderer->getDescriptorPool(), spotShadowModelInfos);
-		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos);
+		this->pointShadowDescSet = new PointShadowDescSet(this->device, this->renderer->getDescriptorPool(), pointShadowModelInfos, imageCount);
+		this->spotShadowDescSet = new SpotShadowDescSet(this->device, this->renderer->getDescriptorPool(), spotShadowModelInfos, imageCount);
+		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos, imageCount);
 		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
 		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->pointNumLight, this->spotNumLight, this->renderer->getDescriptorPool(), deferredUniformInfo, 
-			deferredModelInfo, deferredRenderTextureInfo, deferredObjectTexturesInfos);
+			deferredModelInfo, deferredRenderTextureInfo, deferredObjectTexturesInfos, imageCount);
 
 		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;
 		deferredDescSetLayouts.emplace_back(this->attachmentDeferredDescSet->getDescSetLayout());

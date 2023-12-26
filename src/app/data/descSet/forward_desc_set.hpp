@@ -11,7 +11,8 @@ namespace NugieApp {
 	class ForwardDescSet {
 		public:
 			ForwardDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[1]);
+				std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], VkDescriptorBufferInfo modelsInfo[1], 
+				uint32_t imageCount);
 			~ForwardDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
@@ -29,7 +30,7 @@ namespace NugieApp {
 
 			void createDescriptorLayout();
 			void createDescriptorSet(std::vector<VkDescriptorBufferInfo> uniformBufferInfo[1], 
-				VkDescriptorBufferInfo modelsInfo[1]);
+				VkDescriptorBufferInfo modelsInfo[1], uint32_t imageCount);
 	};
 	
 }

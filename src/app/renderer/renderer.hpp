@@ -34,10 +34,9 @@ namespace NugieApp {
 			}
 
 			NugieVulkan::CommandBuffer* beginRenderCommand();
-			NugieVulkan::CommandBuffer* beginTransferCommand();
+			NugieVulkan::CommandBuffer* beginRenderCommand(uint32_t frameIndex);
 
-			void endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer);
-			void endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
+			NugieVulkan::CommandBuffer* beginTransferCommand();
 
 			void submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffer, bool isWaitTransfer = false);
 			void submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer = false);
@@ -49,13 +48,14 @@ namespace NugieApp {
 
 		private:
 			void recreateSwapChain();
-			void createSyncObjects(uint32_t imageCount);
+			void createSyncObjects();
 			void createDescriptorPool();
 			void createCommandPool();
 			void createCommandBuffers();
 
 			NugieVulkan::Window* window;
 			NugieVulkan::Device* device;
+			uint32_t imageCount;
 			
 			NugieVulkan::DescriptorPool* descriptorPool;
 			NugieVulkan::SwapChain* swapChain;

@@ -12,7 +12,7 @@ namespace NugieApp {
 	template <typename T>
 	class UniformBufferObject {
 		public:
-			UniformBufferObject(NugieVulkan::Device* device);
+			UniformBufferObject(NugieVulkan::Device* device, uint32_t bufferCount);
 			~UniformBufferObject();
 
 			std::vector<VkDescriptorBufferInfo> getInfo() const;
@@ -23,12 +23,12 @@ namespace NugieApp {
       NugieVulkan::Device* device;
 			std::vector<NugieVulkan::Buffer*> uniformBuffers;
 
-			void createUniformBuffer();
+			void createUniformBuffer(uint32_t bufferCount);
 	};
 
 	template <typename T>
-	UniformBufferObject<T>::UniformBufferObject(NugieVulkan::Device* device) : device{device} {
-		this->createUniformBuffer();
+	UniformBufferObject<T>::UniformBufferObject(NugieVulkan::Device* device, uint32_t bufferCount) : device{device} {
+		this->createUniformBuffer(bufferCount);
 	}
 
 	template <typename T>
@@ -50,10 +50,10 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void UniformBufferObject<T>::createUniformBuffer() {
+	void UniformBufferObject<T>::createUniformBuffer(uint32_t bufferCount) {
 		this->uniformBuffers.clear();
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < bufferCount; i++) {
 			auto uniformBuffer = new NugieVulkan::Buffer(
 				this->device,
 				sizeof(T),

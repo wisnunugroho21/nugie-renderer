@@ -2,11 +2,11 @@
 #include "../../../vulkan/descriptor/descriptor_writer.hpp"
 
 namespace NugieApp {
-  PointShadowDescSet::PointShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2]) 
+  PointShadowDescSet::PointShadowDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, VkDescriptorBufferInfo modelsInfo[2], uint32_t imageCount) 
 		: device{device}, descriptorPool{descriptorPool}
 	{
 		this->createDescriptorLayout();
-		this->createDescriptorSet(modelsInfo);
+		this->createDescriptorSet(modelsInfo, imageCount);
   }
 
 	PointShadowDescSet::~PointShadowDescSet() {
@@ -21,9 +21,9 @@ namespace NugieApp {
 				.build();
 	}
 
-  void PointShadowDescSet::createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2]) {	
+  void PointShadowDescSet::createDescriptorSet(VkDescriptorBufferInfo modelsInfo[2], uint32_t imageCount) {	
 		this->descriptorSets.clear();
-		for (int i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (int i = 0; i < imageCount; i++) {
 			VkDescriptorSet descSet;
 
 			NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool)
