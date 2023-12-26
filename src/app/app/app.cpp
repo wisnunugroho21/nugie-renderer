@@ -560,8 +560,8 @@ namespace NugieApp {
 		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, imageCount, width, height);
 		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
 			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
-		this->pointShadowSubPartRenderer = new PointShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->pointNumLight);
-		this->spotShadowSubPartRenderer = new SpotShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->spotNumLight);
+		this->pointShadowSubPartRenderer = new PointShadowSubPartRenderer(this->device, imageCount, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->pointNumLight);
+		this->spotShadowSubPartRenderer = new SpotShadowSubPartRenderer(this->device, imageCount, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->spotNumLight);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
