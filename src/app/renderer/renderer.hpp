@@ -34,9 +34,11 @@ namespace NugieApp {
 			}
 
 			NugieVulkan::CommandBuffer* beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
+			NugieVulkan::CommandBuffer* beginRecordPrepareCommand();
 			NugieVulkan::CommandBuffer* beginRecordTransferCommand();
 
-			void submitRenderCommand(bool isWaitTransfer = false);
+			void submitRenderCommand();
+			void submitPrepareCommand();
 			void submitTransferCommand();
 
 			bool acquireFrame();
@@ -61,10 +63,12 @@ namespace NugieApp {
 			std::vector<NugieVulkan::CommandBuffer*> graphicCommandBuffers;
 			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
 
-			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, transferFinishSemaphores;
 			std::vector<VkFence> inFlightFences;
+			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
+				prepareFinishSemaphores, transferFinishSemaphores;
 
 			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0;
-			bool isFrameStarted = false, isLoadResouce = false;
+			bool isFrameStarted = false, isLoadResouce = false, 
+				isTransferStarted = false, isPrepareStarted = false;
 	};
 }

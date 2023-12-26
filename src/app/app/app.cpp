@@ -89,6 +89,15 @@ namespace NugieApp {
 	}
 
 	void App::recordCommand() {
+		auto prepareCommandBuffer = this->renderer->beginRecordPrepareCommand();
+		for (auto &&colorTexture : this->colorTextures) {
+			if (!colorTexture->hasBeenMipmapped()) {
+				colorTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		prepareCommandBuffer->endCommand();
+
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
 
@@ -109,12 +118,6 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
-
-				for (auto &&colorTexture : this->colorTextures) {
-					if (!colorTexture->hasBeenMipmapped()) {
-						colorTexture->generateMipmap(commandBuffer);
-					}
-				}
 
 				uint32_t lightIndex = frameIndex * this->pointNumLight;
 				for (uint32_t i = 0; i < this->pointNumLight; i++) {
@@ -147,6 +150,7 @@ namespace NugieApp {
 
 	void App::renderLoop() {
 		bool hasTransfer = true;
+		this->renderer->submitPrepareCommand();
 
 		auto oldTime = std::chrono::high_resolution_clock::now();
 		while (this->isRendering) {
@@ -158,7 +162,7 @@ namespace NugieApp {
 					this->cameraUpdateCount++;
 				}
 
-				this->renderer->submitRenderCommand(hasTransfer);
+				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
@@ -255,6 +259,8 @@ namespace NugieApp {
 		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
 
 		bool hasTransfer = true;
+		this->renderer->submitPrepareCommand();
+		
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
@@ -303,7 +309,7 @@ namespace NugieApp {
 					this->cameraUpdateCount++;
 				}
 				
-				this->renderer->submitRenderCommand(hasTransfer);
+				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
