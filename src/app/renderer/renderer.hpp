@@ -23,33 +23,28 @@ namespace NugieApp {
 			NugieVulkan::DescriptorPool* getDescriptorPool() const { return this->descriptorPool; }
 			bool isFrameInProgress() const { return this->isFrameStarted; }
 
-			uint32_t getFrameIndex() {
+			uint32_t getFrameIndex() const {
 				assert(this->isFrameStarted && "cannot get frame index when frame is not in progress");
 				return this->currentFrameIndex;
 			}
 
-			uint32_t getImageIndex() {
+			uint32_t getImageIndex() const {
 				assert(this->isFrameStarted && "cannot get image index when frame is not in progress");
 				return this->currentImageIndex;
 			}
 
-			NugieVulkan::CommandBuffer* beginRenderCommand();
-			NugieVulkan::CommandBuffer* beginTransferCommand();
+			NugieVulkan::CommandBuffer* beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
+			NugieVulkan::CommandBuffer* beginRecordTransferCommand();
 
-			void endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer);
-			void endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
-
-			void submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffer, bool isWaitTransfer = false);
-			void submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer = false);
-
-			void submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer);
+			void submitRenderCommand(bool isWaitTransfer = false);
+			void submitTransferCommand();
 
 			bool acquireFrame();
 			bool presentFrame();
 
 		private:
 			void recreateSwapChain();
-			void createSyncObjects(uint32_t imageCount);
+			void createSyncObjects();
 			void createDescriptorPool();
 			void createCommandPool();
 			void createCommandBuffers();
@@ -69,7 +64,7 @@ namespace NugieApp {
 			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, transferFinishSemaphores;
 			std::vector<VkFence> inFlightFences;
 
-			uint32_t currentImageIndex = 0, currentFrameIndex = 0;
+			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0;
 			bool isFrameStarted = false, isLoadResouce = false;
 	};
 }
