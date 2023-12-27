@@ -74,14 +74,12 @@ namespace NugieApp {
 		auto queueFamily = this->device->getPhysicalQueueFamilies();
 		this->graphicCommandPool = new NugieVulkan::CommandPool(
 			this->device, 
-			queueFamily.graphicsFamily, 
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+			queueFamily.graphicsFamily
 		);
 
 		this->transferCommandPool = new NugieVulkan::CommandPool(
 			this->device, 
-			queueFamily.transferFamily, 
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+			queueFamily.transferFamily
 		);
 	}
 
@@ -158,23 +156,17 @@ namespace NugieApp {
 	NugieVulkan::CommandBuffer* Renderer::beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex) {
 		uint32_t commandIndex = frameIndex + NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * imageIndex;
 
-		this->graphicCommandBuffers[commandIndex]->resetCommand();
 		this->graphicCommandBuffers[commandIndex]->beginReccuringCommand();
-
 		return this->graphicCommandBuffers[commandIndex];
 	}
 
 	NugieVulkan::CommandBuffer* Renderer::beginRecordTransferCommand() {
-		this->transferCommandBuffers[0]->resetCommand();
 		this->transferCommandBuffers[0]->beginReccuringCommand();
-
 		return this->transferCommandBuffers[0];
 	}
 
 	NugieVulkan::CommandBuffer* Renderer::beginRecordPrepareCommand() {
-		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->resetCommand();
 		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->beginReccuringCommand();
-
 		return this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT];
 	}
 
