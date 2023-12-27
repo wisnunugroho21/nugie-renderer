@@ -1,5 +1,6 @@
-#include "../../general_struct.hpp"
+#pragma once
 
+#include "../../general_struct.hpp"
 #include <string>
 
 namespace NugieApp {
