@@ -139,8 +139,6 @@ namespace NugieApp {
 				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
 
-				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
-
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				commandBuffer->endCommand();
@@ -149,7 +147,6 @@ namespace NugieApp {
 	}
 
 	void App::renderLoop() {
-		bool hasTransfer = true;
 		this->renderer->submitPrepareCommand();
 
 		auto oldTime = std::chrono::high_resolution_clock::now();
@@ -173,10 +170,6 @@ namespace NugieApp {
 
 				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->randomSeed++;
-				}
-
-				if (hasTransfer) {
-					hasTransfer = false;
 				}				
 			}
 
@@ -258,9 +251,8 @@ namespace NugieApp {
 		shadowBuffers.emplace_back(this->positionModel->getBuffer());
 		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
 
-		bool hasTransfer = true;
 		this->renderer->submitPrepareCommand();
-		
+
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
@@ -320,10 +312,6 @@ namespace NugieApp {
 
 				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->randomSeed++;
-				}
-
-				if (hasTransfer) {
-					hasTransfer = false;
 				}				
 			}
 		}

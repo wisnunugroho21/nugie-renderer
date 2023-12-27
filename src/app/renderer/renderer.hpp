@@ -65,10 +65,9 @@ namespace NugieApp {
 
 			std::vector<VkFence> inFlightFences;
 			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
-				prepareFinishSemaphores, transferFinishSemaphores;
+				prepareFinishedSemaphores, transferFinishedSemaphores;
 
 			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0;
-			bool isFrameStarted = false, isLoadResouce = false, 
-				isTransferStarted = false, isPrepareStarted = false;
+			bool isFrameStarted = false, isTransferStarted = false, isPrepareStarted = false;
 	};
 }
