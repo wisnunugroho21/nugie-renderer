@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../../general_struct.hpp"
+#include "load_gltf.hpp"
+
 #include <string>
 
 namespace NugieApp {

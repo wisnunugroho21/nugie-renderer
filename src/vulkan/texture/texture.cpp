@@ -1,7 +1,7 @@
 #include "texture.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "../../../libraries/stb_image/stb_image.h"
+#include "../../../libraries/tinygltf/stb_image.h"
 
 #include <vulkan/vulkan.h>
 #include <stdexcept>
@@ -12,7 +12,8 @@
 
 namespace NugieVulkan {
   Texture::Texture(Device* device, CommandBuffer* commandBuffer, const char* textureFileName, VkFilter filterMode, VkSamplerAddressMode addressMode, 
-    VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) : device{device} 
+    VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) 
+    : device{device} 
   {
     this->createTextureImage(commandBuffer, textureFileName);
     this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
@@ -25,6 +26,15 @@ namespace NugieVulkan {
   {
     this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
     this->isImageCreateHere = false;
+  }
+
+  Texture::Texture(Device* device, CommandBuffer* commandBuffer, void* data, uint32_t width, uint32_t height, VkFilter filterMode, VkSamplerAddressMode addressMode, 
+    VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode)
+    : device{device}
+  {
+    this->createTextureImage(commandBuffer, data, width, height);
+    this->createTextureSampler(filterMode, addressMode, anistropyEnable, borderColor, compareOp, mipmapMode);
+    this->isImageCreateHere = true;
   }
 
   Texture::~Texture() {
@@ -44,7 +54,7 @@ namespace NugieVulkan {
 
     this->mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
-    unsigned long pixelSize = 4;
+    VkDeviceSize pixelSize = static_cast<VkDeviceSize>(sizeof(float));
     uint32_t pixelCount = texWidth * texHeight;
 
     this->stagingBuffer = new Buffer(
@@ -69,7 +79,40 @@ namespace NugieVulkan {
       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_ACCESS_TRANSFER_WRITE_BIT);
       
     this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
-    // this->image->transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  }
+
+  void Texture::createTextureImage(CommandBuffer* commandBuffer, void* data, uint32_t width, uint32_t height) {
+    VkDeviceSize imageSize = width * height * 4;
+
+    if (!data) {
+      throw std::runtime_error("failed to load texture image!");
+    }
+
+    this->mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
+    VkDeviceSize pixelSize = static_cast<VkDeviceSize>(sizeof(float));
+    uint32_t pixelCount = width * height;
+
+    this->stagingBuffer = new Buffer(
+			this->device,
+			pixelSize,
+			pixelCount,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    this->stagingBuffer->map();
+    this->stagingBuffer->writeToBuffer(data);
+    this->stagingBuffer->unmap();
+
+    this->image = new Image(this->device, width, height, this->mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, 
+      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
+      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    this->image->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_ACCESS_TRANSFER_WRITE_BIT);
+      
+    this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
   }
 
   void Texture::createTextureSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anistropyEnable, 

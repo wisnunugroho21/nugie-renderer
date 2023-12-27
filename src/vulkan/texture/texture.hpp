@@ -15,6 +15,10 @@ namespace NugieVulkan
     public:
       Texture(Device* device, CommandBuffer* commandBuffer, const char* textureFileName, VkFilter filterMode, VkSamplerAddressMode addressMode, 
         VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);
+
+      Texture(Device* device, CommandBuffer* commandBuffer, void* data, uint32_t width, uint32_t height, VkFilter filterMode, VkSamplerAddressMode addressMode, 
+        VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);
+
       Texture(Device* device, Image* image, VkFilter filterMode, VkSamplerAddressMode addressMode, 
         VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);
       
@@ -37,6 +41,8 @@ namespace NugieVulkan
       bool hasMipmapped = false, isImageCreateHere = false;
 
       void createTextureImage(CommandBuffer* commandBuffer, const char* textureFileName);
+      void createTextureImage(CommandBuffer* commandBuffer, void* data, uint32_t width, uint32_t height);
+
       void createTextureSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);
   };
   
