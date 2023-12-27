@@ -33,6 +33,7 @@ namespace NugieApp {
 
 		this->loadObjects();
 		this->init();
+		this->recordCommand();
 	}
 
 	App::~App() {
@@ -87,7 +88,19 @@ namespace NugieApp {
 		if (this->camera != nullptr) delete this->camera;
 	}
 
-	void App::renderLoop() {
+	void App::recordCommand() {
+		auto prepareCommandBuffer = this->renderer->beginRecordPrepareCommand();
+		for (auto &&colorTexture : this->colorTextures) {
+			if (!colorTexture->hasBeenMipmapped()) {
+				colorTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		prepareCommandBuffer->endCommand();
+
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+		uint32_t initialSpotIndex = this->pointNumLight * 6;
+
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->positionModel->getBuffer());
 		forwardBuffers.emplace_back(this->normalModel->getBuffer());
@@ -98,31 +111,13 @@ namespace NugieApp {
 		shadowBuffers.emplace_back(this->positionModel->getBuffer());
 		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
 
-		bool hasTransfer = true;
-		uint32_t initialSpotIndex = this->pointNumLight * 6;
-
-		auto oldTime = std::chrono::high_resolution_clock::now();
-		while (this->isRendering) {
-			if (this->renderer->acquireFrame()) {
-				uint32_t frameIndex = this->renderer->getFrameIndex();
-				uint32_t imageIndex = this->renderer->getImageIndex();
-
+		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
+			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				std::vector<VkDescriptorSet> descriptorSets;
 				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
-				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
-					this->cameraUpdateCount++;
-				}
-
-				auto commandBuffer = this->renderer->beginRenderCommand();
-
-				for (auto &&colorTexture : this->colorTextures) {
-					if (!colorTexture->hasBeenMipmapped()) {
-						colorTexture->generateMipmap(commandBuffer);
-					}
-				}
+				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
 				uint32_t lightIndex = frameIndex * this->pointNumLight;
 				for (uint32_t i = 0; i < this->pointNumLight; i++) {
@@ -146,8 +141,25 @@ namespace NugieApp {
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
-				this->renderer->endRenderCommand(commandBuffer);
-				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
+				commandBuffer->endCommand();
+			}
+		}
+	}
+
+	void App::renderLoop() {
+		this->renderer->submitPrepareCommand();
+
+		auto oldTime = std::chrono::high_resolution_clock::now();
+		while (this->isRendering) {
+			if (this->renderer->acquireFrame()) {
+				uint32_t frameIndex = this->renderer->getFrameIndex();
+
+				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->cameraUpdateCount++;
+				}
+
+				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
@@ -158,10 +170,6 @@ namespace NugieApp {
 
 				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->randomSeed++;
-				}
-
-				if (hasTransfer) {
-					hasTransfer = false;
 				}				
 			}
 
@@ -243,7 +251,8 @@ namespace NugieApp {
 		shadowBuffers.emplace_back(this->positionModel->getBuffer());
 		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
 
-		bool hasTransfer = true;
+		this->renderer->submitPrepareCommand();
+
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
@@ -286,51 +295,13 @@ namespace NugieApp {
 				ImGui::Render();
 
 				uint32_t frameIndex = this->renderer->getFrameIndex();
-				uint32_t imageIndex = this->renderer->getImageIndex();
-
-				std::vector<VkDescriptorSet> descriptorSets;
-				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
-				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
 					this->cameraUpdateCount++;
 				}
-
-				auto commandBuffer = this->renderer->beginRenderCommand();
-
-				for (auto &&colorTexture : this->colorTextures) {
-					if (!colorTexture->hasBeenMipmapped()) {
-						colorTexture->generateMipmap(commandBuffer);
-					}
-				}
-
-				uint32_t lightIndex = frameIndex * this->pointNumLight;
-				for (uint32_t i = 0; i < this->pointNumLight; i++) {
-					this->pointShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex + i);
-					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
-					this->pointShadowSubRenderer->endRenderPass(commandBuffer);
-				}
-
-				lightIndex = frameIndex * this->spotNumLight;
-				for (uint32_t i = 0; i < this->spotNumLight; i++) {
-					this->spotShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex + i);
-					this->spotShadowPassRenderer->render(commandBuffer, initialSpotIndex + i, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), {});
-					this->spotShadowSubRenderer->endRenderPass(commandBuffer);
-				}
-
-				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-
-				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
-
-				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer->getCommandBuffer());
-
-				this->finalSubRenderer->endRenderPass(commandBuffer);
-
-				this->renderer->endRenderCommand(commandBuffer);
-				this->renderer->submitRenderCommand(commandBuffer, hasTransfer);
+				
+				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
@@ -341,10 +312,6 @@ namespace NugieApp {
 
 				if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->randomSeed++;
-				}
-
-				if (hasTransfer) {
-					hasTransfer = false;
 				}				
 			}
 		}
@@ -495,7 +462,7 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		auto commandBuffer = this->renderer->beginTransferCommand();
+		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
 		this->indexModel = new IndexBufferObject<uint32_t>(this->device);
 		this->indexModel->replace(commandBuffer, indices);
@@ -531,8 +498,8 @@ namespace NugieApp {
 		this->colorTextures[0] = new NugieVulkan::Texture(this->device, commandBuffer, "../assets/textures/viking_room.png", VK_FILTER_LINEAR, 
 			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
 
-		this->renderer->endTransferCommand(commandBuffer);
-		this->renderer->submitTransferCommand(commandBuffer);
+		commandBuffer->endCommand();
+		this->renderer->submitTransferCommand();
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {

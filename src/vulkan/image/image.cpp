@@ -3,11 +3,11 @@
 namespace NugieVulkan {
   Image::Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
     VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperty, 
-    VkImageAspectFlags aspectFlags, uint32_t layerNum) 
+    VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType) 
     : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format}, aspectFlags{aspectFlags}, layerNum{layerNum} 
   {
-    this->createImage(numSamples, tiling, usage, memoryProperty);
-    this->createImageView();
+    this->createImage(numSamples, tiling, usage, memoryProperty, viewType);
+    this->createImageView(viewType);
 
     this->isImageCreatedByUs = true;
   }
@@ -15,21 +15,21 @@ namespace NugieVulkan {
   Image::Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
     VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, 
     const std::vector<VkMemoryPropertyFlags> &memoryProperties, 
-    VkImageAspectFlags aspectFlags, uint32_t layerNum) 
+    VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType) 
     : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format}, aspectFlags{aspectFlags}, layerNum{layerNum}
   {
-    this->createImage(numSamples, tiling, usage, memoryProperties);
-    this->createImageView();
+    this->createImage(numSamples, tiling, usage, memoryProperties, viewType);
+    this->createImageView(viewType);
 
     this->isImageCreatedByUs = true;
   }
 
   Image::Image(Device* device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format, 
-    VkImageAspectFlags aspectFlags, uint32_t layerNum) 
+    VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType) 
     : device{device},  height{ height }, width{ width }, mipLevels{mipLevels}, format{format}, aspectFlags{aspectFlags}, layerNum{layerNum} 
   {
     this->image = image;
-    this->createImageView();
+    this->createImageView(viewType);
 
     this->isImageCreatedByUs = false;
   }
@@ -44,7 +44,7 @@ namespace NugieVulkan {
   }
 
   void Image::createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, 
-    VkMemoryPropertyFlags memoryProperty) 
+    VkMemoryPropertyFlags memoryProperty, VkImageViewType viewType) 
   {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -60,6 +60,10 @@ namespace NugieVulkan {
     imageInfo.usage = usage;
     imageInfo.samples = numSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (viewType == VK_IMAGE_VIEW_TYPE_CUBE) {
+      imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
 
     if (vkCreateImage(this->device->getLogicalDevice(), &imageInfo, nullptr, &this->image) != VK_SUCCESS) {
       throw std::runtime_error("failed to create image!");
@@ -83,7 +87,7 @@ namespace NugieVulkan {
   }
 
   void Image::createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, 
-    const std::vector<VkMemoryPropertyFlags> &memoryProperties) 
+    const std::vector<VkMemoryPropertyFlags> &memoryProperties, VkImageViewType viewType) 
   {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -99,6 +103,10 @@ namespace NugieVulkan {
     imageInfo.usage = usage;
     imageInfo.samples = numSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (viewType == VK_IMAGE_VIEW_TYPE_CUBE) {
+      imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
 
     if (vkCreateImage(this->device->getLogicalDevice(), &imageInfo, nullptr, &this->image) != VK_SUCCESS) {
       throw std::runtime_error("failed to create image!");
@@ -121,7 +129,7 @@ namespace NugieVulkan {
     }
   }
 
-  void Image::createImageView() {
+  void Image::createImageView(VkImageViewType viewType) {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = this->image;
@@ -136,14 +144,18 @@ namespace NugieVulkan {
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = this->layerNum;
 
-    if (this->layerNum == 1) {
-      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    } else {
+    if (viewType == VK_IMAGE_VIEW_TYPE_1D && this->layerNum > 1) {
+      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+    } else if (viewType == VK_IMAGE_VIEW_TYPE_2D && this->layerNum > 1) {
       viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    } else if (viewType == VK_IMAGE_VIEW_TYPE_CUBE && this->layerNum > 1) {
+      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+    } else {
+      viewInfo.viewType = viewType;
     }
 
     if (vkCreateImageView(this->device->getLogicalDevice(), &viewInfo, nullptr, &this->imageView) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create texture image view!");
+      throw std::runtime_error("failed to create texture image view!");
     }
   }
 

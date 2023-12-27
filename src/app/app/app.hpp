@@ -45,6 +45,8 @@ namespace NugieApp {
 			App();
 			~App();
 
+			void recordCommand();
+
 			void run();
 			void renderLoop();
 

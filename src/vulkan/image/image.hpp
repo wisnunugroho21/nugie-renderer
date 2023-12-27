@@ -15,14 +15,14 @@ namespace NugieVulkan
     public:
       Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
         VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperty, 
-        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
+        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
 
       Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
         VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties, 
-        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
+        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
 
       Image(Device* device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format, 
-        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1);
+        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
 
       ~Image();
 
@@ -67,10 +67,10 @@ namespace NugieVulkan
       uint32_t width, height, mipLevels, layerNum;
       bool isImageCreatedByUs = false;
 
-      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property);
-      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties);
+      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property, VkImageViewType viewType);
+      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties, VkImageViewType viewType);
 
-      void createImageView();
+      void createImageView(VkImageViewType viewType);
   };
   
   

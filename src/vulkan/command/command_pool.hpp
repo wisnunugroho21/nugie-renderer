@@ -14,6 +14,12 @@ namespace NugieVulkan {
         uint32_t queueFamilyIndex,
         VkCommandPoolCreateFlags flags
       );
+
+      CommandPool(
+        Device* device,
+        uint32_t queueFamilyIndex
+      );
+
       ~CommandPool();
 
       bool allocate(VkCommandBuffer* commandBuffer) const;
@@ -26,6 +32,7 @@ namespace NugieVulkan {
 
     private:
       void createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags);
+      void createCommandPool(uint32_t queueFamilyIndex);
 
       Device* device;
       VkCommandPool commandPool;
