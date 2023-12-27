@@ -1,11 +1,9 @@
 #version 460
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#define KEPSILON 0.00001
 #define POINT_SHADOW_MAP_NUM 6u
 
 #include "core/struct.glsl"
-#define EPSILON 0.00001
 
 layout(location = 0) out vec4 outColor;
 
@@ -159,31 +157,6 @@ float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
   
 	return shadowFactor / 9.0f;
 }
-
-/* vec4 computeRadianceShadow(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint lightIndex = 0u; lightIndex < ubo.numLights.x; lightIndex++) {
-    for (uint layer = 0u; layer < POINT_SHADOW_MAP_NUM; layer++) {
-      vec4 shadowCoord = shadowTransformations[lightIndex * POINT_SHADOW_MAP_NUM + layer].viewProjectionMatrix * surfacePosition;
-      bool isShadow = isHitShadowPointLight(lightIndex, shadowCoord, layer, vec2(0.0f, 0.0f));
-
-      if (isShadow) {
-        totalRadiance *= 0.25f;
-        break;
-      }
-    }
-  }
-
-  uint initialIndex = ubo.numLights.x * 6;
-
-  for (uint lightIndex = 0u; lightIndex < ubo.numLights.y; lightIndex++) {
-    vec4 shadowCoord = shadowTransformations[initialIndex + lightIndex].viewProjectionMatrix * surfacePosition;
-    totalRadiance *= isHitShadowSpotLight(lightIndex, shadowCoord, vec2(0.0f, 0.0f)) 
-      ? 0.25f 
-      : 1.0f;
-  }
-
-  return totalRadiance;
-} */
 
 vec4 computeRadianceShadowPCF(vec4 surfacePosition, vec4 totalRadiance) {
   for (uint lightIndex = 0u; lightIndex < ubo.numLights.x; lightIndex++) {
