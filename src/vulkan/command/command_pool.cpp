@@ -6,12 +6,20 @@
  
 namespace NugieVulkan {
   CommandPool::CommandPool(
-      Device* device,
-      uint32_t queueFamilyIndex,
-      VkCommandPoolCreateFlags flags)
-      : device{device} 
+    Device* device,
+    uint32_t queueFamilyIndex,
+    VkCommandPoolCreateFlags flags)
+    : device{device} 
   {
     this->createCommandPool(queueFamilyIndex, flags);
+  }
+
+  CommandPool::CommandPool(
+    Device* device,
+    uint32_t queueFamilyIndex) 
+    : device{device} 
+  {
+    this->createCommandPool(queueFamilyIndex);
   }
 
   void CommandPool::createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags) {
@@ -19,6 +27,16 @@ namespace NugieVulkan {
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = queueFamilyIndex;
     poolInfo.flags = flags;
+
+    if (vkCreateCommandPool(this->device->getLogicalDevice(), &poolInfo, nullptr, &this->commandPool) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create command pool!");
+    }
+  }
+
+  void CommandPool::createCommandPool(uint32_t queueFamilyIndex) {
+    VkCommandPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = queueFamilyIndex;
 
     if (vkCreateCommandPool(this->device->getLogicalDevice(), &poolInfo, nullptr, &this->commandPool) != VK_SUCCESS) {
       throw std::runtime_error("failed to create command pool!");

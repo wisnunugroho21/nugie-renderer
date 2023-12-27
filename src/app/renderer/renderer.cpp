@@ -7,15 +7,16 @@
 namespace NugieApp {
 	Renderer::Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device) : device{device}, window{window} {
 		this->recreateSwapChain();
-		this->createSyncObjects(static_cast<uint32_t>(this->swapChain->getImageCount()));
+		this->imageCount = static_cast<uint32_t>(this->swapChain->getImageCount());
 
+		this->createSyncObjects();
 		this->createDescriptorPool();
 		this->createCommandPool();
 		this->createCommandBuffers();
 	}
 
 	Renderer::~Renderer() {
-    for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(this->device->getLogicalDevice(), this->renderFinishedSemaphores[i], nullptr);
 			vkDestroySemaphore(this->device->getLogicalDevice(), this->imageAvailableSemaphores[i], nullptr);
 			vkDestroyFence(this->device->getLogicalDevice(), this->inFlightFences[i], nullptr);
@@ -23,7 +24,9 @@ namespace NugieApp {
 			if (this->graphicCommandBuffers[i] != nullptr) delete this->graphicCommandBuffers[i];
 		}
 
-		vkDestroySemaphore(this->device->getLogicalDevice(), this->transferFinishSemaphores[0], nullptr);
+		vkDestroySemaphore(this->device->getLogicalDevice(), this->transferFinishedSemaphores[0], nullptr);
+		vkDestroySemaphore(this->device->getLogicalDevice(), this->prepareFinishedSemaphores[0], nullptr);
+
 		if (this->transferCommandBuffers[0] != nullptr) delete this->transferCommandBuffers[0];
 
 		if (this->graphicCommandPool != nullptr) delete this->graphicCommandPool;
@@ -71,22 +74,22 @@ namespace NugieApp {
 		auto queueFamily = this->device->getPhysicalQueueFamilies();
 		this->graphicCommandPool = new NugieVulkan::CommandPool(
 			this->device, 
-			queueFamily.graphicsFamily, 
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+			queueFamily.graphicsFamily
 		);
 
 		this->transferCommandPool = new NugieVulkan::CommandPool(
 			this->device, 
-			queueFamily.transferFamily, 
-			VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+			queueFamily.transferFamily
 		);
 	}
 
-	void Renderer::createSyncObjects(uint32_t imageCount) {
+	void Renderer::createSyncObjects() {
 		imageAvailableSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 		renderFinishedSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 		inFlightFences.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
-		transferFinishSemaphores.resize(1);
+
+		transferFinishedSemaphores.resize(1);
+		prepareFinishedSemaphores.resize(1);
 
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -95,7 +98,7 @@ namespace NugieApp {
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-		for (size_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 		  if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr, &this->imageAvailableSemaphores[i]) != VK_SUCCESS ||
 				vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr, &this->renderFinishedSemaphores[i]) != VK_SUCCESS ||
 				vkCreateFence(this->device->getLogicalDevice(), &fenceInfo, nullptr, &this->inFlightFences[i]) != VK_SUCCESS) 
@@ -104,19 +107,23 @@ namespace NugieApp {
 		  }
 		}
 
-		if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr, &this->transferFinishSemaphores[0]) != VK_SUCCESS) {
+		if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr, &this->transferFinishedSemaphores[0]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create synchronization objects for transfer operation!");
+		}
+
+		if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr, &this->prepareFinishedSemaphores[0]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create synchronization objects for prepare operation!");
 		}
 	}
 
 	void Renderer::createCommandBuffers() {
 		std::vector<VkCommandBuffer> commandBuffers;
-		commandBuffers.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+		commandBuffers.resize(this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT + 1u);
 
 		this->graphicCommandPool->allocate(commandBuffers);
 		this->graphicCommandBuffers.clear();
 		
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT + 1u; i++) {
 			this->graphicCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, commandBuffers[i]));
 		}
 
@@ -146,77 +153,77 @@ namespace NugieApp {
 		return true;
 	}
 
-	NugieVulkan::CommandBuffer* Renderer::beginRenderCommand() {
-		assert(this->isFrameStarted && "can't start command while frame still in progress");
+	NugieVulkan::CommandBuffer* Renderer::beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex) {
+		uint32_t commandIndex = frameIndex + NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * imageIndex;
 
-		this->graphicCommandBuffers[this->currentFrameIndex]->resetCommand();
-		this->graphicCommandBuffers[this->currentFrameIndex]->beginReccuringCommand();
-
-		return this->graphicCommandBuffers[this->currentFrameIndex];
+		this->graphicCommandBuffers[commandIndex]->beginReccuringCommand();
+		return this->graphicCommandBuffers[commandIndex];
 	}
 
-	NugieVulkan::CommandBuffer* Renderer::beginTransferCommand() {
-		this->transferCommandBuffers[0]->resetCommand();
+	NugieVulkan::CommandBuffer* Renderer::beginRecordTransferCommand() {
 		this->transferCommandBuffers[0]->beginReccuringCommand();
-
 		return this->transferCommandBuffers[0];
 	}
 
-	void Renderer::endRenderCommand(NugieVulkan::CommandBuffer* commandBuffer) {
-		assert(this->isFrameStarted && "can't start command while frame still in progress");
-		commandBuffer->endCommand();
+	NugieVulkan::CommandBuffer* Renderer::beginRecordPrepareCommand() {
+		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->beginReccuringCommand();
+		return this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT];
 	}
 
-	void Renderer::endTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
-		commandBuffer->endCommand();
-	}
-
-	void Renderer::submitRenderCommands(std::vector<NugieVulkan::CommandBuffer*> commandBuffers, bool isWaitTransfer) {
+	void Renderer::submitRenderCommand() {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
+		uint32_t commandIndex = this->currentFrameIndex + NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->currentImageIndex;
+
 		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 
 		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
 		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
-		if (isWaitTransfer) {
-			waitSemaphores.emplace_back(this->transferFinishSemaphores[0]);
+		if (this->isTransferStarted) {
+			waitSemaphores.emplace_back(this->transferFinishedSemaphores[0]);
 			waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+
+			this->isTransferStarted = false;
 		}
 
-		NugieVulkan::CommandBuffer::submitCommands(commandBuffers, this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
-	}
+		if (this->isPrepareStarted) {
+			waitSemaphores.emplace_back(this->prepareFinishedSemaphores[0]);
+			waitStages.emplace_back(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-	void Renderer::submitRenderCommand(NugieVulkan::CommandBuffer* commandBuffer, bool isWaitTransfer) {
-		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
-		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
-
-		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
-		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
-		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-
-		if (isWaitTransfer) {
-			waitSemaphores.emplace_back(this->transferFinishSemaphores[0]);
-			waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+			this->isPrepareStarted = false;
 		}
 
-		commandBuffer->submitCommand(this->device->getGraphicsQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		this->graphicCommandBuffers[commandIndex]->submitCommand(this->device->getGraphicsQueue(), 
+			waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}
 
-	void Renderer::submitTransferCommand(NugieVulkan::CommandBuffer* commandBuffer) {
-		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
+	void Renderer::submitTransferCommand() {
+		std::vector<VkSemaphore> waitSemaphores = {};
+		std::vector<VkSemaphore> signalSemaphores = { this->transferFinishedSemaphores[0] };
+		std::vector<VkPipelineStageFlags> waitStages = {};
 
-		std::vector<VkSemaphore> waitSemaphores = {  };
-		std::vector<VkSemaphore> signalSemaphores = { this->transferFinishSemaphores[0] };
-		std::vector<VkPipelineStageFlags> waitStages = {  };
+		this->transferCommandBuffers[0]->submitCommand(this->device->getTransferQueue(), 
+			waitSemaphores, waitStages, signalSemaphores);
 
-		commandBuffer->submitCommand(this->device->getTransferQueue(), waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
+		this->isTransferStarted = true;
+	}
+
+	void Renderer::submitPrepareCommand() {
+		std::vector<VkSemaphore> waitSemaphores = {};
+		std::vector<VkSemaphore> signalSemaphores = { this->prepareFinishedSemaphores[0] };
+		std::vector<VkPipelineStageFlags> waitStages = {};
+
+		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->submitCommand(this->device->getTransferQueue(), 
+			waitSemaphores, waitStages, signalSemaphores);
+
+		this->isPrepareStarted = true;
 	}
 
 	bool Renderer::presentFrame() {
 		assert(this->isFrameStarted && "can't present frame if frame is not in progress");
 
-		std::vector<VkSemaphore> waitSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
+		std::vector<VkSemaphore> waitSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
 		auto result = this->swapChain->presentRenders(this->device->getPresentQueue(), &this->currentImageIndex, waitSemaphores);
 
 		this->currentFrameIndex = (this->currentFrameIndex + 1) % NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT;
