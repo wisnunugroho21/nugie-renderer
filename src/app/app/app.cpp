@@ -17,10 +17,6 @@
 
 #include <thread>
 
-#include "../../../libraries/imgui/imgui.h"
-#include "../../../libraries/imgui/imgui_impl_glfw.h"
-#include "../../../libraries/imgui/imgui_impl_vulkan.h"
-
 namespace NugieApp {
 	App::App() {
 		this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
@@ -37,10 +33,6 @@ namespace NugieApp {
 	}
 
 	App::~App() {
-		ImGui_ImplVulkan_Shutdown();
-		ImGui_ImplGlfw_Shutdown();
-		ImGui::DestroyContext();
-
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->deferredPasRenderer != nullptr) delete this->deferredPasRenderer;
 		if (this->pointShadowPassRenderer != nullptr) delete this->pointShadowPassRenderer;
@@ -254,8 +246,6 @@ namespace NugieApp {
 		this->renderer->submitPrepareCommand();
 
 		uint32_t initialSpotIndex = this->pointNumLight * 6;
-		ImGuiIO& io = ImGui::GetIO(); (void)io;
-
 		auto oldTime = std::chrono::high_resolution_clock::now();
 
 		while (!this->window->shouldClose()) {
@@ -274,7 +264,7 @@ namespace NugieApp {
 			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
 			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
 
-			if ((isMousePressed || isKeyboardPressed) && !io.WantCaptureKeyboard && !io.WantCaptureMouse) {
+			if ((isMousePressed || isKeyboardPressed)) {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
 				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 				
@@ -282,18 +272,6 @@ namespace NugieApp {
 			}
 
 			if (this->renderer->acquireFrame()) {
-				ImGui_ImplVulkan_NewFrame();
-				ImGui_ImplGlfw_NewFrame();
-				ImGui::NewFrame();
-
-				ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-				ImGui::Begin("Peformace Overlay");
-
-				ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-				ImGui::End();
-
-				ImGui::Render();
-
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
@@ -619,24 +597,6 @@ namespace NugieApp {
 		this->spotShadowPassRenderer = new SpotShadowPassRenderSystem(this->device, this->spotShadowDescSet->getDescSetLayout(), this->spotShadowSubRenderer->getRenderPass());
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
 		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
-
-		ImGui::CreateContext();
-		ImGui_ImplGlfw_InitForVulkan(this->window->getWindow(), true);
-
-		ImGui_ImplVulkan_InitInfo imguiVulkanInfo{};
-		imguiVulkanInfo.Instance = this->device->getInstance();
-		imguiVulkanInfo.PhysicalDevice = this->device->getPhysicalDevice();
-		imguiVulkanInfo.Device = this->device->getLogicalDevice();
-		imguiVulkanInfo.QueueFamily = this->device->getFamilyIndices().graphicsFamily;
-		imguiVulkanInfo.Queue = this->device->getGraphicsQueue();
-		imguiVulkanInfo.DescriptorPool = this->renderer->getDescriptorPool()->getDescriptorPool();
-		imguiVulkanInfo.Subpass = 1u;
-		imguiVulkanInfo.ImageCount = this->renderer->getSwapChain()->getImageCount();
-		imguiVulkanInfo.MinImageCount = this->renderer->getSwapChain()->getImageCount();
-		imguiVulkanInfo.MSAASamples = this->device->getMSAASamples();
-		ImGui_ImplVulkan_Init(&imguiVulkanInfo, this->finalSubRenderer->getRenderPass()->getRenderPass());
-
-		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
 	void App::resize() {
