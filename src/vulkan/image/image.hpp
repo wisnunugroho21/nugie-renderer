@@ -40,10 +40,10 @@ namespace NugieVulkan
 
       VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout);
       
-      void copyBufferToImage(CommandBuffer* commandBuffer, Buffer* srcBuffer);
-      void copyImageToBuffer(CommandBuffer* commandBuffer, Buffer* destBuffer);
-      void copyImageFromOther(CommandBuffer* commandBuffer, Image* srcImage);
-      void copyImageToOther(CommandBuffer* commandBuffer, Image* dstImage);
+      void copyBufferToImage(CommandBuffer* commandBuffer, Buffer* srcBuffer, uint32_t mipLevel = 0, uint32_t layer = 0, uint32_t layerCount = -1);
+      void copyImageToBuffer(CommandBuffer* commandBuffer, Buffer* destBuffer, uint32_t mipLevel = 0, uint32_t layer = 0, uint32_t layerCount = -1);
+      void copyImageFromOther(CommandBuffer* commandBuffer, Image* srcImage, uint32_t mipLevel = 0, uint32_t layer = 0, uint32_t layerCount = -1);
+      void copyImageToOther(CommandBuffer* commandBuffer, Image* dstImage, uint32_t mipLevel = 0, uint32_t layer = 0, uint32_t layerCount = -1);
 
       void generateMipMap(CommandBuffer* commandBuffer);
 

@@ -234,16 +234,16 @@ namespace NugieVulkan {
     );
   }
 
-  void Image::copyBufferToImage(CommandBuffer* commandBuffer, Buffer* srcBuffer) {
+  void Image::copyBufferToImage(CommandBuffer* commandBuffer, Buffer* srcBuffer, uint32_t mipLevel, uint32_t layer, uint32_t layerCount) {
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = this->layerNum;
+    region.imageSubresource.mipLevel = mipLevel;
+    region.imageSubresource.baseArrayLayer = layer;
+    region.imageSubresource.layerCount = layerCount < 0 ? this->layerNum : layerCount;
 
     region.imageOffset = {0, 0, 0};
     region.imageExtent = {this->width, this->height, 1};
@@ -258,16 +258,16 @@ namespace NugieVulkan {
     );
   }
 
-  void Image::copyImageToBuffer(CommandBuffer* commandBuffer, Buffer* destBuffer) {
+  void Image::copyImageToBuffer(CommandBuffer* commandBuffer, Buffer* destBuffer, uint32_t mipLevel, uint32_t layer, uint32_t layerCount) {
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = this->layerNum;
+    region.imageSubresource.mipLevel = mipLevel;
+    region.imageSubresource.baseArrayLayer = layer;
+    region.imageSubresource.layerCount = layerCount < 0 ? this->layerNum : layerCount;
 
     region.imageOffset = {0, 0, 0};
     region.imageExtent = {this->width, this->height, 1};
@@ -282,24 +282,40 @@ namespace NugieVulkan {
     );
   }
 
-  void Image::copyImageFromOther(CommandBuffer* commandBuffer, Image* srcImage) {
+  void Image::copyImageFromOther(CommandBuffer* commandBuffer, Image* srcImage, uint32_t mipLevel, uint32_t layer, uint32_t layerCount) {
     VkImageCopy copyInfo{};
 
-    copyInfo.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
+    copyInfo.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyInfo.srcSubresource.mipLevel = mipLevel;
+    copyInfo.srcSubresource.baseArrayLayer = layer;
+    copyInfo.srcSubresource.layerCount = layerCount < 0 ? this->layerNum : layerCount;
+
+    copyInfo.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyInfo.dstSubresource.mipLevel = mipLevel;
+    copyInfo.dstSubresource.baseArrayLayer = layer;
+    copyInfo.dstSubresource.layerCount = layerCount < 0 ? this->layerNum : layerCount;
+
 		copyInfo.srcOffset      = {0, 0, 0};
-		copyInfo.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
 		copyInfo.dstOffset      = {0, 0, 0};
 		copyInfo.extent         = {this->width, this->height, 1};
 
     vkCmdCopyImage(commandBuffer->getCommandBuffer(), srcImage->getImage(), srcImage->getLayout(), this->image, this->layout, 1u, &copyInfo);
   }
 
-  void Image::copyImageToOther(CommandBuffer* commandBuffer, Image* dstImage) {
+  void Image::copyImageToOther(CommandBuffer* commandBuffer, Image* dstImage, uint32_t mipLevel, uint32_t layer, uint32_t layerCount) {
     VkImageCopy copyInfo{};
 
-    copyInfo.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
+    copyInfo.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyInfo.srcSubresource.mipLevel = mipLevel;
+    copyInfo.srcSubresource.baseArrayLayer = layer;
+    copyInfo.srcSubresource.layerCount = layerCount < 0 ? this->layerNum : layerCount;
+
+    copyInfo.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyInfo.dstSubresource.mipLevel = mipLevel;
+    copyInfo.dstSubresource.baseArrayLayer = layer;
+    copyInfo.dstSubresource.layerCount = layerCount < 0 ? this->layerNum : layerCount;
+
 		copyInfo.srcOffset      = {0, 0, 0};
-		copyInfo.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, this->layerNum};
 		copyInfo.dstOffset      = {0, 0, 0};
 		copyInfo.extent         = {this->width, this->height, 1};
 
