@@ -79,7 +79,7 @@ namespace NugieApp {
       this->shadowDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1u, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, 6
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, 6, VK_IMAGE_VIEW_TYPE_2D_ARRAY
       ));
     }
   }
