@@ -134,6 +134,7 @@ namespace NugieVulkan {
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = this->image;
     viewInfo.format = this->format;
+    viewInfo.viewType = viewType;
     viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
     viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
     viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -143,16 +144,6 @@ namespace NugieVulkan {
     viewInfo.subresourceRange.levelCount = this->mipLevels;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = this->layerNum;
-
-    if (viewType == VK_IMAGE_VIEW_TYPE_1D && this->layerNum > 1) {
-      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-    } else if (viewType == VK_IMAGE_VIEW_TYPE_2D && this->layerNum > 1) {
-      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    } else if (viewType == VK_IMAGE_VIEW_TYPE_CUBE && this->layerNum > 1) {
-      viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
-    } else {
-      viewInfo.viewType = viewType;
-    }
 
     if (vkCreateImageView(this->device->getLogicalDevice(), &viewInfo, nullptr, &this->imageView) != VK_SUCCESS) {
       throw std::runtime_error("failed to create texture image view!");
