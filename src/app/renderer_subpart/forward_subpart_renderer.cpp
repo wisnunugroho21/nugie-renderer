@@ -4,20 +4,37 @@
 #include <array>
 
 namespace NugieApp {
-  ForwardSubPartRenderer::ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height)
-    : device{device}, imageCount{imageCount}, width{width}, height{height}
+  ForwardSubPartRenderer::ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height)
+    : device{device}, width{width}, height{height}
   {
     this->createImages();
+    this->createTextures();
   }
 
   ForwardSubPartRenderer::~ForwardSubPartRenderer() {
+    for (auto &&forwardPositionTexture : this->forwardPositionTextures) {
+      if (forwardPositionTexture != nullptr) delete forwardPositionTexture;
+    }
+
+    for (auto &&forwardNormalTexture : this->forwardNormalTextures) {
+      if (forwardNormalTexture != nullptr) delete forwardNormalTexture;
+    }
+
+    for (auto &&forwardTextCoordTexture : this->forwardTextCoordTextures) {
+      if (forwardTextCoordTexture != nullptr) delete forwardTextCoordTexture;
+    }
+
+    for (auto &&forwardMaterialIndexTexture : this->forwardMaterialIndexTextures) {
+      if (forwardMaterialIndexTexture != nullptr) delete forwardMaterialIndexTexture;
+    }
+
     this->deleteImages();
   }
 
   std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getPositionInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardPositionImage : this->forwardPositionImages) {
-      descInfos.emplace_back(forwardPositionImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    for (auto &&forwardPositionTexture : this->forwardPositionTextures) {
+      descInfos.emplace_back(forwardPositionTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -25,8 +42,8 @@ namespace NugieApp {
 
   std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getNormalInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardNormalImage : this->forwardNormalImages) {
-      descInfos.emplace_back(forwardNormalImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    for (auto &&forwardNormalTexture : this->forwardNormalTextures) {
+      descInfos.emplace_back(forwardNormalTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -34,8 +51,8 @@ namespace NugieApp {
 
   std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getTextCoordInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
-      descInfos.emplace_back(forwardTextCoordImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    for (auto &&forwardTextCoordTexture : this->forwardTextCoordTextures) {
+      descInfos.emplace_back(forwardTextCoordTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -43,8 +60,8 @@ namespace NugieApp {
 
   std::vector<VkDescriptorImageInfo> ForwardSubPartRenderer::getMaterialIndexInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
-      descInfos.emplace_back(forwardMaterialIndexImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    for (auto &&forwardMaterialIndexTexture : this->forwardMaterialIndexTextures) {
+      descInfos.emplace_back(forwardMaterialIndexTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -93,13 +110,13 @@ namespace NugieApp {
 
   std::vector<VkAttachmentDescription> ForwardSubPartRenderer::getAttachmentDescs() {
     VkFormat depthFormat = this->findDepthFormat();
-    auto msaaSamples = this->device->getMSAASamples();
+    auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; //  this->device->getMSAASamples();
 
     VkAttachmentDescription forwardPositionAttachment{};
     forwardPositionAttachment.format = this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT });
     forwardPositionAttachment.samples = msaaSamples;
     forwardPositionAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardPositionAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardPositionAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     forwardPositionAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardPositionAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     forwardPositionAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -109,7 +126,7 @@ namespace NugieApp {
     forwardNormalAttachment.format = this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT });
     forwardNormalAttachment.samples = msaaSamples;
     forwardNormalAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardNormalAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardNormalAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     forwardNormalAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardNormalAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     forwardNormalAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -119,7 +136,7 @@ namespace NugieApp {
     forwardTextCoordAttachment.format = this->findColorFormat({ VK_FORMAT_R8G8_UNORM, VK_FORMAT_R16G16_UNORM, VK_FORMAT_R32G32_SFLOAT });
     forwardTextCoordAttachment.samples = msaaSamples;
     forwardTextCoordAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardTextCoordAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardTextCoordAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     forwardTextCoordAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardTextCoordAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     forwardTextCoordAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -129,7 +146,7 @@ namespace NugieApp {
     forwardMaterialIndexAttachment.format = this->findColorFormat({ VK_FORMAT_R8_UINT, VK_FORMAT_R16_UINT, VK_FORMAT_R32_UINT });
     forwardMaterialIndexAttachment.samples = msaaSamples;
     forwardMaterialIndexAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    forwardMaterialIndexAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    forwardMaterialIndexAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     forwardMaterialIndexAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardMaterialIndexAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     forwardMaterialIndexAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -192,51 +209,77 @@ namespace NugieApp {
   void ForwardSubPartRenderer::createImages() {
     VkFormat depthFormat = this->findDepthFormat();
 
-    auto msaaSamples = this->device->getMSAASamples();
+    auto msaaSamples = VK_SAMPLE_COUNT_1_BIT; // this->device->getMSAASamples();
 
     this->forwardPositionImages.clear();
-    for (uint32_t i = 0; i < this->imageCount; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
       this->forwardPositionImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT }),
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
     this->forwardNormalImages.clear();
-    for (uint32_t i = 0; i < this->imageCount; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
       this->forwardNormalImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT }),
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
     this->forwardTextCoordImages.clear();
-    for (uint32_t i = 0; i < this->imageCount; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
       this->forwardTextCoordImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R8G8_UNORM, VK_FORMAT_R16G16_UNORM, VK_FORMAT_R32G32_SFLOAT }),
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
     this->forwardMaterialIndexImages.clear();
-    for (uint32_t i = 0; i < this->imageCount; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
       this->forwardMaterialIndexImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, this->findColorFormat({ VK_FORMAT_R8_UINT, VK_FORMAT_R16_UINT, VK_FORMAT_R32_UINT }),
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_COLOR_BIT
       ));
     }
 
     this->forwardDepthImages.clear();
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
       this->forwardDepthImages.push_back(new NugieVulkan::Image(
         this->device, this->width, this->height, 1, msaaSamples, depthFormat, 
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, 
         { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, VK_IMAGE_ASPECT_DEPTH_BIT
       ));
+    }
+  }
+
+  void ForwardSubPartRenderer::createTextures() {
+    for (auto &&forwardPositionImage : this->forwardPositionImages) {
+      this->forwardPositionTextures.push_back(new NugieVulkan::Texture(this->device, forwardPositionImage, VK_FILTER_NEAREST, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+    }
+
+    for (auto &&forwardNormalImage : this->forwardNormalImages) {
+      this->forwardNormalTextures.push_back(new NugieVulkan::Texture(this->device, forwardNormalImage, VK_FILTER_NEAREST, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+    }
+
+    for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
+      this->forwardTextCoordTextures.push_back(new NugieVulkan::Texture(this->device, forwardTextCoordImage, VK_FILTER_NEAREST, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+    }
+
+    for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
+      this->forwardMaterialIndexTextures.push_back(new NugieVulkan::Texture(this->device, forwardMaterialIndexImage, VK_FILTER_NEAREST, 
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+        VK_SAMPLER_MIPMAP_MODE_LINEAR));
     }
   }
 

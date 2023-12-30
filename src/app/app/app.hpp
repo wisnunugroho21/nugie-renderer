@@ -12,21 +12,14 @@
 #include "../data/buffer/ubo.hpp"
 #include "../data/buffer/vertex.hpp"
 #include "../data/buffer/index.hpp"
-#include "../data/descSet/point_shadow_desc_set.hpp"
-#include "../data/descSet/spot_shadow_desc_set.hpp"
 #include "../data/descSet/forward_desc_set.hpp"
-#include "../data/descSet/model_deferred_desc_set.hpp"
-#include "../data/descSet/attachment_deferred_desc_set.hpp"
+#include "../data/descSet/input_raygen_desc_set.hpp"
+#include "../data/descSet/output_raygen_desc_set.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_subpart/forward_subpart_renderer.hpp"
-#include "../renderer_subpart/deferred_subpart_renderer.hpp"
-#include "../renderer_subpart/point_shadow_subpart_renderer.hpp"
-#include "../renderer_subpart/spot_shadow_subpart_renderer.hpp"
-#include "../renderer_system/point_shadow_pass_render_system.hpp"
-#include "../renderer_system/spot_shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
-#include "../renderer_system/deferred_pass_render_system.hpp"
+#include "../renderer_system/raygen_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -69,18 +62,11 @@ namespace NugieApp {
 			Renderer* renderer;
 
 			SubRenderer* finalSubRenderer;
-			SubRenderer* pointShadowSubRenderer;
-			SubRenderer* spotShadowSubRenderer;
 
 			ForwardSubPartRenderer* forwardSubPartRenderer;
-			DeferredSubPartRenderer* deferredSubPartRenderer;
-			PointShadowSubPartRenderer* pointShadowSubPartRenderer;
-			SpotShadowSubPartRenderer* spotShadowSubPartRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
-			DeferredPassRenderSystem* deferredPasRenderer;
-			PointShadowPassRenderSystem* pointShadowPassRenderer;
-			SpotShadowPassRenderSystem* spotShadowPassRenderer;
+			RayGenPassRenderSystem* rayGenPassRenderer;
 
 			IndexBufferObject<uint32_t>* indexModel;
 
@@ -99,10 +85,8 @@ namespace NugieApp {
 			UniformBufferObject<DeferredUbo>* deferredUniform;
 			
 			ForwardDescSet* forwardDescSet;
-			AttachmentDeferredDescSet* attachmentDeferredDescSet;
-			ModelDeferredDescSet* modelDeferredDescSet;
-			PointShadowDescSet* pointShadowDescSet;
-			SpotShadowDescSet* spotShadowDescSet;
+			InputRayGenDescSet* inputRayGenDescSet;
+			OutputRayGenDescSet* outputRayGenDescSet;
 
 			uint32_t randomSeed = 0u, pointNumLight = 0u, 
 				spotNumLight = 0u, cameraUpdateCount = 0u;

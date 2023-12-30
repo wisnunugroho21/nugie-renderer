@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../vulkan/image/image.hpp"
+#include "../../vulkan/texture/texture.hpp"
 #include "../../vulkan/renderpass/renderpass.hpp"
 
 #include <vulkan/vulkan.h>
@@ -10,7 +11,7 @@
 namespace NugieApp {
   class ForwardSubPartRenderer {
     public:
-      ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t imageCount, uint32_t width, uint32_t height);
+      ForwardSubPartRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height);
       ~ForwardSubPartRenderer();
 
       std::vector<VkDescriptorImageInfo> getPositionInfoResources();
@@ -26,7 +27,7 @@ namespace NugieApp {
       void recreateResources(uint32_t width, uint32_t height);
       
     private:
-      uint32_t width, height, imageCount;
+      uint32_t width, height;
       NugieVulkan::Device* device;
       
       std::vector<NugieVulkan::Image*> forwardPositionImages;
@@ -35,10 +36,16 @@ namespace NugieApp {
       std::vector<NugieVulkan::Image*> forwardMaterialIndexImages;
       std::vector<NugieVulkan::Image*> forwardDepthImages;
 
+      std::vector<NugieVulkan::Texture*> forwardPositionTextures;
+      std::vector<NugieVulkan::Texture*> forwardNormalTextures;
+      std::vector<NugieVulkan::Texture*> forwardTextCoordTextures;
+      std::vector<NugieVulkan::Texture*> forwardMaterialIndexTextures;
+
       VkFormat findDepthFormat();
       VkFormat findColorFormat(const std::vector<VkFormat> &colorFormats);
 
       void createImages();
+      void createTextures();
       void deleteImages();
   };
   

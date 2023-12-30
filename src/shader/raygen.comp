@@ -1,0 +1,27 @@
+#version 460
+
+// ------------- layout -------------
+
+#define KEPSILON 0.00001
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 8, local_size_y = 4) in;
+
+layout(set = 0, binding = 0, rgba32f) uniform writeonly image2D outputImage;
+
+layout(set = 1, binding = 0) uniform sampler2D inputPosition;
+layout(set = 1, binding = 1) uniform sampler2D inputNormal;
+layout(set = 1, binding = 2) uniform sampler2D inputTextCoord;
+layout(set = 1, binding = 3) uniform usampler2D inputMaterialIndex;
+
+// ------------- Main -------------
+
+void main() {
+  ivec2 textSize = textureSize(inputPosition, 0);
+  vec2 inCoord = vec2(gl_GlobalInvocationID.xy) / vec2(textSize);
+
+  vec4 surfacePosition = texture(inputPosition, inCoord);
+
+  imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), surfacePosition);
+}

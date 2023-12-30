@@ -214,7 +214,7 @@ namespace NugieApp {
 		std::vector<VkSemaphore> signalSemaphores = { this->prepareFinishedSemaphores[0] };
 		std::vector<VkPipelineStageFlags> waitStages = {};
 
-		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->submitCommand(this->device->getTransferQueue(), 
+		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->submitCommand(this->device->getGraphicsQueue(), 
 			waitSemaphores, waitStages, signalSemaphores);
 
 		this->isPrepareStarted = true;

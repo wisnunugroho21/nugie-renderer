@@ -34,25 +34,16 @@ namespace NugieApp {
 
 	App::~App() {
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
-		if (this->deferredPasRenderer != nullptr) delete this->deferredPasRenderer;
-		if (this->pointShadowPassRenderer != nullptr) delete this->pointShadowPassRenderer;
-		if (this->spotShadowPassRenderer != nullptr) delete this->spotShadowPassRenderer;
+		if (this->rayGenPassRenderer != nullptr) delete this->rayGenPassRenderer;
 
 		if (this->forwardSubPartRenderer != nullptr) delete this->forwardSubPartRenderer;
-		if (this->deferredSubPartRenderer != nullptr) delete this->deferredSubPartRenderer;
-		if (this->pointShadowSubPartRenderer != nullptr) delete this->pointShadowSubPartRenderer;
-		if (this->spotShadowSubPartRenderer != nullptr) delete this->spotShadowSubPartRenderer;
 
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
-		if (this->pointShadowSubRenderer != nullptr) delete this->pointShadowSubRenderer;
-		if (this->spotShadowSubRenderer != nullptr) delete this->spotShadowSubRenderer;
 		if (this->renderer != nullptr) delete this->renderer;
 
-		if (this->pointShadowDescSet != nullptr) delete this->pointShadowDescSet;
-		if (this->spotShadowDescSet != nullptr) delete this->spotShadowDescSet;
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
-		if (this->attachmentDeferredDescSet != nullptr) delete this->attachmentDeferredDescSet;
-		if (this->modelDeferredDescSet != nullptr) delete this->modelDeferredDescSet;
+		if (this->inputRayGenDescSet != nullptr) delete this->inputRayGenDescSet;
+		if (this->outputRayGenDescSet != nullptr) delete this->outputRayGenDescSet;
 
 		if (this->forwardUniform != nullptr) delete this->forwardUniform;
 		if (this->deferredUniform != nullptr) delete this->deferredUniform;
@@ -81,6 +72,8 @@ namespace NugieApp {
 	}
 
 	void App::recordCommand() {
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+
 		auto prepareCommandBuffer = this->renderer->beginRecordPrepareCommand();
 		for (auto &&colorTexture : this->colorTextures) {
 			if (!colorTexture->hasBeenMipmapped()) {
@@ -88,10 +81,13 @@ namespace NugieApp {
 			}
 		}
 
-		prepareCommandBuffer->endCommand();
+		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
+			auto swapChainImage = this->renderer->getSwapChain()->getSwapChainImages()[imageIndex];
+			swapChainImage->transitionImageLayout(prepareCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
+					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0);
+		}
 
-		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
-		uint32_t initialSpotIndex = this->pointNumLight * 6;
+		prepareCommandBuffer->endCommand();
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->positionModel->getBuffer());
@@ -106,32 +102,23 @@ namespace NugieApp {
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				std::vector<VkDescriptorSet> descriptorSets;
-				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
-				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
+				descriptorSets.emplace_back(this->outputRayGenDescSet->getDescriptorSets(imageIndex));
+				descriptorSets.emplace_back(this->inputRayGenDescSet->getDescriptorSets(frameIndex));
 
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
-
-				uint32_t lightIndex = frameIndex * this->pointNumLight;
-				for (uint32_t i = 0; i < this->pointNumLight; i++) {
-					this->pointShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex + i);
-					this->pointShadowPassRenderer->render(commandBuffer, i, this->pointShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-					this->pointShadowSubRenderer->endRenderPass(commandBuffer);
-				}
-
-				lightIndex = frameIndex * this->spotNumLight;
-				for (uint32_t i = 0; i < this->spotNumLight; i++) {
-					this->spotShadowSubRenderer->beginRenderPass(commandBuffer, lightIndex + i);
-					this->spotShadowPassRenderer->render(commandBuffer, initialSpotIndex + i, this->spotShadowDescSet->getDescriptorSets(frameIndex), shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-					this->spotShadowSubRenderer->endRenderPass(commandBuffer);
-				}
-
+				auto swapChainImage = this->renderer->getSwapChain()->getSwapChainImages()[imageIndex];
+				
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-
 				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
-
 				this->finalSubRenderer->endRenderPass(commandBuffer);
+
+				swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_GENERAL, 
+					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, VK_ACCESS_SHADER_WRITE_BIT);
+
+				this->rayGenPassRenderer->render(commandBuffer, descriptorSets);
+
+				swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
+					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_SHADER_WRITE_BIT, 0);
 
 				commandBuffer->endCommand();
 			}
@@ -361,7 +348,7 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 0, 1 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 		
@@ -508,67 +495,27 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
-		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, imageCount, width, height);
-		this->deferredSubPartRenderer = new DeferredSubPartRenderer(this->device, this->renderer->getSwapChain()->getswapChainImages(), 
-			this->renderer->getSwapChain()->getSwapChainImageFormat(), imageCount, width, height);
-		this->pointShadowSubPartRenderer = new PointShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->pointNumLight);
-		this->spotShadowSubPartRenderer = new SpotShadowSubPartRenderer(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->spotNumLight);
+		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, width, height);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
 				this->forwardSubPartRenderer->getOutputAttachmentRefs(), this->forwardSubPartRenderer->getDepthAttachmentRef())
-			.addSubPass(this->deferredSubPartRenderer->getAttachments(), this->deferredSubPartRenderer->getAttachmentDescs(),
-				this->deferredSubPartRenderer->getOutputAttachmentRefs(), this->deferredSubPartRenderer->getDepthAttachmentRef(),
-				this->deferredSubPartRenderer->getInputAttachmentRefs())
-			.addResolveAttachmentRef(this->deferredSubPartRenderer->getResolveAttachmentRef())
 			.build();
-
-		this->pointShadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 6u)
-			.addSubPass(this->pointShadowSubPartRenderer->getAttachments(), this->pointShadowSubPartRenderer->getAttachmentDescs(),
-				{}, this->pointShadowSubPartRenderer->getDepthAttachmentRef())
-			.build();
-
-		this->spotShadowSubRenderer = ShadowSubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, 1u)
-			.addSubPass(this->spotShadowSubPartRenderer->getAttachments(), this->spotShadowSubPartRenderer->getAttachmentDescs(),
-				{}, this->spotShadowSubPartRenderer->getDepthAttachmentRef())
-			.build();
-
-		VkDescriptorBufferInfo pointShadowModelInfos[2] = {
-			this->transformationModel->getInfo(),
-			this->shadowTransformationModel->getInfo()
-		};
-
-		VkDescriptorBufferInfo spotShadowModelInfos[2] = {
-			this->transformationModel->getInfo(),
-			this->shadowTransformationModel->getInfo()
-		};
 
 		VkDescriptorBufferInfo forwardModelInfos[1] = {
 			this->transformationModel->getInfo()
 		};
 
-		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
+		std::vector<VkDescriptorImageInfo> rayGenInputInfos[4] = {
 			this->forwardSubPartRenderer->getPositionInfoResources(),
 			this->forwardSubPartRenderer->getNormalInfoResources(),
 			this->forwardSubPartRenderer->getTextCoordInfoResources(),
 			this->forwardSubPartRenderer->getMaterialIndexInfoResources()
 		};
 
-		VkDescriptorBufferInfo deferredModelInfo[4] {
-			this->materialModel->getInfo(),
-			this->shadowTransformationModel->getInfo(),
-			this->pointLightModel->getInfo(),
-			this->spotLightModel->getInfo()
-		};
-
-		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[2] {
-			this->pointShadowSubPartRenderer->getDepthInfoResources(),
-			this->spotShadowSubPartRenderer->getDepthInfoResources()
-		};
-
-		std::vector<VkDescriptorImageInfo> deferredObjectTexturesInfos[1];
-		for (auto &&colorTexture : this->colorTextures) {
-			deferredObjectTexturesInfos[0].emplace_back(colorTexture->getDescriptorInfo());
+		std::vector<VkDescriptorImageInfo> rayGenOutputInfos;
+		for (uint32_t i = 0; i < imageCount; i++) {
+			rayGenOutputInfos.emplace_back(this->renderer->getSwapChain()->getSwapChainImages()[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
 		}
 		
 		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
@@ -577,26 +524,17 @@ namespace NugieApp {
 		std::vector<VkDescriptorBufferInfo> forwardUniformInfo[1] = {
 			this->forwardUniform->getInfo()
 		};
-
-		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
-			this->deferredUniform->getInfo()
-		};
 		
-		this->pointShadowDescSet = new PointShadowDescSet(this->device, this->renderer->getDescriptorPool(), pointShadowModelInfos);
-		this->spotShadowDescSet = new SpotShadowDescSet(this->device, this->renderer->getDescriptorPool(), spotShadowModelInfos);
 		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos);
-		this->attachmentDeferredDescSet = new AttachmentDeferredDescSet(this->device, this->renderer->getDescriptorPool(), deferredAttachmentInfos, imageCount);
-		this->modelDeferredDescSet = new ModelDeferredDescSet(this->device, this->pointNumLight, this->spotNumLight, this->renderer->getDescriptorPool(), deferredUniformInfo, 
-			deferredModelInfo, deferredRenderTextureInfo, deferredObjectTexturesInfos);
+		this->outputRayGenDescSet = new OutputRayGenDescSet(this->device, this->renderer->getDescriptorPool(), rayGenOutputInfos);
+		this->inputRayGenDescSet = new InputRayGenDescSet(this->device, this->renderer->getDescriptorPool(), rayGenInputInfos);
 
-		std::vector<NugieVulkan::DescriptorSetLayout*> deferredDescSetLayouts;
-		deferredDescSetLayouts.emplace_back(this->attachmentDeferredDescSet->getDescSetLayout());
-		deferredDescSetLayouts.emplace_back(this->modelDeferredDescSet->getDescSetLayout());
+		std::vector<NugieVulkan::DescriptorSetLayout*> rayGenDescSetLayouts;
+		rayGenDescSetLayouts.emplace_back(this->outputRayGenDescSet->getDescSetLayout());
+		rayGenDescSetLayouts.emplace_back(this->inputRayGenDescSet->getDescSetLayout());
 
-		this->pointShadowPassRenderer = new PointShadowPassRenderSystem(this->device, this->pointShadowDescSet->getDescSetLayout(), this->pointShadowSubRenderer->getRenderPass());
-		this->spotShadowPassRenderer = new SpotShadowPassRenderSystem(this->device, this->spotShadowDescSet->getDescSetLayout(), this->spotShadowSubRenderer->getRenderPass());
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
-		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, deferredDescSetLayouts, this->finalSubRenderer->getRenderPass());
+		this->rayGenPassRenderer = new RayGenPassRenderSystem(this->device, rayGenDescSetLayouts, width, height, 1u);
 	}
 
 	void App::resize() {
@@ -604,18 +542,12 @@ namespace NugieApp {
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 
 		this->forwardSubPartRenderer->recreateResources(width, height);
-		this->deferredSubPartRenderer->recreateResources(this->renderer->getSwapChain()->getswapChainImages(), width, height);
-		this->pointShadowSubPartRenderer->recreateResources(width, height);
-		this->spotShadowSubPartRenderer->recreateResources(width, height);
 
 		std::vector<std::vector<VkImageView>> finalSubImageViews;
 		std::vector<std::vector<VkImageView>> pointSubImageViews;
 		std::vector<std::vector<VkImageView>> spotSubImageViews;
 
 		auto forwardAttachments = this->forwardSubPartRenderer->getAttachments();
-		auto deferredAttachments = this->deferredSubPartRenderer->getAttachments();
-		auto pointAttachments = this->pointShadowSubPartRenderer->getAttachments();
-		auto spotAttachments = this->spotShadowSubPartRenderer->getAttachments();
 
 		for (size_t i = 0; i < forwardAttachments[0].size(); i++) {
 			std::vector<VkImageView> imageViews;
@@ -624,36 +556,10 @@ namespace NugieApp {
 				imageViews.emplace_back(forwardAttachments[j][i]);
 			}
 
-			for (size_t j = 0; j < deferredAttachments.size(); j++) {
-				imageViews.emplace_back(deferredAttachments[j][i]);
-			}
-
 			finalSubImageViews.emplace_back(imageViews);
 		}
 
-		for (size_t i = 0; i < pointAttachments[0].size(); i++) {
-			std::vector<VkImageView> imageViews;
-
-			for (size_t j = 0; j < pointAttachments.size(); j++) {
-				imageViews.emplace_back(pointAttachments[j][i]);
-			}
-
-			pointSubImageViews.emplace_back(imageViews);
-		}
-
-		for (size_t i = 0; i < spotAttachments[0].size(); i++) {
-			std::vector<VkImageView> imageViews;
-
-			for (size_t j = 0; j < spotAttachments.size(); j++) {
-				imageViews.emplace_back(spotAttachments[j][i]);
-			}
-
-			spotSubImageViews.emplace_back(imageViews);
-		}
-
 		this->finalSubRenderer->recreateResources(finalSubImageViews, width, height);
-		this->pointShadowSubRenderer->recreateResources(pointSubImageViews, width, height);
-		this->spotShadowSubRenderer->recreateResources(spotSubImageViews, width, height);
 
 		std::vector<VkDescriptorImageInfo> deferredAttachmentInfos[4] = {
 			this->forwardSubPartRenderer->getPositionInfoResources(),
@@ -669,10 +575,6 @@ namespace NugieApp {
 			this->spotLightModel->getInfo()
 		};
 
-		std::vector<VkDescriptorImageInfo> deferredRenderTextureInfo[2] {
-			this->pointShadowSubPartRenderer->getDepthInfoResources(),
-			this->spotShadowSubPartRenderer->getDepthInfoResources()
-		};
 
 		std::vector<VkDescriptorImageInfo> deferredObjectTexturesInfos[1];
 		for (auto &&colorTexture : this->colorTextures) {
@@ -682,10 +584,6 @@ namespace NugieApp {
 		std::vector<VkDescriptorBufferInfo> deferredUniformInfo[1] = {
 			this->deferredUniform->getInfo()
 		};
-		
-		this->attachmentDeferredDescSet->overwrite(deferredAttachmentInfos);
-		this->modelDeferredDescSet->overwrite(deferredUniformInfo, deferredModelInfo, 
-			deferredRenderTextureInfo, deferredObjectTexturesInfos);
 
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		this->camera->setAspect(aspectRatio);

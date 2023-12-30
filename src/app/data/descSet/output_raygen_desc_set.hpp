@@ -8,27 +8,26 @@
 #include <memory>
 
 namespace NugieApp {
-	class AttachmentDeferredDescSet {
+	class OutputRayGenDescSet {
 		public:
-			AttachmentDeferredDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool,
-				std::vector<VkDescriptorImageInfo> attachmentsInfo[5], uint32_t imageCount);
-			~AttachmentDeferredDescSet();
+			OutputRayGenDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, 
+				const std::vector<VkDescriptorImageInfo> &outputImageInfo);
+			~OutputRayGenDescSet();
 
-			VkDescriptorSet getDescriptorSets(int imageIndex) const { return this->descriptorSets[imageIndex]; }
+			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
-			void overwrite(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
+			void overwrite(const std::vector<VkDescriptorImageInfo> &outputImageInfo);
 
 		private:
 			NugieVulkan::Device* device;
 			NugieVulkan::DescriptorPool* descriptorPool;
-			uint32_t imageCount;
-			
+
       NugieVulkan::DescriptorSetLayout* descSetLayout;
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(std::vector<VkDescriptorImageInfo> attachmentsInfo[5]);
+			void createDescriptorSet(const std::vector<VkDescriptorImageInfo> &outputImageInfo);
 	};
 	
 }

@@ -25,7 +25,7 @@ namespace NugieVulkan {
       uint32_t getImageCount() const { return static_cast<uint32_t>(this->swapChainImages.size()); }
       uint32_t getWidth() const { return this->swapChainExtent.width; }
       uint32_t getHeight() const { return this->swapChainExtent.height; }
-      std::vector<Image*> getswapChainImages() const { return this->swapChainImages; }
+      std::vector<Image*> getSwapChainImages() const { return this->swapChainImages; }
       float getAspectRatio() const { return static_cast<float>(this->swapChainExtent.width) / static_cast<float>(this->swapChainExtent.height); }
 
       bool compareSwapFormat(const SwapChain* swapChain) {
