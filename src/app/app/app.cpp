@@ -35,18 +35,24 @@ namespace NugieApp {
 	App::~App() {
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->rayGenPassRenderer != nullptr) delete this->rayGenPassRenderer;
+		if (this->finalPassRenderer != nullptr) delete this->finalPassRenderer;
 
 		if (this->forwardSubPartRenderer != nullptr) delete this->forwardSubPartRenderer;
-
+		if (this->finalSubPartRenderer != nullptr) delete this->finalSubPartRenderer;
+		
+		if (this->forwardSubRenderer != nullptr) delete this->forwardSubRenderer;
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
+
 		if (this->renderer != nullptr) delete this->renderer;
 
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
-		if (this->inputRayGenDescSet != nullptr) delete this->inputRayGenDescSet;
-		if (this->outputRayGenDescSet != nullptr) delete this->outputRayGenDescSet;
+		if (this->rayGenDescSet != nullptr) delete this->rayGenDescSet;
+		if (this->finalDescSet != nullptr) delete this->finalDescSet;
 
 		if (this->forwardUniform != nullptr) delete this->forwardUniform;
 		if (this->deferredUniform != nullptr) delete this->deferredUniform;
+
+		if (this->rayTraceImage != nullptr) delete this->rayTraceImage;
 
 		if (this->indexModel != nullptr) delete this->indexModel;
 		if (this->positionModel != nullptr) delete this->positionModel;
@@ -81,10 +87,8 @@ namespace NugieApp {
 			}
 		}
 
-		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
-			auto swapChainImage = this->renderer->getSwapChain()->getSwapChainImages()[imageIndex];
-			swapChainImage->transitionImageLayout(prepareCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
-					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0);
+		for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
+			this->rayTraceImage->prepareBarrier(prepareCommandBuffer, frameIndex);
 		}
 
 		prepareCommandBuffer->endCommand();
@@ -95,30 +99,23 @@ namespace NugieApp {
 		forwardBuffers.emplace_back(this->textCoordModel->getBuffer());
 		forwardBuffers.emplace_back(this->referenceModel->getBuffer());
 
-		std::vector<NugieVulkan::Buffer*> shadowBuffers;
-		shadowBuffers.emplace_back(this->positionModel->getBuffer());
-		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
-
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
-				std::vector<VkDescriptorSet> descriptorSets;
-				descriptorSets.emplace_back(this->outputRayGenDescSet->getDescriptorSets(imageIndex));
-				descriptorSets.emplace_back(this->inputRayGenDescSet->getDescriptorSets(frameIndex));
-
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
-				auto swapChainImage = this->renderer->getSwapChain()->getSwapChainImages()[imageIndex];
 				
-				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
+				this->forwardSubRenderer->beginRenderPass(commandBuffer, frameIndex);
 				this->forwardPassRenderer->render(commandBuffer, this->forwardDescSet->getDescriptorSets(frameIndex), forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
+				this->forwardSubRenderer->endRenderPass(commandBuffer);
+
+				this->rayGenPassRenderer->render(commandBuffer, { this->rayGenDescSet->getDescriptorSets(frameIndex) });
+
+				this->rayTraceImage->readToWriteBarrier(commandBuffer, frameIndex);
+
+				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
+				this->finalPassRenderer->render(commandBuffer, this->finalDescSet->getDescriptorSets(frameIndex));
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
-				swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_GENERAL, 
-					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, VK_ACCESS_SHADER_WRITE_BIT);
-
-				this->rayGenPassRenderer->render(commandBuffer, descriptorSets);
-
-				swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
-					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_SHADER_WRITE_BIT, 0);
+				this->rayTraceImage->writeToReadBarrier(commandBuffer, frameIndex);
 
 				commandBuffer->endCommand();
 			}
@@ -493,13 +490,21 @@ namespace NugieApp {
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
+		this->rayTraceImage = new RayTraceImage(this->device, width, height);
 		this->initCamera(width, height);
 
 		this->forwardSubPartRenderer = new ForwardSubPartRenderer(this->device, width, height);
+		this->finalSubPartRenderer = new FinalSubPartRenderer(this->device, this->renderer->getSwapChain()->getSwapChainImages(), 
+			this->renderer->getSwapChain()->getSwapChainImageFormat(), width, height, imageCount);
 
-		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height)
+		this->forwardSubRenderer = SubRenderer::Builder(this->device, width, height)
 			.addSubPass(this->forwardSubPartRenderer->getAttachments(), this->forwardSubPartRenderer->getAttachmentDescs(),
 				this->forwardSubPartRenderer->getOutputAttachmentRefs(), this->forwardSubPartRenderer->getDepthAttachmentRef())
+			.build();
+
+		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height)
+			.addSubPass(this->finalSubPartRenderer->getAttachments(), this->finalSubPartRenderer->getAttachmentDescs(),
+				this->finalSubPartRenderer->getOutputAttachmentRefs(), this->finalSubPartRenderer->getDepthAttachmentRef())
 			.build();
 
 		VkDescriptorBufferInfo forwardModelInfos[1] = {
@@ -513,10 +518,8 @@ namespace NugieApp {
 			this->forwardSubPartRenderer->getMaterialIndexInfoResources()
 		};
 
-		std::vector<VkDescriptorImageInfo> rayGenOutputInfos;
-		for (uint32_t i = 0; i < imageCount; i++) {
-			rayGenOutputInfos.emplace_back(this->renderer->getSwapChain()->getSwapChainImages()[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
-		}
+		std::vector<VkDescriptorImageInfo> rayGenOutputInfos = this->rayTraceImage->getImagesInfo();
+		std::vector<VkDescriptorImageInfo> finalInfos = this->rayTraceImage->getTexturesInfo();
 		
 		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
 		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
@@ -526,15 +529,12 @@ namespace NugieApp {
 		};
 		
 		this->forwardDescSet = new ForwardDescSet(this->device, this->renderer->getDescriptorPool(), forwardUniformInfo, forwardModelInfos);
-		this->outputRayGenDescSet = new OutputRayGenDescSet(this->device, this->renderer->getDescriptorPool(), rayGenOutputInfos);
-		this->inputRayGenDescSet = new InputRayGenDescSet(this->device, this->renderer->getDescriptorPool(), rayGenInputInfos);
+		this->rayGenDescSet = new RayGenDescSet(this->device, this->renderer->getDescriptorPool(), rayGenOutputInfos, rayGenInputInfos);
+		this->finalDescSet = new FinalDescSet(this->device, this->renderer->getDescriptorPool(), finalInfos);
 
-		std::vector<NugieVulkan::DescriptorSetLayout*> rayGenDescSetLayouts;
-		rayGenDescSetLayouts.emplace_back(this->outputRayGenDescSet->getDescSetLayout());
-		rayGenDescSetLayouts.emplace_back(this->inputRayGenDescSet->getDescSetLayout());
-
-		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
-		this->rayGenPassRenderer = new RayGenPassRenderSystem(this->device, rayGenDescSetLayouts, width, height, 1u);
+		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->forwardDescSet->getDescSetLayout(), this->forwardSubRenderer->getRenderPass());
+		this->rayGenPassRenderer = new RayGenPassRenderSystem(this->device, { this->rayGenDescSet->getDescSetLayout() }, width, height, 1u);
+		this->finalPassRenderer = new FinalPassRenderSystem(this->device, this->finalDescSet->getDescSetLayout(), this->finalSubRenderer->getRenderPass());
 	}
 
 	void App::resize() {
@@ -574,7 +574,6 @@ namespace NugieApp {
 			this->pointLightModel->getInfo(),
 			this->spotLightModel->getInfo()
 		};
-
 
 		std::vector<VkDescriptorImageInfo> deferredObjectTexturesInfos[1];
 		for (auto &&colorTexture : this->colorTextures) {

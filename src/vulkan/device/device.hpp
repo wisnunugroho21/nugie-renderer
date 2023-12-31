@@ -38,7 +38,7 @@ namespace NugieVulkan {
       const bool enableValidationLayers = true;
     #endif
 
-      static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
+      static constexpr int MAX_FRAMES_IN_FLIGHT = 1;
 
       Device(Window* window);
       ~Device();

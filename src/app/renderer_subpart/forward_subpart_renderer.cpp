@@ -117,8 +117,8 @@ namespace NugieApp {
     forwardPositionAttachment.samples = msaaSamples;
     forwardPositionAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     forwardPositionAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    forwardPositionAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardPositionAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    forwardPositionAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardPositionAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     forwardPositionAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -127,8 +127,8 @@ namespace NugieApp {
     forwardNormalAttachment.samples = msaaSamples;
     forwardNormalAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     forwardNormalAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    forwardNormalAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardNormalAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    forwardNormalAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardNormalAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     forwardNormalAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -137,8 +137,8 @@ namespace NugieApp {
     forwardTextCoordAttachment.samples = msaaSamples;
     forwardTextCoordAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     forwardTextCoordAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    forwardTextCoordAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardTextCoordAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    forwardTextCoordAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardTextCoordAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     forwardTextCoordAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -147,8 +147,8 @@ namespace NugieApp {
     forwardMaterialIndexAttachment.samples = msaaSamples;
     forwardMaterialIndexAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     forwardMaterialIndexAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    forwardMaterialIndexAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardMaterialIndexAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    forwardMaterialIndexAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     forwardMaterialIndexAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     forwardMaterialIndexAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -261,25 +261,25 @@ namespace NugieApp {
     for (auto &&forwardPositionImage : this->forwardPositionImages) {
       this->forwardPositionTextures.push_back(new NugieVulkan::Texture(this->device, forwardPositionImage, VK_FILTER_NEAREST, 
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
-        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+        VK_SAMPLER_MIPMAP_MODE_NEAREST));
     }
 
     for (auto &&forwardNormalImage : this->forwardNormalImages) {
       this->forwardNormalTextures.push_back(new NugieVulkan::Texture(this->device, forwardNormalImage, VK_FILTER_NEAREST, 
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
-        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+        VK_SAMPLER_MIPMAP_MODE_NEAREST));
     }
 
     for (auto &&forwardTextCoordImage : this->forwardTextCoordImages) {
       this->forwardTextCoordTextures.push_back(new NugieVulkan::Texture(this->device, forwardTextCoordImage, VK_FILTER_NEAREST, 
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
-        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+        VK_SAMPLER_MIPMAP_MODE_NEAREST));
     }
 
     for (auto &&forwardMaterialIndexImage : this->forwardMaterialIndexImages) {
       this->forwardMaterialIndexTextures.push_back(new NugieVulkan::Texture(this->device, forwardMaterialIndexImage, VK_FILTER_NEAREST, 
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
-        VK_SAMPLER_MIPMAP_MODE_LINEAR));
+        VK_SAMPLER_MIPMAP_MODE_NEAREST));
     }
   }
 

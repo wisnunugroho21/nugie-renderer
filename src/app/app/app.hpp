@@ -13,13 +13,16 @@
 #include "../data/buffer/vertex.hpp"
 #include "../data/buffer/index.hpp"
 #include "../data/descSet/forward_desc_set.hpp"
-#include "../data/descSet/input_raygen_desc_set.hpp"
-#include "../data/descSet/output_raygen_desc_set.hpp"
+#include "../data/descSet/raygen_desc_set.hpp"
+#include "../data/descSet/final_desc_set.hpp"
+#include "../data/image/ray_trace_image.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_subpart/forward_subpart_renderer.hpp"
+#include "../renderer_subpart/final_subpart_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/raygen_pass_render_system.hpp"
+#include "../renderer_system/final_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -61,12 +64,15 @@ namespace NugieApp {
 
 			Renderer* renderer;
 
+			SubRenderer* forwardSubRenderer;
 			SubRenderer* finalSubRenderer;
 
 			ForwardSubPartRenderer* forwardSubPartRenderer;
+			FinalSubPartRenderer* finalSubPartRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
 			RayGenPassRenderSystem* rayGenPassRenderer;
+			FinalPassRenderSystem* finalPassRenderer;
 
 			IndexBufferObject<uint32_t>* indexModel;
 
@@ -83,10 +89,12 @@ namespace NugieApp {
 
 			UniformBufferObject<ForwardUbo>* forwardUniform;
 			UniformBufferObject<DeferredUbo>* deferredUniform;
+
+			RayTraceImage* rayTraceImage;
 			
 			ForwardDescSet* forwardDescSet;
-			InputRayGenDescSet* inputRayGenDescSet;
-			OutputRayGenDescSet* outputRayGenDescSet;
+			RayGenDescSet* rayGenDescSet;
+			FinalDescSet* finalDescSet;
 
 			uint32_t randomSeed = 0u, pointNumLight = 0u, 
 				spotNumLight = 0u, cameraUpdateCount = 0u;

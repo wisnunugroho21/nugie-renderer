@@ -8,11 +8,11 @@
 #include <memory>
 
 namespace NugieApp {
-	class OutputRayGenDescSet {
+	class FinalDescSet {
 		public:
-			OutputRayGenDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, 
+			FinalDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, 
 				const std::vector<VkDescriptorImageInfo> &outputImageInfo);
-			~OutputRayGenDescSet();
+			~FinalDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }

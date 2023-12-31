@@ -11,7 +11,7 @@ namespace NugieApp {
 	template <typename T>
 	class VertexBufferObject {
 		public:
-			VertexBufferObject(NugieVulkan::Device* device);
+			VertexBufferObject(NugieVulkan::Device* device, uint32_t totalSize = 1000000u);
 			~VertexBufferObject();
 
 			VkDescriptorBufferInfo getInfo() const { return this->buffer->descriptorInfo(); }
@@ -27,12 +27,12 @@ namespace NugieApp {
 			NugieVulkan::Buffer* stagingBuffer;
 			NugieVulkan::Buffer* buffer;
 
-			void createBuffers();
+			void createBuffers(uint32_t totalSize);
 	};
 
 	template <typename T>
-	VertexBufferObject<T>::VertexBufferObject(NugieVulkan::Device* device) : device{device} {
-		this->createBuffers();
+	VertexBufferObject<T>::VertexBufferObject(NugieVulkan::Device* device, uint32_t totalSize) : device{device} {
+		this->createBuffers(totalSize);
 	}
 
 	template <typename T>
@@ -42,13 +42,13 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void VertexBufferObject<T>::createBuffers() {
+	void VertexBufferObject<T>::createBuffers(uint32_t totalSize) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
 			instanceSize,
-			1000000,
+			totalSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
 		);
@@ -56,7 +56,7 @@ namespace NugieApp {
 		this->buffer = new NugieVulkan::Buffer(
 			this->device,
 			instanceSize,
-			1000000,
+			totalSize,
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 		);

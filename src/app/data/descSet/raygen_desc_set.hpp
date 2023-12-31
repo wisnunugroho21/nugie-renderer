@@ -8,16 +8,18 @@
 #include <memory>
 
 namespace NugieApp {
-	class InputRayGenDescSet {
+	class RayGenDescSet {
 		public:
-			InputRayGenDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, 
+			RayGenDescSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, 
+				const std::vector<VkDescriptorImageInfo> &outputImageInfo, 
 				std::vector<VkDescriptorImageInfo> inputImageInfo[4]);
-			~InputRayGenDescSet();
+			~RayGenDescSet();
 
 			VkDescriptorSet getDescriptorSets(int frameIndex) const { return this->descriptorSets[frameIndex]; }
 			NugieVulkan::DescriptorSetLayout* getDescSetLayout() const { return this->descSetLayout; }
 
-			void overwrite(std::vector<VkDescriptorImageInfo> inputImageInfo[4]);
+			void overwrite(const std::vector<VkDescriptorImageInfo> &outputImageInfo, 
+				std::vector<VkDescriptorImageInfo> inputImageInfo[4]);
 
 		private:
 			NugieVulkan::Device* device;
@@ -27,7 +29,8 @@ namespace NugieApp {
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout();
-			void createDescriptorSet(std::vector<VkDescriptorImageInfo> inputImageInfo[4]);
+			void createDescriptorSet(const std::vector<VkDescriptorImageInfo> &outputImageInfo, 
+				std::vector<VkDescriptorImageInfo> inputImageInfo[4]);
 	};
 	
 }
