@@ -148,8 +148,6 @@ namespace NugieApp {
 			descriptorWriter = descriptorWriter.clear();
 
 			for (auto &&descriptorBufferInfo : descriptorBufferInfos) {
-				auto x = descriptorBufferInfo.second[i];
-
 				descriptorWriter = descriptorWriter
 					.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
 			}

@@ -48,7 +48,7 @@ namespace NugieVulkan {
     vkDestroyDescriptorPool(this->device->getLogicalDevice(), descriptorPool, nullptr);
   }
   
-  bool DescriptorPool::allocate(VkDescriptorSet *descriptor, VkDescriptorSetLayout descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts) const {
+  bool DescriptorPool::allocate(VkDescriptorSet *descriptor, const VkDescriptorSetLayout &descriptorSetLayout, const std::vector<uint32_t> &variableSetCounts) const {
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = this->descriptorPool;
