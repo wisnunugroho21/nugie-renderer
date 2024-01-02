@@ -19,16 +19,11 @@ layout(set = 1, binding = 1) buffer readonly MaterialModel {
   Material materials[];
 };
 
-layout(set = 1, binding = 2) buffer readonly ShadowTransformationModel {
-	ShadowTransformation shadowTransformations[];
-};
-
-layout(set = 1, binding = 3) buffer readonly SpotLightModel {
+layout(set = 1, binding = 2) buffer readonly SpotLightModel {
   SpotLight spotLights[];
 };
 
-layout(set = 1, binding = 4) uniform sampler2D spotShadowMapTexture[1];
-layout(set = 1, binding = 5) uniform sampler2D colorTexture[1];
+layout(set = 1, binding = 3) uniform sampler2D colorTexture[1];
 
 // ---------------------------------------------------------------------------
 
@@ -92,44 +87,6 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-bool isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
-  shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
-  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
-
-  float dist = texture(spotShadowMapTexture[0], shadowCoord.xy + offset).x;
-
-  return dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
-    && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f;
-}
-
-float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
-  ivec2 texDim = textureSize(spotShadowMapTexture[0], 0).xy;
-
-	vec2 dOffset = 1.0f / vec2(texDim);
-	float shadowFactor = 0.0;
-
-  for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, dOffset * vec2(x, y))
-        ? 0.1f
-        : 1.0f;
-		}
-	}
-  
-	return shadowFactor / 9.0f;
-}
-
-vec4 computeRadianceShadowPCF(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint lightIndex = 0u; lightIndex < ubo.numLights.x; lightIndex++) {
-    vec4 shadowCoord = shadowTransformations[lightIndex].viewProjectionMatrix * surfacePosition;
-    float shadowFactor = computeSpotShadowPCF(lightIndex, shadowCoord);
-    totalRadiance *= shadowFactor;
-  }
-
-  return totalRadiance;
-}
-
 void main() {
   vec4 surfacePosition = subpassLoad(inputPosition, gl_SampleID);
   vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
@@ -166,5 +123,5 @@ void main() {
     }
   }
 
-  outColor = computeRadianceShadowPCF(surfacePosition, totalRadiance);
+  outColor = totalRadiance;
 }

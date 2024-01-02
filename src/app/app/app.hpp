@@ -14,10 +14,6 @@
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
-#include "../renderer_subpart/forward_subpart_renderer.hpp"
-#include "../renderer_subpart/deferred_subpart_renderer.hpp"
-#include "../renderer_subpart/spot_shadow_subpart_renderer.hpp"
-#include "../renderer_system/spot_shadow_pass_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/deferred_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
@@ -63,14 +59,9 @@ namespace NugieApp {
 
 			SubRenderer* finalSubRenderer;
 			SubRenderer* spotShadowSubRenderer;
-
-			ForwardSubPartRenderer* forwardSubPartRenderer;
-			DeferredSubPartRenderer* deferredSubPartRenderer;
-			SpotShadowSubPartRenderer* spotShadowSubPartRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
 			DeferredPassRenderSystem* deferredPasRenderer;
-			SpotShadowPassRenderSystem* spotShadowPassRenderer;
 
 			IndexBufferObject<uint32_t>* indexModel;
 
@@ -81,7 +72,6 @@ namespace NugieApp {
 			
 			ShaderStorageBufferObject<Material>* materialModel;
 			ShaderStorageBufferObject<Transformation>* transformationModel;
-			ShaderStorageBufferObject<ShadowTransformation>* shadowTransformationModel;
 			ShaderStorageBufferObject<SpotLight>* spotLightModel;
 
 			UniformBufferObject<ForwardUbo>* forwardUniform;
@@ -90,7 +80,6 @@ namespace NugieApp {
 			DescriptorSet* forwardDescSet;
 			DescriptorSet* attachmentDeferredDescSet;
 			DescriptorSet* modelDeferredDescSet;
-			DescriptorSet* spotShadowDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 
