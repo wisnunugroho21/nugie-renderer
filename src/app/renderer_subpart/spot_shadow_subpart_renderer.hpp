@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../vulkan/image/image.hpp"
-#include "../../vulkan/texture/texture.hpp"
+#include "../../vulkan/sampler/sampler.hpp"
 #include "../../vulkan/renderpass/renderpass.hpp"
 
 #include <vulkan/vulkan.h>
@@ -27,12 +27,12 @@ namespace NugieApp {
       NugieVulkan::Device* device;
 
       std::vector<NugieVulkan::Image*> shadowDepthImages;
-      std::vector<NugieVulkan::Texture*> shadowDepthTextures;
+      std::vector<NugieVulkan::Sampler*> shadowDepthSamplers;
 
       VkFormat findDepthFormat();
 
       void createImages();
-      void createTextures();
+      void createSamplers();
 
       void deleteImages();
   };

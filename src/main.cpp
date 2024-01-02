@@ -9,7 +9,7 @@ int main(int argc, char const *argv[])
     NugieApp::App app{};
 
     try {
-        app.singleThreadRun();
+        app.run();
     } catch(const std::exception &e) {
         std::cerr << e.what() << "\n";
         return EXIT_FAILURE;

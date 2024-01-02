@@ -14,13 +14,14 @@ namespace NugieVulkan {
   public:
     DescriptorWriter(Device* device, DescriptorSetLayout *setLayout, DescriptorPool *pool);
   
-    DescriptorWriter& writeBuffer(uint32_t binding, VkDescriptorBufferInfo bufferInfo);
+    DescriptorWriter& writeBuffer(uint32_t binding, const VkDescriptorBufferInfo &bufferInfo);
     
-    DescriptorWriter& writeImage(uint32_t binding, VkDescriptorImageInfo imageInfo);
+    DescriptorWriter& writeImage(uint32_t binding, const VkDescriptorImageInfo &imageInfo);
     DescriptorWriter& writeImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos);
 
     DescriptorWriter& setVariableSetCounts(const std::vector<uint32_t> &variableSetCounts);
-  
+
+    DescriptorWriter& clear();
     bool build(VkDescriptorSet *set);
     void overwrite(VkDescriptorSet *set);
   

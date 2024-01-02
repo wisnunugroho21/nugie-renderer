@@ -8,12 +8,12 @@ namespace NugieApp {
     : device{device}, width{width}, height{height}, spotLightNum{spotLightNum}
   {
     this->createImages();
-    this->createTextures();
+    this->createSamplers();
   }
 
   SpotShadowSubPartRenderer::~SpotShadowSubPartRenderer() {
-    for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
-      if (shadowDepthTexture != nullptr) delete shadowDepthTexture;
+    for (auto &&shadowDepthSampler : this->shadowDepthSamplers) {
+      if (shadowDepthSampler != nullptr) delete shadowDepthSampler;
     }
 
     this->deleteImages();
@@ -21,8 +21,8 @@ namespace NugieApp {
 
   std::vector<VkDescriptorImageInfo> SpotShadowSubPartRenderer::getDepthInfoResources() {
     std::vector<VkDescriptorImageInfo> descInfos{};
-    for (auto &&shadowDepthTexture : this->shadowDepthTextures) {
-      descInfos.emplace_back(shadowDepthTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+    for (auto &&shadowDepthSampler : this->shadowDepthSamplers) {
+      descInfos.emplace_back(shadowDepthSampler->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
     }
 
     return descInfos;
@@ -84,10 +84,10 @@ namespace NugieApp {
     }
   }
 
-  void SpotShadowSubPartRenderer::createTextures() {
+  void SpotShadowSubPartRenderer::createSamplers() {
     for (auto &&shadowDepthImage : shadowDepthImages) {
-      this->shadowDepthTextures.push_back(new NugieVulkan::Texture(this->device, shadowDepthImage, VK_FILTER_NEAREST,
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_GREATER, 
+      this->shadowDepthSamplers.push_back(new NugieVulkan::Sampler(this->device, shadowDepthImage, VK_FILTER_NEAREST,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
         VK_SAMPLER_MIPMAP_MODE_LINEAR));
     }
   }
@@ -106,7 +106,7 @@ namespace NugieApp {
     this->createImages();
 
     for (size_t i = 0; i < this->shadowDepthImages.size(); i++) {
-      this->shadowDepthTextures[i]->setImage(this->shadowDepthImages[i]);
+      this->shadowDepthSamplers[i]->setImage(this->shadowDepthImages[i]);
     }
   }
 

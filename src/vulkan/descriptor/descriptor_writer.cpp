@@ -12,8 +12,13 @@ namespace NugieVulkan {
   {
     
   }
+
+  DescriptorWriter& DescriptorWriter::clear() {
+    this->writes.clear();
+    return *this;
+  }
   
-  DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding, VkDescriptorBufferInfo bufferInfo) {
+  DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding, const VkDescriptorBufferInfo &bufferInfo) {
     assert(this->setLayout->getBindings().count(binding) == 1 && "Layout does not contain specified binding");
   
     auto bindingDescription = this->setLayout->getBindings()[binding];
@@ -25,11 +30,11 @@ namespace NugieVulkan {
     write.pBufferInfo = &bufferInfo;
     write.descriptorCount = 1u;
   
-    this->writes.push_back(write);
+    this->writes.emplace_back(write);
     return *this;
   }
   
-  DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding, VkDescriptorImageInfo imageInfo) {
+  DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding, const VkDescriptorImageInfo &imageInfo) {
     assert(this->setLayout->getBindings().count(binding) == 1 && "Layout does not contain specified binding");
   
     auto bindingDescription = this->setLayout->getBindings()[binding];
@@ -41,7 +46,7 @@ namespace NugieVulkan {
     write.pImageInfo = &imageInfo;
     write.descriptorCount = 1u;
   
-    this->writes.push_back(write);
+    this->writes.emplace_back(write);
     return *this;
   }
 
@@ -57,7 +62,7 @@ namespace NugieVulkan {
     write.pImageInfo = imageInfos.data();
     write.descriptorCount = static_cast<uint32_t>(imageInfos.size());
   
-    this->writes.push_back(write);
+    this->writes.emplace_back(write);
     return *this;
   }
   

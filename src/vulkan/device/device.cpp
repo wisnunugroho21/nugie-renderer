@@ -223,8 +223,6 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
-    deviceFeatures.depthBiasClamp = VK_TRUE;
-    deviceFeatures.geometryShader = VK_TRUE;
 
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.pNext = &descriptorIndexingFeatures;
@@ -279,8 +277,7 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.geometryShader 
-      ||  !supportedFeatures.sampleRateShading || !supportedFeatures.depthBiasClamp) 
+    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.sampleRateShading) 
     {
       return score;
     }
