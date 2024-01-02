@@ -44,8 +44,8 @@ namespace NugieApp {
       this->outputAttachmentRefs.resize(subpassIndex + 1);
     }
 
-    if (this->inputAttachmentRefs.size() < subpassIndex + 2) {
-      this->inputAttachmentRefs.resize(subpassIndex + 2);
+    if (this->inputAttachmentRefs.size() < subpassIndex + 1) {
+      this->inputAttachmentRefs.resize(subpassIndex + 1);
     }
 
     VkAttachmentReference attachmentRef{};
@@ -59,7 +59,7 @@ namespace NugieApp {
       attachmentRef.attachment = static_cast<uint32_t>(this->attachments.size() - 1);
       attachmentRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-      this->inputAttachmentRefs[subpassIndex + 1].emplace_back(attachmentRef);
+      this->inputAttachmentRefs[subpassIndex].emplace_back(attachmentRef);
 
       if (this->attachmentInfos.size() < subpassIndex + 1) {
         this->attachmentInfos.resize(subpassIndex + 1);
@@ -183,11 +183,15 @@ namespace NugieApp {
       VkSubpassDescription subpass{};
 
       subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-      subpass.inputAttachmentCount = static_cast<uint32_t>(inputAttachmentRefs[i].size());
-      subpass.pInputAttachments = inputAttachmentRefs[i].size() > 0 ? inputAttachmentRefs[i].data() : nullptr;
+      
       subpass.colorAttachmentCount = static_cast<uint32_t>(outputAttachmentRefs[i].size());
       subpass.pColorAttachments = outputAttachmentRefs[i].size() > 0 ? outputAttachmentRefs[i].data() : nullptr;
       subpass.pDepthStencilAttachment = &depthAttachmentRefs[i];
+
+      if (i > 0) {
+        subpass.inputAttachmentCount = static_cast<uint32_t>(inputAttachmentRefs[i - 1].size());
+        subpass.pInputAttachments = inputAttachmentRefs[i - 1].size() > 0 ? inputAttachmentRefs[i - 1].data() : nullptr;
+      }
 
       subpasses.emplace_back(subpass);
 
