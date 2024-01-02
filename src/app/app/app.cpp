@@ -420,7 +420,7 @@ namespace NugieApp {
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
 			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM, 
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32_UINT, 
+			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R8_UINT,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
 			.setDepthAttachment(0, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
