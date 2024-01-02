@@ -10,8 +10,8 @@ namespace NugieApp {
 
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
-    VkSampleCountFlagBits sample, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp) 
+  SubRenderer::Builder& SubRenderer::Builder::addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, 
+    VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
   {
     VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
     if (attachmentType == AttachmentType::INPUT_OUTPUT) {
@@ -28,10 +28,107 @@ namespace NugieApp {
     this->attachments.emplace_back(frameImages);
     this->createdAttachments.emplace_back(frameImages);
 
+    VkAttachmentStoreOp storeOp = attachmentType == AttachmentType::OUTPUT_IMAGE || attachmentType == AttachmentType::OUTPUT_TEXTURE 
+      ? VK_ATTACHMENT_STORE_OP_STORE 
+      : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
     attachmentDesc.samples = sample;
-    attachmentDesc.loadOp = loadOp;
+    attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDesc.storeOp = storeOp;
+    attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDesc.finalLayout = layout;
+
+    this->attachmentDescs.emplace_back(attachmentDesc);
+
+    if (this->outputAttachmentRefs.size() < subpassIndex + 1) {
+      this->outputAttachmentRefs.resize(subpassIndex + 1);
+    }
+
+    VkAttachmentReference attachmentRef{};
+    attachmentRef.attachment = static_cast<uint32_t>(this->attachments.size() - 1);
+    attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    this->outputAttachmentRefs[subpassIndex].emplace_back(attachmentRef);
+
+    if (attachmentType == AttachmentType::INPUT_OUTPUT) {
+      if (this->inputAttachmentRefs.size() < subpassIndex + 1) {
+        this->inputAttachmentRefs.resize(subpassIndex + 1);
+      }
+
+      VkAttachmentReference attachmentRef{};
+      attachmentRef.attachment = static_cast<uint32_t>(this->attachments.size() - 1);
+      attachmentRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+      this->inputAttachmentRefs[subpassIndex].emplace_back(attachmentRef);
+
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&frameImage : frameImages) {
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
+    else if (attachmentType == AttachmentType::OUTPUT_IMAGE) {
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&frameImage : frameImages) {
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
+    else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<NugieVulkan::Sampler*> samplers{};
+      for (auto &&frameImage : frameImages) {
+        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+          VK_SAMPLER_MIPMAP_MODE_NEAREST));
+      }
+
+      this->attachmentSamplers.emplace_back(samplers);
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&sampler : samplers) {
+        imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
+    return *this;
+  }
+
+  SubRenderer::Builder& SubRenderer::Builder::addAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
+    uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
+    VkSampleCountFlagBits sample) 
+  {
+    this->attachments.emplace_back(frameImages);
+
+    VkAttachmentStoreOp storeOp = attachmentType == AttachmentType::OUTPUT_IMAGE || attachmentType == AttachmentType::OUTPUT_TEXTURE 
+      ? VK_ATTACHMENT_STORE_OP_STORE 
+      : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    VkAttachmentDescription attachmentDesc{};
+    attachmentDesc.format = format;
+    attachmentDesc.samples = sample;
+    attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDesc.storeOp = storeOp;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -73,11 +170,46 @@ namespace NugieApp {
       this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
     }
 
+    else if (attachmentType == AttachmentType::OUTPUT_IMAGE) {
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&frameImage : frameImages) {
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
+    else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<NugieVulkan::Sampler*> samplers{};
+      for (auto &&frameImage : frameImages) {
+        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+          VK_SAMPLER_MIPMAP_MODE_NEAREST));
+      }
+
+      this->attachmentSamplers.emplace_back(samplers);
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&sampler : samplers) {
+        imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(uint32_t subpassIndex, VkFormat format, VkImageLayout layout, 
-    VkSampleCountFlagBits sample, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp) 
+  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, 
+    VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
   {
     std::vector<NugieVulkan::Image*> frameImages{};
     for (size_t i = 0; i < this->imageCount; i++) {
@@ -90,10 +222,14 @@ namespace NugieApp {
     this->attachments.emplace_back(frameImages);
     this->createdAttachments.emplace_back(frameImages);
 
+    VkAttachmentStoreOp storeOp = attachmentType == AttachmentType::OUTPUT_IMAGE || attachmentType == AttachmentType::OUTPUT_TEXTURE 
+      ? VK_ATTACHMENT_STORE_OP_STORE 
+      : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
     attachmentDesc.samples = sample;
-    attachmentDesc.loadOp = loadOp;
+    attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDesc.storeOp = storeOp;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -112,19 +248,73 @@ namespace NugieApp {
 
     this->depthAttachmentRefs[subpassIndex] = attachmentRef;
 
+    if (attachmentType == AttachmentType::INPUT_OUTPUT) {
+      VkAttachmentReference attachmentRef{};
+      attachmentRef.attachment = static_cast<uint32_t>(this->attachments.size() - 1);
+      attachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL;
+
+      this->inputAttachmentRefs[subpassIndex].emplace_back(attachmentRef);
+
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&frameImage : frameImages) {
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
+    else if (attachmentType == AttachmentType::OUTPUT_IMAGE) {
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&frameImage : frameImages) {
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
+    else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
+      if (this->attachmentInfos.size() < subpassIndex + 1) {
+        this->attachmentInfos.resize(subpassIndex + 1);
+      }
+
+      std::vector<NugieVulkan::Sampler*> samplers{};
+      for (auto &&frameImage : frameImages) {
+        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+          VK_SAMPLER_MIPMAP_MODE_NEAREST));
+      }
+
+      this->attachmentSamplers.emplace_back(samplers);
+
+      std::vector<VkDescriptorImageInfo> imageInfos{};
+      for (auto &&sampler : samplers) {
+        imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+      }
+
+      this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
+    }
+
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(std::vector<NugieVulkan::Image*> resolvedImages, VkFormat format, 
-    VkImageLayout layout, VkSampleCountFlagBits sample, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp) 
+  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(const std::vector<NugieVulkan::Image*> &resolvedImages, 
+    VkFormat format, VkImageLayout layout) 
   {
     this->attachments.emplace_back(resolvedImages);
 
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
-    attachmentDesc.samples = sample;
-    attachmentDesc.loadOp = loadOp;
-    attachmentDesc.storeOp = storeOp;
+    attachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

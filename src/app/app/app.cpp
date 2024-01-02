@@ -414,22 +414,22 @@ namespace NugieApp {
 		this->initCamera(width, height);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32_UINT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.setDepthAttachment(0, VK_FORMAT_D16_UNORM, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.addAttachment(1, AttachmentType::OUTPUT, this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.setDepthAttachment(1, VK_FORMAT_D16_UNORM, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
-				msaaSample, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE)
-			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-				VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE)
+			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
+			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
+			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
+			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32_UINT, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
+			.setDepthAttachment(0, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
+			.addAttachment(1, AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
+			.setDepthAttachment(1, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
+			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), 
+				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 		
 		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);

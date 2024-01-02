@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../vulkan/image/image.hpp"
+#include "../../vulkan/sampler/sampler.hpp"
 #include "../../vulkan/renderpass/renderpass.hpp"
 
 #include <vulkan/vulkan.h>
@@ -8,21 +9,24 @@
 #include <memory>
 
 namespace NugieApp {
-  enum AttachmentType { OUTPUT = 0, INPUT_OUTPUT = 1 };
+  enum AttachmentType { KEEPED = 0, INPUT_OUTPUT = 1, OUTPUT_IMAGE = 2, OUTPUT_TEXTURE = 3 };
   class SubRenderer {
     public:
       class Builder {
         public:
           Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum = 1u);
 
-          Builder& addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
-            VkSampleCountFlagBits sample, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp);
+          Builder& addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
+            VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& setDepthAttachment(uint32_t subpassIndex, VkFormat format, VkImageLayout layout, 
-            VkSampleCountFlagBits sample, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp);
+          Builder& addAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex, 
+            AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& setResolvedAttachment(std::vector<NugieVulkan::Image*> resolvedImages, VkFormat format, VkImageLayout layout, 
-            VkSampleCountFlagBits sample, VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp);
+          Builder& setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
+            VkImageLayout layout, VkSampleCountFlagBits sample);
+
+          Builder& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments, VkFormat format, 
+            VkImageLayout layout);
 
           SubRenderer* build();
 
@@ -33,6 +37,7 @@ namespace NugieApp {
           std::vector<std::vector<NugieVulkan::Image*>> attachments;
           std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
 
+          std::vector<std::vector<NugieVulkan::Sampler*>> attachmentSamplers;
           std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
 
           std::vector<VkAttachmentDescription> attachmentDescs;
