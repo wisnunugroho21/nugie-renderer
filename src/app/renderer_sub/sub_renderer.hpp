@@ -31,6 +31,8 @@ namespace NugieApp {
           uint32_t width, height, imageCount, layerNum;
 
           std::vector<std::vector<NugieVulkan::Image*>> attachments;
+          std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
+
           std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
 
           std::vector<VkAttachmentDescription> attachmentDescs;
@@ -40,9 +42,11 @@ namespace NugieApp {
           VkAttachmentReference* resolveAttachmentRef;
       };
 
-      SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
-        const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, 
-        VkAttachmentReference* resolveAttachmentRef, std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos);
+      SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
+        const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+        const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
+        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, VkAttachmentReference* resolveAttachmentRef, 
+        const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos);
       ~SubRenderer();
       
       NugieVulkan::RenderPass* getRenderPass() const { return this->renderPass; }
@@ -56,8 +60,9 @@ namespace NugieApp {
       
     private:
       uint32_t width, height, layerNum;
-
       std::vector<VkClearValue> clearValues;
+
+      std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
       std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
 
       NugieVulkan::Device* device;

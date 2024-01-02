@@ -26,6 +26,7 @@ namespace NugieApp {
     }
 
     this->attachments.emplace_back(frameImages);
+    this->createdAttachments.emplace_back(frameImages);
 
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
@@ -87,6 +88,7 @@ namespace NugieApp {
     }
 
     this->attachments.emplace_back(frameImages);
+    this->createdAttachments.emplace_back(frameImages);
 
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
@@ -143,24 +145,30 @@ namespace NugieApp {
     std::vector<std::vector<NugieVulkan::Image*>> attachments = this->attachments;
     
 
-    return new SubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments, this->attachmentDescs, 
-      this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, this->resolveAttachmentRef,
-      this->attachmentInfos);
+    return new SubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments, this->createdAttachments, 
+      this->attachmentDescs, this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, 
+      this->resolveAttachmentRef, this->attachmentInfos);
   }
 
   SubRenderer::SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
-    const std::vector<VkAttachmentDescription> &attachmentDescs, const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, 
-    const std::vector<VkAttachmentReference> &depthAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, 
-    VkAttachmentReference* resolveAttachmentRef, std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos)
-    : device{device}, width{width}, height{height}, layerNum{layerNum}, attachmentInfos{attachmentInfos}
-  {
+    const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+    const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
+    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, VkAttachmentReference* resolveAttachmentRef, 
+    const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos)
+    : device{device}, width{width}, height{height}, layerNum{layerNum}, createdAttachments{createdAttachments}, 
+      attachmentInfos{attachmentInfos}
+  { 
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRef);
   }
 
   SubRenderer::~SubRenderer() {
     if (this->renderPass != nullptr) delete this->renderPass;
 
-    
+    for (auto &&createdAttachment : this->createdAttachments) {
+      for (auto &&attachment : createdAttachment) {
+        if (attachment != nullptr) delete attachment;
+      }
+    }
   }
 
   void SubRenderer::createRenderPass(const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
