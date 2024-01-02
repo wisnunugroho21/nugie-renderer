@@ -338,8 +338,8 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
 		spotLights.resize(1);
-		spotLights[0].position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
-		spotLights[0].color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+		spotLights[0].position = glm::vec4{ 0.0f, 50.0f, 0.0f, 1.0f };
+		spotLights[0].color = glm::vec4{ 10000.0f, 10000.0f, 10000.0f, 1.0f };
 		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) - spotLights[0].position;
 		spotLights[0].angle = 60;
 

@@ -60,8 +60,8 @@ namespace NugieApp {
 
   void Texture::createSampler() 
   {
-    this->sampler = new NugieVulkan::Sampler(this->device, this->image, VK_FILTER_LINEAR, 
-			VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
+    this->sampler = new NugieVulkan::Sampler(this->device, this->image, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, 
+      VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
   }
 
   VkDescriptorImageInfo Texture::getDescriptorInfo(VkImageLayout desiredImageLayout) const {

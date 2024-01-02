@@ -22,7 +22,9 @@ namespace NugieApp {
 		return *this;
 	}
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addBuffer(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, const std::vector<VkDescriptorBufferInfo> &bufferInfos) {
+	DescriptorSet::Builder& DescriptorSet::Builder::addBuffer(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
+		const std::vector<VkDescriptorBufferInfo> &bufferInfos) 
+	{
 		for (uint32_t i = 0; i < this->descSetCount; i++) {
 			this->descriptorBufferInfos[binding].emplace_back(bufferInfos[i]);
 		}
@@ -38,19 +40,56 @@ namespace NugieApp {
 
 	DescriptorSet::Builder& DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, VkDescriptorImageInfo imageInfo) {
 		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(imageInfo);
+			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfo });
 		}
 
 		DescriptorSetBinding bind{};
 		bind.descSetType = descriptorType;
 		bind.shaderStage = shaderStage;
+		bind.descCount = 1u;
 
 		this->descriptorSetBindings[binding] = bind;
 
 		return *this;
 	}
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, const std::vector<VkDescriptorImageInfo> &imageInfos) {
+	DescriptorSet::Builder& DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
+		const std::vector<VkDescriptorImageInfo> &imageInfos) 
+	{
+		for (uint32_t i = 0; i < this->descSetCount; i++) {
+			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfos[i] });
+		}
+
+		DescriptorSetBinding bind{};
+		bind.descSetType = descriptorType;
+		bind.shaderStage = shaderStage;
+		bind.descCount = 1u;
+
+		this->descriptorSetBindings[binding] = bind;
+
+		return *this;
+	}
+
+	DescriptorSet::Builder& DescriptorSet::Builder::addManyImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
+		const std::vector<VkDescriptorImageInfo> &imageInfos) 
+	{
+		for (uint32_t i = 0; i < this->descSetCount; i++) {
+			this->descriptorImageInfos[binding].emplace_back(imageInfos);
+		}
+
+		DescriptorSetBinding bind{};
+		bind.descSetType = descriptorType;
+		bind.shaderStage = shaderStage;
+		bind.descCount = static_cast<uint32_t>(imageInfos.size());
+
+		this->descriptorSetBindings[binding] = bind;
+
+		return *this;
+	}
+
+	DescriptorSet::Builder& DescriptorSet::Builder::addManyImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
+		const std::vector<std::vector<VkDescriptorImageInfo>> &imageInfos) 
+	{
 		for (uint32_t i = 0; i < this->descSetCount; i++) {
 			this->descriptorImageInfos[binding].emplace_back(imageInfos[i]);
 		}
@@ -58,6 +97,7 @@ namespace NugieApp {
 		DescriptorSetBinding bind{};
 		bind.descSetType = descriptorType;
 		bind.shaderStage = shaderStage;
+		bind.descCount = static_cast<uint32_t>(imageInfos.size());
 
 		this->descriptorSetBindings[binding] = bind;
 
@@ -93,13 +133,31 @@ namespace NugieApp {
 
 	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addImage(uint32_t binding, VkDescriptorImageInfo imageInfo) {
 		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(imageInfo);
+			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfo });
 		}
 
 		return *this;
 	}
 
 	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos) {
+		for (uint32_t i = 0; i < this->descSetCount; i++) {
+			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfos[i] });
+		}
+
+		return *this;
+	}
+
+	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addManyImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos) 
+	{
+		for (uint32_t i = 0; i < this->descSetCount; i++) {
+			this->descriptorImageInfos[binding].emplace_back(imageInfos);
+		}
+
+		return *this;
+	}
+
+	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addManyImage(uint32_t binding, const std::vector<std::vector<VkDescriptorImageInfo>> &imageInfos) 
+	{
 		for (uint32_t i = 0; i < this->descSetCount; i++) {
 			this->descriptorImageInfos[binding].emplace_back(imageInfos[i]);
 		}
@@ -112,7 +170,7 @@ namespace NugieApp {
 	}
 
 	DescriptorSet::DescriptorSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, uint32_t descSetCount, std::unordered_map<uint32_t, DescriptorSetBinding> descriptorSetBindings, 
-		std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, std::unordered_map<uint32_t, std::vector<VkDescriptorImageInfo>> descriptorImageInfos)
+		std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
 		: device{device}, descriptorPool{descriptorPool}, descSetCount{descSetCount}
 	{
 		this->createDescriptorLayout(descriptorSetBindings);
@@ -132,14 +190,15 @@ namespace NugieApp {
 		auto descSetLayoutBuilder = NugieVulkan::DescriptorSetLayout::Builder(this->device);
 
 		for (auto &&descriptorSetBinding : descriptorSetBindings) {
-			descSetLayoutBuilder.addBinding(descriptorSetBinding.first, descriptorSetBinding.second.descSetType, descriptorSetBinding.second.shaderStage);
+			descSetLayoutBuilder.addBinding(descriptorSetBinding.first, descriptorSetBinding.second.descSetType, 
+				descriptorSetBinding.second.shaderStage, descriptorSetBinding.second.descCount);
 		}
 
 		this->descSetLayout = descSetLayoutBuilder.build();
 	}
 
   void DescriptorSet::createDescriptorSet(std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, 
-		std::unordered_map<uint32_t, std::vector<VkDescriptorImageInfo>> descriptorImageInfos)
+		std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
 	{
 		auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
 
@@ -159,7 +218,7 @@ namespace NugieApp {
   }
 
 	void DescriptorSet::overwrite(std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, 
-		std::unordered_map<uint32_t, std::vector<VkDescriptorImageInfo>> descriptorImageInfos)
+		std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
 	{
 		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
 			auto descriptorWriter = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool);
