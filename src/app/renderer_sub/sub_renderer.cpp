@@ -210,13 +210,11 @@ namespace NugieApp {
 
     auto renderPassBuilder = NugieVulkan::RenderPass::Builder(this->device, this->width, this->height, this->layerNum);
     for (size_t i = 0; i < subpasses.size(); i++) {
-      renderPassBuilder = renderPassBuilder
-        .addSubpass(subpasses[i]);
+      renderPassBuilder.addSubpass(subpasses[i]);
     }
 
     for (size_t i = 0; i < attachmentDescs.size(); i++) {
-      renderPassBuilder = renderPassBuilder
-        .addAttachment(attachmentDescs[i]);
+      renderPassBuilder.addAttachment(attachmentDescs[i]);
     }
 
     for (size_t i = 0; i < attachments[0].size(); i++) {
@@ -225,7 +223,7 @@ namespace NugieApp {
         imageViews.emplace_back(attachments[j][i]->getImageView());
       }
 
-      renderPassBuilder = renderPassBuilder.addViewImages(imageViews);
+      renderPassBuilder.addViewImages(imageViews);
     }
 
     for (uint32_t i = 0; i < static_cast<uint32_t>(subpasses.size() - 1); i++) {
@@ -238,7 +236,7 @@ namespace NugieApp {
       dependency.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
       dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-      renderPassBuilder = renderPassBuilder.addDependency(dependency);
+      renderPassBuilder.addDependency(dependency);
     }
 
     if (outputAttachmentRefs.size() > 0 && resolveAttachmentRef != nullptr) {
@@ -251,7 +249,7 @@ namespace NugieApp {
       postColorDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
       postColorDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-      renderPassBuilder = renderPassBuilder.addDependency(postColorDependency);
+      renderPassBuilder.addDependency(postColorDependency);
     } 
     
     else if (depthAttachmentRefs.size() > 0) {
@@ -264,7 +262,7 @@ namespace NugieApp {
       postDepthDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
       postDepthDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-      renderPassBuilder = renderPassBuilder.addDependency(postDepthDependency);
+      renderPassBuilder.addDependency(postDepthDependency);
     }
 
     this->renderPass = renderPassBuilder.build();

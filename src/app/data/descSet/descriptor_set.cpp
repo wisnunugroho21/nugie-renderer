@@ -132,8 +132,7 @@ namespace NugieApp {
 		auto descSetLayoutBuilder = NugieVulkan::DescriptorSetLayout::Builder(this->device);
 
 		for (auto &&descriptorSetBinding : descriptorSetBindings) {
-			descSetLayoutBuilder = descSetLayoutBuilder
-				.addBinding(descriptorSetBinding.first, descriptorSetBinding.second.descSetType, descriptorSetBinding.second.shaderStage);
+			descSetLayoutBuilder.addBinding(descriptorSetBinding.first, descriptorSetBinding.second.descSetType, descriptorSetBinding.second.shaderStage);
 		}
 
 		this->descSetLayout = descSetLayoutBuilder.build();
@@ -145,19 +144,17 @@ namespace NugieApp {
 		auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
 
 		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
-			descriptorWriter = descriptorWriter.clear();
+			descriptorWriter.clear();
 
 			for (auto &&descriptorBufferInfo : descriptorBufferInfos) {
-				descriptorWriter = descriptorWriter
-					.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
+				descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
 			}
 
 			for (auto &&descriptorImageInfo : descriptorImageInfos) {
-				descriptorWriter = descriptorWriter
-					.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
+				descriptorWriter.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
 			}
 
-			auto y = descriptorWriter.build(&this->descriptorSets[i]);
+			descriptorWriter.build(&this->descriptorSets[i]);
 		}
   }
 
@@ -168,13 +165,11 @@ namespace NugieApp {
 			auto descriptorWriter = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool);
 
 			for (auto &&descriptorBufferInfo : descriptorBufferInfos) {
-				descriptorWriter = descriptorWriter
-					.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
+				descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
 			}
 
 			for (auto &&descriptorImageInfo : descriptorImageInfos) {
-				descriptorWriter = descriptorWriter
-					.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
+				descriptorWriter.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
 			}
 
 			descriptorWriter.overwrite(&this->descriptorSets[i]);
