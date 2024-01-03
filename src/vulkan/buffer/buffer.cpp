@@ -33,27 +33,8 @@ namespace NugieVulkan {
     VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkBufferUsageFlags usageFlags,
-    VkMemoryPropertyFlags memoryPropertyFlag,
-    VkDeviceSize minOffsetAlignment
-  )
-    : device{device},
-      instanceSize{instanceSize},
-      instanceCount{instanceCount},
-      usageFlags{usageFlags},
-      memoryPropertyFlag{memoryPropertyFlag} 
-  {
-    this->alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
-    this->bufferSize = alignmentSize * instanceCount;
-
-    this->createBuffer(bufferSize, usageFlags, memoryPropertyFlag);
-  }
-
-  Buffer::Buffer(
-    Device* device,
-    VkDeviceSize instanceSize,
-    uint32_t instanceCount,
-    VkBufferUsageFlags usageFlags,
-    const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlags,
+    VmaMemoryUsage memoryUsage, 
+    VmaAllocationCreateFlags memoryAllocFlag,
     VkDeviceSize minOffsetAlignment
   )
     : device{device},
@@ -64,13 +45,13 @@ namespace NugieVulkan {
     this->alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
     this->bufferSize = alignmentSize * instanceCount;
 
-    this->createBuffer(bufferSize, usageFlags, memoryPropertyFlags);
+    this->createBuffer(bufferSize, usageFlags, memoryUsage, memoryAllocFlag);
   }
   
   Buffer::~Buffer() {
     this->unmap();
-    vkDestroyBuffer(this->device->getLogicalDevice(), this->buffer, nullptr);
-    vkFreeMemory(this->device->getLogicalDevice(), this->memory, nullptr);
+    vmaDestroyBuffer(this->device->getMemoryAllocator(), this->buffer, this->memoryAllocation);
+    vmaFreeMemory(this->device->getMemoryAllocator(), this->memoryAllocation);
   }
   
   /**
@@ -83,8 +64,8 @@ namespace NugieVulkan {
    * @return VkResult of the buffer mapping call
    */
   VkResult Buffer::map(VkDeviceSize size, VkDeviceSize offset) {
-    assert(this->buffer && this->memory && "Called map on buffer before create");
-    return vkMapMemory(this->device->getLogicalDevice(), this->memory, offset, size, 0, &this->mapped);
+    assert(this->buffer && this->memoryAllocation && "Called map on buffer before create");
+    return vmaMapMemory(this->device->getMemoryAllocator(), this->memoryAllocation, &this->mapped);
   }
   
   /**
@@ -94,7 +75,7 @@ namespace NugieVulkan {
    */
   void Buffer::unmap() {
     if (this->mapped) {
-      vkUnmapMemory(this->device->getLogicalDevice(), this->memory);
+      vmaUnmapMemory(this->device->getMemoryAllocator(), this->memoryAllocation);
       this->mapped = nullptr;
     }
   }
@@ -153,12 +134,7 @@ namespace NugieVulkan {
    * @return VkResult of the flush call
    */
   VkResult Buffer::flush(VkDeviceSize size, VkDeviceSize offset) {
-    VkMappedMemoryRange mappedRange = {};
-    mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    mappedRange.memory = this->memory;
-    mappedRange.offset = offset;
-    mappedRange.size = size;
-    return vkFlushMappedMemoryRanges(this->device->getLogicalDevice(), 1, &mappedRange);
+    return vmaFlushAllocation(this->device->getMemoryAllocator(), this->memoryAllocation, offset, size);
   }
   
   /**
@@ -173,12 +149,7 @@ namespace NugieVulkan {
    * @return VkResult of the invalidate call
    */
   VkResult Buffer::invalidate(VkDeviceSize size, VkDeviceSize offset) {
-    VkMappedMemoryRange mappedRange = {};
-    mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    mappedRange.memory = this->memory;
-    mappedRange.offset = offset;
-    mappedRange.size = size;
-    return vkInvalidateMappedMemoryRanges(this->device->getLogicalDevice(), 1, &mappedRange);
+    return vmaInvalidateAllocation(this->device->getMemoryAllocator(), this->memoryAllocation, offset, size);
   }
   
   /**
@@ -319,56 +290,20 @@ namespace NugieVulkan {
     );
   }
 
-  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlag) {
+  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags memoryAllocFlag) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(this->device->getLogicalDevice(), &bufferInfo, nullptr, &this->buffer) != VK_SUCCESS) {
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = memoryUsage;
+    allocInfo.flags = memoryAllocFlag;
+
+    if (vmaCreateBuffer(this->device->getMemoryAllocator(), &bufferInfo, &allocInfo, &this->buffer, &this->memoryAllocation, nullptr) != VK_SUCCESS) {
       throw std::runtime_error("failed to create buffer!");
     }
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(this->device->getLogicalDevice(), this->buffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, memoryPropertyFlag);
-
-    if (vkAllocateMemory(this->device->getLogicalDevice(), &allocInfo, nullptr, &this->memory) != VK_SUCCESS) {
-      throw std::runtime_error("failed to allocate buffer memory!");
-    }
-
-    vkBindBufferMemory(this->device->getLogicalDevice(), this->buffer, this->memory, 0);
-  }
-
-  void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlags) {
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (vkCreateBuffer(this->device->getLogicalDevice(), &bufferInfo, nullptr, &this->buffer) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create buffer!");
-    }
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(this->device->getLogicalDevice(), this->buffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, memoryPropertyFlags, &this->memoryPropertyFlag);
-
-    if (vkAllocateMemory(this->device->getLogicalDevice(), &allocInfo, nullptr, &this->memory) != VK_SUCCESS) {
-      throw std::runtime_error("failed to allocate buffer memory!");
-    }
-
-    vkBindBufferMemory(this->device->getLogicalDevice(), this->buffer, this->memory, 0);
   }
 
   void Buffer::copyFromAnotherBuffer(CommandBuffer* commandBuffer, Buffer* srcBuffer, VkDeviceSize size, VkDeviceSize srcOffset, VkDeviceSize dstOffset) {

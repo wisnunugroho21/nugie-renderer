@@ -1,5 +1,8 @@
 #include "device.hpp"
 
+#define VMA_IMPLEMENTATION
+#include "../../../libraries/vma/vk_mem_alloc.h"
+
 // std headers
 #include <cstring>
 #include <iostream>
@@ -61,6 +64,7 @@ namespace NugieVulkan {
     this->pickPhysicalDevice();
     this->msaaSamples = this->getMaxSampleNumber();
     this->createLogicalDevice();
+    this->createMemoryAllocator();
   }
 
   Device::~Device() {
@@ -254,6 +258,16 @@ namespace NugieVulkan {
 
   void Device::createSurface() { 
     this->window->createWindowSurface(this->instance, &this->surface); 
+  }
+
+  void Device::createMemoryAllocator() {
+    VmaAllocatorCreateInfo allocatorCreateInfo = {};
+    allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+    allocatorCreateInfo.physicalDevice = this->physicalDevice;
+    allocatorCreateInfo.device = this->device;
+    allocatorCreateInfo.instance = this->instance;
+
+    vmaCreateAllocator(&allocatorCreateInfo, &this->memoryAllocator);
   }
 
   uint32_t Device::rateDeviceSuitability(VkPhysicalDevice device) {

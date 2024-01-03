@@ -50,7 +50,8 @@ namespace NugieApp {
 			instanceSize,
 			1000000,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+			VMA_MEMORY_USAGE_AUTO,
+			VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
 		);
 
 		this->buffer = new NugieVulkan::Buffer(
@@ -58,18 +59,19 @@ namespace NugieApp {
 			instanceSize,
 			1000000,
 			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+			VMA_MEMORY_USAGE_AUTO,
+			VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
 		);
+
+		this->stagingBuffer->map();
 	}
 
 	template <typename T>
 	void IndexBufferObject<T>::replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects) {
 		this->count = static_cast<uint32_t>(objects.size());
 		auto bufferSize = static_cast<VkDeviceSize>(sizeof(T)) * static_cast<VkDeviceSize>(this->count);
-
-		this->stagingBuffer->map();
-		this->stagingBuffer->writeToBuffer((void *) objects.data(), bufferSize);
 		
+		this->stagingBuffer->writeToBuffer((void *) objects.data(), bufferSize);
 		this->buffer->copyFromAnotherBuffer(commandBuffer, this->stagingBuffer, bufferSize);
 	}
 } // namespace NugieApp

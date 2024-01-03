@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../libraries/vma/vk_mem_alloc.h"
 
 namespace NugieVulkan {
   struct SwapChainSupportDetails {
@@ -47,6 +48,7 @@ namespace NugieVulkan {
       VkPhysicalDevice getPhysicalDevice() const { return this->physicalDevice; }
       VkSurfaceKHR getSurface() const { return this->surface; }
       VkInstance getInstance() const { return this->instance; }
+      VmaAllocator getMemoryAllocator() const { return this->memoryAllocator; }
 
       VkQueue getGraphicsQueue() const { return this->graphicsQueue; }
       VkQueue getPresentQueue() const { return this->presentQueue; }
@@ -72,6 +74,7 @@ namespace NugieVulkan {
       void createSurface();
       void pickPhysicalDevice();
       void createLogicalDevice();
+      void createMemoryAllocator();
 
       // helper creation functions
       bool checkDeviceExtensionSupport(VkPhysicalDevice device);
@@ -107,6 +110,8 @@ namespace NugieVulkan {
 
       // Anti-aliasing
       VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
+      VmaAllocator memoryAllocator;
 
       std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
       std::vector<const char *> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};

@@ -21,7 +21,7 @@ namespace NugieApp {
     std::vector<NugieVulkan::Image*> frameImages{};
     for (size_t i = 0; i < this->imageCount; i++) {
       frameImages.emplace_back(new NugieVulkan::Image(this->device, this->width, this->height, 1, sample, format,
-        VK_IMAGE_TILING_OPTIMAL, imageUsage, { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, 
+        VK_IMAGE_TILING_OPTIMAL, imageUsage, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, 
         VK_IMAGE_ASPECT_COLOR_BIT));
     }
 
@@ -215,8 +215,7 @@ namespace NugieApp {
     for (size_t i = 0; i < this->imageCount; i++) {
       frameImages.emplace_back(new NugieVulkan::Image(this->device, this->width, this->height, 1, sample, format,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, 
-        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, 
-        VK_IMAGE_ASPECT_DEPTH_BIT));
+        VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VK_IMAGE_ASPECT_DEPTH_BIT));
     }
 
     this->attachments.emplace_back(frameImages);
@@ -357,7 +356,7 @@ namespace NugieApp {
     std::vector<NugieVulkan::Image*> frameImages{};
     for (size_t i = 0; i < this->imageCount; i++) {
       frameImages.emplace_back(new NugieVulkan::Image(this->device, this->width, this->height, 1, sample, format,
-        VK_IMAGE_TILING_OPTIMAL, imageUsage, { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, 
+        VK_IMAGE_TILING_OPTIMAL, imageUsage, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
         VK_IMAGE_ASPECT_COLOR_BIT));
     }
 
@@ -476,8 +475,7 @@ namespace NugieApp {
     for (size_t i = 0; i < this->imageCount; i++) {
       frameImages.emplace_back(new NugieVulkan::Image(this->device, this->width, this->height, 1, sample, format,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT, 
-        { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT }, 
-        VK_IMAGE_ASPECT_DEPTH_BIT));
+        VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VK_IMAGE_ASPECT_DEPTH_BIT));
     }
 
     this->attachments.emplace_back(frameImages);
