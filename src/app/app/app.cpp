@@ -464,18 +464,10 @@ namespace NugieApp {
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
-		this->finalSubRenderer->deleteCreatedAttachments();
 		this->renderer->resetCommandPool();
 
 		SubRenderer::Overwriter(this->device, width, height, imageCount)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM,  msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R8_UINT, msaaSample)
-			.setDepthAttachment(0, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, msaaSample)
-			.addAttachment(1, AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), msaaSample)
-			.setDepthAttachment(1, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, msaaSample)
-			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages())
+			.addOutsideAttachment(this->renderer->getSwapChain()->getswapChainImages())
 			.overwrite(this->finalSubRenderer);
 
 		DescriptorSet::Overwriter(imageCount)

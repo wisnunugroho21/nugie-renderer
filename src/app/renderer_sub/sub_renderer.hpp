@@ -10,6 +10,17 @@
 
 namespace NugieApp {
   enum AttachmentType { KEEPED = 0, INPUT_OUTPUT = 1, OUTPUT_IMAGE = 2, OUTPUT_TEXTURE = 3 };
+  enum AttachmentRole { COLOR = 0, DEPTH = 1, RESOLVED = 2 };
+
+  struct SubRendererAttachmentDesc {
+    AttachmentRole attachmentRole;
+    uint32_t subpassIndex;
+    AttachmentType attachmentType;
+    VkFormat format;
+    VkSampleCountFlagBits sample;
+    bool isOutside;
+  };
+
   class SubRenderer {
     public:
       class Builder {
@@ -34,6 +45,8 @@ namespace NugieApp {
           NugieVulkan::Device* device;
           uint32_t width, height, imageCount, layerNum;
 
+          std::vector<SubRendererAttachmentDesc> subRendererAttachmentDescs;
+
           std::vector<std::vector<NugieVulkan::Image*>> attachments;
           std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
 
@@ -51,29 +64,21 @@ namespace NugieApp {
         public:
           Overwriter(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum = 1u);
 
-          Overwriter& addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkSampleCountFlagBits sample);
-          Overwriter& addAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex, AttachmentType attachmentType);
-          Overwriter& setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkSampleCountFlagBits sample);
-          Overwriter& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments);
-
+          Overwriter& addOutsideAttachment(const std::vector<NugieVulkan::Image*> &attachments);
           void overwrite(SubRenderer* subRenderer);
 
         private:
           NugieVulkan::Device* device;
           uint32_t width, height, imageCount, layerNum;
 
-          std::vector<std::vector<NugieVulkan::Image*>> attachments;
-          std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
-
-          std::vector<std::vector<NugieVulkan::Sampler*>> attachmentSamplers;
-          std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
+          std::vector<std::vector<NugieVulkan::Image*>> outsideAttachments;
       };
 
       SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
         const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
         const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
         const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, VkAttachmentReference* resolveAttachmentRef, 
-        const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
+        const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers, const std::vector<SubRendererAttachmentDesc> &subRendererAttachmentDescs,
         const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos);
       ~SubRenderer();
       
@@ -86,16 +91,15 @@ namespace NugieApp {
 
       void deleteCreatedAttachments();
 
-      void recreateResources(uint32_t width, uint32_t height, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
-        const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, 
-        const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
-        const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos);
+      void recreateResources(uint32_t width, uint32_t height, uint32_t imageCount, const std::vector<std::vector<NugieVulkan::Image*>> &outsideAttachments);
       
     private:
       uint32_t width, height, layerNum;
       std::vector<VkClearValue> clearValues;
 
+      std::vector<SubRendererAttachmentDesc> subRendererAttachmentDescs;
       std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
+      
       std::vector<std::vector<NugieVulkan::Sampler*>> attachmentSamplers;
       std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
 
