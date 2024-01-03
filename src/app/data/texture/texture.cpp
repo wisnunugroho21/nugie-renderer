@@ -23,7 +23,6 @@ namespace NugieApp {
   void Texture::createImage(NugieVulkan::CommandBuffer* commandBuffer, const char* textureFileName) {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(textureFileName, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    VkDeviceSize imageSize = texWidth * texHeight * 4;
 
     if (!pixels) {
       throw std::runtime_error("failed to load texture image!");
