@@ -29,7 +29,7 @@ namespace NugieApp {
       throw std::runtime_error("failed to load texture image!");
     }
 
-    u_int32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+    uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
     unsigned long pixelSize = 4;
     uint32_t pixelCount = texWidth * texHeight;

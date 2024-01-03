@@ -709,14 +709,7 @@ namespace NugieApp {
 		vkCmdEndRenderPass(commandBuffer->getCommandBuffer());
 	}
 
-  void SubRenderer::recreateResources(uint32_t width, uint32_t height, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
-    const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, 
-    const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
-    const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos) 
-  {
-    this->width = width;
-    this->height = height;
-
+  void SubRenderer::deleteCreatedAttachments() {
     for (auto &&attachmentSampler : this->attachmentSamplers) {
       for (auto &&sampler : attachmentSampler) {
         if (sampler != nullptr) delete sampler;
@@ -728,6 +721,15 @@ namespace NugieApp {
         if (attachment != nullptr) delete attachment;
       }
     }
+  }
+
+  void SubRenderer::recreateResources(uint32_t width, uint32_t height, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
+    const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, 
+    const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
+    const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos) 
+  {
+    this->width = width;
+    this->height = height;
 
     this->createdAttachments = createdAttachments;
     this->attachmentSamplers = attachmentSamplers;

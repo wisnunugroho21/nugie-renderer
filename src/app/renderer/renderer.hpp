@@ -33,6 +33,8 @@ namespace NugieApp {
 				return this->currentImageIndex;
 			}
 
+			void resetCommandPool();
+
 			NugieVulkan::CommandBuffer* beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
 			NugieVulkan::CommandBuffer* beginRecordPrepareCommand();
 			NugieVulkan::CommandBuffer* beginRecordTransferCommand();

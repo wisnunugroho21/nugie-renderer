@@ -134,6 +134,11 @@ namespace NugieApp {
 		this->transferCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, transferCommandBuffer));
 	}
 
+	void Renderer::resetCommandPool() {
+		this->transferCommandPool->reset();
+		this->graphicCommandPool->reset();
+	}
+
 	bool Renderer::acquireFrame() {
 		assert(!this->isFrameStarted && "can't acquire frame while frame still in progress");
 

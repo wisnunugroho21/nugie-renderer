@@ -435,8 +435,6 @@ namespace NugieApp {
 		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
 		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
 
-		auto x = this->finalSubRenderer->getAttachmentInfos(0)[0];
-
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
@@ -466,6 +464,9 @@ namespace NugieApp {
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
+		this->finalSubRenderer->deleteCreatedAttachments();
+		this->renderer->resetCommandPool();
+
 		SubRenderer::Overwriter(this->device, width, height, imageCount)
 			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, msaaSample)
 			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, msaaSample)
@@ -476,8 +477,6 @@ namespace NugieApp {
 			.setDepthAttachment(1, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, msaaSample)
 			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages())
 			.overwrite(this->finalSubRenderer);
-
-		auto x = this->finalSubRenderer->getAttachmentInfos(0)[0];
 
 		DescriptorSet::Overwriter(imageCount)
 			.addImage(0, this->finalSubRenderer->getAttachmentInfos(0)[0])
@@ -491,5 +490,7 @@ namespace NugieApp {
 
 		this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 		this->cameraUpdateCount = 0u;
+		
+		this->recordCommand();
 	}
 }

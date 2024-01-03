@@ -84,6 +84,8 @@ namespace NugieApp {
       virtual void nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent);
 			virtual void endRenderPass(NugieVulkan::CommandBuffer* commandBuffer);
 
+      void deleteCreatedAttachments();
+
       void recreateResources(uint32_t width, uint32_t height, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
         const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, 
         const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
