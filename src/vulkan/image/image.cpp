@@ -27,7 +27,6 @@ namespace NugieVulkan {
 
     if (this->isImageCreatedByUs) {
       vmaDestroyImage(this->device->getMemoryAllocator(), this->image, this->memoryAllocation);
-      vmaFreeMemory(this->device->getMemoryAllocator(), this->memoryAllocation);
     }
   }
 

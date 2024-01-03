@@ -68,6 +68,7 @@ namespace NugieVulkan {
   }
 
   Device::~Device() {
+    vmaDestroyAllocator(this->memoryAllocator);
     vkDestroyDevice(this->device, nullptr);
 
     if (enableValidationLayers) {

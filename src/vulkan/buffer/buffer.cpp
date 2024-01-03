@@ -51,7 +51,6 @@ namespace NugieVulkan {
   Buffer::~Buffer() {
     this->unmap();
     vmaDestroyBuffer(this->device->getMemoryAllocator(), this->buffer, this->memoryAllocation);
-    vmaFreeMemory(this->device->getMemoryAllocator(), this->memoryAllocation);
   }
   
   /**
