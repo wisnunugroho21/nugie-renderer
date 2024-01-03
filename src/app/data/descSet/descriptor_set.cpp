@@ -220,8 +220,10 @@ namespace NugieApp {
 	void DescriptorSet::overwrite(std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, 
 		std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
 	{
+		auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
+
 		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
-			auto descriptorWriter = NugieVulkan::DescriptorWriter(device, this->descSetLayout, descriptorPool);
+			descriptorWriter.clear();
 
 			for (auto &&descriptorBufferInfo : descriptorBufferInfos) {
 				descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);

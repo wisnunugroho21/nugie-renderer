@@ -47,10 +47,33 @@ namespace NugieApp {
           VkAttachmentReference* resolveAttachmentRef;
       };
 
+      class Overwriter {
+        public:
+          Overwriter(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum = 1u);
+
+          Overwriter& addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkSampleCountFlagBits sample);
+          Overwriter& addAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex, AttachmentType attachmentType);
+          Overwriter& setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkSampleCountFlagBits sample);
+          Overwriter& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments);
+
+          void overwrite(SubRenderer* subRenderer);
+
+        private:
+          NugieVulkan::Device* device;
+          uint32_t width, height, imageCount, layerNum;
+
+          std::vector<std::vector<NugieVulkan::Image*>> attachments;
+          std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
+
+          std::vector<std::vector<NugieVulkan::Sampler*>> attachmentSamplers;
+          std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
+      };
+
       SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
         const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
         const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
         const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, VkAttachmentReference* resolveAttachmentRef, 
+        const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
         const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos);
       ~SubRenderer();
       
@@ -61,13 +84,17 @@ namespace NugieApp {
       virtual void nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent);
 			virtual void endRenderPass(NugieVulkan::CommandBuffer* commandBuffer);
 
-      void recreateResources(const std::vector<std::vector<VkImageView>> &attachments, uint32_t width, uint32_t height);
+      void recreateResources(uint32_t width, uint32_t height, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
+        const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, 
+        const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers,
+        const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos);
       
     private:
       uint32_t width, height, layerNum;
       std::vector<VkClearValue> clearValues;
 
       std::vector<std::vector<NugieVulkan::Image*>> createdAttachments;
+      std::vector<std::vector<NugieVulkan::Sampler*>> attachmentSamplers;
       std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
 
       NugieVulkan::Device* device;
