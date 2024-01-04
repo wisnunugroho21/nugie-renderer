@@ -27,29 +27,28 @@ namespace NugieApp {
         public:
           Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum = 1u);
 
-          Builder& addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
+          Builder& addAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
+
+          Builder& addAttachment(const std::vector<NugieVulkan::Image*> &attachments, AttachmentType attachmentType, VkFormat format, 
             VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& addAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex, 
-            AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
+          Builder& setDepthAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
+          Builder& setDepthAttachment(const std::vector<NugieVulkan::Image*> &attachments, AttachmentType attachmentType, VkFormat format, 
             VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& setDepthAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex, 
-            AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
+          Builder& setResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& setResolvedAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
-            VkImageLayout layout, VkSampleCountFlagBits sample);
+          Builder& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments, AttachmentType attachmentType, VkFormat format, 
+            VkImageLayout layout);
 
-          Builder& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex,
-            AttachmentType attachmentType, VkFormat format, VkImageLayout layout);
+          Builder& nextSubpass();
 
           SubRenderer* build();
 
         private:
           NugieVulkan::Device* device;
-          uint32_t width, height, imageCount, layerNum;
+          uint32_t width, height, imageCount, layerNum, subpassIndex = 0u;
 
           std::vector<SubRendererAttachmentDesc> subRendererAttachmentDescs;
 

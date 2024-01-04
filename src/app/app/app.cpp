@@ -414,21 +414,22 @@ namespace NugieApp {
 		this->initCamera(width, height);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
+			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
+			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM, 
+			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM, 
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(0, AttachmentType::INPUT_OUTPUT, VK_FORMAT_R8_UINT,
+			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R8_UINT,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.setDepthAttachment(0, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.addAttachment(1, AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+			.nextSubpass()
+			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
 				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
-			.setDepthAttachment(1, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), 1, AttachmentType::OUTPUT_STORED,
+			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::OUTPUT_STORED,
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 		

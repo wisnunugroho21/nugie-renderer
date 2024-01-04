@@ -10,12 +10,12 @@ namespace NugieApp {
 
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addAttachment(uint32_t subpassIndex, AttachmentType attachmentType, 
-    VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
+  SubRenderer::Builder& SubRenderer::Builder::addAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
+    VkSampleCountFlagBits sample) 
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::COLOR;
-    attachDesc.subpassIndex = subpassIndex;
+    attachDesc.subpassIndex = this->subpassIndex;
     attachDesc.attachmentType = attachmentType;
     attachDesc.format = format;
     attachDesc.sample = sample;
@@ -126,12 +126,12 @@ namespace NugieApp {
   }
 
   SubRenderer::Builder& SubRenderer::Builder::addAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
-    uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
+    AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
     VkSampleCountFlagBits sample) 
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::COLOR;
-    attachDesc.subpassIndex = subpassIndex;
+    attachDesc.subpassIndex = this->subpassIndex;
     attachDesc.attachmentType = attachmentType;
     attachDesc.isOutside = true;
 
@@ -225,12 +225,12 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, 
+  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(AttachmentType attachmentType, 
     VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::DEPTH;
-    attachDesc.subpassIndex = subpassIndex;
+    attachDesc.subpassIndex = this->subpassIndex;
     attachDesc.attachmentType = attachmentType;
     attachDesc.format = format;
     attachDesc.sample = sample;
@@ -336,12 +336,12 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(const std::vector<NugieVulkan::Image*> &frameImages, uint32_t subpassIndex, 
+  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
     AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::DEPTH;
-    attachDesc.subpassIndex = subpassIndex;
+    attachDesc.subpassIndex = this->subpassIndex;
     attachDesc.attachmentType = attachmentType;
     attachDesc.isOutside = true;
 
@@ -431,12 +431,12 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
-    VkImageLayout layout, VkSampleCountFlagBits sample)
+  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
+    VkSampleCountFlagBits sample)
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::RESOLVED;
-    attachDesc.subpassIndex = subpassIndex;
+    attachDesc.subpassIndex = this->subpassIndex;
     attachDesc.attachmentType = attachmentType;
     attachDesc.format = format;
     attachDesc.sample = sample;
@@ -542,8 +542,8 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(const std::vector<NugieVulkan::Image*> &frameImages, uint32_t subpassIndex,
-    AttachmentType attachmentType, VkFormat format, VkImageLayout layout) 
+  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(const std::vector<NugieVulkan::Image*> &frameImages, AttachmentType attachmentType, 
+    VkFormat format, VkImageLayout layout) 
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::RESOLVED;
@@ -627,6 +627,11 @@ namespace NugieApp {
       this->attachmentInfos[subpassIndex].emplace_back(imageInfos);
     }
 
+    return *this;
+  }
+
+  SubRenderer::Builder& SubRenderer::Builder::nextSubpass() {
+    this->subpassIndex++;
     return *this;
   }
 
