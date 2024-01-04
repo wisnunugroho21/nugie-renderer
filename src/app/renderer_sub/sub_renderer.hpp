@@ -9,7 +9,7 @@
 #include <memory>
 
 namespace NugieApp {
-  enum AttachmentType { KEEPED = 0, INPUT_OUTPUT = 1, OUTPUT_IMAGE = 2, OUTPUT_TEXTURE = 3 };
+  enum AttachmentType { KEEPED = 0, INPUT_OUTPUT = 1, OUTPUT_SHADER = 2, OUTPUT_TEXTURE = 3, OUTPUT_STORED = 4 };
   enum AttachmentRole { COLOR = 0, DEPTH = 1, RESOLVED = 2 };
 
   struct SubRendererAttachmentDesc {
@@ -36,8 +36,14 @@ namespace NugieApp {
           Builder& setDepthAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
             VkImageLayout layout, VkSampleCountFlagBits sample);
 
-          Builder& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments, VkFormat format, 
-            VkImageLayout layout);
+          Builder& setDepthAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex, 
+            AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
+
+          Builder& setResolvedAttachment(uint32_t subpassIndex, AttachmentType attachmentType, VkFormat format, 
+            VkImageLayout layout, VkSampleCountFlagBits sample);
+
+          Builder& setResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments, uint32_t subpassIndex,
+            AttachmentType attachmentType, VkFormat format, VkImageLayout layout);
 
           SubRenderer* build();
 
@@ -57,7 +63,7 @@ namespace NugieApp {
           std::vector<std::vector<VkAttachmentReference>> outputAttachmentRefs;
           std::vector<VkAttachmentReference> depthAttachmentRefs;
           std::vector<std::vector<VkAttachmentReference>> inputAttachmentRefs;
-          VkAttachmentReference* resolveAttachmentRef;
+          std::vector<VkAttachmentReference> resolveAttachmentRefs;
       };
 
       class Overwriter {
@@ -77,7 +83,7 @@ namespace NugieApp {
       SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
         const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
         const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
-        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, VkAttachmentReference* resolveAttachmentRef, 
+        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRefs,
         const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers, const std::vector<SubRendererAttachmentDesc> &subRendererAttachmentDescs,
         const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos);
       ~SubRenderer();
@@ -108,7 +114,7 @@ namespace NugieApp {
 
       void createRenderPass(const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
         const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
-        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, VkAttachmentReference* resolveAttachmentRef);
+        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRefs);
   };
   
 } // namespace NugieApp

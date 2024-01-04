@@ -428,7 +428,7 @@ namespace NugieApp {
 				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
 			.setDepthAttachment(1, AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), 
+			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), 1, AttachmentType::OUTPUT_STORED,
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 		
