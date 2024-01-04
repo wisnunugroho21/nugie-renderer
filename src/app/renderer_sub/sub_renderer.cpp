@@ -398,7 +398,7 @@ namespace NugieApp {
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
     attachmentDesc.samples = sample;
-    attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDesc.loadOp =VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDesc.storeOp = storeOp;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -467,16 +467,18 @@ namespace NugieApp {
     attachDesc.attachmentType = attachmentType;
     attachDesc.isOutside = true;
 
-    attachDesc.attachmentRole = AttachmentRole::RESOLVED;
-
     this->subRendererAttachmentDescs.emplace_back(attachDesc);
     this->attachments.emplace_back(frameImages);
+
+    VkAttachmentStoreOp storeOp = attachmentType != AttachmentType::KEEPED && attachmentType != AttachmentType::INPUT_OUTPUT 
+      ? VK_ATTACHMENT_STORE_OP_STORE 
+      : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
     attachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDesc.storeOp = storeOp;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
