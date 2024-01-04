@@ -48,7 +48,7 @@ namespace NugieApp {
 
         private:
           NugieVulkan::Device* device;
-          uint32_t width, height, imageCount, layerNum, subpassIndex = 0u;
+          uint32_t width, height, imageCount, layerNum;
 
           std::vector<SubRendererAttachmentDesc> subRendererAttachmentDescs;
 
