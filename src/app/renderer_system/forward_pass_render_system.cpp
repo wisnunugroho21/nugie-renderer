@@ -10,34 +10,14 @@
 #include <string>
 
 namespace NugieApp {
-	ForwardPassRenderSystem::ForwardPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass)
-		: device{device}
+	ForwardPassRenderSystem::ForwardPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+		NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath)
+		: GraphicRenderSystem(device, descriptorSetLayouts, renderPass, vertFilePath, fragFilePath)
 	{
-		this->createPipelineLayout(descriptorSetLayout);
-		this->createPipeline(renderPass);
+		
 	}
 
-	ForwardPassRenderSystem::~ForwardPassRenderSystem() {
-		vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
-		if (this->pipeline != nullptr) delete this->pipeline;
-	}
-
-	void ForwardPassRenderSystem::createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout) {
-		VkDescriptorSetLayout setLayout = descriptorSetLayout->getDescriptorSetLayout();
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 1u;
-		pipelineLayoutInfo.pSetLayouts = &setLayout;
-		pipelineLayoutInfo.pushConstantRangeCount = 0u;
-		pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create pipeline layout!");
-		}
-	}
-
-	void ForwardPassRenderSystem::createPipeline(NugieVulkan::RenderPass* renderPass) {
+	void ForwardPassRenderSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(4);
@@ -45,19 +25,19 @@ namespace NugieApp {
 		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(4);
 
 		bindingDescriptions[0].binding = 0;
-		bindingDescriptions[0].stride = sizeof(Position);
+		bindingDescriptions[0].stride = sizeof(glm::vec4);
 		bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[1].binding = 1;
-		bindingDescriptions[1].stride = sizeof(Normal);
+		bindingDescriptions[1].stride = sizeof(glm::vec4);
 		bindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[2].binding = 2;
-		bindingDescriptions[2].stride = sizeof(TextCoord);
+		bindingDescriptions[2].stride = sizeof(glm::vec2);
 		bindingDescriptions[2].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[3].binding = 3;
-		bindingDescriptions[3].stride = sizeof(Reference);
+		bindingDescriptions[3].stride = 2 * sizeof(uint32_t);
 		bindingDescriptions[3].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		attributeDescription[0].binding = 0;
@@ -97,36 +77,9 @@ namespace NugieApp {
 		colorBlendAttachment[3].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[3].blendEnable = VK_FALSE;
 
-		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)
-			.setDefault("shader/forward.vert.spv", "shader/forward.frag.spv", colorBlendAttachment, bindingDescriptions, attributeDescription)
+		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
+			.setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions, attributeDescription)
 			.setSubpass(0u)
 			.build();
-	}
-
-	void ForwardPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
-		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-		uint32_t indexCount, std::vector<VkDeviceSize> offsets) 
-	{
-		this->pipeline->bindPipeline(commandBuffer);
-
-		vkCmdBindDescriptorSets(
-			commandBuffer->getCommandBuffer(),
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			this->pipelineLayout,
-			0,
-			1,
-			&descriptorSets,
-			0,
-			nullptr
-		);
-
-		if (offsets.empty()) {
-			for (auto &&vertexBuffer : vertexBuffers) {
-				offsets.emplace_back(0);
-			}
-		}
-
-		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
-		this->pipeline->drawIndexed(commandBuffer, indexCount);
 	}
 }

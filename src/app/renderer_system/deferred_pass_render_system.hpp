@@ -1,5 +1,7 @@
 #pragma once
 
+#include "quad_graphic_render_system.hpp"
+
 #include "../../vulkan/command/command_buffer.hpp"
 #include "../../vulkan/device/device.hpp"
 #include "../../vulkan/pipeline/graphic_pipeline.hpp"
@@ -13,21 +15,12 @@
 #include <vector>
 
 namespace NugieApp {
-	class DeferredPassRenderSystem {
+	class DeferredPassRenderSystem : public QuadGraphicRenderSystem {
 		public:
 			DeferredPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
-				NugieVulkan::RenderPass* renderPass);
-			~DeferredPassRenderSystem();
-
-			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets);
+				NugieVulkan::RenderPass* renderPass, const std::string &fragFilePath);
 		
 		private:
-			void createPipelineLayout(std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts);
-			void createPipeline(NugieVulkan::RenderPass* renderPass);
-
-			NugieVulkan::Device* device;
-			
-			VkPipelineLayout pipelineLayout;
-			NugieVulkan::GraphicPipeline* pipeline;
+			void createPipeline() override;
 	};
 }

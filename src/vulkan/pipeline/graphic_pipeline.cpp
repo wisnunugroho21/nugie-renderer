@@ -103,6 +103,7 @@ namespace NugieVulkan {
 		fragmentShaderStageInfo.pSpecializationInfo = nullptr;
 
 		this->shaderStagesInfo = { vertexShaderStageInfo, fragmentShaderStageInfo };
+		this->subpass = 0u;
 
 		return *this;
 	}
@@ -194,6 +195,7 @@ namespace NugieVulkan {
 		geometryShaderStageInfo.pSpecializationInfo = nullptr;
 
 		this->shaderStagesInfo = { vertexShaderStageInfo, geometryShaderStageInfo };
+		this->subpass = 0u;
 
 		return *this;
 	}
@@ -271,6 +273,7 @@ namespace NugieVulkan {
 		vertexShaderStageInfo.pSpecializationInfo = nullptr;
 
 		this->shaderStagesInfo = { vertexShaderStageInfo };
+		this->subpass = 0u;
 
 		return *this;
 	}

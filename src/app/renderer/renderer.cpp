@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <array>
 #include <string>
+#include <cassert>
 
 namespace NugieApp {
 	Renderer::Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device) : device{device}, window{window} {

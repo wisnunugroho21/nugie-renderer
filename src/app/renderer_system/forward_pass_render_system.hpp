@@ -1,5 +1,7 @@
 #pragma once
 
+#include "graphic_render_system.hpp"
+
 #include "../../vulkan/command/command_buffer.hpp"
 #include "../../vulkan/device/device.hpp"
 #include "../../vulkan/pipeline/graphic_pipeline.hpp"
@@ -13,22 +15,12 @@
 #include <vector>
 
 namespace NugieApp {
-	class ForwardPassRenderSystem {
+	class ForwardPassRenderSystem : public GraphicRenderSystem {
 		public:
-			ForwardPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass);
-			~ForwardPassRenderSystem();
+			ForwardPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath);
 
-			void render(NugieVulkan::CommandBuffer* commandBuffer, VkDescriptorSet descriptorSets, 
-				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
-		
 		private:
-			void createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout);
-			void createPipeline(NugieVulkan::RenderPass* renderPass);
-
-			NugieVulkan::Device* device;
-			
-			VkPipelineLayout pipelineLayout;
-			NugieVulkan::GraphicPipeline* pipeline;
+			void createPipeline() override;
 	};
 }

@@ -10,7 +10,7 @@
 
 #include <memory>
 #include <vector>
-#include <cassert>
+
 
 namespace NugieApp {
 	class Renderer
