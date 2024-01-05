@@ -7,6 +7,7 @@
 #include "../device/device.hpp"
 #include "../renderpass/renderpass.hpp"
 #include "../buffer/buffer.hpp"
+#include "../command/command_buffer.hpp"
 
 namespace NugieVulkan {
 	class GraphicPipeline {

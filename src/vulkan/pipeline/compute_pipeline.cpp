@@ -118,12 +118,12 @@ namespace NugieVulkan {
 		}
 	}
 
-	void ComputePipeline::bind(VkCommandBuffer commandBuffer) {
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, this->computePipeline);
+	void ComputePipeline::bindPipeline(CommandBuffer* commandBuffer) {
+		vkCmdBindPipeline(commandBuffer->getCommandBuffer(), VK_PIPELINE_BIND_POINT_COMPUTE, this->computePipeline);
 	}
 
-	void ComputePipeline::dispatch(VkCommandBuffer commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize) {
-		vkCmdDispatch(commandBuffer, xSize, ySize, zSize);
+	void ComputePipeline::dispatch(CommandBuffer* commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize) {
+		vkCmdDispatch(commandBuffer->getCommandBuffer(), xSize, ySize, zSize);
 	}
 
 } // namespace NugieVulkan

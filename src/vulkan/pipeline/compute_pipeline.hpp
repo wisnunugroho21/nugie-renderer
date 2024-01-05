@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "../device/device.hpp"
+#include "../command/command_buffer.hpp"
 
 namespace NugieVulkan {
 	class ComputePipeline {
@@ -33,8 +34,8 @@ namespace NugieVulkan {
 				VkPipeline basePipelineHandleInfo, int32_t basePipelineIndex);
 			~ComputePipeline();
 
-			void bind(VkCommandBuffer commandBuffer);
-			void dispatch(VkCommandBuffer commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize);
+			void bindPipeline(CommandBuffer* commandBuffer);
+			void dispatch(CommandBuffer* commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize);
 
 		private:
 			Device* device;
