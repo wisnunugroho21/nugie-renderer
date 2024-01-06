@@ -11,24 +11,32 @@
 #include "../general_struct.hpp"
 
 #include <vector>
+#include <string>
 
 namespace NugieApp {
-	class PointShadowPassRenderSystem {
+	class GraphicRenderSystem {
 		public:
-			PointShadowPassRenderSystem(NugieVulkan::Device* device, NugieVulkan::DescriptorSetLayout* descriptorSetLayout, NugieVulkan::RenderPass* renderPass);
-			~PointShadowPassRenderSystem();
+			GraphicRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath);
+			~GraphicRenderSystem();
 
-			void render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t lightIndex, VkDescriptorSet descriptorSets, 
+			void initialize();
+			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		
-		private:
-			void createPipelineLayout(NugieVulkan::DescriptorSetLayout* descriptorSetLayout);
-			void createPipeline(NugieVulkan::RenderPass* renderPass);
-
+		protected:
+			virtual void createPipelineLayout();
+			virtual void createPipeline();
+		
 			NugieVulkan::Device* device;
 			
 			VkPipelineLayout pipelineLayout;
 			NugieVulkan::GraphicPipeline* pipeline;
+
+			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
+			NugieVulkan::RenderPass* renderPass;
+			std::string vertFilePath;
+			std::string fragFilePath;
 	};
 }

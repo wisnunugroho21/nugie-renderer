@@ -1,8 +1,6 @@
 #version 460
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#define POINT_SHADOW_MAP_NUM 6u
-
 #include "core/struct.glsl"
 
 layout(location = 0) out vec4 outColor;
@@ -21,22 +19,11 @@ layout(set = 1, binding = 1) buffer readonly MaterialModel {
   Material materials[];
 };
 
-layout(set = 1, binding = 2) buffer readonly ShadowTransformationModel {
-	ShadowTransformation shadowTransformations[];
-};
-
-layout(set = 1, binding = 3) buffer readonly PointLightModel {
-  PointLight pointLights[];
-};
-
-layout(set = 1, binding = 4) buffer readonly SpotLightModel {
+layout(set = 1, binding = 2) buffer readonly SpotLightModel {
   SpotLight spotLights[];
 };
 
-layout(set = 1, binding = 5) uniform sampler2DArrayShadow pointShadowMapTexture[];
-layout(set = 1, binding = 6) uniform sampler2DShadow spotShadowMapTexture[];
-
-layout(set = 1, binding = 7) uniform sampler2D colorTexture[];
+layout(set = 1, binding = 3) uniform sampler2D colorTexture[1];
 
 // ---------------------------------------------------------------------------
 
@@ -100,85 +87,6 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-bool isHitShadowPointLight(uint lightIndex, vec4 shadowCoord, float layer, vec2 offset) {
-  shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
-  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
-
-  vec4 uvc = vec4(shadowCoord.xy + offset, layer, shadowCoord.z);
-  float dist = texture(pointShadowMapTexture[nonuniformEXT(lightIndex)], uvc).x;
-
-  return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
-    && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f;
-}
-
-bool isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
-  shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
-  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
-
-  vec3 uvc = vec3(shadowCoord.xy + offset, shadowCoord.z);
-  float dist = texture(spotShadowMapTexture[nonuniformEXT(lightIndex)], uvc).x;
-
-  return dist == 1.0f && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f
-    && shadowCoord.x >= 0.0f && shadowCoord.x <= 1.0f
-    && shadowCoord.y >= 0.0f && shadowCoord.y <= 1.0f;
-}
-
-float computePointShadowPCF(uint lightIndex, vec4 shadowCoord, float layer) {
-  ivec2 texDim = textureSize(pointShadowMapTexture[nonuniformEXT(lightIndex)], 0).xy;
-
-  vec2 dOffset = 1.0f / vec2(texDim);
-	float shadowFactor = 0.0;
-
-  for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-      shadowFactor += isHitShadowPointLight(lightIndex, shadowCoord, layer, dOffset * vec2(x, y))
-        ? 0.1f
-        : 1.0f;
-		}
-	}
-
-	return shadowFactor / 9.0f;
-}
-
-float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
-  ivec2 texDim = textureSize(spotShadowMapTexture[nonuniformEXT(lightIndex)], 0).xy;
-
-	vec2 dOffset = 1.0f / vec2(texDim);
-	float shadowFactor = 0.0;
-
-  for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, dOffset * vec2(x, y))
-        ? 0.1f
-        : 1.0f;
-		}
-	}
-  
-	return shadowFactor / 9.0f;
-}
-
-vec4 computeRadianceShadowPCF(vec4 surfacePosition, vec4 totalRadiance) {
-  for (uint lightIndex = 0u; lightIndex < ubo.numLights.x; lightIndex++) {
-    for (uint layer = 0u; layer < POINT_SHADOW_MAP_NUM; layer++) {
-      vec4 shadowCoord = shadowTransformations[lightIndex * POINT_SHADOW_MAP_NUM + layer].viewProjectionMatrix * surfacePosition;
-
-      float shadowFactor = computePointShadowPCF(lightIndex, shadowCoord, layer);
-      totalRadiance *= shadowFactor;
-    }
-  }
-
-  uint initialIndex = ubo.numLights.x * 6;
-
-  for (uint lightIndex = 0u; lightIndex < ubo.numLights.y; lightIndex++) {
-    vec4 shadowCoord = shadowTransformations[initialIndex + lightIndex].viewProjectionMatrix * surfacePosition;
-    float shadowFactor = computeSpotShadowPCF(lightIndex, shadowCoord);
-    totalRadiance *= shadowFactor;
-  }
-
-  return totalRadiance;
-}
-
 void main() {
   vec4 surfacePosition = subpassLoad(inputPosition, gl_SampleID);
   vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
@@ -189,27 +97,12 @@ void main() {
   uint colorTextureIndex = materials[surfaceMaterialIndex].colorTextureIndex;
   
   vec4 surfaceColor = colorTextureIndex == 0 
-    ? materials[surfaceMaterialIndex].baseColor 
-    : texture(colorTexture[nonuniformEXT(colorTextureIndex - 1u)], surfaceTextCoord);
+    ? materials[surfaceMaterialIndex].baseColor
+    : texture(colorTexture[0], surfaceTextCoord);
 
   vec4 totalRadiance = vec4(0.0f);
 
   for (uint i = 0; i < ubo.numLights.x; i++) {
-    vec4 lightDirection = pointLights[i].position - surfacePosition;
-    
-    vec4 unitLightDirection = normalize(lightDirection);
-    vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
-
-    vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
-      surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
-
-    float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
-    vec4 irradiance = pointLights[i].color / (4 * PI * dot(lightDirection, lightDirection)) * NoL;
-    
-    totalRadiance += brdf * irradiance;
-  }
-
-  for (uint i = 0; i < ubo.numLights.y; i++) {
     vec4 lightDirection = spotLights[i].position - surfacePosition;
     
     vec4 unitLightDirection = normalize(lightDirection);
@@ -230,5 +123,5 @@ void main() {
     }
   }
 
-  outColor = computeRadianceShadowPCF(surfacePosition, totalRadiance);
+  outColor = totalRadiance;
 }

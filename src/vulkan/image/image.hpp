@@ -14,12 +14,9 @@ namespace NugieVulkan
   {
     public:
       Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
-        VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperty, 
-        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
-
-      Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
-        VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties, 
-        VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
+        VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, 
+        VmaAllocationCreateFlags memoryAllocFlag, VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, 
+        VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
 
       Image(Device* device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format, 
         VkImageAspectFlags aspectFlags, uint32_t layerNum = 1, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
@@ -28,7 +25,7 @@ namespace NugieVulkan
 
       VkImage getImage() const { return this->image; }
       VkImageView getImageView() const { return this->imageView; }
-      VkDeviceMemory getImageMemory() const { return this->imageMemory; }
+      VmaAllocation getMemoryAllocation() const { return this->memoryAllocation; }
       VkImageLayout getLayout() const { return this->layout; }
       
       VkImageAspectFlags getAspectFlag() const { return this->aspectFlags; }
@@ -59,16 +56,15 @@ namespace NugieVulkan
 
       VkImage image;
       VkImageView imageView;
-      VkDeviceMemory imageMemory;
       VkFormat format;
       VkImageAspectFlags aspectFlags;
       VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+      VmaAllocation memoryAllocation;
       
       uint32_t width, height, mipLevels, layerNum;
       bool isImageCreatedByUs = false;
 
-      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property, VkImageViewType viewType);
-      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryProperties, VkImageViewType viewType);
+      void createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags memoryAllocFlag, VkImageViewType viewType);
 
       void createImageView(VkImageViewType viewType);
   };

@@ -10,37 +10,14 @@
 #include <string>
 
 namespace NugieApp {
-	DeferredPassRenderSystem::DeferredPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, NugieVulkan::RenderPass* renderPass)
-		: device{device}
+	DeferredPassRenderSystem::DeferredPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+		NugieVulkan::RenderPass* renderPass, const std::string &fragFilePath)
+		: QuadGraphicRenderSystem(device, descriptorSetLayouts, renderPass, fragFilePath)
 	{
-		this->createPipelineLayout(descriptorSetLayouts);
-		this->createPipeline(renderPass);
+		
 	}
 
-	DeferredPassRenderSystem::~DeferredPassRenderSystem() {
-		vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
-		if (this->pipeline != nullptr) delete this->pipeline;
-	}
-
-	void DeferredPassRenderSystem::createPipelineLayout(std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts) {
-		std::vector<VkDescriptorSetLayout> setLayouts;
-		for (auto &&descriptorSetLayout: descriptorSetLayouts) {
-			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
-		}
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = (setLayouts.size() > 0) ? setLayouts.data() : nullptr;
-		pipelineLayoutInfo.pushConstantRangeCount = 0u;
-		pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create pipeline layout!");
-		}
-	}
-
-	void DeferredPassRenderSystem::createPipeline(NugieVulkan::RenderPass* renderPass) {
+	void DeferredPassRenderSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(1);
@@ -58,28 +35,10 @@ namespace NugieApp {
 		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_TRUE;
 
-		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, renderPass, this->pipelineLayout)
-			.setDefault("shader/deferred.vert.spv", "shader/deferred.frag.spv", colorBlendAttachment, {}, {})
+		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
+			.setDefault("shader/quad.vert.spv", this->fragFilePath, colorBlendAttachment, {}, {})
 			.setRasterizationInfo(rasterizationInfo)
 			.setSubpass(1u)
 			.build();
-	}
-
-	void DeferredPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets) 
-	{
-		this->pipeline->bindPipeline(commandBuffer);
-
-		vkCmdBindDescriptorSets(
-			commandBuffer->getCommandBuffer(),
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			this->pipelineLayout,
-			0,
-			static_cast<uint32_t>(descriptorSets.size()),
-			(descriptorSets.size() > 0) ? descriptorSets.data() : nullptr,
-			0,
-			nullptr
-		);
-
-		this->pipeline->draw(commandBuffer, 6);
 	}
 }

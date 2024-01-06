@@ -1,5 +1,8 @@
 #include "device.hpp"
 
+#define VMA_IMPLEMENTATION
+#include "../../../libraries/vma/vk_mem_alloc.h"
+
 // std headers
 #include <cstring>
 #include <iostream>
@@ -61,9 +64,11 @@ namespace NugieVulkan {
     this->pickPhysicalDevice();
     this->msaaSamples = this->getMaxSampleNumber();
     this->createLogicalDevice();
+    this->createMemoryAllocator();
   }
 
   Device::~Device() {
+    vmaDestroyAllocator(this->memoryAllocator);
     vkDestroyDevice(this->device, nullptr);
 
     if (enableValidationLayers) {
@@ -223,8 +228,6 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
-    deviceFeatures.depthBiasClamp = VK_TRUE;
-    deviceFeatures.geometryShader = VK_TRUE;
 
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.pNext = &descriptorIndexingFeatures;
@@ -258,6 +261,16 @@ namespace NugieVulkan {
     this->window->createWindowSurface(this->instance, &this->surface); 
   }
 
+  void Device::createMemoryAllocator() {
+    VmaAllocatorCreateInfo allocatorCreateInfo = {};
+    allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+    allocatorCreateInfo.physicalDevice = this->physicalDevice;
+    allocatorCreateInfo.device = this->device;
+    allocatorCreateInfo.instance = this->instance;
+
+    vmaCreateAllocator(&allocatorCreateInfo, &this->memoryAllocator);
+  }
+
   uint32_t Device::rateDeviceSuitability(VkPhysicalDevice device) {
     uint32_t score = 0u;
 
@@ -279,8 +292,7 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.geometryShader 
-      ||  !supportedFeatures.sampleRateShading || !supportedFeatures.depthBiasClamp) 
+    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.sampleRateShading) 
     {
       return score;
     }

@@ -10,7 +10,7 @@
 
 #include <memory>
 #include <vector>
-#include <cassert>
+
 
 namespace NugieApp {
 	class Renderer
@@ -32,6 +32,8 @@ namespace NugieApp {
 				assert(this->isFrameStarted && "cannot get image index when frame is not in progress");
 				return this->currentImageIndex;
 			}
+
+			void resetCommandPool();
 
 			NugieVulkan::CommandBuffer* beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
 			NugieVulkan::CommandBuffer* beginRecordPrepareCommand();

@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <array>
 #include <string>
+#include <cassert>
 
 namespace NugieApp {
 	Renderer::Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device) : device{device}, window{window} {
@@ -134,6 +135,11 @@ namespace NugieApp {
 		this->transferCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, transferCommandBuffer));
 	}
 
+	void Renderer::resetCommandPool() {
+		this->transferCommandPool->reset();
+		this->graphicCommandPool->reset();
+	}
+
 	bool Renderer::acquireFrame() {
 		assert(!this->isFrameStarted && "can't acquire frame while frame still in progress");
 
@@ -214,7 +220,7 @@ namespace NugieApp {
 		std::vector<VkSemaphore> signalSemaphores = { this->prepareFinishedSemaphores[0] };
 		std::vector<VkPipelineStageFlags> waitStages = {};
 
-		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->submitCommand(this->device->getTransferQueue(), 
+		this->graphicCommandBuffers[this->imageCount * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT]->submitCommand(this->device->getGraphicsQueue(), 
 			waitSemaphores, waitStages, signalSemaphores);
 
 		this->isPrepareStarted = true;

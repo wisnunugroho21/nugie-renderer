@@ -17,15 +17,8 @@ class Buffer {
     VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkBufferUsageFlags usageFlags,
-    VkMemoryPropertyFlags memoryPropertyFlag,
-    VkDeviceSize minOffsetAlignment = 1);
-
-  Buffer(
-    Device* device,
-    VkDeviceSize instanceSize,
-    uint32_t instanceCount,
-    VkBufferUsageFlags usageFlags,
-    const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlags,
+    VmaMemoryUsage memoryUsage, 
+    VmaAllocationCreateFlags memoryAllocFlag,
     VkDeviceSize minOffsetAlignment = 1);
 
   ~Buffer();
@@ -37,10 +30,9 @@ class Buffer {
   VkDeviceSize getAlignmentSize() const { return this->instanceSize; }
   VkDeviceSize getBufferSize() const { return this->bufferSize; }
   VkBufferUsageFlags getUsageFlags() const { return this->usageFlags; }
-  VkMemoryPropertyFlags getMemoryPropertyFlags() const { return this->memoryPropertyFlag; }
+  VmaAllocation getMemoryAllocation() const { return this->memoryAllocation; }
 
-  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlag);
-  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const std::vector<VkMemoryPropertyFlags> &memoryPropertyFlag);
+  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags memoryAllocFlag);
 
   void copyFromAnotherBuffer(CommandBuffer* commandBuffer, Buffer* srcBuffer, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
   void copyToAnotherBuffer(CommandBuffer* commandBuffer,Buffer* destBuffer, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
@@ -77,14 +69,13 @@ class Buffer {
 
   void* mapped = nullptr;
   VkBuffer buffer = VK_NULL_HANDLE;
-  VkDeviceMemory memory = VK_NULL_HANDLE;
  
   VkDeviceSize bufferSize;
   uint32_t instanceCount;
   VkDeviceSize instanceSize;
   VkDeviceSize alignmentSize;
   VkBufferUsageFlags usageFlags;
-  VkMemoryPropertyFlags memoryPropertyFlag;
+  VmaAllocation memoryAllocation;
 };
  
 }  // namespace lve

@@ -2,23 +2,11 @@
 
 namespace NugieVulkan {
   Image::Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
-    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperty, 
+    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags memoryAllocFlag,
     VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType) 
     : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format}, aspectFlags{aspectFlags}, layerNum{layerNum} 
   {
-    this->createImage(numSamples, tiling, usage, memoryProperty, viewType);
-    this->createImageView(viewType);
-
-    this->isImageCreatedByUs = true;
-  }
-
-  Image::Image(Device* device, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, 
-    VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, 
-    const std::vector<VkMemoryPropertyFlags> &memoryProperties, 
-    VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType) 
-    : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format}, aspectFlags{aspectFlags}, layerNum{layerNum}
-  {
-    this->createImage(numSamples, tiling, usage, memoryProperties, viewType);
+    this->createImage(numSamples, tiling, usage, memoryUsage, memoryAllocFlag, viewType);
     this->createImageView(viewType);
 
     this->isImageCreatedByUs = true;
@@ -38,13 +26,12 @@ namespace NugieVulkan {
     vkDestroyImageView(this->device->getLogicalDevice(), this->imageView, nullptr);
 
     if (this->isImageCreatedByUs) {
-      vkDestroyImage(this->device->getLogicalDevice(), this->image, nullptr);
-      vkFreeMemory(this->device->getLogicalDevice(), this->imageMemory, nullptr);
+      vmaDestroyImage(this->device->getMemoryAllocator(), this->image, this->memoryAllocation);
     }
   }
 
   void Image::createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, 
-    VkMemoryPropertyFlags memoryProperty, VkImageViewType viewType) 
+    VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags memoryAllocFlag, VkImageViewType viewType) 
   {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -65,67 +52,12 @@ namespace NugieVulkan {
       imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
     }
 
-    if (vkCreateImage(this->device->getLogicalDevice(), &imageInfo, nullptr, &this->image) != VK_SUCCESS) {
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = memoryUsage;
+    allocInfo.flags = memoryAllocFlag;
+
+    if (vmaCreateImage(this->device->getMemoryAllocator(), &imageInfo, &allocInfo, &this->image, &this->memoryAllocation, nullptr) != VK_SUCCESS) {
       throw std::runtime_error("failed to create image!");
-    }
-
-    VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(this->device->getLogicalDevice(), this->image, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, memoryProperty);
-
-    if (vkAllocateMemory(this->device->getLogicalDevice(), &allocInfo, nullptr, &this->imageMemory) != VK_SUCCESS) {
-      throw std::runtime_error("failed to allocate image memory!");
-    }
-
-    if (vkBindImageMemory(this->device->getLogicalDevice(), this->image, this->imageMemory, 0) != VK_SUCCESS) {
-      throw std::runtime_error("failed to bind image memory!");
-    }
-  }
-
-  void Image::createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage, 
-    const std::vector<VkMemoryPropertyFlags> &memoryProperties, VkImageViewType viewType) 
-  {
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = this->width;
-    imageInfo.extent.height = this->height;
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = this->mipLevels;
-    imageInfo.arrayLayers = this->layerNum;
-    imageInfo.format = this->format;
-    imageInfo.tiling = tiling;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = usage;
-    imageInfo.samples = numSamples;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (viewType == VK_IMAGE_VIEW_TYPE_CUBE) {
-      imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-    }
-
-    if (vkCreateImage(this->device->getLogicalDevice(), &imageInfo, nullptr, &this->image) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create image!");
-    }
-
-    VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(this->device->getLogicalDevice(), this->image, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = this->device->findMemoryType(memRequirements.memoryTypeBits, memoryProperties, nullptr);
-
-    if (vkAllocateMemory(this->device->getLogicalDevice(), &allocInfo, nullptr, &this->imageMemory) != VK_SUCCESS) {
-      throw std::runtime_error("failed to allocate image memory!");
-    }
-
-    if (vkBindImageMemory(this->device->getLogicalDevice(), this->image, this->imageMemory, 0) != VK_SUCCESS) {
-      throw std::runtime_error("failed to bind image memory!");
     }
   }
 
