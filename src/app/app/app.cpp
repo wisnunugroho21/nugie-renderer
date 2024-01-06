@@ -303,11 +303,11 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 1, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 
-		loadedModel = loadObjModel("../assets/models/quad_model.obj");
+		/* loadedModel = loadObjModel("../assets/models/quad_model.obj");
 
 		positionSize = static_cast<uint32_t>(positions.size());
 		for (auto &&index : loadedModel.indices) {
@@ -330,7 +330,7 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 0, 1 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) }); */
 
 		// ----------------------------------------------------------------------------
 		
@@ -385,7 +385,7 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 30.0f, -60.0f);
+		glm::vec3 position = glm::vec3(0.0f, 30.0f, -30.0f);
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
 
