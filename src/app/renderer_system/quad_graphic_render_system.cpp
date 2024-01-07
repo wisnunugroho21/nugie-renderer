@@ -58,9 +58,15 @@ namespace NugieApp {
 		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_FALSE;
 
+		VkPipelineMultisampleStateCreateInfo multisampleInfo{};
+		multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisampleInfo.sampleShadingEnable = VK_FALSE;
+		multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
 			.setDefault("shader/quad.vert.spv", this->fragFilePath, colorBlendAttachment, {}, {})
 			.setRasterizationInfo(rasterizationInfo)
+			.setMultisampleInfo(multisampleInfo)
 			.build();
 	}
 

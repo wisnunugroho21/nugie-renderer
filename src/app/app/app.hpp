@@ -10,12 +10,14 @@
 #include "../data/buffer/ubo.hpp"
 #include "../data/buffer/vertex.hpp"
 #include "../data/buffer/index.hpp"
+#include "../data/image/image_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
-#include "../renderer_system/deferred_pass_render_system.hpp"
+#include "../renderer_system/compute_render_system.hpp"
+#include "../renderer_system/quad_graphic_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -57,11 +59,12 @@ namespace NugieApp {
 
 			Renderer* renderer;
 
+			SubRenderer* forwardSubRenderer;
 			SubRenderer* finalSubRenderer;
-			SubRenderer* spotShadowSubRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
-			DeferredPassRenderSystem* deferredPasRenderer;
+			ComputeRenderSystem* rayGenPassRenderer;
+			QuadGraphicRenderSystem* finalPasRenderer;
 
 			IndexBufferObject<uint32_t>* indexModel;
 
@@ -72,14 +75,14 @@ namespace NugieApp {
 			
 			ShaderStorageBufferObject<Material>* materialModel;
 			ShaderStorageBufferObject<Transformation>* transformationModel;
-			ShaderStorageBufferObject<SpotLight>* spotLightModel;
 
 			UniformBufferObject<ForwardUbo>* forwardUniform;
-			UniformBufferObject<DeferredUbo>* deferredUniform;
+
+			UniformImageBuffer* rayGenImage;
 			
 			DescriptorSet* forwardDescSet;
-			DescriptorSet* attachmentDeferredDescSet;
-			DescriptorSet* modelDeferredDescSet;
+			DescriptorSet* rayGenDescSet;
+			DescriptorSet* finalDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 
@@ -87,7 +90,6 @@ namespace NugieApp {
 			float frameTime = 0.0f;
 
 			ForwardUbo forwardUbo;
-			DeferredUbo deferredUbo;
 
 			std::vector<NugieApp::Texture*> colorTextures;
 	};

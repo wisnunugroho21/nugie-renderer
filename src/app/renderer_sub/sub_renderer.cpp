@@ -27,9 +27,13 @@ namespace NugieApp {
 
     this->subRendererAttachmentDescs.emplace_back(attachDesc);
 
-    VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     if (attachmentType == AttachmentType::INPUT_OUTPUT) {
       imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    } else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
+      imageUsage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    } else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
+      imageUsage |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
 
     std::vector<NugieVulkan::Image*> frameImages{};
@@ -202,9 +206,13 @@ namespace NugieApp {
 
     this->subRendererAttachmentDescs.emplace_back(attachDesc);
 
-    VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     if (attachmentType == AttachmentType::INPUT_OUTPUT) {
       imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    } else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
+      imageUsage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    } else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
+      imageUsage |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
 
     std::vector<NugieVulkan::Image*> frameImages{};
@@ -375,9 +383,13 @@ namespace NugieApp {
 
     this->subRendererAttachmentDescs.emplace_back(attachDesc);
 
-    VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     if (attachmentType == AttachmentType::INPUT_OUTPUT) {
       imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    } else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
+      imageUsage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    } else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
+      imageUsage |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
 
     std::vector<NugieVulkan::Image*> frameImages{};
@@ -774,7 +786,7 @@ namespace NugieApp {
         std::vector<NugieVulkan::Image*> frameImages{};
 
         if (!subRendererAttachmentDesc.isOutside) {
-          VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+          VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
           if (subRendererAttachmentDesc.attachmentType == AttachmentType::INPUT_OUTPUT) {
             imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
           }
@@ -838,7 +850,7 @@ namespace NugieApp {
         std::vector<NugieVulkan::Image*> frameImages{};
 
         if (!subRendererAttachmentDesc.isOutside) {
-          VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+          VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
           if (subRendererAttachmentDesc.attachmentType == AttachmentType::INPUT_OUTPUT) {
             imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
           }
@@ -903,7 +915,7 @@ namespace NugieApp {
         std::vector<NugieVulkan::Image*> frameImages{};
 
         if (!subRendererAttachmentDesc.isOutside) {
-          VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+          VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
           if (subRendererAttachmentDesc.attachmentType == AttachmentType::INPUT_OUTPUT) {
             imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
           }

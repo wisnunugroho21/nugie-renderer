@@ -33,18 +33,20 @@ namespace NugieApp {
 
 	App::~App() {
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
-		if (this->deferredPasRenderer != nullptr) delete this->deferredPasRenderer;
+		if (this->rayGenPassRenderer != nullptr) delete this->rayGenPassRenderer;
+		if (this->finalPasRenderer != nullptr) delete this->finalPasRenderer;
 
+		if (this->forwardSubRenderer != nullptr) delete this->forwardSubRenderer;
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
-		if (this->spotShadowSubRenderer != nullptr) delete this->spotShadowSubRenderer;
+		
 		if (this->renderer != nullptr) delete this->renderer;
 
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
-		if (this->attachmentDeferredDescSet != nullptr) delete this->attachmentDeferredDescSet;
-		if (this->modelDeferredDescSet != nullptr) delete this->modelDeferredDescSet;
+		if (this->rayGenDescSet != nullptr) delete this->rayGenDescSet;
+		if (this->finalDescSet != nullptr) delete this->finalDescSet;
 
 		if (this->forwardUniform != nullptr) delete this->forwardUniform;
-		if (this->deferredUniform != nullptr) delete this->deferredUniform;
+		if (this->rayGenImage != nullptr) delete this->rayGenImage;
 
 		if (this->indexModel != nullptr) delete this->indexModel;
 		if (this->positionModel != nullptr) delete this->positionModel;
@@ -53,7 +55,6 @@ namespace NugieApp {
 		if (this->referenceModel != nullptr) delete this->referenceModel;
 		if (this->materialModel != nullptr) delete this->materialModel;
 		if (this->transformationModel != nullptr) delete this->transformationModel;
-		if (this->spotLightModel != nullptr) delete this->spotLightModel;
 		
 		for (auto &&colorTexture : this->colorTextures) {
 			if (colorTexture != nullptr) delete colorTexture;
@@ -68,6 +69,10 @@ namespace NugieApp {
 	}
 
 	void App::recordCommand() {
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
+		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+
 		auto prepareCommandBuffer = this->renderer->beginRecordPrepareCommand();
 		for (auto &&colorTexture : this->colorTextures) {
 			if (!colorTexture->hasBeenMipmapped()) {
@@ -75,9 +80,11 @@ namespace NugieApp {
 			}
 		}
 
-		prepareCommandBuffer->endCommand();
+		for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
+			this->rayGenImage->prepareBarrier(prepareCommandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, frameIndex);
+		}
 
-		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+		prepareCommandBuffer->endCommand();
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->positionModel->getBuffer());
@@ -91,19 +98,21 @@ namespace NugieApp {
 
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
-				std::vector<VkDescriptorSet> descriptorSets;
-				descriptorSets.emplace_back(this->attachmentDeferredDescSet->getDescriptorSets(imageIndex));
-				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
-
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
+				// this->forwardSubRenderer->beginRenderPass(commandBuffer, frameIndex);
+				// this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
+				// this->forwardSubRenderer->endRenderPass(commandBuffer);
+
+				// this->rayGenPassRenderer->render(commandBuffer, { this->rayGenDescSet->getDescriptorSets(frameIndex) }, width / 32, height / 32, 1);
+
+				this->rayGenImage->writeToReadBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, frameIndex);
+
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-
-				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-				this->finalSubRenderer->nextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-				this->deferredPasRenderer->render(commandBuffer, descriptorSets);
-
+				this->finalPasRenderer->render(commandBuffer, { this->finalDescSet->getDescriptorSets(frameIndex) });
 				this->finalSubRenderer->endRenderPass(commandBuffer);
+
+				this->rayGenImage->readToWriteBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, frameIndex);
 
 				commandBuffer->endCommand();
 			}
@@ -151,7 +160,6 @@ namespace NugieApp {
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
-			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
@@ -202,7 +210,6 @@ namespace NugieApp {
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
-			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
 		}
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
@@ -345,10 +352,6 @@ namespace NugieApp {
 
 		this->spotNumLight = static_cast<uint32_t>(spotLights.size());
 
-		// ---------------------------------------------------------------------
-
-		this->deferredUbo.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
-
 		// ----------------------------------------------------------------------------
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
@@ -373,9 +376,6 @@ namespace NugieApp {
 
 		this->transformationModel = new ShaderStorageBufferObject<Transformation>(this->device);
 		this->transformationModel->replace(commandBuffer, ConvertComponentToTransform(transforms));
-
-		this->spotLightModel = new ShaderStorageBufferObject<SpotLight>(this->device);
-		this->spotLightModel->replace(commandBuffer, spotLights);
 
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
@@ -402,7 +402,6 @@ namespace NugieApp {
 		glm::mat4 projection = this->camera->getProjectionMatrix();
 
 		this->forwardUbo.cameraTransforms = projection * view;
-		this->deferredUbo.origin = glm::vec4(position, 1.0f);
 	}
 
 	void App::init() {
@@ -414,26 +413,28 @@ namespace NugieApp {
 		this->initCamera(width, height);
 
 		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
-		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
+		this->rayGenImage = new UniformImageBuffer(this->device, width, height, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT, 
+			VK_FORMAT_R32G32B32A32_SFLOAT, VK_SAMPLE_COUNT_1_BIT);
+
+		this->forwardSubRenderer = SubRenderer::Builder(this->device, width, height, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_R16G16_UNORM, 
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_R8_UINT,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.build();
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R16G16_UNORM, 
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
-			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R8_UINT,
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
+			.addAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::KEEPED, 
+				this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_SAMPLE_COUNT_1_BIT)
 			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.nextSubpass()
-			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
-				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
-			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.addResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::OUTPUT_STORED,
-				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
 			.build();
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -441,25 +442,25 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
 			.build();
 
-		this->attachmentDeferredDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), imageCount)
-			.addImage(0, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT, this->finalSubRenderer->getAttachmentInfos(0)[0])
-			.addImage(1, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT, this->finalSubRenderer->getAttachmentInfos(0)[1])
-			.addImage(2, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT, this->finalSubRenderer->getAttachmentInfos(0)[2])
-			.addImage(3, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT, this->finalSubRenderer->getAttachmentInfos(0)[3])
+		this->rayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenImage->getImagesInfo())
+			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[0])
+			.addImage(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[1])
+			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[2])
+			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[3])
 			.build();
 
-		this->modelDeferredDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->deferredUniform->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialModel->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightModel->getInfo())
-			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
+		this->finalDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addImage(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->rayGenImage->getSampleInfo())
 			.build();
 
-		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
-		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, { this->attachmentDeferredDescSet->getDescSetLayout(), this->modelDeferredDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/deferred.frag.spv");
+		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->forwardSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
+		this->rayGenPassRenderer = new ComputeRenderSystem(this->device, { this->rayGenDescSet->getDescSetLayout() }, "shader/raygen.comp.spv");
+		this->finalPasRenderer = new QuadGraphicRenderSystem(this->device, { this->finalDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/final.frag.spv");
 
 		this->forwardPassRenderer->initialize();
-		this->deferredPasRenderer->initialize();
+		this->rayGenPassRenderer->initialize();
+		this->finalPasRenderer->initialize();
 	}
 
 	void App::resize() {
@@ -470,16 +471,26 @@ namespace NugieApp {
 
 		this->renderer->resetCommandPool();
 
+		SubRenderer::Overwriter(this->device, width, height, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.overwrite(this->forwardSubRenderer);
+
+		this->rayGenImage->resize(width, height);
+
 		SubRenderer::Overwriter(this->device, width, height, imageCount)
 			.addOutsideAttachment(this->renderer->getSwapChain()->getswapChainImages())
 			.overwrite(this->finalSubRenderer);
 
-		DescriptorSet::Overwriter(imageCount)
-			.addImage(0, this->finalSubRenderer->getAttachmentInfos(0)[0])
-			.addImage(1, this->finalSubRenderer->getAttachmentInfos(0)[1])
-			.addImage(2, this->finalSubRenderer->getAttachmentInfos(0)[2])
-			.addImage(3, this->finalSubRenderer->getAttachmentInfos(0)[3])
-			.overwrite(this->attachmentDeferredDescSet);
+		DescriptorSet::Overwriter(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addImage(0, this->rayGenImage->getImagesInfo())
+			.addImage(1, this->forwardSubRenderer->getAttachmentInfos(0)[0])
+			.addImage(2, this->forwardSubRenderer->getAttachmentInfos(0)[1])
+			.addImage(3, this->forwardSubRenderer->getAttachmentInfos(0)[2])
+			.addImage(4, this->forwardSubRenderer->getAttachmentInfos(0)[3])
+			.overwrite(this->rayGenDescSet);
+
+		DescriptorSet::Overwriter(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addImage(0, this->rayGenImage->getSampleInfo())
+			.overwrite(this->finalDescSet);
 
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		this->camera->setAspect(aspectRatio);

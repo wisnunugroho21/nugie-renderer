@@ -11,9 +11,8 @@
 
 namespace NugieApp {
 	ComputeRenderSystem::ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
-		std::string compFilePath, uint32_t xThreadSize, uint32_t yThreadSize, uint32_t zThreadSize)
-		: device{device}, descriptorSetLayouts{descriptorSetLayouts}, compFilePath{compFilePath}, xThreadSize{xThreadSize}, 
-		yThreadSize{yThreadSize}, zThreadSize{zThreadSize}
+		std::string compFilePath)
+		: device{device}, descriptorSetLayouts{descriptorSetLayouts}, compFilePath{compFilePath}
 	{
 		
 	}

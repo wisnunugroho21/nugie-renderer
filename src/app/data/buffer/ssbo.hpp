@@ -11,7 +11,7 @@ namespace NugieApp {
 	template <typename T>
 	class ShaderStorageBufferObject {
 		public:
-			ShaderStorageBufferObject(NugieVulkan::Device* device);
+			ShaderStorageBufferObject(NugieVulkan::Device* device, uint32_t totalSize = 1000000u);
 			~ShaderStorageBufferObject();
 
 			VkDescriptorBufferInfo getInfo() const { return this->buffer->descriptorInfo(); }
@@ -27,12 +27,12 @@ namespace NugieApp {
 			NugieVulkan::Buffer* stagingBuffer;
 			NugieVulkan::Buffer* buffer;
 
-			void createBuffers();
+			void createBuffers(uint32_t totalSize = 1000000u);
 	};
 
 	template <typename T>
-	ShaderStorageBufferObject<T>::ShaderStorageBufferObject(NugieVulkan::Device* device) : device{device} {
-		this->createBuffers();
+	ShaderStorageBufferObject<T>::ShaderStorageBufferObject(NugieVulkan::Device* device, uint32_t totalSize) : device{device} {
+		this->createBuffers(totalSize);
 	}
 
 	template <typename T>
@@ -42,13 +42,13 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ShaderStorageBufferObject<T>::createBuffers() {
+	void ShaderStorageBufferObject<T>::createBuffers(uint32_t totalSize) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
 			instanceSize,
-			1000000,
+			totalSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VMA_MEMORY_USAGE_AUTO,
 			VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
@@ -57,7 +57,7 @@ namespace NugieApp {
 		this->buffer = new NugieVulkan::Buffer(
 			this->device,
 			instanceSize,
-			1000000,
+			totalSize,
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			VMA_MEMORY_USAGE_AUTO,
 			VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
