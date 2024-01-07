@@ -363,15 +363,14 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
-    VkSampleCountFlagBits sample)
+  SubRenderer::Builder& SubRenderer::Builder::addResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout)
   {
     SubRendererAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::RESOLVED;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
     attachDesc.format = format;
-    attachDesc.sample = sample;
+    attachDesc.sample = VK_SAMPLE_COUNT_1_BIT;
     attachDesc.isOutside = false;
 
     this->subRendererAttachmentDescs.emplace_back(attachDesc);
@@ -383,7 +382,7 @@ namespace NugieApp {
 
     std::vector<NugieVulkan::Image*> frameImages{};
     for (size_t i = 0; i < this->imageCount; i++) {
-      frameImages.emplace_back(new NugieVulkan::Image(this->device, this->width, this->height, 1, sample, format,
+      frameImages.emplace_back(new NugieVulkan::Image(this->device, this->width, this->height, 1, VK_SAMPLE_COUNT_1_BIT, format,
         VK_IMAGE_TILING_OPTIMAL, imageUsage, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, 
         VK_IMAGE_ASPECT_COLOR_BIT));
     }
@@ -397,8 +396,8 @@ namespace NugieApp {
 
     VkAttachmentDescription attachmentDesc{};
     attachmentDesc.format = format;
-    attachmentDesc.samples = sample;
-    attachmentDesc.loadOp =VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDesc.storeOp = storeOp;
     attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -411,7 +410,7 @@ namespace NugieApp {
     attachmentRef.attachment = static_cast<uint32_t>(this->attachments.size() - 1);
     attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    this->resolveAttachmentRefs[this->resolveAttachmentRefs.size() - 1] = attachmentRef;
+    this->resolveAttachmentRefs[this->resolveAttachmentRefs.size() - 1].emplace_back(attachmentRef);
 
     if (attachmentType == AttachmentType::INPUT_OUTPUT) {
       VkAttachmentReference attachmentRef{};
@@ -458,7 +457,7 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setResolvedAttachment(const std::vector<NugieVulkan::Image*> &frameImages, AttachmentType attachmentType, 
+  SubRenderer::Builder& SubRenderer::Builder::addResolvedAttachment(const std::vector<NugieVulkan::Image*> &frameImages, AttachmentType attachmentType, 
     VkFormat format, VkImageLayout layout) 
   {
     SubRendererAttachmentDesc attachDesc{};
@@ -490,7 +489,7 @@ namespace NugieApp {
     attachmentRef.attachment = static_cast<uint32_t>(this->attachments.size() - 1);
     attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    this->resolveAttachmentRefs[this->resolveAttachmentRefs.size() - 1] = attachmentRef;
+    this->resolveAttachmentRefs[this->resolveAttachmentRefs.size() - 1].emplace_back(attachmentRef);
 
     if (attachmentType == AttachmentType::INPUT_OUTPUT) {
       VkAttachmentReference attachmentRef{};
@@ -574,7 +573,7 @@ namespace NugieApp {
   SubRenderer::SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
     const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
     const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
-    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRefs, 
+    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &resolveAttachmentRefs,
     const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers, const std::vector<SubRendererAttachmentDesc> &subRendererAttachmentDescs,
     const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos)
     : device{device}, width{width}, height{height}, layerNum{layerNum}, createdAttachments{createdAttachments}, 
@@ -601,7 +600,7 @@ namespace NugieApp {
 
   void SubRenderer::createRenderPass(const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
     const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
-    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<VkAttachmentReference> &resolveAttachmentRefs)
+    const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &resolveAttachmentRefs)
   {
     std::vector<VkSubpassDescription> subpasses;
     std::vector<VkSubpassDependency> subpassDependencies;
@@ -615,10 +614,7 @@ namespace NugieApp {
       subpass.colorAttachmentCount = static_cast<uint32_t>(outputAttachmentRefs[i].size());
       subpass.pColorAttachments = outputAttachmentRefs[i].size() > 0 ? outputAttachmentRefs[i].data() : nullptr;
       subpass.pDepthStencilAttachment = &depthAttachmentRefs[i];
-
-      if (resolveAttachmentRefs[i].layout != VK_IMAGE_LAYOUT_UNDEFINED) {
-        subpass.pResolveAttachments = &resolveAttachmentRefs[i];
-      }
+      subpass.pResolveAttachments = resolveAttachmentRefs[i].size() > 0 ? resolveAttachmentRefs[i].data() : nullptr;
 
       if (i > 0) {
         subpass.inputAttachmentCount = static_cast<uint32_t>(inputAttachmentRefs[i - 1].size());
@@ -901,6 +897,7 @@ namespace NugieApp {
           }
 
           this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
+          samplerIndex++;
         }
       } else if (subRendererAttachmentDesc.attachmentRole == AttachmentRole::RESOLVED) {
         std::vector<NugieVulkan::Image*> frameImages{};
@@ -916,8 +913,6 @@ namespace NugieApp {
               VK_IMAGE_TILING_OPTIMAL, imageUsage, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, 
               VK_IMAGE_ASPECT_COLOR_BIT));
           }
-
-          attachments.emplace_back(frameImages);
         } else {
           frameImages = outsideAttachments[curOutsideAttachIndex++];
         }
@@ -942,7 +937,7 @@ namespace NugieApp {
           if (this->attachmentInfos.size() < subRendererAttachmentDesc.subpassIndex + 1) {
             this->attachmentInfos.resize(subRendererAttachmentDesc.subpassIndex + 1);
           }
-          
+
           std::vector<VkDescriptorImageInfo> imageInfos{};
           for (auto &&frameImage : frameImages) {
             imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
@@ -966,6 +961,7 @@ namespace NugieApp {
           }
 
           this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
+          samplerIndex++;
         }
       }
     }

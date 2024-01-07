@@ -413,6 +413,9 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
+		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
+		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
+
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, msaaSample)
@@ -429,12 +432,9 @@ namespace NugieApp {
 				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
 			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.setResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::OUTPUT_STORED,
+			.addResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::OUTPUT_STORED,
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
-		
-		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
-		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
