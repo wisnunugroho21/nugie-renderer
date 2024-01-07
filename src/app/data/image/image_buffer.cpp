@@ -82,6 +82,7 @@ namespace NugieApp {
   void UniformImageBuffer::resize(uint32_t width, uint32_t height) {
     for (size_t i = 0; i < this->images.size(); i++) {
       if (this->images[i] != nullptr) delete this->images[i];
+      
       this->images[i] = new NugieVulkan::Image(
         this->device, this->width, this->height, 1, this->sample, this->format, 
           VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 

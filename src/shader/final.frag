@@ -8,8 +8,8 @@ layout(location = 0) out vec4 outColor;
 layout(set = 0, binding = 0) uniform sampler2D inputColor;
 
 void main() {
-  // vec2 inCoord = vec2(gl_FragCoord.xy) / vec2(textureSize(inputColor, 0));
-  // vec4 surfaceColor = texture(inputColor, inCoord);
+  vec2 inCoord = vec2(gl_FragCoord.xy) / vec2(textureSize(inputColor, 0));
+  vec4 surfaceColor = texture(inputColor, inCoord);
 
-  outColor = vec4(0.5f);
+  outColor = surfaceColor;
 }

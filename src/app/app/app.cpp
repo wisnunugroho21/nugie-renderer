@@ -100,11 +100,11 @@ namespace NugieApp {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-				// this->forwardSubRenderer->beginRenderPass(commandBuffer, frameIndex);
-				// this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-				// this->forwardSubRenderer->endRenderPass(commandBuffer);
+				this->forwardSubRenderer->beginRenderPass(commandBuffer, frameIndex);
+				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
+				this->forwardSubRenderer->endRenderPass(commandBuffer);
 
-				// this->rayGenPassRenderer->render(commandBuffer, { this->rayGenDescSet->getDescriptorSets(frameIndex) }, width / 32, height / 32, 1);
+				this->rayGenPassRenderer->render(commandBuffer, { this->rayGenDescSet->getDescriptorSets(frameIndex) }, width / 8, height / 4, 1);
 
 				this->rayGenImage->writeToReadBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, frameIndex);
 
@@ -136,6 +136,8 @@ namespace NugieApp {
 
 				if (!this->renderer->presentFrame()) {
 					this->resize();
+					this->renderer->submitPrepareCommand();
+					
 					this->randomSeed = 0;
 
 					continue;
@@ -430,7 +432,7 @@ namespace NugieApp {
 			.build();
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-			.addAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::KEEPED, 
+			.addAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::OUTPUT_STORED, 
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), 
 				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_SAMPLE_COUNT_1_BIT)
 			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
