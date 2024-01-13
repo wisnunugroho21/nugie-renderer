@@ -8,8 +8,7 @@
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/ssbo.hpp"
 #include "../data/buffer/ubo.hpp"
-#include "../data/buffer/vertex.hpp"
-#include "../data/buffer/index.hpp"
+#include "../data/buffer/array_buffer.hpp"
 #include "../data/image/image_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
@@ -66,17 +65,24 @@ namespace NugieApp {
 			ComputeRenderSystem* rayGenPassRenderer;
 			QuadGraphicRenderSystem* finalPasRenderer;
 
-			IndexBufferObject<uint32_t>* indexModel;
+			ArrayBuffer<uint32_t>* indexModel;
 
-			VertexBufferObject<Position>* positionModel;
-			VertexBufferObject<Normal>* normalModel;
-			VertexBufferObject<TextCoord>* textCoordModel;
-			VertexBufferObject<Reference>* referenceModel;
+			ArrayBuffer<Position>* positionModel;
+			ArrayBuffer<Normal>* normalModel;
+			ArrayBuffer<TextCoord>* textCoordModel;
+			ArrayBuffer<Reference>* referenceModel;
+
+			ArrayBuffer<Object>* objectModel;
+			ArrayBuffer<BvhNode>* objectBVHModel;
+			ArrayBuffer<Primitive>* primitiveModel;
+			ArrayBuffer<BvhNode>* primitiveBVHModel;
 			
-			ShaderStorageBufferObject<Material>* materialModel;
-			ShaderStorageBufferObject<Transformation>* transformationModel;
+			ArrayBuffer<Material>* materialModel;
+			ArrayBuffer<Transformation>* transformationModel;
+			ArrayBuffer<PointLight>* pointLightModel;
 
 			UniformBufferObject<ForwardUbo>* forwardUniform;
+			UniformBufferObject<RayTraceUbo>* rayTraceUniform;
 
 			UniformImageBuffer* rayGenImage;
 			
@@ -90,6 +96,7 @@ namespace NugieApp {
 			float frameTime = 0.0f;
 
 			ForwardUbo forwardUbo;
+			RayTraceUbo rayTraceUbo;
 
 			std::vector<NugieApp::Texture*> colorTextures;
 	};

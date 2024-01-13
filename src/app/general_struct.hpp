@@ -18,6 +18,20 @@ namespace NugieApp {
 		}
   };
 
+  struct Primitive {
+    glm::uvec4 indicesMaterialIndex; // x,y,z -> indices; w -> materialIndex
+  };
+
+  struct Object {
+    glm::uvec4 bvhPrimitiveTransformIndex; // x -> bvhIndex, y -> primitiveIndex, z -> transformIndex
+  };
+
+  struct BvhNode {
+    glm::uvec4 nodeObjectIndex; // x -> leftNode, y -> rightNode, z -> leftObjIndex, w -> rightObjIndex
+    glm::vec4 maximum;
+    glm::vec4 minimum;
+  };
+
   struct Normal {
     glm::vec4 normal;
   };
@@ -40,6 +54,9 @@ namespace NugieApp {
   struct Transformation {
     glm::mat4 modelMatrix{1.0f};
     glm::mat4 normalMatrix{1.0f};
+    glm::mat4 pointMatrix{1.0f};
+    glm::mat4 pointInverseMatrix{1.0f};
+    glm::mat4 dirInverseMatrix{1.0f};
   };
 
   struct ShadowTransformation {
@@ -58,7 +75,7 @@ namespace NugieApp {
     float angle;
   };
 
-  struct DeferredUbo {
+  struct RayTraceUbo {
     glm::vec4 origin;
     glm::uvec4 numLights;
   };

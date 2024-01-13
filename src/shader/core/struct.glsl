@@ -10,6 +10,20 @@ struct Position {
   vec4 position;
 };
 
+struct Primitive {
+  uvec4 indicesMaterialIndex; // x,y,z -> indices; w -> materialIndex
+};
+
+struct Object {
+  uvec4 bvhPrimitiveTransformIndex; // x -> bvhIndex, y -> primitiveIndex, z -> transformIndex
+};
+
+struct BvhNode {
+  uvec4 nodeObjectIndex; // x -> leftNode, y -> rightNode, z -> leftObjIndex, w -> rightObjIndex
+  vec4 maximum;
+  vec4 minimum;
+};
+
 struct Normal {
   vec4 normal;
 };
@@ -28,6 +42,9 @@ struct Material {
 struct Transformation {
   mat4 modelMatrix;
   mat4 normalMatrix;
+  mat4 pointMatrix;
+  mat4 pointInverseMatrix;
+  mat4 dirInverseMatrix;
 };
 
 struct ShadowTransformation {
@@ -46,10 +63,30 @@ struct SpotLight {
   float angle;
 };
 
-struct DeferredUbo {
-  uint numLights;
+// ---------------------- internal struct ----------------------
+
+struct Ray {
+  vec3 origin;
+  vec3 direction;
 };
 
-struct ForwardUbo {
-  mat4 cameraTransforms;
+struct FaceNormal {
+  bool frontFace;
+  vec3 normal;
+};
+
+struct HitRecord {
+  bool isHit;
+  uint hitIndex;
+
+  float t;
+  vec3 point;
+  vec3 normal;
+  vec2 uv;
+};
+
+struct ShadeRecord {
+  vec3 radiance;  
+  Ray nextRay;
+  float pdf;
 };

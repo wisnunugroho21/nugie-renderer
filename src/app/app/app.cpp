@@ -358,25 +358,25 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-		this->indexModel = new IndexBufferObject<uint32_t>(this->device);
+		this->indexModel = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		this->indexModel->replace(commandBuffer, indices);
 
-		this->positionModel = new VertexBufferObject<Position>(this->device);
+		this->positionModel = new ArrayBuffer<Position>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->positionModel->replace(commandBuffer, positions);
 
-		this->normalModel = new VertexBufferObject<Normal>(this->device);
+		this->normalModel = new ArrayBuffer<Normal>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->normalModel->replace(commandBuffer, normals);
 
-		this->textCoordModel = new VertexBufferObject<TextCoord>(this->device);
+		this->textCoordModel = new ArrayBuffer<TextCoord>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->textCoordModel->replace(commandBuffer, textCoords);
 
-		this->referenceModel = new VertexBufferObject<Reference>(this->device);
+		this->referenceModel = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->referenceModel->replace(commandBuffer, references);
 
-		this->materialModel = new ShaderStorageBufferObject<Material>(this->device);
+		this->materialModel = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->materialModel->replace(commandBuffer, materials);
 
-		this->transformationModel = new ShaderStorageBufferObject<Transformation>(this->device);
+		this->transformationModel = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->transformationModel->replace(commandBuffer, ConvertComponentToTransform(transforms));
 
 		this->colorTextures.resize(1);
@@ -410,7 +410,7 @@ namespace NugieApp {
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
-		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
+		// VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
 		this->initCamera(width, height);
 
@@ -450,6 +450,15 @@ namespace NugieApp {
 			.addImage(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[1])
 			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[2])
 			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[3])
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniform->getInfo())
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectModel->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBVHModel->getInfo())
+			.addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->primitiveModel->getInfo())
+			.addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->primitiveBVHModel->getInfo())
+			.addBuffer(10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->positionModel->getInfo())
+			.addBuffer(11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialModel->getInfo())
+			.addBuffer(12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformationModel->getInfo())
+			.addBuffer(13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->pointLightModel->getInfo())
 			.build();
 
 		this->finalDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -469,7 +478,7 @@ namespace NugieApp {
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
-		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
+		// VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
 		this->renderer->resetCommandPool();
 

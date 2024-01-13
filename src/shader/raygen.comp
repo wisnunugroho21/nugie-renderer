@@ -15,11 +15,117 @@ layout(set = 0, binding = 2) uniform sampler2D inputNormal;
 layout(set = 0, binding = 3) uniform sampler2D inputTextCoord;
 layout(set = 0, binding = 4) uniform usampler2D inputMaterialIndex;
 
+layout(set = 0, binding = 5) uniform readonly RayTraceUbo {
+  vec4 origin;
+  uvec4 numLights;
+} ubo;
+
+layout(set = 0, binding = 6) buffer readonly ObjectSsbo {
+  Object objects[];
+};
+
+layout(set = 0, binding = 7) buffer readonly ObjectBvhSsbo {
+  BvhNode objectBvhNodes[];
+};
+
+layout(set = 0, binding = 8) buffer readonly PrimitiveSsbo {
+  Primitive primitives[];
+};
+
+layout(set = 0, binding = 9) buffer readonly PrimitiveBvhSsbo {
+  BvhNode primitiveBvhNodes[];
+};
+
+layout(set = 0, binding = 10) buffer readonly PositionSsbo {
+  Position positions[];
+};
+
+layout(set = 0, binding = 11) buffer readonly MaterialSsbo {
+  Material materials[];
+};
+
+layout(set = 0, binding = 12) buffer readonly TransformationSsbo {
+  Transformation transformations[];
+};
+
+layout(set = 0, binding = 13) buffer readonly PointLightSsbo {
+  PointLight pointLights[];
+};
+
+#include "core/trace.glsl"
+#include "core/ggx.glsl"
+
+vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal, 
+  vec4 baseColor, float metallicness, float fresnelReflect, float roughness) 
+{
+  vec4 H = normalize(viewDirection + lightDirection); // half vector
+
+  // all required dot products
+  float NoV = clamp(dot(surfaceNormal, viewDirection), 0.0, 1.0);
+  float NoL = clamp(dot(surfaceNormal, lightDirection), 0.0, 1.0);
+  float NoH = clamp(dot(surfaceNormal, H), 0.0, 1.0);
+  float VoH = clamp(dot(viewDirection, H), 0.0, 1.0);     
+  
+  // F0 for dielectics in range [0.0, 0.16] 
+  // default FO is (0.16 * 0.5^2) = 0.04
+  vec4 f0 = vec4(0.16 * (fresnelReflect * fresnelReflect)); 
+  // in case of metals, baseColor contains F0
+  f0 = mix(f0, baseColor, metallicness);
+
+  // specular microfacet (cook-torrance) BRDF
+  vec4 F = fresnelSchlick(VoH, f0);
+  float D = D_GGX(NoH, roughness);
+  float G = G_Smith(NoV, NoL, roughness);
+  vec4 spec = (F * D * G) / (4.0 * max(NoV, 0.001) * max(NoL, 0.001));
+  
+  // diffuse
+  vec4 rhoD = baseColor;
+  rhoD *= vec4(1.0) - F; // if not specular, use as diffuse (optional)
+  rhoD *= (1.0 - metallicness); // no diffuse for metals
+  vec4 diff = rhoD * RECIPROCAL_PI;
+  
+  return diff + spec;
+}
+
 // ------------- Main -------------
 
 void main() {
   vec2 inCoord = vec2(gl_GlobalInvocationID.xy) / vec2(textureSize(inputPosition, 0));
-  vec4 surfacePosition = texture(inputPosition, inCoord);
 
-  imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), surfacePosition);
+  vec4 surfacePosition = texture(inputPosition, inCoord);
+  vec4 surfaceNormal = texture(inputNormal, inCoord);
+  vec2 surfaceTextCoord = texture(inputTextCoord, inCoord).xy;
+  uint surfaceMaterialIndex = texture(inputMaterialIndex, inCoord).x;
+
+  vec4 surfaceMaterialParams = materials[surfaceMaterialIndex].params;
+  uint colorTextureIndex = materials[surfaceMaterialIndex].colorTextureIndex;
+  
+  /* vec4 surfaceColor = colorTextureIndex == 0 
+    ? materials[surfaceMaterialIndex].baseColor
+    : texture(colorTexture[0], surfaceTextCoord); */
+
+  vec4 surfaceColor = materials[surfaceMaterialIndex].baseColor;
+  vec4 totalRadiance = vec4(0.0f);
+
+  for (uint i = 0; i < ubo.numLights.x; i++) {
+    vec4 lightDirection = pointLights[i].position - surfacePosition;
+
+    HitRecord objectHit = hitObjectBvh(Ray(pointLights[i].position.xyz, lightDirection.xyz), 0.1f, FLT_MAX);
+    if (objectHit.isHit) {
+      continue;
+    }
+    
+    vec4 unitLightDirection = normalize(lightDirection);
+    vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
+
+    vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
+      surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+
+    float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
+    vec4 irradiance =  NoL / (4 * PI * dot(lightDirection, lightDirection)) * pointLights[i].color;
+    
+    totalRadiance += brdf * irradiance;
+  }
+  
+  imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), totalRadiance);
 }
