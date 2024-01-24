@@ -9,10 +9,10 @@
 
 namespace NugieApp {
 	template <typename T>
-	class ShaderStorageBufferObject {
+	class ArrayBuffer {
 		public:
-			ShaderStorageBufferObject(NugieVulkan::Device* device);
-			~ShaderStorageBufferObject();
+			ArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags);
+			~ArrayBuffer();
 
 			VkDescriptorBufferInfo getInfo() const { return this->buffer->descriptorInfo(); }
 			NugieVulkan::Buffer* getBuffer() const { return this->buffer; }
@@ -27,23 +27,27 @@ namespace NugieApp {
 			NugieVulkan::Buffer* stagingBuffer;
 			NugieVulkan::Buffer* buffer;
 
-			void createBuffers();
+			void createBuffers(VkBufferUsageFlags usageFlags);
 	};
 
 	template <typename T>
-	ShaderStorageBufferObject<T>::ShaderStorageBufferObject(NugieVulkan::Device* device) : device{device} {
-		this->createBuffers();
+	ArrayBuffer<T>::ArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags) : device{device} {
+		this->createBuffers(usageFlags);
 	}
 
 	template <typename T>
-	ShaderStorageBufferObject<T>::~ShaderStorageBufferObject() {
+	ArrayBuffer<T>::~ArrayBuffer() {
 		if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
 		if (this->buffer != nullptr) delete this->buffer;
 	}
 
 	template <typename T>
-	void ShaderStorageBufferObject<T>::createBuffers() {
+	void ArrayBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
+
+		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT))) {
+			usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		}
 
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
@@ -58,7 +62,7 @@ namespace NugieApp {
 			this->device,
 			instanceSize,
 			1000000,
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			usageFlags,
 			VMA_MEMORY_USAGE_AUTO,
 			VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
 		);
@@ -67,7 +71,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ShaderStorageBufferObject<T>::replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects) {
+	void ArrayBuffer<T>::replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects) {
 		this->count = static_cast<uint32_t>(objects.size());
 		auto bufferSize = static_cast<VkDeviceSize>(sizeof(T)) * static_cast<VkDeviceSize>(this->count);
 		

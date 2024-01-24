@@ -353,28 +353,28 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-		this->indexModel = new IndexBufferObject<uint32_t>(this->device);
+		this->indexModel = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		this->indexModel->replace(commandBuffer, indices);
 
-		this->positionModel = new VertexBufferObject<Position>(this->device);
+		this->positionModel = new ArrayBuffer<Position>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->positionModel->replace(commandBuffer, positions);
 
-		this->normalModel = new VertexBufferObject<Normal>(this->device);
+		this->normalModel = new ArrayBuffer<Normal>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->normalModel->replace(commandBuffer, normals);
 
-		this->textCoordModel = new VertexBufferObject<TextCoord>(this->device);
+		this->textCoordModel = new ArrayBuffer<TextCoord>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->textCoordModel->replace(commandBuffer, textCoords);
 
-		this->referenceModel = new VertexBufferObject<Reference>(this->device);
+		this->referenceModel = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->referenceModel->replace(commandBuffer, references);
 
-		this->materialModel = new ShaderStorageBufferObject<Material>(this->device);
+		this->materialModel = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->materialModel->replace(commandBuffer, materials);
 
-		this->transformationModel = new ShaderStorageBufferObject<Transformation>(this->device);
+		this->transformationModel = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->transformationModel->replace(commandBuffer, ConvertComponentToTransform(transforms));
 
-		this->spotLightModel = new ShaderStorageBufferObject<SpotLight>(this->device);
+		this->spotLightModel = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->spotLightModel->replace(commandBuffer, spotLights);
 
 		this->colorTextures.resize(1);
@@ -413,8 +413,8 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
-		this->forwardUniform = new UniformBufferObject<ForwardUbo>(this->device);
-		this->deferredUniform = new UniformBufferObject<DeferredUbo>(this->device);
+		this->forwardUniform = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->deferredUniform = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 

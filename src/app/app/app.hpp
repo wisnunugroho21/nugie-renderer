@@ -6,10 +6,8 @@
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
-#include "../data/buffer/ssbo.hpp"
-#include "../data/buffer/ubo.hpp"
-#include "../data/buffer/vertex.hpp"
-#include "../data/buffer/index.hpp"
+#include "../data/buffer/array_buffer.hpp"
+#include "../data/buffer/object_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
@@ -63,19 +61,19 @@ namespace NugieApp {
 			ForwardPassRenderSystem* forwardPassRenderer;
 			DeferredPassRenderSystem* deferredPasRenderer;
 
-			IndexBufferObject<uint32_t>* indexModel;
+			ArrayBuffer<uint32_t>* indexModel;
 
-			VertexBufferObject<Position>* positionModel;
-			VertexBufferObject<Normal>* normalModel;
-			VertexBufferObject<TextCoord>* textCoordModel;
-			VertexBufferObject<Reference>* referenceModel;
+			ArrayBuffer<Position>* positionModel;
+			ArrayBuffer<Normal>* normalModel;
+			ArrayBuffer<TextCoord>* textCoordModel;
+			ArrayBuffer<Reference>* referenceModel;
 			
-			ShaderStorageBufferObject<Material>* materialModel;
-			ShaderStorageBufferObject<Transformation>* transformationModel;
-			ShaderStorageBufferObject<SpotLight>* spotLightModel;
+			ArrayBuffer<Material>* materialModel;
+			ArrayBuffer<Transformation>* transformationModel;
+			ArrayBuffer<SpotLight>* spotLightModel;
 
-			UniformBufferObject<ForwardUbo>* forwardUniform;
-			UniformBufferObject<DeferredUbo>* deferredUniform;
+			ObjectBuffer<ForwardUbo>* forwardUniform;
+			ObjectBuffer<DeferredUbo>* deferredUniform;
 			
 			DescriptorSet* forwardDescSet;
 			DescriptorSet* attachmentDeferredDescSet;

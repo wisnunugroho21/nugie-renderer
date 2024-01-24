@@ -10,10 +10,10 @@
 
 namespace NugieApp {
 	template <typename T>
-	class UniformBufferObject {
+	class ObjectBuffer {
 		public:
-			UniformBufferObject(NugieVulkan::Device* device);
-			~UniformBufferObject();
+			ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags);
+			~ObjectBuffer();
 
 			std::vector<VkDescriptorBufferInfo> getInfo() const;
 
@@ -23,23 +23,23 @@ namespace NugieApp {
       NugieVulkan::Device* device;
 			std::vector<NugieVulkan::Buffer*> uniformBuffers;
 
-			void createUniformBuffer();
+			void createBuffer(VkBufferUsageFlags usageFlags);
 	};
 
 	template <typename T>
-	UniformBufferObject<T>::UniformBufferObject(NugieVulkan::Device* device) : device{device} {
-		this->createUniformBuffer();
+	ObjectBuffer<T>::ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags) : device{device} {
+		this->createBuffer(usageFlags);
 	}
 
 	template <typename T>
-	UniformBufferObject<T>::~UniformBufferObject() {
+	ObjectBuffer<T>::~ObjectBuffer() {
 		for (auto &&uniformBuffer : this->uniformBuffers) {
 			if (uniformBuffer != nullptr) delete uniformBuffer;
 		}
 	}
 
 	template <typename T>
-	std::vector<VkDescriptorBufferInfo> UniformBufferObject<T>::getInfo() const {
+	std::vector<VkDescriptorBufferInfo> ObjectBuffer<T>::getInfo() const {
 		std::vector<VkDescriptorBufferInfo> buffersInfo{};
 		
 		for (int i = 0; i < this->uniformBuffers.size(); i++) {
@@ -50,7 +50,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void UniformBufferObject<T>::createUniformBuffer() {
+	void ObjectBuffer<T>::createBuffer(VkBufferUsageFlags usageFlags) {
 		this->uniformBuffers.clear();
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -58,7 +58,7 @@ namespace NugieApp {
 				this->device,
 				sizeof(T),
 				1u,
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				usageFlags,
 				VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
 				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
 			);
@@ -69,7 +69,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void UniformBufferObject<T>::writeGlobalData(uint32_t frameIndex, T ubo) {
+	void ObjectBuffer<T>::writeGlobalData(uint32_t frameIndex, T ubo) {
 		this->uniformBuffers[frameIndex]->writeToBuffer(&ubo);
 		this->uniformBuffers[frameIndex]->flush();
 	}
