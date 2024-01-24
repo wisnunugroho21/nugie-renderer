@@ -11,7 +11,7 @@ namespace NugieApp {
 	template <typename T>
 	class ArrayBuffer {
 		public:
-			ArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags);
+			ArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u);
 			~ArrayBuffer();
 
 			VkDescriptorBufferInfo getInfo() const { return this->buffer->descriptorInfo(); }
@@ -27,12 +27,12 @@ namespace NugieApp {
 			NugieVulkan::Buffer* stagingBuffer;
 			NugieVulkan::Buffer* buffer;
 
-			void createBuffers(VkBufferUsageFlags usageFlags);
+			void createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount);
 	};
 
 	template <typename T>
-	ArrayBuffer<T>::ArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags) : device{device} {
-		this->createBuffers(usageFlags);
+	ArrayBuffer<T>::ArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount) : device{device} {
+		this->createBuffers(usageFlags, instanceCount);
 	}
 
 	template <typename T>
@@ -42,7 +42,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ArrayBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags) {
+	void ArrayBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
 		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT))) {
@@ -52,7 +52,7 @@ namespace NugieApp {
 		this->stagingBuffer = new NugieVulkan::Buffer(
 			this->device,
 			instanceSize,
-			1000000,
+			instanceCount,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VMA_MEMORY_USAGE_AUTO,
 			VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
@@ -61,7 +61,7 @@ namespace NugieApp {
 		this->buffer = new NugieVulkan::Buffer(
 			this->device,
 			instanceSize,
-			1000000,
+			instanceCount,
 			usageFlags,
 			VMA_MEMORY_USAGE_AUTO,
 			VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
