@@ -28,22 +28,18 @@ namespace NugieApp {
           Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum = 1u);
 
           Builder& addAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
-
           Builder& addAttachment(const std::vector<NugieVulkan::Image*> &attachments, AttachmentType attachmentType, VkFormat format, 
             VkImageLayout layout, VkSampleCountFlagBits sample);
 
           Builder& setDepthAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample);
-
           Builder& setDepthAttachment(const std::vector<NugieVulkan::Image*> &attachments, AttachmentType attachmentType, VkFormat format, 
             VkImageLayout layout, VkSampleCountFlagBits sample);
 
           Builder& addResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout);
-
           Builder& addResolvedAttachment(const std::vector<NugieVulkan::Image*> &attachments, AttachmentType attachmentType, VkFormat format, 
             VkImageLayout layout);
 
           Builder& nextSubpass();
-
           SubRenderer* build();
 
         private:
@@ -90,9 +86,9 @@ namespace NugieApp {
       NugieVulkan::RenderPass* getRenderPass() const { return this->renderPass; }
       std::vector<std::vector<VkDescriptorImageInfo>> getAttachmentInfos(uint32_t subpassIndex) const { return this->attachmentInfos[subpassIndex]; }
 
-      virtual void beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t imageIndex);
-      virtual void nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent);
-			virtual void endRenderPass(NugieVulkan::CommandBuffer* commandBuffer);
+      void beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t imageIndex);
+      void nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent);
+			void endRenderPass(NugieVulkan::CommandBuffer* commandBuffer);
 
       void deleteCreatedAttachments();
 
