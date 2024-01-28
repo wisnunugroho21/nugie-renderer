@@ -34,17 +34,14 @@ namespace NugieApp {
 	App::~App() {
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->deferredPasRenderer != nullptr) delete this->deferredPasRenderer;
-		if (this->shadowPassRenderer != nullptr) delete this->shadowPassRenderer;
 
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
-		if (this->shadowSubRenderer != nullptr) delete this->shadowSubRenderer;
-
+		if (this->spotShadowSubRenderer != nullptr) delete this->spotShadowSubRenderer;
 		if (this->renderer != nullptr) delete this->renderer;
 
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->attachmentDeferredDescSet != nullptr) delete this->attachmentDeferredDescSet;
 		if (this->modelDeferredDescSet != nullptr) delete this->modelDeferredDescSet;
-		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 
 		if (this->forwardUniform != nullptr) delete this->forwardUniform;
 		if (this->deferredUniform != nullptr) delete this->deferredUniform;
@@ -57,7 +54,6 @@ namespace NugieApp {
 		if (this->materialModel != nullptr) delete this->materialModel;
 		if (this->transformationModel != nullptr) delete this->transformationModel;
 		if (this->spotLightModel != nullptr) delete this->spotLightModel;
-		if (this->shadowTransformationModel != nullptr) delete this->shadowTransformationModel;
 		
 		for (auto &&colorTexture : this->colorTextures) {
 			if (colorTexture != nullptr) delete colorTexture;
@@ -100,12 +96,6 @@ namespace NugieApp {
 				descriptorSets.emplace_back(this->modelDeferredDescSet->getDescriptorSets(frameIndex));
 
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
-
-				for (uint32_t lightIndex = 0; lightIndex < this->numLight; lightIndex++) {
-					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->numLight + lightIndex);
-					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(lightIndex * this->numLight + frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), lightIndex);
-					this->shadowSubRenderer->endRenderPass(commandBuffer);
-				}
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
@@ -313,11 +303,11 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 1, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 
-		loadedModel = loadObjModel("../assets/models/quad_model.obj");
+		/* loadedModel = loadObjModel("../assets/models/quad_model.obj");
 
 		positionSize = static_cast<uint32_t>(positions.size());
 		for (auto &&index : loadedModel.indices) {
@@ -340,7 +330,7 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 0, 1 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) }); */
 
 		// ----------------------------------------------------------------------------
 		
@@ -348,33 +338,16 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
 		spotLights.resize(1);
-		spotLights[0].position = glm::vec4{ 0.0f, 40.0f, -40.0f, 1.0f };
-		spotLights[0].color = glm::vec4{ 50000.0f, 50000.0f, 50000.0f, 1.0f };
-		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) - spotLights[0].position;
-		spotLights[0].angle = 45.0f;
+		spotLights[0].position = glm::vec4{ 0.0f, 50.0f, 0.0f, 1.0f };
+		spotLights[0].color = glm::vec4{ 10000.0f, 10000.0f, 10000.0f, 1.0f };
+		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) - spotLights[0].position;
+		spotLights[0].angle = 60;
 
-		this->numLight = static_cast<uint32_t>(spotLights.size());
+		this->spotNumLight = static_cast<uint32_t>(spotLights.size());
 
 		// ---------------------------------------------------------------------
 
-		uint32_t width = this->renderer->getSwapChain()->getWidth();
-		uint32_t height = this->renderer->getSwapChain()->getHeight();
-
-		Camera shadowCamera;
-		float near = 0.1f;
-		float far = 2000.0f;
-		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		float theta = glm::radians(45.0);
-
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
-		glm::mat4 projection = shadowCamera.getProjectionMatrix();
-
-		shadowTransforms.resize(this->numLight);
-
-		for (size_t i = 0; i < spotLights.size(); i++) {
-			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction, glm::vec3(0.0f, 0.0f, 1.0f));
-			shadowTransforms[i].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
-		}
+		this->deferredUbo.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
 
 		// ----------------------------------------------------------------------------
 
@@ -404,9 +377,6 @@ namespace NugieApp {
 		this->spotLightModel = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->spotLightModel->replace(commandBuffer, spotLights);
 
-		this->shadowTransformationModel = new ArrayBuffer<ShadowTransformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		this->shadowTransformationModel->replace(commandBuffer, shadowTransforms);
-
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
 
@@ -415,7 +385,7 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 40.0f, -40.0f);
+		glm::vec3 position = glm::vec3(0.0f, 30.0f, -30.0f);
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
 
@@ -432,7 +402,7 @@ namespace NugieApp {
 		glm::mat4 projection = this->camera->getProjectionMatrix();
 
 		this->forwardUbo.cameraTransforms = projection * view;
-		this->deferredUbo.originNumLights = glm::vec4(position, this->numLight);
+		this->deferredUbo.origin = glm::vec4(position, 1.0f);
 	}
 
 	void App::init() {
@@ -445,11 +415,6 @@ namespace NugieApp {
 
 		this->forwardUniform = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		this->deferredUniform = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-		this->shadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.setDepthAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_D16_UNORM, 
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
-			.build();
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::INPUT_OUTPUT, VK_FORMAT_R32G32B32A32_SFLOAT, 
@@ -471,25 +436,9 @@ namespace NugieApp {
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 
-		std::vector<std::vector<VkDescriptorImageInfo>> shadowImageInfos;
-		for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
-			std::vector<VkDescriptorImageInfo> shadowFrameImageInfos;
-
-			for (uint32_t lightIndex = 0; lightIndex < this->numLight; lightIndex++) {
-				shadowFrameImageInfos.emplace_back(this->shadowSubRenderer->getAttachmentInfos(0)[0][frameIndex * this->numLight + lightIndex]);
-			}
-
-			shadowImageInfos.emplace_back(shadowFrameImageInfos);
-		}
-
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
-			.build();
-
-		this->shadowDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationModel->getInfo())
 			.build();
 
 		this->attachmentDeferredDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), imageCount)
@@ -503,18 +452,14 @@ namespace NugieApp {
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->deferredUniform->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialModel->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightModel->getInfo())
-			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationModel->getInfo())
-			.addManyImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
-			.addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
+			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
 			.build();
 
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->deferredPasRenderer = new DeferredPassRenderSystem(this->device, { this->attachmentDeferredDescSet->getDescSetLayout(), this->modelDeferredDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/deferred.frag.spv");
-		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
 
 		this->forwardPassRenderer->initialize();
 		this->deferredPasRenderer->initialize();
-		this->shadowPassRenderer->initialize();
 	}
 
 	void App::resize() {
