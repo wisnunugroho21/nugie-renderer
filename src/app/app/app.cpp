@@ -101,11 +101,15 @@ namespace NugieApp {
 
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-				for (uint32_t lightIndex = 0; lightIndex < this->numLight; lightIndex++) {
+				/* for (uint32_t lightIndex = 0; lightIndex < this->numLight; lightIndex++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->numLight + lightIndex);
-					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(lightIndex * this->numLight + frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), lightIndex);
+					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex * this->numLight + lightIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), lightIndex);
 					this->shadowSubRenderer->endRenderPass(commandBuffer);
-				}
+				} */
+
+				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
+				this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), 0);
+				this->shadowSubRenderer->endRenderPass(commandBuffer);
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
@@ -348,10 +352,10 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
 		spotLights.resize(1);
-		spotLights[0].position = glm::vec4{ 0.0f, 40.0f, -40.0f, 1.0f };
+		spotLights[0].position = glm::vec4{ -50.0f, 50.0f, -50.0f, 1.0f };
 		spotLights[0].color = glm::vec4{ 50000.0f, 50000.0f, 50000.0f, 1.0f };
 		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) - spotLights[0].position;
-		spotLights[0].angle = 45.0f;
+		spotLights[0].angle = 60.0f;
 
 		this->numLight = static_cast<uint32_t>(spotLights.size());
 
@@ -360,20 +364,24 @@ namespace NugieApp {
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 
+		// shadowTransforms.resize(this->numLight);
+
 		Camera shadowCamera;
 		float near = 0.1f;
 		float far = 2000.0f;
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		float theta = glm::radians(45.0);
-
-		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
-		glm::mat4 projection = shadowCamera.getProjectionMatrix();
-
-		shadowTransforms.resize(this->numLight);
 
 		for (size_t i = 0; i < spotLights.size(); i++) {
-			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction, glm::vec3(0.0f, 0.0f, 1.0f));
-			shadowTransforms[i].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+			ShadowTransformation shadowTransformation;
+
+			float theta = spotLights[i].angle;
+
+			shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction, glm::vec3(0.0f, -1.0f, 0.0f));
+			
+			shadowTransformation.viewProjectionMatrix = shadowCamera.getProjectionMatrix() * shadowCamera.getViewMatrix();
+
+			shadowTransforms.emplace_back(shadowTransformation);
 		}
 
 		// ----------------------------------------------------------------------------
@@ -415,7 +423,7 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 40.0f, -40.0f);
+		glm::vec3 position = glm::vec3(0.0f, 30.0f, -60.0f);
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
 
@@ -446,7 +454,7 @@ namespace NugieApp {
 		this->forwardUniform = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		this->deferredUniform = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-		this->shadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->numLight * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->shadowSubRenderer = SubRenderer::Builder(this->device, width, height, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.setDepthAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_D16_UNORM, 
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
 			.build();
@@ -471,7 +479,7 @@ namespace NugieApp {
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 
-		std::vector<std::vector<VkDescriptorImageInfo>> shadowImageInfos;
+		/* std::vector<std::vector<VkDescriptorImageInfo>> shadowImageInfos;
 		for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 			std::vector<VkDescriptorImageInfo> shadowFrameImageInfos;
 
@@ -480,7 +488,7 @@ namespace NugieApp {
 			}
 
 			shadowImageInfos.emplace_back(shadowFrameImageInfos);
-		}
+		} */
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
@@ -504,7 +512,7 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialModel->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightModel->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationModel->getInfo())
-			.addManyImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
+			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowSubRenderer->getAttachmentInfos(0)[0])
 			.addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
 			.build();
 
