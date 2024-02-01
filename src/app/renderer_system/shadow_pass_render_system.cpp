@@ -59,10 +59,10 @@ namespace NugieApp {
 		attributeDescription[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 		attributeDescription[0].offset = 0;
 
-		attributeDescription[1].binding = 1;
+		attributeDescription[1].binding = 0;
 		attributeDescription[1].location = 1;
 		attributeDescription[1].format = VK_FORMAT_R32_UINT;
-		attributeDescription[1].offset = 0;
+		attributeDescription[1].offset = sizeof(uint32_t);
 
 		VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
 		rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;

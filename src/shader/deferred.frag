@@ -3,6 +3,7 @@
 
 #include "core/struct.glsl"
 
+layout(origin_upper_left) in vec4 gl_FragCoord;
 layout(location = 0) out vec4 outColor;
 
 layout (input_attachment_index = 0, set = 0, binding = 0) uniform subpassInputMS inputPosition;
@@ -91,12 +92,14 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-bool isShadow(uint lightIndex, vec4 shadowCoord) {
+float shadowFactor(uint lightIndex, vec4 shadowCoord) {
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
   float dist = texture(shadowMapTexture[lightIndex], shadowCoord.xy).x;
-  return dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
+  bool isShadow = dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
+
+  return isShadow ? 0.1f : 1.0f;
 }
 
 void main() {
@@ -121,20 +124,25 @@ void main() {
     vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * surfacePosition;
     float DoL = dot(spotLights[i].direction, -1.0f * unitLightDirection);
 
-    if (DoL > cos(spotLights[i].angle) && !isShadow(i, shadowCoord)) {
-      vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
+    vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
 
-      vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
-        surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+    vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
+      surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
 
-      float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
-      vec4 irradiance = spotLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
-      
-      totalRadiance += brdf * irradiance;
-    }
+    float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
+    vec4 irradiance = spotLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
+    
+    totalRadiance += brdf * irradiance * shadowFactor(i, shadowCoord);
   }
 
   // vec4 shadowCoord = shadowTransformations[0].viewProjectionMatrix * surfacePosition;
 
-  outColor = totalRadiance; //float(isShadow(0, shadowCoord)) * vec4(1.0f);
+  /* shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
+  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+
+  vec2 position = gl_FragCoord.xy / textureSize(shadowMapTexture[0], 0);
+
+  float dist = texture(shadowMapTexture[0], position).x; */
+
+  outColor = totalRadiance;// shadowFactor(0, shadowCoord) * vec4(1.0f); //float(isShadow(0, shadowCoord)) * vec4(1.0f);
 }
