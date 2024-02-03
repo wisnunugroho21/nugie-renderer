@@ -19,5 +19,21 @@ namespace NugieApp {
     glm::mat3 getNormalMatrix() const;
 	};
 
+	struct RayTransformComponent {
+		glm::vec3 translation{0.0f};
+		glm::vec3 scale{1.0f};
+		glm::vec3 rotation{0.0f};
+
+		glm::vec3 objectMinimum{0.0f};
+		glm::vec3 objectMaximum{0.0f};
+
+		glm::mat4 getPointMatrix() const;
+		glm::mat4 getDirMatrix() const;
+    glm::mat4 getPointInverseMatrix() const;
+    glm::mat4 getDirInverseMatrix() const;
+    glm::mat4 getNormalMatrix() const;
+	};
+
 	std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations);
+	std::vector<RayTransformation> ConvertRayComponentToRayTransform(const std::vector<RayTransformComponent> &rayTransformations);
 }

@@ -5,9 +5,9 @@
 
 namespace NugieApp {
   struct LoadedModel {
-    std::vector<Position> positions;
-    std::vector<Normal> normals;
-    std::vector<TextCoord> textCoords;
+    std::vector<glm::vec4> positions;
+    std::vector<glm::vec4> normals;
+    std::vector<glm::vec2> textCoords;
     std::vector<uint32_t> indices;
   };
 

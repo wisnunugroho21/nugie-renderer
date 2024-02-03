@@ -3,6 +3,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace NugieApp {
   class Camera {
@@ -17,7 +18,6 @@ namespace NugieApp {
 
       void setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up = glm::vec3{0.0f, 1.0f, 0.0f});
       void setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 up = glm::vec3{0.0f, 1.0f, 0.0f});
-      void setViewYXZ(glm::vec3 position, glm::vec3 rotation);
 
       const glm::mat4 getProjectionMatrix() const { return this->projectionMatrix; }
       const glm::mat4 getViewMatrix() const { return this->viewMatrix; }

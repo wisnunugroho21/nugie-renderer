@@ -40,15 +40,15 @@ namespace NugieApp {
 			throw std::runtime_error(warn + err);
 		}
 
-		std::unordered_map<Position, uint32_t> uniqueVertices{};
+		std::unordered_map<glm::vec4, uint32_t> uniqueVertices{};
 		for (const auto &shape: shapes) {
 			for (const auto &index: shape.mesh.indices) {
-				Position position{};
-        Normal normal{};
-				TextCoord textCoord{};
+				glm::vec4 position{};
+        glm::vec4 normal{};
+				glm::vec2 textCoord{};
 
 				if (index.vertex_index >= 0) {
-					position.position = {
+					position = {
 						attrib.vertices[3 * index.vertex_index + 0],
 						attrib.vertices[3 * index.vertex_index + 1],
 						attrib.vertices[3 * index.vertex_index + 2],
@@ -57,7 +57,7 @@ namespace NugieApp {
 				}
 
 				if (index.normal_index >= 0) {
-					normal.normal = {
+					normal = {
 						attrib.normals[3 * index.normal_index + 0],
 						attrib.normals[3 * index.normal_index + 1],
 						attrib.normals[3 * index.normal_index + 2],
@@ -66,7 +66,7 @@ namespace NugieApp {
 				}
 
 				if (index.texcoord_index >= 0) {
-					textCoord.textCoord = { // temoirary. for OBJ object only
+					textCoord = { // temoirary. for OBJ object only
 						attrib.texcoords[2 * index.texcoord_index + 0],
     				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
 					};

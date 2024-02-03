@@ -51,7 +51,7 @@ namespace NugieApp {
 		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
-		if (this->spotLightBuffer != nullptr) delete this->spotLightBuffer;
+		if (this->pointLightBuffer != nullptr) delete this->pointLightBuffer;
 		
 		for (auto &&colorTexture : this->colorTextures) {
 			if (colorTexture != nullptr) delete colorTexture;
@@ -171,6 +171,7 @@ namespace NugieApp {
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
+			this->rayTraceUniform->writeGlobalData(i, this->rayTraceUbo);
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
@@ -221,6 +222,7 @@ namespace NugieApp {
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
+			this->rayTraceUniform->writeGlobalData(i, this->rayTraceUbo);
 		}
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
@@ -282,15 +284,14 @@ namespace NugieApp {
 	}
 
 	void App::loadObjects() {
-		std::vector<Position> positions;
-		std::vector<Normal> normals;
-		std::vector<TextCoord> textCoords;
-		std::vector<Reference> references;
+		std::vector<glm::vec4> positions;
+		std::vector<glm::vec4> normals;
+		std::vector<glm::vec2> textCoords;
+		std::vector<glm::uvec2> references;
 		std::vector<Material> materials;
 		std::vector<TransformComponent> transforms;
-		std::vector<ShadowTransformation> shadowTransforms;
 		std::vector<uint32_t> indices;
-		std::vector<SpotLight> spotLights;
+		std::vector<PointLight> pointLights;
 
 		// ----------------------------------------------------------------------------
 
@@ -314,14 +315,14 @@ namespace NugieApp {
 		}
 
 		for (size_t i = 0; i < loadedBuffer.positions.size(); i++) {
-			references.emplace_back(Reference{ 1, 0 });
+			references.emplace_back(glm::uvec2{ 1, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(0.0f), glm::radians(180.0f)) });
 
 		// ----------------------------------------------------------------------------
 
-		/* loadedBuffer = loadObjBuffer("../assets/models/quad_model.obj");
+		loadedBuffer = loadObjModel("../assets/models/quad_model.obj");
 
 		positionSize = static_cast<uint32_t>(positions.size());
 		for (auto &&index : loadedBuffer.indices) {
@@ -341,23 +342,22 @@ namespace NugieApp {
 		}
 
 		for (size_t i = 0; i < loadedBuffer.positions.size(); i++) {
-			references.emplace_back(Reference{ 0, 1 });
+			references.emplace_back(glm::uvec2{ 0, 1 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) }); */
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 		
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 0u });
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
-		spotLights.resize(1);
-		spotLights[0].position = glm::vec4{ 0.0f, 50.0f, 0.0f, 1.0f };
-		spotLights[0].color = glm::vec4{ 10000.0f, 10000.0f, 10000.0f, 1.0f };
-		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) - spotLights[0].position;
-		spotLights[0].angle = 60;
+		pointLights.resize(1);
 
-		this->spotNumLight = static_cast<uint32_t>(spotLights.size());
+		pointLights[0].position = glm::vec4{ 0.0f, 80.0f, 50.0f, 1.0f };
+		pointLights[0].color = glm::vec4{ 100000.0f, 100000.0f, 100000.0f, 1.0f };
+
+		this->rayTraceUbo.numLights.x = static_cast<uint32_t>(pointLights.size());
 
 		// ----------------------------------------------------------------------------
 
@@ -366,16 +366,16 @@ namespace NugieApp {
 		this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		this->indexBuffer->replace(commandBuffer, indices);
 
-		this->positionBuffer = new ArrayBuffer<Position>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		this->positionBuffer = new ArrayBuffer<glm::vec4>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->positionBuffer->replace(commandBuffer, positions);
 
-		this->normalBuffer = new ArrayBuffer<Normal>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		this->normalBuffer = new ArrayBuffer<glm::vec4>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->normalBuffer->replace(commandBuffer, normals);
 
-		this->textCoordBuffer = new ArrayBuffer<TextCoord>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		this->textCoordBuffer = new ArrayBuffer<glm::vec2>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->textCoordBuffer->replace(commandBuffer, textCoords);
 
-		this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		this->referenceBuffer = new ArrayBuffer<glm::uvec2>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		this->referenceBuffer->replace(commandBuffer, references);
 
 		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -384,8 +384,8 @@ namespace NugieApp {
 		this->transformationBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->transformationBuffer->replace(commandBuffer, ConvertComponentToTransform(transforms));
 
-		this->spotLightBuffer = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		this->spotLightBuffer->replace(commandBuffer, spotLights);
+		this->pointLightBuffer = new ArrayBuffer<PointLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		this->pointLightBuffer->replace(commandBuffer, pointLights);
 
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
@@ -395,9 +395,9 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 30.0f, -30.0f);
+		glm::vec3 position = glm::vec3(0.0f, 60.0f, 50.0f);
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
-		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
+		glm::vec3 vup = glm::vec3(0.0f, -1.0f, 0.0f);
 
 		float near = 0.1f;
 		float far = 2000.0f;
@@ -412,6 +412,7 @@ namespace NugieApp {
 		glm::mat4 projection = this->camera->getProjectionMatrix();
 
 		this->forwardUbo.cameraTransforms = projection * view;
+		this->rayTraceUbo.origin = glm::vec4(position, 1.0f);
 	}
 
 	void App::init() {
@@ -421,7 +422,9 @@ namespace NugieApp {
 		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
 		this->initCamera(width, height);
+
 		this->forwardUniform = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->rayTraceUniform = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		std::vector<VkDescriptorImageInfo> rayTraceImageInfos;
 
@@ -468,8 +471,10 @@ namespace NugieApp {
 			.addImage(2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[2])
 			.addImage(3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[3])
 			.addImage(4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, rayTraceImageInfos)
-			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())
-			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->colorTextures[0]->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniform->getInfo())
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->pointLightBuffer->getInfo())
+			.addImage(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->colorTextures[0]->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
 			.build();
 
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->forwardSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
@@ -499,16 +504,16 @@ namespace NugieApp {
 			rayTraceImageInfos[i] = this->rayTraceImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
 		}
 
-		SubRenderer::Overwriter(this->device, width, height, imageCount)
-			.addOutsideAttachment(this->renderer->getSwapChain()->getswapChainImages())
-			.overwrite(this->forwardSubRenderer);
-
 		DescriptorSet::Overwriter(imageCount)
 			.addImage(0, this->forwardSubRenderer->getAttachmentInfos(0)[0])
 			.addImage(1, this->forwardSubRenderer->getAttachmentInfos(0)[1])
 			.addImage(2, this->forwardSubRenderer->getAttachmentInfos(0)[2])
 			.addImage(3, this->forwardSubRenderer->getAttachmentInfos(0)[3])
 			.addImage(4, rayTraceImageInfos)
+			.addBuffer(5, this->rayTraceUniform->getInfo())
+			.addBuffer(6, this->materialBuffer->getInfo())
+			.addBuffer(7, this->pointLightBuffer->getInfo())
+			.addImage(8, this->colorTextures[0]->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))
 			.overwrite(this->rayTraceDescSet);
 
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);

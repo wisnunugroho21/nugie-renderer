@@ -31,6 +31,27 @@ namespace NugieApp {
     uint32_t transformIndex;
   };
 
+  struct Primitive {
+    alignas(16) glm::uvec3 indices{0u};
+    uint32_t materialIndex = 0u;
+  };
+
+  struct Object {
+    uint32_t firstBvhIndex = 0u;
+    uint32_t firstPrimitiveIndex = 0u;
+    uint32_t transformIndex = 0u;
+  };
+
+  struct BvhNode {
+    uint32_t leftNode = 0u;
+    uint32_t rightNode = 0u;
+    uint32_t leftObjIndex = 0u;
+    uint32_t rightObjIndex = 0u;
+
+    alignas(16) glm::vec3 maximum{0.0f};
+    alignas(16) glm::vec3 minimum{0.0f};
+  };
+
   struct Material {
     alignas(16) glm::vec4 baseColor;
     alignas(16) glm::vec4 params;
@@ -42,13 +63,17 @@ namespace NugieApp {
     glm::mat4 normalMatrix{1.0f};
   };
 
-  struct ShadowTransformation {
-    glm::mat4 viewProjectionMatrix{1.0f};
+  struct RayTransformation {
+    glm::mat4 pointMatrix{1.0f};
+    glm::mat4 dirMatrix{1.0f};
+    glm::mat4 pointInverseMatrix{1.0f};
+    glm::mat4 dirInverseMatrix{1.0f};
+    glm::mat4 normalMatrix{1.0f};
   };
 
   struct PointLight {
-    glm::vec4 position;
-    glm::vec4 color;
+    glm::vec4 position{0.0f};
+    glm::vec4 color{0.0f};
   };
 
   struct SpotLight {
@@ -58,16 +83,13 @@ namespace NugieApp {
     float angle;
   };
 
-  struct DeferredUbo {
-    glm::vec4 origin;
-    glm::uvec4 numLights;
-  };
-
   struct ForwardUbo {
     glm::mat4 cameraTransforms;
   };
 
-  struct ShadowPushConstant {
-    uint32_t lightIndex;
+
+  struct RayTraceUbo {
+    glm::vec4 origin;
+    glm::uvec4 numLights;
   };
 }

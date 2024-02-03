@@ -62,26 +62,28 @@ namespace NugieApp {
 
 			ArrayBuffer<uint32_t>* indexBuffer;
 
-			ArrayBuffer<Position>* positionBuffer;
-			ArrayBuffer<Normal>* normalBuffer;
-			ArrayBuffer<TextCoord>* textCoordBuffer;
-			ArrayBuffer<Reference>* referenceBuffer;
+			ArrayBuffer<glm::vec4>* positionBuffer;
+			ArrayBuffer<glm::vec4>* normalBuffer;
+			ArrayBuffer<glm::vec2>* textCoordBuffer;
+			ArrayBuffer<glm::uvec2>* referenceBuffer;
 			
 			ArrayBuffer<Material>* materialBuffer;
 			ArrayBuffer<Transformation>* transformationBuffer;
-			ArrayBuffer<SpotLight>* spotLightBuffer;
+			ArrayBuffer<PointLight>* pointLightBuffer;
 
 			ObjectBuffer<ForwardUbo>* forwardUniform;
+			ObjectBuffer<RayTraceUbo>* rayTraceUniform;
 			
 			DescriptorSet* forwardDescSet;
 			DescriptorSet* rayTraceDescSet;
 
-			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
+			uint32_t randomSeed = 0u, cameraUpdateCount = 0u;
 
 			bool isRendering = true;
 			float frameTime = 0.0f;
 
 			ForwardUbo forwardUbo;
+			RayTraceUbo rayTraceUbo;
 
 			std::vector<NugieVulkan::Image*> rayTraceImages;
 			std::vector<NugieApp::Texture*> colorTextures;

@@ -37,7 +37,7 @@ namespace NugieApp {
 		bindingDescriptions[2].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[3].binding = 3;
-		bindingDescriptions[3].stride = 2 * sizeof(uint32_t);
+		bindingDescriptions[3].stride = sizeof(glm::uvec2);
 		bindingDescriptions[3].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		attributeDescription[0].binding = 0;
@@ -79,7 +79,6 @@ namespace NugieApp {
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
 			.setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions, attributeDescription)
-			.setSubpass(0u)
 			.build();
 	}
 }
