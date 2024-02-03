@@ -86,7 +86,7 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
       std::vector<VkDescriptorImageInfo> imageInfos{};
       for (auto &&frameImage : frameImages) {
-        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
       }
 
       this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -166,7 +166,7 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
       std::vector<VkDescriptorImageInfo> imageInfos{};
       for (auto &&frameImage : frameImages) {
-        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
       }
 
       this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -265,7 +265,7 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
       std::vector<VkDescriptorImageInfo> imageInfos{};
       for (auto &&frameImage : frameImages) {
-        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
       }
 
       this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -344,7 +344,7 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
       std::vector<VkDescriptorImageInfo> imageInfos{};
       for (auto &&frameImage : frameImages) {
-        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
       }
 
       this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -442,7 +442,7 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
       std::vector<VkDescriptorImageInfo> imageInfos{};
       for (auto &&frameImage : frameImages) {
-        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
       }
 
       this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -521,7 +521,7 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_SHADER) {
       std::vector<VkDescriptorImageInfo> imageInfos{};
       for (auto &&frameImage : frameImages) {
-        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
       }
 
       this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -828,7 +828,7 @@ namespace NugieApp {
 
           std::vector<VkDescriptorImageInfo> imageInfos{};
           for (auto &&frameImage : frameImages) {
-            imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
           }
 
           this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
@@ -896,7 +896,7 @@ namespace NugieApp {
           
           std::vector<VkDescriptorImageInfo> imageInfos{};
           for (auto &&frameImage : frameImages) {
-            imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+            imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
           }
 
           this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
@@ -965,7 +965,7 @@ namespace NugieApp {
 
           std::vector<VkDescriptorImageInfo> imageInfos{};
           for (auto &&frameImage : frameImages) {
-            imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            imageInfos.emplace_back(frameImage->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL));
           }
 
           this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
