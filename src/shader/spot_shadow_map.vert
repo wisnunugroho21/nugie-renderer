@@ -18,6 +18,5 @@ layout(push_constant) uniform Push {
 };
 
 void main() {
-  mat4 totalTransf = shadowTransformations[lightIndex].viewProjectionMatrix * transformations[transformIndex].modelMatrix;
-  gl_Position = totalTransf * position;
+  gl_Position = shadowTransformations[lightIndex].viewProjectionMatrix * transformations[transformIndex].modelMatrix * position; 
 }

@@ -11,7 +11,8 @@ layout (input_attachment_index = 2, set = 0, binding = 2) uniform subpassInputMS
 layout (input_attachment_index = 3, set = 0, binding = 3) uniform usubpassInputMS inputMaterialIndex;
 
 layout(set = 1, binding = 0) uniform readonly DeferredUniform {
-  vec4 originNumLights;
+  vec4 origin;
+  uvec4 numLights;
 } ubo;
 
 layout(set = 1, binding = 1) buffer readonly MaterialModel {
@@ -22,12 +23,7 @@ layout(set = 1, binding = 2) buffer readonly SpotLightModel {
   SpotLight spotLights[];
 };
 
-layout(set = 1, binding = 3) buffer readonly ShadowTransformationModel {
-	ShadowTransformation shadowTransformations[];
-};
-
-layout(set = 1, binding = 4) uniform sampler2D shadowMapTexture[1];
-layout(set = 1, binding = 5) uniform sampler2D colorTexture[1];
+layout(set = 1, binding = 3) uniform sampler2D colorTexture[1];
 
 // ---------------------------------------------------------------------------
 
@@ -91,14 +87,6 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
-bool isShadow(uint lightIndex, vec4 shadowCoord) {
-  shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
-  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
-
-  float dist = texture(shadowMapTexture[lightIndex], shadowCoord.xy).x;
-  return dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
-}
-
 void main() {
   vec4 surfacePosition = subpassLoad(inputPosition, gl_SampleID);
   vec4 surfaceNormal = subpassLoad(inputNormal, gl_SampleID);
@@ -114,15 +102,16 @@ void main() {
 
   vec4 totalRadiance = vec4(0.0f);
 
-  for (uint i = 0; i < uint(ubo.originNumLights.w); i++) {
+  for (uint i = 0; i < ubo.numLights.x; i++) {
     vec4 lightDirection = spotLights[i].position - surfacePosition;
+    
     vec4 unitLightDirection = normalize(lightDirection);
+    vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
 
-    vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * surfacePosition;
     float DoL = dot(spotLights[i].direction, -1.0f * unitLightDirection);
 
-    if (DoL > cos(spotLights[i].angle) && !isShadow(i, shadowCoord)) {
-      vec4 unitViewDirection = normalize(vec4(ubo.originNumLights.xyz, 1.0f) - surfacePosition);
+    if (DoL > cos(spotLights[i].angle)) {
+      vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
 
       vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
         surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
@@ -134,7 +123,5 @@ void main() {
     }
   }
 
-  // vec4 shadowCoord = shadowTransformations[0].viewProjectionMatrix * surfacePosition;
-
-  outColor = totalRadiance; //float(isShadow(0, shadowCoord)) * vec4(1.0f);
+  outColor = totalRadiance;
 }

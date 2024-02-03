@@ -59,7 +59,8 @@ namespace NugieApp {
   };
 
   struct DeferredUbo {
-    glm::vec4 originNumLights;
+    glm::vec4 origin;
+    glm::uvec4 numLights;
   };
 
   struct ForwardUbo {
