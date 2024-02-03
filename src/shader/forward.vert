@@ -22,9 +22,10 @@ layout(set = 0, binding = 1) buffer readonly TransformationModel {
 };
 
 void main() {
-  fragPosition = transformations[transformIndex].modelMatrix * position;
-	gl_Position = forwardUbo.cameraTransforms * fragPosition;
+  vec4 positionWorld = transformations[transformIndex].modelMatrix * position;
+	gl_Position = forwardUbo.cameraTransforms * positionWorld;
   
+  fragPosition = positionWorld;
 	fragNormal = normalize(transformations[transformIndex].normalMatrix * normal);
 	fragTextCoord = textCoord;
 	fragMaterialIndex = materialIndex;

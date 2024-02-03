@@ -678,7 +678,7 @@ namespace NugieApp {
       renderPassBuilder.addDependency(dependency);
     }
 
-    if (outputAttachmentRefs.size() > 0) {
+    if (outputAttachmentRefs.size() > 0 && resolveAttachmentRefs.size() == 0) {
       VkSubpassDependency postColorDependency{};
       postColorDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
       postColorDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -691,7 +691,7 @@ namespace NugieApp {
       renderPassBuilder.addDependency(postColorDependency);
     } 
     
-    if (depthAttachmentRefs.size() > 0) {
+    else if (depthAttachmentRefs.size() > 0) {
       VkSubpassDependency postDepthDependency{};
       postDepthDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
       postDepthDependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
