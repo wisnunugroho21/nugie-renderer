@@ -686,7 +686,7 @@ namespace NugieApp {
       postColorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
       postColorDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
       postColorDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-      postColorDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+      postColorDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
       postColorDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
       renderPassBuilder.addDependency(postColorDependency);
@@ -699,7 +699,7 @@ namespace NugieApp {
       postDepthDependency.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
       postDepthDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
       postDepthDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-      postDepthDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+      postDepthDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
       postDepthDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
       renderPassBuilder.addDependency(postDepthDependency);

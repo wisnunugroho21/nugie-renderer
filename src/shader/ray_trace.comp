@@ -1,18 +1,36 @@
 #version 460
 
+#include "core/struct.glsl"
+
 layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
 
-layout(set = 0, binding = 0, rgba8) readonly uniform image2D positionResourceImage;
-layout(set = 0, binding = 1, rgba8) readonly uniform image2D normalResourceImage;
-layout(set = 0, binding = 2, rgba8) readonly uniform image2D textCoordResourceImage;
-layout(set = 0, binding = 3, rgba8) readonly uniform image2D materialIndexResourceImage;
+layout(set = 0, binding = 0, rgba32f) readonly uniform image2D positionResourceImage;
+layout(set = 0, binding = 1, rgba32f) readonly uniform image2D normalResourceImage;
+layout(set = 0, binding = 2, rg16_snorm) readonly uniform image2D textCoordResourceImage;
+layout(set = 0, binding = 3, r8ui) readonly uniform uimage2D materialIndexResourceImage;
 
 layout(set = 0, binding = 4, rgba8) writeonly uniform image2D resultImage;
+
+layout(set = 0, binding = 5) buffer readonly MaterialModel {
+  Material materials[];
+};
+
+layout(set = 0, binding = 6) uniform sampler2D colorTexture[1];
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   
   vec4 surfacePosition = imageLoad(positionResourceImage, pixelCoord);
+  vec4 surfaceNormal = imageLoad(normalResourceImage, pixelCoord);
+  vec2 surfaceTextCoord = imageLoad(textCoordResourceImage, pixelCoord).xy;
+  uint surfaceMaterialIndex = imageLoad(materialIndexResourceImage, pixelCoord).x;
+
+  vec4 surfaceMaterialParams = materials[surfaceMaterialIndex].params;
+  uint colorTextureIndex = materials[surfaceMaterialIndex].colorTextureIndex;
+
+  vec4 surfaceColor = colorTextureIndex == 0 
+    ? materials[surfaceMaterialIndex].baseColor
+    : texture(colorTexture[0], surfaceTextCoord);
   
-  imageStore(resultImage, pixelCoord, surfacePosition);
+  imageStore(resultImage, pixelCoord, surfaceColor);
 }
