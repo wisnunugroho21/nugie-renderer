@@ -3,6 +3,7 @@
 #include "../../vulkan/window/window.hpp"
 #include "../../vulkan/device/device.hpp"
 #include "../../vulkan/buffer/buffer.hpp"
+#include "../../vulkan/image/image.hpp"
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
@@ -13,7 +14,7 @@
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
-#include "../renderer_system/deferred_pass_render_system.hpp"
+#include "../renderer_system/compute_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -54,30 +55,26 @@ namespace NugieApp {
 			MouseController* mouseController;
 
 			Renderer* renderer;
+			SubRenderer* forwardSubRenderer;
 
-			SubRenderer* finalSubRenderer;
-			SubRenderer* spotShadowSubRenderer;
+			GraphicRenderSystem* forwardPassRenderer;
+			ComputeRenderSystem* rayTraceRenderer;
+
+			ArrayBuffer<uint32_t>* indexBuffer;
+
+			ArrayBuffer<Position>* positionBuffer;
+			ArrayBuffer<Normal>* normalBuffer;
+			ArrayBuffer<TextCoord>* textCoordBuffer;
+			ArrayBuffer<Reference>* referenceBuffer;
 			
-			ForwardPassRenderSystem* forwardPassRenderer;
-			DeferredPassRenderSystem* deferredPasRenderer;
-
-			ArrayBuffer<uint32_t>* indexModel;
-
-			ArrayBuffer<Position>* positionModel;
-			ArrayBuffer<Normal>* normalModel;
-			ArrayBuffer<TextCoord>* textCoordModel;
-			ArrayBuffer<Reference>* referenceModel;
-			
-			ArrayBuffer<Material>* materialModel;
-			ArrayBuffer<Transformation>* transformationModel;
-			ArrayBuffer<SpotLight>* spotLightModel;
+			ArrayBuffer<Material>* materialBuffer;
+			ArrayBuffer<Transformation>* transformationBuffer;
+			ArrayBuffer<SpotLight>* spotLightBuffer;
 
 			ObjectBuffer<ForwardUbo>* forwardUniform;
-			ObjectBuffer<DeferredUbo>* deferredUniform;
 			
 			DescriptorSet* forwardDescSet;
-			DescriptorSet* attachmentDeferredDescSet;
-			DescriptorSet* modelDeferredDescSet;
+			DescriptorSet* rayTraceDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 
@@ -85,8 +82,8 @@ namespace NugieApp {
 			float frameTime = 0.0f;
 
 			ForwardUbo forwardUbo;
-			DeferredUbo deferredUbo;
 
+			std::vector<NugieVulkan::Image*> rayTraceImages;
 			std::vector<NugieApp::Texture*> colorTextures;
 	};
 }

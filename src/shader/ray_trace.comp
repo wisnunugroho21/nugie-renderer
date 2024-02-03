@@ -1,0 +1,18 @@
+#version 460
+
+layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba8) readonly uniform image2D positionResourceImage;
+layout(set = 0, binding = 1, rgba8) readonly uniform image2D normalResourceImage;
+layout(set = 0, binding = 2, rgba8) readonly uniform image2D textCoordResourceImage;
+layout(set = 0, binding = 3, rgba8) readonly uniform image2D materialIndexResourceImage;
+
+layout(set = 0, binding = 4, rgba8) writeonly uniform image2D resultImage;
+
+void main() {
+  ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+  
+  vec4 surfacePosition = imageLoad(positionResourceImage, pixelCoord);
+  
+  imageStore(resultImage, pixelCoord, surfacePosition);
+}
