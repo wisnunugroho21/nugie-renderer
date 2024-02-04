@@ -517,24 +517,16 @@ namespace NugieApp {
 		}
 
 		this->forwardSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-			.addAttachment(AttachmentType::KEEPED, VK_FORMAT_R32G32B32A32_SFLOAT, 
-				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
-			.addAttachment(AttachmentType::KEEPED, VK_FORMAT_R32G32B32A32_SFLOAT, 
-				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
-			.addAttachment(AttachmentType::KEEPED, VK_FORMAT_R16G16_UNORM, 
-				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
-			.addAttachment(AttachmentType::KEEPED, VK_FORMAT_R8_UINT,
-				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R16G16_UNORM, 
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R8_UINT,
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
 			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-			.addResolvedAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R32G32B32A32_SFLOAT,
-				VK_IMAGE_LAYOUT_GENERAL)
-			.addResolvedAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R32G32B32A32_SFLOAT,
-				VK_IMAGE_LAYOUT_GENERAL)
-			.addResolvedAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R16G16_UNORM,
-				VK_IMAGE_LAYOUT_GENERAL)
-			.addResolvedAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R8_UINT,
-				VK_IMAGE_LAYOUT_GENERAL)
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
 			.build();
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
