@@ -1,6 +1,7 @@
 #version 460
 
 #include "core/struct.glsl"
+#define KEPSILON 0.00001
 
 layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
 
@@ -16,15 +17,39 @@ layout(set = 0, binding = 5) uniform readonly Uniform {
   uvec4 numLights;
 } ubo;
 
-layout(set = 0, binding = 6) buffer readonly MaterialModel {
+layout(set = 0, binding = 6) buffer readonly ObjectModel {
+  Object objects[];
+};
+
+layout(set = 0, binding = 7) buffer readonly ObjectBvhModel {
+  BvhNode objectBvhNodes[];
+};
+
+layout(set = 0, binding = 8) buffer readonly PrimitiveModel {
+  Primitive primitives[];
+};
+
+layout(set = 0, binding = 9) buffer readonly PrimitiveBvhModel {
+  BvhNode primitiveBvhNodes[];
+};
+
+layout(set = 0, binding = 10) buffer readonly VertexModel {
+  vec4 vertices[];
+};
+
+layout(set = 0, binding = 11) buffer readonly MaterialModel {
   Material materials[];
 };
 
-layout(set = 0, binding = 7) buffer readonly PointLightModel {
+layout(set = 0, binding = 12) buffer readonly TransformationModel {
+  RayTransformation transformations[];
+};
+
+layout(set = 0, binding = 13) buffer readonly PointLightModel {
   PointLight pointLights[];
 };
 
-layout(set = 0, binding = 8) uniform sampler2D colorTexture[1];
+layout(set = 0, binding = 14) uniform sampler2D colorTexture[1];
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -86,6 +111,180 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 surfaceNormal,
   return diff + spec;
 }
 
+vec3 rayAt(Ray r, float t) {
+  return r.origin + t * r.direction;
+}
+
+HitRecord hitTriangle(uvec3 triIndices, Ray r, float dirMin, float tMax) {
+  HitRecord hit;
+  hit.isHit = false;
+
+  vec3 v0v1 = vertices[triIndices.y].xyz - vertices[triIndices.x].xyz;
+  vec3 v0v2 = vertices[triIndices.z].xyz - vertices[triIndices.x].xyz;
+  vec3 pvec = cross(r.direction, v0v2);
+  float det = dot(v0v1, pvec);
+  
+#ifdef BACKFACE_CULLING
+  if (det < KEPSILON) {
+    return hit;
+  }
+#else
+  if (abs(det) < KEPSILON) {
+    return hit;
+  }
+#endif
+    
+  float invDet = 1.0f / det;
+
+  vec3 tvec = r.origin - vertices[triIndices.x].xyz;
+  float u = dot(tvec, pvec) * invDet;
+  if (u < 0.0f || u > 1.0f) {
+    return hit;
+  }
+
+  vec3 qvec = cross(tvec, v0v1);
+  float v = dot(r.direction, qvec) * invDet;
+  if (v < 0.0f || u + v > 1.0f) {
+    return hit;
+  }
+  
+  float t = dot(v0v2, qvec) * invDet;
+
+  if (t > tMax || length(t * r.direction) < dirMin) {
+    return hit;
+  }
+
+  vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+
+  hit.isHit = true;
+  hit.t = t;
+
+  return hit;
+}
+
+bool intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
+  vec3 dirMin = (boxMin - r.origin) / r.direction;
+  vec3 tMax = (boxMax - r.origin) / r.direction;
+  vec3 t1 = min(dirMin, tMax);
+  vec3 t2 = max(dirMin, tMax);
+  float tNear = max(max(t1.x, t1.y), t1.z);
+  float tFar = min(min(t2.x, t2.y), t2.z);
+
+  return tNear < tFar;
+}
+
+HitRecord hitPrimitiveBvh(Ray r, float dirMin, float tMax, uint firstBvhIndex, uint firstPrimitiveIndex, uint transformIndex) {
+  HitRecord hit;
+  hit.isHit = false;
+  hit.t = tMax;
+
+  uint stack[30];
+  stack[0] = 1u;
+
+  int stackIndex = 1;  
+
+  r.origin = (transformations[transformIndex].pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
+  r.direction = mat3(transformations[transformIndex].dirInverseMatrix) * r.direction;
+
+  while(stackIndex > 0 && stackIndex <= 30) {
+    stackIndex--;
+    uint currentNode = stack[stackIndex];
+    if (currentNode == 0u) {
+      continue;
+    }
+
+    if (!intersectAABB(r, primitiveBvhNodes[currentNode - 1u + firstBvhIndex].minimum, primitiveBvhNodes[currentNode - 1u + firstBvhIndex].maximum)) {
+      continue;
+    }
+
+    uint primIndex = primitiveBvhNodes[currentNode - 1u + firstBvhIndex].leftObjIndex;
+    if (primIndex >= 1u) {
+      HitRecord tempHit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, dirMin, hit.t);
+
+      if (tempHit.isHit) {
+        hit = tempHit;
+      }
+    }
+
+    primIndex = primitiveBvhNodes[currentNode - 1u + firstBvhIndex].rightObjIndex;    
+    if (primIndex >= 1u) {
+      HitRecord tempHit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, dirMin, hit.t);
+
+      if (tempHit.isHit) {
+        hit = tempHit;
+      }
+    }
+
+    uint bvhNode = primitiveBvhNodes[currentNode - 1u + firstBvhIndex].leftNode;
+    if (bvhNode >= 1u) {
+      stack[stackIndex] = bvhNode;
+      stackIndex++;
+    }
+
+    bvhNode = primitiveBvhNodes[currentNode - 1u + firstBvhIndex].rightNode;
+    if (bvhNode >= 1u) {
+      stack[stackIndex] = bvhNode;
+      stackIndex++;
+    }
+  }
+
+  return hit;
+}
+
+HitRecord hitObjectBvh(Ray r, float dirMin, float tMax) {
+  HitRecord hit;
+  hit.isHit = false;
+  hit.t = tMax;
+
+  uint stack[30];
+  stack[0] = 1u;
+
+  int stackIndex = 1;
+  while(stackIndex > 0 && stackIndex <= 30) {
+    stackIndex--;
+    uint currentNode = stack[stackIndex];
+    if (currentNode == 0u) {
+      continue;
+    }
+
+    if (!intersectAABB(r, objectBvhNodes[currentNode - 1u].minimum, objectBvhNodes[currentNode - 1u].maximum)) {
+      continue;
+    }
+
+    uint objIndex = objectBvhNodes[currentNode - 1u].leftObjIndex;
+    if (objIndex >= 1u) {
+      HitRecord tempHit = hitPrimitiveBvh(r, dirMin, hit.t, objects[objIndex - 1u].firstBvhIndex, objects[objIndex - 1u].firstPrimitiveIndex, objects[objIndex - 1u].transformIndex);
+
+      if (tempHit.isHit) {
+        hit = tempHit;
+      }
+    }
+
+    objIndex = objectBvhNodes[currentNode - 1u].rightObjIndex;
+    if (objIndex >= 1u) {
+      HitRecord tempHit = hitPrimitiveBvh(r, dirMin, hit.t, objects[objIndex - 1u].firstBvhIndex, objects[objIndex - 1u].firstPrimitiveIndex, objects[objIndex - 1u].transformIndex);
+
+      if (tempHit.isHit) {
+        hit = tempHit;
+      }
+    }
+
+    uint bvhNode = objectBvhNodes[currentNode - 1u].leftNode;
+    if (bvhNode >= 1u) {
+      stack[stackIndex] = bvhNode;
+      stackIndex++;
+    }
+
+    bvhNode = objectBvhNodes[currentNode - 1u].rightNode;
+    if (bvhNode >= 1u) {
+      stack[stackIndex] = bvhNode;
+      stackIndex++;
+    }
+  }
+
+  return hit;
+}
+
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   
@@ -105,17 +304,26 @@ void main() {
 
   for (uint i = 0; i < ubo.numLights.x; i++) {
     vec4 lightDirection = pointLights[i].position - surfacePosition;
-    
     vec4 unitLightDirection = normalize(lightDirection);
-    vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
 
-    vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
-      surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+    Ray r;
+    r.origin = surfacePosition.xyz;
+    r.direction = unitLightDirection.xyz;
 
-    float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
-    vec4 irradiance = pointLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL;
-    
-    totalRadiance += brdf * irradiance;
+    HitRecord hit = hitObjectBvh(r, 0.1f, 1000000000.0f);
+
+    if (!hit.isHit) {
+      /* vec4 unitLightDirection = normalize(lightDirection);
+      vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
+
+      vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
+        surfaceColor, surfaceMaterialParams.x, surfaceMaterialParams.z, surfaceMaterialParams.y);
+
+      float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
+      vec4 irradiance = pointLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL; */
+      
+      totalRadiance += surfaceColor; //brdf * irradiance;
+    }
   }
   
   imageStore(resultImage, pixelCoord, totalRadiance);

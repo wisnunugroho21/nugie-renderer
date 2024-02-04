@@ -19,6 +19,27 @@ struct Reference {
   uint transformIndex;
 };
 
+struct Primitive {
+  uvec3 indices;
+  uint materialIndex;
+};
+
+struct Object {
+  uint firstBvhIndex;
+  uint firstPrimitiveIndex;
+  uint transformIndex;
+};
+
+struct BvhNode {
+  uint leftNode;
+  uint rightNode;
+  uint leftObjIndex;
+  uint rightObjIndex;
+
+  vec3 maximum;
+  vec3 minimum;
+};
+
 struct Material {
   vec4 baseColor;
   vec4 params;
@@ -30,8 +51,12 @@ struct Transformation {
   mat4 normalMatrix;
 };
 
-struct ShadowTransformation {
-  mat4 viewProjectionMatrix;
+struct RayTransformation {
+  mat4 pointMatrix;
+  mat4 dirMatrix;
+  mat4 pointInverseMatrix;
+  mat4 dirInverseMatrix;
+  mat4 normalMatrix;
 };
 
 struct PointLight {
@@ -46,10 +71,12 @@ struct SpotLight {
   float angle;
 };
 
-struct DeferredUbo {
-  uint numLights;
+struct Ray {
+  vec3 origin;
+  vec3 direction;
 };
 
-struct ForwardUbo {
-  mat4 cameraTransforms;
+struct HitRecord {
+  bool isHit;
+  float t;
 };

@@ -66,10 +66,16 @@ namespace NugieApp {
 			ArrayBuffer<glm::vec4>* normalBuffer;
 			ArrayBuffer<glm::vec2>* textCoordBuffer;
 			ArrayBuffer<glm::uvec2>* referenceBuffer;
+
+			ArrayBuffer<Object>* objectBuffer;
+			ArrayBuffer<BvhNode>* objectBvhNodeBuffer;
+			ArrayBuffer<Primitive>* primitiveBuffer;
+			ArrayBuffer<BvhNode>* primitiveBvhNodeBuffer;
 			
 			ArrayBuffer<Material>* materialBuffer;
 			ArrayBuffer<Transformation>* transformationBuffer;
 			ArrayBuffer<PointLight>* pointLightBuffer;
+			ArrayBuffer<RayTransformation>* rayTransformationBuffer;
 
 			ObjectBuffer<ForwardUbo>* forwardUniform;
 			ObjectBuffer<RayTraceUbo>* rayTraceUniform;

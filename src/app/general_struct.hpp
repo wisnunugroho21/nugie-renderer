@@ -87,7 +87,6 @@ namespace NugieApp {
     glm::mat4 cameraTransforms;
   };
 
-
   struct RayTraceUbo {
     glm::vec4 origin;
     glm::uvec4 numLights;

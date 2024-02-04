@@ -28,7 +28,7 @@ namespace std {
 } 
 
 namespace NugieApp {
-  LoadedModel loadObjModel(const std::string &filePath) {
+  LoadedModel loadObjModel(const std::string &filePath, uint32_t materialIndex, uint32_t offsetIndex) {
     LoadedModel loadedModel;
     
     tinyobj::attrib_t attrib;
@@ -41,46 +41,115 @@ namespace NugieApp {
 		}
 
 		std::unordered_map<glm::vec4, uint32_t> uniqueVertices{};
-		for (const auto &shape: shapes) {
-			for (const auto &index: shape.mesh.indices) {
-				glm::vec4 position{};
-        glm::vec4 normal{};
-				glm::vec2 textCoord{};
+		for (auto &&shape : shapes) {
+			uint32_t numTriangle = static_cast<uint32_t>(shape.mesh.indices.size() / 3);
 
-				if (index.vertex_index >= 0) {
-					position = {
-						attrib.vertices[3 * index.vertex_index + 0],
-						attrib.vertices[3 * index.vertex_index + 1],
-						attrib.vertices[3 * index.vertex_index + 2],
-            1.0f
-					};
+			for (uint32_t i = 0; i < numTriangle; i++) {
+				uint32_t vertexIndex0 = shape.mesh.indices[3 * i + 0].vertex_index;
+				uint32_t vertexIndex1 = shape.mesh.indices[3 * i + 1].vertex_index;
+				uint32_t vertexIndex2 = shape.mesh.indices[3 * i + 2].vertex_index;
+
+				uint32_t normalIndex0 = shape.mesh.indices[3 * i + 0].normal_index;
+				uint32_t normalIndex1 = shape.mesh.indices[3 * i + 1].normal_index;
+				uint32_t normalIndex2 = shape.mesh.indices[3 * i + 2].normal_index;
+
+				uint32_t texCoordIndex0 = shape.mesh.indices[3 * i + 0].texcoord_index;
+				uint32_t texCoordIndex1 = shape.mesh.indices[3 * i + 1].texcoord_index;
+				uint32_t texCoordIndex2 = shape.mesh.indices[3 * i + 2].texcoord_index;
+
+				glm::vec4 vertex0{
+					attrib.vertices[3 * vertexIndex0 + 0],
+					attrib.vertices[3 * vertexIndex0 + 1],
+					attrib.vertices[3 * vertexIndex0 + 2],
+					1.0f
+				};
+
+				glm::vec4 vertex1{
+					attrib.vertices[3 * vertexIndex1 + 0],
+					attrib.vertices[3 * vertexIndex1 + 1],
+					attrib.vertices[3 * vertexIndex1 + 2],
+					1.0f
+				};
+
+				glm::vec4 vertex2{
+					attrib.vertices[3 * vertexIndex2 + 0],
+					attrib.vertices[3 * vertexIndex2 + 1],
+					attrib.vertices[3 * vertexIndex2 + 2],
+					1.0f
+				};
+
+				glm::vec4 normal0{
+					attrib.normals[3 * normalIndex0 + 0],
+					attrib.normals[3 * normalIndex0 + 1],
+					attrib.normals[3 * normalIndex0 + 2],
+					0.0f
+				};
+
+				glm::vec4 normal1{
+					attrib.normals[3 * normalIndex1 + 0],
+					attrib.normals[3 * normalIndex1 + 1],
+					attrib.normals[3 * normalIndex1 + 2],
+					0.0f
+				};
+
+				glm::vec4 normal2{
+					attrib.normals[3 * normalIndex2 + 0],
+					attrib.normals[3 * normalIndex2 + 1],
+					attrib.normals[3 * normalIndex2 + 2],
+					0.0f
+				};
+
+				glm::vec2 textCoord0{
+					attrib.texcoords[2 * texCoordIndex0 + 0],
+					1.0f - attrib.texcoords[2 * texCoordIndex0 + 1]
+				};
+
+				glm::vec2 textCoord1{
+					attrib.texcoords[2 * texCoordIndex1 + 0],
+					1.0f - attrib.texcoords[2 * texCoordIndex1 + 1]
+				};
+
+				glm::vec2 textCoord2{
+					attrib.texcoords[2 * texCoordIndex2 + 0],
+					1.0f - attrib.texcoords[2 * texCoordIndex2 + 1]
+				};
+
+				if (uniqueVertices.count(vertex0) == 0) {
+					uniqueVertices[vertex0] = static_cast<uint32_t>(loadedModel.positions.size());
+
+					loadedModel.positions.push_back(vertex0);
+					loadedModel.normals.push_back(normal0);
+					loadedModel.textCoords.push_back(textCoord0);
 				}
 
-				if (index.normal_index >= 0) {
-					normal = {
-						attrib.normals[3 * index.normal_index + 0],
-						attrib.normals[3 * index.normal_index + 1],
-						attrib.normals[3 * index.normal_index + 2],
-            0.0f
-					};
+				if (uniqueVertices.count(vertex1) == 0) {
+					uniqueVertices[vertex1] = static_cast<uint32_t>(loadedModel.positions.size());
+
+					loadedModel.positions.push_back(vertex1);
+					loadedModel.normals.push_back(normal1);
+					loadedModel.textCoords.push_back(textCoord1);
 				}
 
-				if (index.texcoord_index >= 0) {
-					textCoord = { // temoirary. for OBJ object only
-						attrib.texcoords[2 * index.texcoord_index + 0],
-    				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-					};
+				if (uniqueVertices.count(vertex2) == 0) {
+					uniqueVertices[vertex2] = static_cast<uint32_t>(loadedModel.positions.size());
+
+					loadedModel.positions.push_back(vertex2);
+					loadedModel.normals.push_back(normal2);
+					loadedModel.textCoords.push_back(textCoord2);
 				}
 
-				if (uniqueVertices.count(position) == 0) {
-					uniqueVertices[position] = static_cast<uint32_t>(loadedModel.positions.size());
+				loadedModel.indices.push_back(uniqueVertices[vertex0]);
+				loadedModel.indices.push_back(uniqueVertices[vertex1]);
+				loadedModel.indices.push_back(uniqueVertices[vertex2]);
 
-					loadedModel.positions.push_back(position);
-          loadedModel.normals.push_back(normal);
-					loadedModel.textCoords.push_back(textCoord);
-				}
-
-				loadedModel.indices.push_back(uniqueVertices[position]);
+				loadedModel.primitives.emplace_back(Primitive{
+					glm::uvec3 {
+						uniqueVertices[vertex0] + offsetIndex,
+						uniqueVertices[vertex1] + offsetIndex,
+						uniqueVertices[vertex2] + offsetIndex
+					}, 
+					materialIndex
+				});
 			}
 		}
 
