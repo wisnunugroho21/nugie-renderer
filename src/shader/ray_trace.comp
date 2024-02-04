@@ -115,7 +115,7 @@ vec3 rayAt(Ray r, float t) {
   return r.origin + t * r.direction;
 }
 
-HitRecord hitTriangle(uvec3 triIndices, Ray r, float dirMin, float tMax) {
+HitRecord hitTriangle(uvec3 triIndices, Ray r, float tMin, float tMax) {
   HitRecord hit = HitRecord(false, tMax);
 
   vec3 firstVextex = vertices[triIndices.x].xyz;
@@ -145,7 +145,7 @@ HitRecord hitTriangle(uvec3 triIndices, Ray r, float dirMin, float tMax) {
   
   float t = dot(v0v2, qvec) * invDet;
 
-  if (length(t * r.direction) < dirMin || t > tMax) {
+  if (t < tMin || t > tMax) {
     return hit;
   }
 
@@ -163,7 +163,7 @@ bool intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
   return tNear < tFar;
 }
 
-HitRecord hitPrimitiveBvh(Ray r, float dirMin, float tMax, uint firstBvhIndex, uint firstPrimitiveIndex, uint transformIndex) {
+HitRecord hitPrimitiveBvh(Ray r, RayTransformation transform, float tMin, float tMax, uint firstBvhIndex, uint firstPrimitiveIndex) {
   HitRecord hit = HitRecord(false, tMax);
 
   uint stack[30];
@@ -171,8 +171,8 @@ HitRecord hitPrimitiveBvh(Ray r, float dirMin, float tMax, uint firstBvhIndex, u
 
   int stackIndex = 1;  
 
-  r.origin = (transformations[transformIndex].pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
-  r.direction = mat3(transformations[transformIndex].dirInverseMatrix) * r.direction;
+  r.origin = (transform.pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
+  r.direction = mat3(transform.dirInverseMatrix) * r.direction;
 
   while(stackIndex > 0 && stackIndex <= 30) {
     uint currentNodeIndex = stack[--stackIndex];
@@ -188,7 +188,7 @@ HitRecord hitPrimitiveBvh(Ray r, float dirMin, float tMax, uint firstBvhIndex, u
 
     uint primIndex = node.leftObjIndex;
     if (primIndex >= 1u) {
-      HitRecord tempHit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, dirMin, hit.t);
+      HitRecord tempHit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, tMin, hit.t);
 
       if (tempHit.isHit) {
         hit = tempHit;
@@ -197,7 +197,7 @@ HitRecord hitPrimitiveBvh(Ray r, float dirMin, float tMax, uint firstBvhIndex, u
 
     primIndex = node.rightObjIndex;    
     if (primIndex >= 1u) {
-      HitRecord tempHit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, dirMin, hit.t);
+      HitRecord tempHit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, tMin, hit.t);
 
       if (tempHit.isHit) {
         hit = tempHit;
@@ -218,7 +218,7 @@ HitRecord hitPrimitiveBvh(Ray r, float dirMin, float tMax, uint firstBvhIndex, u
   return hit;
 }
 
-HitRecord hitObjectBvh(Ray r, float dirMin, float tMax) {
+HitRecord hitObjectBvh(Ray r, float tMin, float tMax) {
   HitRecord hit = HitRecord(false, tMax);
 
   uint stack[30];
@@ -240,7 +240,7 @@ HitRecord hitObjectBvh(Ray r, float dirMin, float tMax) {
     uint objIndex = node.leftObjIndex;
     if (objIndex >= 1u) {
       Object obj = objects[objIndex - 1u];
-      HitRecord tempHit = hitPrimitiveBvh(r, dirMin, hit.t, obj.firstBvhIndex, obj.firstPrimitiveIndex, obj.transformIndex);
+      HitRecord tempHit = hitPrimitiveBvh(r, transformations[obj.transformIndex], tMin, hit.t, obj.firstBvhIndex, obj.firstPrimitiveIndex);
 
       if (tempHit.isHit) {
         hit = tempHit;
@@ -250,7 +250,7 @@ HitRecord hitObjectBvh(Ray r, float dirMin, float tMax) {
     objIndex = node.rightObjIndex;
     if (objIndex >= 1u) {
       Object obj = objects[objIndex - 1u];
-      HitRecord tempHit = hitPrimitiveBvh(r, dirMin, hit.t, obj.firstBvhIndex, obj.firstPrimitiveIndex, obj.transformIndex);
+      HitRecord tempHit = hitPrimitiveBvh(r, transformations[obj.transformIndex], tMin, hit.t, obj.firstBvhIndex, obj.firstPrimitiveIndex);
 
       if (tempHit.isHit) {
         hit = tempHit;
@@ -292,7 +292,10 @@ void main() {
     vec4 lightDirection = pointLights[i].position - surfacePosition;
     vec4 unitLightDirection = normalize(lightDirection);
 
-    HitRecord hit = hitObjectBvh(Ray(surfacePosition.xyz, unitLightDirection.xyz), 0.1f, 1000000000.0f);
+    Ray r = Ray(surfacePosition.xyz, unitLightDirection.xyz);
+    // r.origin = r.origin + r.direction * 0.001f;
+
+    HitRecord hit = hitObjectBvh(r, 0.1f, 1000000000000.0f);
 
     if (!hit.isHit) {
       /* vec4 unitLightDirection = normalize(lightDirection);

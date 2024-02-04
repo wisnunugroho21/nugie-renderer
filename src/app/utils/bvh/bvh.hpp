@@ -16,7 +16,7 @@
 #define SPLIT_NUMBER 12
 
 namespace NugieApp {
-  const glm::vec3 eps(0.01f);
+  const glm::vec3 eps(0.0f);
 
   // Axis-aligned bounding box.
   struct Aabb {
