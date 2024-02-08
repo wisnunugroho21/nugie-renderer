@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <stack>
 
-#define SPLIT_NUMBER 12
+#define SPLIT_NUMBER 10
 
 namespace NugieApp {
   const glm::vec3 eps(0.0f);

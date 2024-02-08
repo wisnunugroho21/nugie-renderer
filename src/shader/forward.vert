@@ -22,7 +22,7 @@ layout(set = 0, binding = 1) buffer readonly TransformationModel {
 };
 
 void main() {
-  vec4 positionWorld = transformations[transformIndex].modelMatrix * position;
+  vec4 positionWorld = transformations[transformIndex].pointMatrix * position;
 	gl_Position = forwardUbo.cameraTransforms * positionWorld;
   
   fragPosition = positionWorld;

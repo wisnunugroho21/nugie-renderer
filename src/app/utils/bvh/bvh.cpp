@@ -112,11 +112,7 @@ namespace NugieApp {
         return node;
       }
       
-      node.leftObjIndex = objects[0]->index;
-
-      if (objects.size() > 1) {
-        node.rightObjIndex = objects[1]->index;
-      }
+      node.objIndex = objects[0]->index;
     } else {
       node.leftNode = leftNodeIndex;
       node.rightNode = rightNodeIndex;
@@ -170,7 +166,7 @@ namespace NugieApp {
   }
 
   float findPrimitiveSplitPosition(BvhItemBuild node, int axis, float length) {
-    float bestCost = 1000000000000.0f;
+    float bestCost = FLT_MAX;
     float splitPos = 0.0f;
 
     BvhBinSAH bvhBins[SPLIT_NUMBER];
@@ -231,11 +227,10 @@ namespace NugieApp {
     std::stack<BvhItemBuild> nodeStack;
 
     BvhItemBuild root;
-    root.index = nodeCounter;
+    root.index = nodeCounter++;
     root.objects = boundedBoxes;
 
-    nodeCounter++;
-    nodeStack.push(root);
+    nodeStack.emplace(root);
 
     while (!nodeStack.empty()) {
       BvhItemBuild currentNode = nodeStack.top();
@@ -251,9 +246,8 @@ namespace NugieApp {
       size_t objectSpan = currentNode.objects.size();
       std::sort(currentNode.objects.begin(), currentNode.objects.end(), comparator);
 
-      if (objectSpan <= 2) {
-        intermediate.push_back(currentNode);
-        continue;
+      if (objectSpan == 1) {
+        intermediate.emplace_back(currentNode);
       } else {
         float length = currentNode.box.max[axis] - currentNode.box.min[axis];
         float splitPos = findPrimitiveSplitPosition(currentNode, axis, length); //  std::ceil(objectSpan / 2);
@@ -265,9 +259,9 @@ namespace NugieApp {
           float pos = (curBox.max[axis] - curBox.min[axis]) / 2 + curBox.min[axis];
 
           if (pos < splitPos) {
-            leftNode.objects.push_back(item);
+            leftNode.objects.emplace_back(item);
           } else {
-            rightNode.objects.push_back(item);
+            rightNode.objects.emplace_back(item);
           }
         }
 
@@ -278,25 +272,23 @@ namespace NugieApp {
 					rightNode.objects.clear();
 
 					for (int i = 0; i < mid; i++) {
-						leftNode.objects.push_back(currentNode.objects[i]);
+						leftNode.objects.emplace_back(currentNode.objects[i]);
 					}
 
 					for (int i = mid; i < objectSpan; i++) {
-						rightNode.objects.push_back(currentNode.objects[i]);
+						rightNode.objects.emplace_back(currentNode.objects[i]);
 					}
         }        
 
-        leftNode.index = nodeCounter;
-        nodeCounter++;
-        nodeStack.push(leftNode);
+        leftNode.index = nodeCounter++;
+        nodeStack.emplace(leftNode);
 
-        rightNode.index = nodeCounter;
-        nodeCounter++;
-        nodeStack.push(rightNode);
+        rightNode.index = nodeCounter++;
+        nodeStack.emplace(rightNode);
 
         currentNode.leftNodeIndex = leftNode.index;
         currentNode.rightNodeIndex = rightNode.index;
-        intermediate.push_back(currentNode);
+        intermediate.emplace_back(currentNode);
       }
     }
 

@@ -10,16 +10,8 @@
 #include "../../general_struct.hpp"
 
 namespace NugieApp {
+
 	struct TransformComponent {
-		glm::vec3 translation{0.0f};
-		glm::vec3 scale{1.0f};
-		glm::vec3 rotation{0.0f};
-
-		glm::mat4 getModelMatrix() const;
-    glm::mat3 getNormalMatrix() const;
-	};
-
-	struct RayTransformComponent {
 		glm::vec3 translation{0.0f};
 		glm::vec3 scale{1.0f};
 		glm::vec3 rotation{0.0f};
@@ -35,5 +27,4 @@ namespace NugieApp {
 	};
 
 	std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations);
-	std::vector<RayTransformation> ConvertRayComponentToRayTransform(const std::vector<RayTransformComponent> &rayTransformations);
 }

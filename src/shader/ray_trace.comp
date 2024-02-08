@@ -42,7 +42,7 @@ layout(set = 0, binding = 11) buffer readonly MaterialModel {
 };
 
 layout(set = 0, binding = 12) buffer readonly TransformationModel {
-  RayTransformation transformations[];
+  Transformation transformations[];
 };
 
 layout(set = 0, binding = 13) buffer readonly PointLightModel {
@@ -116,8 +116,6 @@ vec3 rayAt(Ray r, float t) {
 }
 
 HitRecord hitTriangle(uvec3 triIndices, Ray r, float tMin, float tMax) {
-  HitRecord hit = HitRecord(false, tMax);
-
   vec3 firstVextex = vertices[triIndices.x].xyz;
 
   vec3 v0v1 = vertices[triIndices.y].xyz - firstVextex;
@@ -126,7 +124,7 @@ HitRecord hitTriangle(uvec3 triIndices, Ray r, float tMin, float tMax) {
   float det = dot(v0v1, pvec);
   
   if (abs(det) < KEPSILON) {
-    return hit;
+    return HitRecord(false, 0u);
   }
     
   float invDet = 1.0f / det;
@@ -134,19 +132,19 @@ HitRecord hitTriangle(uvec3 triIndices, Ray r, float tMin, float tMax) {
 
   float u = dot(tvec, pvec) * invDet;
   if (u < 0.0f || u > 1.0f) {
-    return hit;
+    return HitRecord(false, 0u);
   }
 
   vec3 qvec = cross(tvec, v0v1);
   float v = dot(r.direction, qvec) * invDet;
   if (v < 0.0f || u + v > 1.0f) {
-    return hit;
+    return HitRecord(false, 0u);
   }
   
   float t = dot(v0v2, qvec) * invDet;
 
   if (t < tMin || t > tMax) {
-    return hit;
+    return HitRecord(false, 0u);
   }
 
   return HitRecord(true, t);
@@ -163,20 +161,21 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
   return tNear <= tFar ? tNear : FLT_MAX;
 }
 
-HitRecord hitPrimitiveBvh(Ray r, RayTransformation transform, float tMin, float tMax, uint firstBvhIndex, uint firstPrimitiveIndex) {
-  r.origin = (transform.pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
-  r.direction = mat3(transform.dirInverseMatrix) * r.direction;
-
+HitRecord hitPrimitiveBvh(Ray r, float tMin, float tMax, uint firstBvhIndex, uint firstPrimitiveIndex, uint transformIndex) {
+  Transformation curTransf = transformations[transformIndex];
   BvhNode node = primitiveBvhNodes[firstBvhIndex];
 
-  if (intersectAABB(r, node.minimum, node.maximum) >= FLT_MAX) {
-    return HitRecord(false, tMax);
+  r.origin = (curTransf.pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
+  r.direction = mat3(curTransf.dirInverseMatrix) * r.direction;
+
+  if (intersectAABB(r, node.minimum, node.maximum) == FLT_MAX) {
+    return HitRecord(false, 0u);
   }
 
-  uint stack[30];
+  uint stack[32];
   stack[0] = 1u;
 
-  int stackIndex = 1;  
+  int stackIndex = 1;
 
   while(stackIndex > 0 && stackIndex <= 30) {
     uint currentNodeIndex = stack[--stackIndex];
@@ -186,21 +185,13 @@ HitRecord hitPrimitiveBvh(Ray r, RayTransformation transform, float tMin, float 
 
     node = primitiveBvhNodes[currentNodeIndex - 1u + firstBvhIndex];
 
-    uint primIndex = node.leftObjIndex;
-    if (primIndex >= 1u) {
-      HitRecord hit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, tMin, tMax);
+    uint primIndex = node.objIndex;
+    if (primIndex > 0u) {
+      Primitive primitive = primitives[primIndex - 1u + firstPrimitiveIndex]; 
+      HitRecord result = hitTriangle(primitive.indices, r, tMin, tMax);
 
-      if (hit.isHit) {
-        return hit;
-      }
-    }
-
-    primIndex = node.rightObjIndex;    
-    if (primIndex >= 1u) {
-      HitRecord hit = hitTriangle(primitives[primIndex - 1u + firstPrimitiveIndex].indices, r, tMin, tMax);
-
-      if (hit.isHit) {
-        return hit;
+      if (result.isHit) {
+        return result;
       }
     }
 
@@ -217,16 +208,16 @@ HitRecord hitPrimitiveBvh(Ray r, RayTransformation transform, float tMin, float 
       rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
     }
 
-    if (leftDist >= FLT_MAX && rightDist >= FLT_MAX) {
+    if (leftDist == FLT_MAX && rightDist == FLT_MAX) {
       continue;
     }
     
-    if (leftDist >= FLT_MAX) {
+    if (leftDist == FLT_MAX) {
       stack[stackIndex++] = rightNodeIndex;
       continue;
     }
     
-    if (rightDist >= FLT_MAX) {
+    if (rightDist == FLT_MAX) {
       stack[stackIndex++] = leftNodeIndex;
       continue;
     }
@@ -245,8 +236,8 @@ HitRecord hitPrimitiveBvh(Ray r, RayTransformation transform, float tMin, float 
 
 HitRecord hitObjectBvh(Ray r, float tMin, float tMax) {
   BvhNode node = objectBvhNodes[0u];
-
-  if (intersectAABB(r, node.minimum, node.maximum) >= FLT_MAX) {
+  
+  if (intersectAABB(r, node.minimum, node.maximum) == FLT_MAX) {
     return HitRecord(false, tMax);
   }
 
@@ -262,28 +253,18 @@ HitRecord hitObjectBvh(Ray r, float tMin, float tMax) {
 
     node = objectBvhNodes[currentNodeIndex - 1u];
 
-    uint objIndex = node.leftObjIndex;
-    if (objIndex >= 1u) {
-      Object obj = objects[objIndex - 1u];
-      HitRecord hit = hitPrimitiveBvh(r, transformations[obj.transformIndex], tMin, tMax, obj.firstBvhIndex, obj.firstPrimitiveIndex);
+    uint objIndex = node.objIndex;
+    if (objIndex > 0u) {
+      Object object = objects[objIndex - 1u];
+      HitRecord result = hitPrimitiveBvh(r, tMin, tMax, object.firstBvhIndex, object.firstPrimitiveIndex, object.transformIndex);
 
-      if (hit.isHit) {
-        return hit;
-      }
-    }
-
-    objIndex = node.rightObjIndex;
-    if (objIndex >= 1u) {
-      Object obj = objects[objIndex - 1u];
-      HitRecord hit = hitPrimitiveBvh(r, transformations[obj.transformIndex], tMin, tMax, obj.firstBvhIndex, obj.firstPrimitiveIndex);
-
-      if (hit.isHit) {
-        return hit;
+      if (result.isHit) {
+        return result;
       }
     }
 
     uint leftNodeIndex = node.leftNode, rightNodeIndex = node.rightNode;
-    float leftDist = -1.0f, rightDist = -1.0f;
+    float leftDist = FLT_MAX, rightDist = FLT_MAX;
 
     if (leftNodeIndex > 0u) {
       BvhNode leftNode = objectBvhNodes[leftNodeIndex - 1u];
@@ -295,16 +276,16 @@ HitRecord hitObjectBvh(Ray r, float tMin, float tMax) {
       rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
     }
 
-    if (leftDist >= FLT_MAX && rightDist >= FLT_MAX) {
+    if (leftDist == FLT_MAX && rightDist == FLT_MAX) {
       continue;
     }
     
-    if (leftDist >= FLT_MAX) {
+    if (leftDist == FLT_MAX) {
       stack[stackIndex++] = rightNodeIndex;
       continue;
     }
     
-    if (rightDist >= FLT_MAX) {
+    if (rightDist == FLT_MAX) {
       stack[stackIndex++] = leftNodeIndex;
       continue;
     }
@@ -320,7 +301,6 @@ HitRecord hitObjectBvh(Ray r, float tMin, float tMax) {
 
   return HitRecord(false, tMax);
 }
-
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   
@@ -343,12 +323,11 @@ void main() {
     vec4 unitLightDirection = normalize(lightDirection);
 
     Ray r = Ray(surfacePosition.xyz, unitLightDirection.xyz);
-    // r.origin = r.origin + r.direction * 0.001f;
 
     HitRecord hit = hitObjectBvh(r, 0.1f, FLT_MAX);
 
-    if (!hit.isHit) {
-      /* vec4 unitLightDirection = normalize(lightDirection);
+    if (hit.isHit) {
+      /*vec4 unitLightDirection = normalize(lightDirection);
       vec4 unitViewDirection = normalize(ubo.origin - surfacePosition);
 
       vec4 brdf = microfacetBRDF(unitLightDirection, unitViewDirection, surfaceNormal, 
@@ -357,7 +336,7 @@ void main() {
       float NoL = clamp(dot(surfaceNormal, unitLightDirection), 0.0, 1.0);
       vec4 irradiance = pointLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL; */
       
-      totalRadiance += surfaceColor; //brdf * irradiance;
+      totalRadiance += vec4(1.0f); // brdf * irradiance;
     }
   }
   

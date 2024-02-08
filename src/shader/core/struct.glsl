@@ -33,8 +33,7 @@ struct Object {
 struct BvhNode {
   uint leftNode;
   uint rightNode;
-  uint leftObjIndex;
-  uint rightObjIndex;
+  uint objIndex;
 
   vec3 maximum;
   vec3 minimum;
@@ -47,11 +46,6 @@ struct Material {
 };
 
 struct Transformation {
-  mat4 modelMatrix;
-  mat4 normalMatrix;
-};
-
-struct RayTransformation {
   mat4 pointMatrix;
   mat4 dirMatrix;
   mat4 pointInverseMatrix;

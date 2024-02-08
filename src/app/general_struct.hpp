@@ -45,8 +45,7 @@ namespace NugieApp {
   struct BvhNode {
     uint32_t leftNode = 0u;
     uint32_t rightNode = 0u;
-    uint32_t leftObjIndex = 0u;
-    uint32_t rightObjIndex = 0u;
+    uint32_t objIndex = 0u;
 
     alignas(16) glm::vec3 maximum{0.0f};
     alignas(16) glm::vec3 minimum{0.0f};
@@ -59,11 +58,6 @@ namespace NugieApp {
   };
 
   struct Transformation {
-    glm::mat4 modelMatrix{1.0f};
-    glm::mat4 normalMatrix{1.0f};
-  };
-
-  struct RayTransformation {
     glm::mat4 pointMatrix{1.0f};
     glm::mat4 dirMatrix{1.0f};
     glm::mat4 pointInverseMatrix{1.0f};

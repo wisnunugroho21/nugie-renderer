@@ -75,7 +75,6 @@ namespace NugieApp {
 			ArrayBuffer<Material>* materialBuffer;
 			ArrayBuffer<Transformation>* transformationBuffer;
 			ArrayBuffer<PointLight>* pointLightBuffer;
-			ArrayBuffer<RayTransformation>* rayTransformationBuffer;
 
 			ObjectBuffer<ForwardUbo>* forwardUniform;
 			ObjectBuffer<RayTraceUbo>* rayTraceUniform;
