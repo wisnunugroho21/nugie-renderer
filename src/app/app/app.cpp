@@ -303,11 +303,11 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 1, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 
-		/* loadedModel = loadObjModel("../assets/models/quad_model.obj");
+		loadedModel = loadObjModel("../assets/models/quad_model.obj");
 
 		positionSize = static_cast<uint32_t>(positions.size());
 		for (auto &&index : loadedModel.indices) {
@@ -330,7 +330,7 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 0, 1 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) }); */
+		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 		
@@ -338,8 +338,8 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
 		spotLights.resize(1);
-		spotLights[0].position = glm::vec4{ 0.0f, 50.0f, 0.0f, 1.0f };
-		spotLights[0].color = glm::vec4{ 10000.0f, 10000.0f, 10000.0f, 1.0f };
+		spotLights[0].position = glm::vec4{ 40.0f, 50.0f, 0.0f, 1.0f };
+		spotLights[0].color = glm::vec4{ 50000.0f, 50000.0f, 50000.0f, 1.0f };
 		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) - spotLights[0].position;
 		spotLights[0].angle = 60;
 
@@ -385,8 +385,8 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 30.0f, -30.0f);
-		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 position = glm::vec3(0.0f, 40.0f, -30.0f);
+		glm::vec3 target = glm::vec3(0.0f, 10.0f, 0.0f);
 		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
 
 		float near = 0.1f;
