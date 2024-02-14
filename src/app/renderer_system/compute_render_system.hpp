@@ -18,12 +18,12 @@ namespace NugieApp {
 			~ComputeRenderSystem();
 			
 			void initialize();
-			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				uint32_t xInvocations, uint32_t yInvocations, uint32_t zInvocations);
 		
 		private:
-			void createPipelineLayout();
-			void createPipeline();
+			virtual void createPipelineLayout();
+			virtual void createPipeline();
 
 			NugieVulkan::Device* device;
 			

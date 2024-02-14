@@ -33,11 +33,15 @@ namespace NugieApp {
 
 	App::~App() {
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
+		if (this->shadowPassRenderer != nullptr) delete this->shadowPassRenderer;
 
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
+		if (this->shadowSubRenderer != nullptr) delete this->shadowSubRenderer;
+
 		if (this->renderer != nullptr) delete this->renderer;
 
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
+		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 
 		if (this->forwardUniform != nullptr) delete this->forwardUniform;
 		if (this->deferredUniform != nullptr) delete this->deferredUniform;
@@ -49,6 +53,7 @@ namespace NugieApp {
 		if (this->referenceModel != nullptr) delete this->referenceModel;
 		if (this->materialModel != nullptr) delete this->materialModel;
 		if (this->transformationModel != nullptr) delete this->transformationModel;
+		if (this->shadowTransformationModel != nullptr) delete this->shadowTransformationModel;
 		if (this->spotLightModel != nullptr) delete this->spotLightModel;
 		
 		for (auto &&colorTexture : this->colorTextures) {
@@ -81,9 +86,17 @@ namespace NugieApp {
 		forwardBuffers.emplace_back(this->textCoordModel->getBuffer());
 		forwardBuffers.emplace_back(this->referenceModel->getBuffer());
 
+		std::vector<NugieVulkan::Buffer*> shadowBuffers;
+		shadowBuffers.emplace_back(this->positionModel->getBuffer());
+		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
+
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
+
+				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
+				this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size());
+				this->shadowSubRenderer->endRenderPass(commandBuffer);
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
@@ -333,6 +346,25 @@ namespace NugieApp {
 
 		this->deferredUbo.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
 
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
+
+		Camera shadowCamera;
+		float near = 0.1f;
+		float far = 2000.0f;
+		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		float theta = glm::radians(45.0);
+
+		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
+		glm::mat4 projection = shadowCamera.getProjectionMatrix();
+
+		shadowTransforms.resize(this->spotNumLight);
+
+		for (size_t i = 0; i < spotLights.size(); i++) {
+			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction, glm::vec3(0.0f, 0.0f, 1.0f));
+			shadowTransforms[i].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+		}
+
 		// ----------------------------------------------------------------------------
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
@@ -358,6 +390,9 @@ namespace NugieApp {
 		this->transformationModel = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->transformationModel->replace(commandBuffer, ConvertComponentToTransform(transforms));
 
+		this->shadowTransformationModel = new ArrayBuffer<ShadowTransformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		this->shadowTransformationModel->replace(commandBuffer, shadowTransforms);
+
 		this->spotLightModel = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		this->spotLightModel->replace(commandBuffer, spotLights);
 
@@ -371,7 +406,7 @@ namespace NugieApp {
 	void App::initCamera(uint32_t width, uint32_t height) {
 		glm::vec3 position = glm::vec3(0.0f, 40.0f, -30.0f);
 		glm::vec3 target = glm::vec3(0.0f, 10.0f, 0.0f);
-		glm::vec3 vup = glm::vec3(0.0f, 0.0f, 1.0f);
+		glm::vec3 vup = glm::vec3(0.0f, 1.0f, 0.0f);
 
 		float near = 0.1f;
 		float far = 2000.0f;
@@ -409,17 +444,33 @@ namespace NugieApp {
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 
+		this->shadowSubRenderer = SubRenderer::Builder(this->device, 2048, 2048, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.setDepthAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_D16_UNORM, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.build();
+
+		auto x = this->shadowSubRenderer->getAttachmentInfos(0)[0];
+
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->deferredUniform->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialModel->getInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightModel->getInfo())
-			.addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationModel->getInfo())
+			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
+			.addImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowSubRenderer->getAttachmentInfos(0)[0])
+			.build();
+
+		this->shadowDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationModel->getInfo())
 			.build();
 
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
+		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
+
 		this->forwardPassRenderer->initialize();
+		this->shadowPassRenderer->initialize();
 	}
 
 	void App::resize() {

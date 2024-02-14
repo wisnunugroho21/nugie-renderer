@@ -21,7 +21,7 @@ namespace NugieApp {
 			~GraphicRenderSystem();
 
 			void initialize();
-			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 				uint32_t indexCount, std::vector<VkDeviceSize> offsets = {});
 		

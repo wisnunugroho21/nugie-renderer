@@ -22,7 +22,12 @@ layout(set = 0, binding = 4) buffer readonly SpotLightModel {
   SpotLight spotLights[];
 };
 
-layout(set = 0, binding = 5) uniform sampler2D colorTexture[1];
+layout(set = 0, binding = 5) buffer readonly ShadowTransformationModel {
+	ShadowTransformation shadowTransformations[];
+};
+
+layout(set = 0, binding = 6) uniform sampler2D colorTexture[1];
+layout(set = 0, binding = 7) uniform sampler2D shadowMapTexture[1];
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -84,6 +89,16 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 fragNormal,
   return diff + spec;
 }
 
+float shadowFactor(uint lightIndex, vec4 shadowCoord) {
+  shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
+  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+
+  float dist = texture(shadowMapTexture[lightIndex], shadowCoord.xy).x;
+  bool isShadow = dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
+
+  return isShadow ? 0.1f : 1.0f;
+}
+
 void main() {
   vec4 surfaceMaterialParams = materials[fragMaterialIndex].params;
   uint colorTextureIndex = materials[fragMaterialIndex].colorTextureIndex;
@@ -111,7 +126,8 @@ void main() {
       float NoL = clamp(dot(fragNormal, unitLightDirection), 0.0, 1.0);
       vec4 irradiance = spotLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
       
-      totalRadiance += brdf * irradiance;
+      vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * fragPosition;
+      totalRadiance += brdf * irradiance * shadowFactor(i, shadowCoord);
     }
   }
 

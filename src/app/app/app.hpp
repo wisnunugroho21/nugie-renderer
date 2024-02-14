@@ -13,6 +13,7 @@
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
+#include "../renderer_system/shadow_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -55,8 +56,10 @@ namespace NugieApp {
 			Renderer* renderer;
 
 			SubRenderer* finalSubRenderer;
+			SubRenderer* shadowSubRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
+			ShadowPassRenderSystem* shadowPassRenderer;
 
 			ArrayBuffer<uint32_t>* indexModel;
 
@@ -67,12 +70,14 @@ namespace NugieApp {
 			
 			ArrayBuffer<Material>* materialModel;
 			ArrayBuffer<Transformation>* transformationModel;
+			ArrayBuffer<ShadowTransformation>* shadowTransformationModel;
 			ArrayBuffer<SpotLight>* spotLightModel;
 
 			ObjectBuffer<ForwardUbo>* forwardUniform;
 			ObjectBuffer<DeferredUbo>* deferredUniform;
 			
 			DescriptorSet* forwardDescSet;
+			DescriptorSet* shadowDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 
