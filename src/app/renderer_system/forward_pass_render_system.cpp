@@ -22,7 +22,7 @@ namespace NugieApp {
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(4);
 		std::vector<VkVertexInputAttributeDescription> attributeDescription(5);
-		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(4);
+		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(1);
 
 		bindingDescriptions[0].binding = 0;
 		bindingDescriptions[0].stride = sizeof(glm::vec4);
@@ -68,18 +68,8 @@ namespace NugieApp {
     colorBlendAttachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[0].blendEnable = VK_FALSE;
 
-		colorBlendAttachment[1].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment[1].blendEnable = VK_FALSE;
-
-		colorBlendAttachment[2].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment[2].blendEnable = VK_FALSE;
-
-		colorBlendAttachment[3].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment[3].blendEnable = VK_FALSE;
-
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
 			.setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions, attributeDescription)
-			.setSubpass(0u)
 			.build();
 	}
 }

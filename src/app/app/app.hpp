@@ -13,7 +13,6 @@
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
-#include "../renderer_system/deferred_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -56,10 +55,8 @@ namespace NugieApp {
 			Renderer* renderer;
 
 			SubRenderer* finalSubRenderer;
-			SubRenderer* spotShadowSubRenderer;
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
-			DeferredPassRenderSystem* deferredPasRenderer;
 
 			ArrayBuffer<uint32_t>* indexModel;
 
@@ -76,8 +73,6 @@ namespace NugieApp {
 			ObjectBuffer<DeferredUbo>* deferredUniform;
 			
 			DescriptorSet* forwardDescSet;
-			DescriptorSet* attachmentDeferredDescSet;
-			DescriptorSet* modelDeferredDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 
