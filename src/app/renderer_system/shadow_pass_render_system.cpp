@@ -17,6 +17,29 @@ namespace NugieApp {
 		
 	}
 
+	void ShadowPassRenderSystem::createPipelineLayout() {
+		std::vector<VkDescriptorSetLayout> setLayouts;
+		for (auto &&descriptorSetLayout: this->descriptorSetLayouts) {
+			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
+		}
+
+		VkPushConstantRange pushConstantInfo{};
+		pushConstantInfo.offset = 0u;
+		pushConstantInfo.size = sizeof(uint32_t);
+		pushConstantInfo.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+		pipelineLayoutInfo.pSetLayouts = (setLayouts.size() > 0) ? setLayouts.data() : nullptr;
+		pipelineLayoutInfo.pushConstantRangeCount = 1u;
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstantInfo;
+
+		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create pipeline layout!");
+		}
+	}
+
 	void ShadowPassRenderSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
@@ -62,8 +85,7 @@ namespace NugieApp {
 	}
 
 	void ShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-		uint32_t indexCount, std::vector<VkDeviceSize> offsets) 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, uint32_t lightIndex) 
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 
@@ -82,10 +104,18 @@ namespace NugieApp {
 			nullptr
 		);
 
-		if (offsets.empty()) {
-			for (auto &&vertexBuffer : vertexBuffers) {
-				offsets.emplace_back(0);
-			}
+		vkCmdPushConstants(
+			commandBuffer->getCommandBuffer(),
+			this->pipelineLayout,
+			VK_SHADER_STAGE_VERTEX_BIT,
+			0,
+			sizeof(uint32_t),
+			&lightIndex
+		);
+
+		std::vector<VkDeviceSize> offsets;
+		for (auto &&vertexBuffer : vertexBuffers) {
+			offsets.emplace_back(0);
 		}
 
 		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);

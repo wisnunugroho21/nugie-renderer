@@ -94,9 +94,11 @@ namespace NugieApp {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-				this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex);
-				this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size());
-				this->shadowSubRenderer->endRenderPass(commandBuffer);
+				for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
+					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
+					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), lightIndex);
+					this->shadowSubRenderer->endRenderPass(commandBuffer);
+				}
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
@@ -444,11 +446,20 @@ namespace NugieApp {
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 
-		this->shadowSubRenderer = SubRenderer::Builder(this->device, 2048, 2048, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->shadowSubRenderer = SubRenderer::Builder(this->device, 2048, 2048, this->spotNumLight * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.setDepthAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_D16_UNORM, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
 			.build();
 
-		auto x = this->shadowSubRenderer->getAttachmentInfos(0)[0];
+		std::vector<std::vector<VkDescriptorImageInfo>> shadowImageInfos;
+		for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
+			std::vector<VkDescriptorImageInfo> shadowFrameImageInfos;
+
+			for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
+				shadowFrameImageInfos.emplace_back(this->shadowSubRenderer->getAttachmentInfos(0)[0][frameIndex * this->spotNumLight + lightIndex]);
+			}
+
+			shadowImageInfos.emplace_back(shadowFrameImageInfos);
+		}
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
@@ -458,7 +469,7 @@ namespace NugieApp {
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightModel->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationModel->getInfo())
 			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
-			.addImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowSubRenderer->getAttachmentInfos(0)[0])
+			.addManyImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
 			.build();
 
 		this->shadowDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)

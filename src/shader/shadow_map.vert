@@ -13,6 +13,10 @@ layout(set = 0, binding = 1) buffer readonly ShadowTransformationModel {
 	ShadowTransformation shadowTransformations[];
 };
 
+layout(push_constant) uniform Push {
+  uint shadowIndex;
+};
+
 void main() {
-  gl_Position = (shadowTransformations[0].viewProjectionMatrix * transformations[transformIndex].modelMatrix) * position; 
+  gl_Position = (shadowTransformations[shadowIndex].viewProjectionMatrix * transformations[transformIndex].modelMatrix) * position; 
 }

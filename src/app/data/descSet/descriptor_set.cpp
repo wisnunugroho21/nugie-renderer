@@ -97,7 +97,7 @@ namespace NugieApp {
 		DescriptorSetBinding bind{};
 		bind.descSetType = descriptorType;
 		bind.shaderStage = shaderStage;
-		bind.descCount = static_cast<uint32_t>(imageInfos.size());
+		bind.descCount = static_cast<uint32_t>(imageInfos[0].size());
 
 		this->descriptorSetBindings[binding] = bind;
 

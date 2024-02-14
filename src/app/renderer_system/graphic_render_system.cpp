@@ -66,8 +66,7 @@ namespace NugieApp {
 	}
 
 	void GraphicRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-		uint32_t indexCount, std::vector<VkDeviceSize> offsets) 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount) 
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 
@@ -84,10 +83,9 @@ namespace NugieApp {
 			nullptr
 		);
 
-		if (offsets.empty()) {
-			for (auto &&vertexBuffer : vertexBuffers) {
-				offsets.emplace_back(0);
-			}
+		std::vector<VkDeviceSize> offsets;
+		for (auto &&vertexBuffer : vertexBuffers) {
+			offsets.emplace_back(0);
 		}
 
 		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
