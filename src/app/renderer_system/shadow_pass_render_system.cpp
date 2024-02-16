@@ -77,10 +77,21 @@ namespace NugieApp {
 		multisampleInfo.sampleShadingEnable = VK_FALSE;
 		multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+		VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
+		rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizationInfo.depthClampEnable = VK_FALSE;
+		rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+		rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizationInfo.lineWidth = 1.0f;
+		rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+		rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterizationInfo.depthBiasEnable = VK_TRUE;
+
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
 			.setDefaultVertex(this->vertFilePath, bindingDescriptions, attributeDescription)
 			.setDynamicStateInfo(dynamicStateInfo)
 			.setMultisampleInfo(multisampleInfo)
+			.setRasterizationInfo(rasterizationInfo)
 			.build();
 	}
 
