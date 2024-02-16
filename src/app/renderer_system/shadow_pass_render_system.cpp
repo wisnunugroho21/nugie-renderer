@@ -83,7 +83,7 @@ namespace NugieApp {
 		rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 		rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationInfo.lineWidth = 1.0f;
-		rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+		rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
 		rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_TRUE;
 
