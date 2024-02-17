@@ -275,7 +275,7 @@ namespace NugieApp {
       std::vector<NugieVulkan::Sampler*> samplers{};
       for (auto &&frameImage : frameImages) {
         samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
-          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
           VK_SAMPLER_MIPMAP_MODE_NEAREST));
       }
 
@@ -354,7 +354,7 @@ namespace NugieApp {
       std::vector<NugieVulkan::Sampler*> samplers{};
       for (auto &&frameImage : frameImages) {
         samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
-          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
           VK_SAMPLER_MIPMAP_MODE_NEAREST));
       }
 
@@ -679,7 +679,7 @@ namespace NugieApp {
       renderPassBuilder.addDependency(dependency);
     }
 
-    if (outputAttachmentRefs.size() > 0 && resolveAttachmentRefs.size() == 0) {
+    if (outputAttachmentRefs.size() > 0) {
       VkSubpassDependency postColorDependency{};
       postColorDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
       postColorDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -692,7 +692,7 @@ namespace NugieApp {
       renderPassBuilder.addDependency(postColorDependency);
     } 
     
-    else if (depthAttachmentRefs.size() > 0) {
+    if (depthAttachmentRefs.size() > 0) {
       VkSubpassDependency postDepthDependency{};
       postDepthDependency.srcSubpass = static_cast<uint32_t>(subpasses.size() - 1);
       postDepthDependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
