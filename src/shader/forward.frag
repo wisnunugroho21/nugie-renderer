@@ -89,14 +89,29 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 fragNormal,
   return diff + spec;
 }
 
-float shadowFactor(uint lightIndex, vec4 shadowCoord) {
+bool isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-  float dist = texture(shadowMapTexture[lightIndex], shadowCoord.xy).x;
-  bool isShadow = dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
+  float dist = texture(shadowMapTexture[lightIndex], shadowCoord.xy + offset).x;
+  return dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
+}
 
-  return isShadow ? 0.1f : 1.0f;
+float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
+  ivec2 texDim = textureSize(shadowMapTexture[lightIndex], 0).xy;
+
+	vec2 dOffset = 1.0f / vec2(texDim);
+	float shadowFactor = 0.0;
+
+  for (int x = -1; x <= 1; x++) {
+		for (int y = -1; y <= 1; y++) {
+			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, dOffset * vec2(x, y))
+        ? 0.5f
+        : 1.0f;
+		}
+	}
+  
+	return shadowFactor / 9.0f;
 }
 
 void main() {
@@ -127,7 +142,7 @@ void main() {
       vec4 irradiance = spotLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
       
       vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * fragPosition;
-      totalRadiance += brdf * irradiance * shadowFactor(i, shadowCoord);
+      totalRadiance += brdf * irradiance * computeSpotShadowPCF(i, shadowCoord);
     }
   }
 
