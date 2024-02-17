@@ -80,9 +80,9 @@ namespace NugieApp {
 			DescriptorSet* shadowDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
-
 			bool isRendering = true;
-			float frameTime = 0.0f;
+
+			uint32_t frameCount = 0;
 
 			ForwardUbo forwardUbo;
 			DeferredUbo deferredUbo;

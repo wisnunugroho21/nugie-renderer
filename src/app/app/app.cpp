@@ -112,8 +112,9 @@ namespace NugieApp {
 	void App::renderLoop() {
 		this->renderer->submitPrepareCommand();
 
-		auto oldTime = std::chrono::high_resolution_clock::now();
 		while (this->isRendering) {
+			this->frameCount++;
+
 			if (this->renderer->acquireFrame()) {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
@@ -135,10 +136,6 @@ namespace NugieApp {
 					this->randomSeed++;
 				}				
 			}
-
-			auto newTime = std::chrono::high_resolution_clock::now();
-			this->frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
-			oldTime = newTime;
 		}
 	}
 
@@ -154,7 +151,9 @@ namespace NugieApp {
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
+
 		auto oldTime = std::chrono::high_resolution_clock::now();
+		auto oldFpsTime = std::chrono::high_resolution_clock::now();
 
 		while (!this->window->shouldClose()) {
 			this->window->pollEvents();
@@ -179,10 +178,15 @@ namespace NugieApp {
 				this->cameraUpdateCount = 0u;
 			}
 
-			if (t == 10) {
-				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((1.0f / this->frameTime));
+			if (t > 1000 && this->frameCount > 0) {
+				newTime = std::chrono::high_resolution_clock::now();
+				deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+				oldFpsTime = newTime;
+
+				std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((this->frameCount / deltaTime));
 				glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
+				this->frameCount = 0;
 				t = 0;
 			} else {
 				t++;
