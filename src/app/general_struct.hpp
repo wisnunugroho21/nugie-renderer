@@ -58,6 +58,11 @@ namespace NugieApp {
     float angle;
   };
 
+  struct VolumeTileAABB{
+    glm::vec4 minPoint;
+    glm::vec4 maxPoint;
+  };
+
   struct DeferredUbo {
     glm::vec4 origin;
     glm::uvec4 numLights;
@@ -65,6 +70,14 @@ namespace NugieApp {
 
   struct ForwardUbo {
     glm::mat4 cameraTransforms;
+  };
+
+  struct ClusterBuildUbo {
+    glm::mat4 inverseProjection;
+    glm::uvec4 tileSizes;
+    glm::uvec2 screenDimensions;
+    float zNear;
+    float zFar;
   };
 
   struct ShadowPushConstant {

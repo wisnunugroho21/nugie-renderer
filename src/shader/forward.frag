@@ -142,7 +142,7 @@ void main() {
       vec4 irradiance = spotLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
       
       vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * fragPosition;
-      totalRadiance += brdf * irradiance * computeSpotShadowPCF(i, shadowCoord);
+      totalRadiance += brdf * irradiance; //* computeSpotShadowPCF(i, shadowCoord);
     }
   }
 

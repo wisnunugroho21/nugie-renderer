@@ -94,11 +94,13 @@ namespace NugieApp {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-				for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
+				/* for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
 					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), lightIndex);
 					this->shadowSubRenderer->endRenderPass(commandBuffer);
-				}
+				} */
+
+				this->clusterBuildRenderer->render(commandBuffer, { this->clusterBuildDescSet->getDescriptorSets(frameIndex) }, 10u, 10u, 10u);
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
@@ -120,6 +122,9 @@ namespace NugieApp {
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
 					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->deferredUniform->writeGlobalData(frameIndex, this->deferredUbo);
+					this->clusterBuildUniform->writeGlobalData(frameIndex, this->clusterBuildUbo);
+
 					this->cameraUpdateCount++;
 				}
 
@@ -148,6 +153,7 @@ namespace NugieApp {
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
 			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
 			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
+			this->clusterBuildUniform->writeGlobalData(i, this->clusterBuildUbo);
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
@@ -402,6 +408,8 @@ namespace NugieApp {
 		this->spotLightModel = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
 		this->spotLightModel->replace(commandBuffer, spotLights);
 
+		this->volumeTileAABBModel = new ArrayBuffer<VolumeTileAABB>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 512u);
+
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
 
@@ -428,6 +436,12 @@ namespace NugieApp {
 
 		this->forwardUbo.cameraTransforms = projection * view;
 		this->deferredUbo.origin = glm::vec4(position, 1.0f);
+
+		this->clusterBuildUbo.inverseProjection = glm::inverse(projection);
+		this->clusterBuildUbo.tileSizes = glm::uvec4(10u, 10u, 10u, 1u);
+		this->clusterBuildUbo.screenDimensions = glm::uvec2(width, height);
+		this->clusterBuildUbo.zNear = near;
+		this->clusterBuildUbo.zFar = far;
 	}
 
 	void App::init() {
@@ -440,6 +454,7 @@ namespace NugieApp {
 
 		this->forwardUniform = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		this->deferredUniform = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->clusterBuildUniform = new ObjectBuffer<ClusterBuildUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
@@ -480,12 +495,19 @@ namespace NugieApp {
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationModel->getInfo())
 			.build();
+		
+		this->clusterBuildDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->clusterBuildUniform->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->volumeTileAABBModel->getInfo())
+			.build();
 
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
+		this->clusterBuildRenderer = new ComputeRenderSystem(this->device, { this->clusterBuildDescSet->getDescSetLayout() }, "shader/build_cluster.comp.spv", 10u, 10u, 10u);
 
 		this->forwardPassRenderer->initialize();
 		this->shadowPassRenderer->initialize();
+		this->clusterBuildRenderer->initialize();
 	}
 
 	void App::resize() {

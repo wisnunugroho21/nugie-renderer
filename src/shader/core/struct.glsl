@@ -46,6 +46,12 @@ struct SpotLight {
   float angle;
 };
 
+//ssbo initialization
+struct VolumeTileAABB {
+	vec4 minPoint;
+	vec4 maxPoint;
+};
+
 struct DeferredUbo {
   uint numLights;
 };

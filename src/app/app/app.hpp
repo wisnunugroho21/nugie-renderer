@@ -14,6 +14,7 @@
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/shadow_pass_render_system.hpp"
+#include "../renderer_system/compute_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -60,6 +61,7 @@ namespace NugieApp {
 			
 			ForwardPassRenderSystem* forwardPassRenderer;
 			ShadowPassRenderSystem* shadowPassRenderer;
+			ComputeRenderSystem* clusterBuildRenderer;
 
 			ArrayBuffer<uint32_t>* indexModel;
 
@@ -73,11 +75,15 @@ namespace NugieApp {
 			ArrayBuffer<ShadowTransformation>* shadowTransformationModel;
 			ArrayBuffer<SpotLight>* spotLightModel;
 
+			ArrayBuffer<VolumeTileAABB>* volumeTileAABBModel;
+
 			ObjectBuffer<ForwardUbo>* forwardUniform;
 			ObjectBuffer<DeferredUbo>* deferredUniform;
+			ObjectBuffer<ClusterBuildUbo>* clusterBuildUniform;
 			
 			DescriptorSet* forwardDescSet;
 			DescriptorSet* shadowDescSet;
+			DescriptorSet* clusterBuildDescSet;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 			bool isRendering = true;
@@ -86,6 +92,7 @@ namespace NugieApp {
 
 			ForwardUbo forwardUbo;
 			DeferredUbo deferredUbo;
+			ClusterBuildUbo clusterBuildUbo;
 
 			std::vector<NugieApp::Texture*> colorTextures;
 	};
