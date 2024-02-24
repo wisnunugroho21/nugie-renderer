@@ -13,8 +13,7 @@
 namespace NugieApp {
 	class ComputeRenderSystem {
 		public:
-			ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, std::string compFilePath,
-				uint32_t xThreadSize = 32u, uint32_t yThreadSize = 1u, uint32_t zThreadSize = 1u);
+			ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, std::string compFilePath);
 			~ComputeRenderSystem();
 			
 			void initialize();
@@ -29,7 +28,6 @@ namespace NugieApp {
 			
 			VkPipelineLayout pipelineLayout;
 			NugieVulkan::ComputePipeline* pipeline;
-			uint32_t xThreadSize, yThreadSize, zThreadSize;
 
 			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
 			std::string compFilePath;
