@@ -6,32 +6,42 @@
 #define FLT_MAX 3.402823e+38
 #define FLT_MIN 1.175494e-38
 
-struct Position {
-  vec4 position;
+struct Vertex {
+  vec3 position;
+  vec2 textCoord;
 };
 
-struct Normal {
-  vec4 normal;
-};
-
-struct Reference {
+struct Primitive {
+  uvec3 indices;
   uint materialIndex;
+};
+
+struct Object {
+  uint firstBvhIndex;
+  uint firstPrimitiveIndex;
   uint transformIndex;
 };
 
+struct BvhNode {
+  uint leftNode;
+  uint rightNode;
+  uint objIndex;
+  vec3 maximum;
+  vec3 minimum;
+};
+
 struct Material {
-  vec4 baseColor;
-  vec4 params;
+  vec3 baseColor;
+  vec3 params;
   uint colorTextureIndex;
 };
 
 struct Transformation {
-  mat4 modelMatrix;
+  mat4 pointMatrix;
+  mat4 dirMatrix;
+  mat4 pointInverseMatrix;
+  mat4 dirInverseMatrix;
   mat4 normalMatrix;
-};
-
-struct ShadowTransformation {
-  mat4 viewProjectionMatrix;
 };
 
 struct PointLight {
@@ -46,10 +56,20 @@ struct SpotLight {
   float angle;
 };
 
-struct DeferredUbo {
-  uint numLights;
+struct Ray {
+  vec3 origin;
+  vec3 direction;
 };
 
-struct ForwardUbo {
-  mat4 cameraTransforms;
+struct HitRecord {
+  bool isHit;
+
+  uint hitIndex;
+  vec3 point;
+  vec3 normal;
+  vec2 uv;
+};
+
+struct ScreenRayCoord {
+  uvec2 coord;
 };

@@ -1,9 +1,7 @@
 #include "mouse_controller.hpp"
 
 namespace NugieApp {
-  glm::vec3 MouseController::rotateInPlaceXZ(GLFWwindow* window, double dt, glm::vec3 currentCameraDirection, bool* isPressed) {
-    glm::vec3 newCameraDirection = currentCameraDirection;
-
+  CameraTransformation MouseController::rotateInPlaceXZ(GLFWwindow* window, float dt, CameraTransformation cameraTransformation, bool* isPressed) {
     if (glfwGetMouseButton(window, this->keymaps.rightButton) == GLFW_PRESS) {
       glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
       *isPressed = true;
@@ -14,14 +12,14 @@ namespace NugieApp {
       glfwGetCursorPos(window, &curDragged_x, &curDragged_y);
 
       if (!this->isFirstPressed) {
-        double theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed * -1.0);
-        double phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
+        float theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed);
+        float phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
 
-        newCameraDirection.x = static_cast<float>(glm::cos(phi) * currentCameraDirection.x + glm::sin(phi) * currentCameraDirection.z);
-        newCameraDirection.z = static_cast<float>(-1.0f * glm::sin(phi) * currentCameraDirection.x + glm::cos(phi) * currentCameraDirection.z);
+        cameraTransformation.direction.x = glm::cos(phi) * cameraTransformation.direction.x + glm::sin(phi) * cameraTransformation.direction.z;
+        cameraTransformation.direction.z = -1.0f * glm::sin(phi) * cameraTransformation.direction.x + glm::cos(phi) * cameraTransformation.direction.z;
 
-        newCameraDirection.y = static_cast<float>(glm::cos(theta) * currentCameraDirection.y - glm::sin(theta) * currentCameraDirection.z);
-        newCameraDirection.z = static_cast<float>(glm::sin(theta) * currentCameraDirection.y + glm::cos(theta) * currentCameraDirection.z);
+        cameraTransformation.direction.y = glm::cos(theta) * cameraTransformation.direction.y - glm::sin(theta) * cameraTransformation.direction.z;
+        cameraTransformation.direction.z = glm::sin(theta) * cameraTransformation.direction.y + glm::cos(theta) * cameraTransformation.direction.z;
       }
 
       this->lastDragged_x = curDragged_x;
@@ -37,6 +35,6 @@ namespace NugieApp {
       *isPressed = false;
     }
 
-    return newCameraDirection;
+    return cameraTransformation;
   }
 } // namespace nugiEngin 

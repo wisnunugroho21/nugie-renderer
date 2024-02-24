@@ -5,11 +5,9 @@
 
 namespace NugieApp {
   struct LoadedModel {
-    std::vector<Position> positions;
-    std::vector<Normal> normals;
-    std::vector<TextCoord> textCoords;
-    std::vector<uint32_t> indices;
+    std::vector<Vertex> vertices;
+    std::vector<Primitive> primitives;
   };
 
-  LoadedModel loadObjModel(const std::string &filePath);
+  LoadedModel loadObjModel(const std::string &filePath, uint32_t materialIndex, uint32_t offsetIndex = 0);
 }

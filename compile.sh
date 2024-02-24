@@ -1,5 +1,5 @@
 mkdir -p build/shader
 
-glslc src/shader/forward.frag -o build/shader/forward.frag.spv
-glslc src/shader/forward.vert -o build/shader/forward.vert.spv
-glslc src/shader/shadow_map.vert -o build/shader/shadow_map.vert.spv
+glslc src/shader/ray_intersection.comp -o build/shader/ray_intersection.comp.spv
+glslc src/shader/screen_ray_generation.comp -o build/shader/screen_ray_generation.comp.spv
+glslc src/shader/ray_closest_hit.comp -o build/shader/ray_closest_hit.comp.spv

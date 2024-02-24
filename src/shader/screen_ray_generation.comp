@@ -1,0 +1,34 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 8, local_size_y = 4) in;
+
+// ----------------- Output -----------------
+
+layout(set = 0, binding = 0) buffer writeonly RayBuffer {
+  Ray rays[];
+};
+
+// ----------------- Input -----------------
+
+layout(set = 0, binding = 1) uniform readonly RayGenUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 screenSize;
+} ubo;
+
+layout(push_constant) uniform Push {
+  uint randomSeed;
+} push;
+
+// ----------------- Main Function -----------------
+
+void main() {
+  vec2 uv = vec2(gl_GlobalInvocationID.xy) / vec2(ubo.screenSize);
+  vec3 rayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
+  
+  rays[gl_LocalInvocationIndex] = Ray(ubo.origin, rayDirection);
+}

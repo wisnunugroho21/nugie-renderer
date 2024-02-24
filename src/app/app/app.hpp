@@ -8,12 +8,12 @@
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
+#include "../data/buffer/many_array_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
-#include "../renderer_system/forward_pass_render_system.hpp"
-#include "../renderer_system/shadow_pass_render_system.hpp"
+#include "../renderer_system/compute_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -54,38 +54,33 @@ namespace NugieApp {
 			MouseController* mouseController;
 
 			Renderer* renderer;
-
-			SubRenderer* finalSubRenderer;
-			SubRenderer* shadowSubRenderer;
 			
-			ForwardPassRenderSystem* forwardPassRenderer;
-			ShadowPassRenderSystem* shadowPassRenderer;
+			ComputeRenderSystem* screenRayGenerationRenderer;
+			ComputeRenderSystem* rayIntersectionRenderer;
+			ComputeRenderSystem* rayClosestHitRenderer;
 
-			ArrayBuffer<uint32_t>* indexModel;
+			ArrayBuffer<Vertex>* vertexBuffer;
+			ArrayBuffer<Material>* materialBuffer;
+			ArrayBuffer<Transformation>* transformationBuffer;
 
-			ArrayBuffer<Position>* positionModel;
-			ArrayBuffer<Normal>* normalModel;
-			ArrayBuffer<TextCoord>* textCoordModel;
-			ArrayBuffer<Reference>* referenceModel;
+			ArrayBuffer<Object>* objectBuffer;
+			ArrayBuffer<BvhNode>* objectBvhNodeBuffer;
+			ArrayBuffer<Primitive>* primitiveBuffer;
+			ArrayBuffer<BvhNode>* primitiveBvhNodeBuffer;
+
+			ObjectBuffer<RayGenData>* rayGenBuffer;
+			ManyArrayBuffer<Ray>* rayBuffers;
+			ManyArrayBuffer<HitRecord>* hitRecordBuffers;
+			std::vector<NugieVulkan::Image*> resultImages;
 			
-			ArrayBuffer<Material>* materialModel;
-			ArrayBuffer<Transformation>* transformationModel;
-			ArrayBuffer<ShadowTransformation>* shadowTransformationModel;
-			ArrayBuffer<SpotLight>* spotLightModel;
+			DescriptorSet* screenRayGenerationDescSet;
+			DescriptorSet* rayIntersectionDescSet;
+			DescriptorSet* rayClosestHitDescSet;
 
-			ObjectBuffer<ForwardUbo>* forwardUniform;
-			ObjectBuffer<DeferredUbo>* deferredUniform;
-			
-			DescriptorSet* forwardDescSet;
-			DescriptorSet* shadowDescSet;
-
-			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
+			uint32_t randomSeed = 0u, cameraUpdateCount = 0u, frameCount = 0;
 			bool isRendering = true;
 
-			uint32_t frameCount = 0;
-
-			ForwardUbo forwardUbo;
-			DeferredUbo deferredUbo;
+			RayGenData rayGenData;
 
 			std::vector<NugieApp::Texture*> colorTextures;
 	};

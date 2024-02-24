@@ -1,12 +1,11 @@
 #include "keyboard_controller.hpp"
 
 namespace NugieApp {
-  glm::vec3 KeyboardController::moveInPlaceXZ(GLFWwindow* window, float dt, glm::vec3 currentCameraPosition, glm::vec3 currentCameraDirection, bool* isPressed) {
-    glm::vec3 newCameraPosition = currentCameraPosition;
-    glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
+  CameraTransformation KeyboardController::moveInPlaceXZ(GLFWwindow* window, float dt, CameraTransformation cameraTransformation, bool* isPressed) {
+    glm::vec3 a = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    glm::vec3 forwardDir = glm::normalize(currentCameraDirection);
-    glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, upVector));
+    glm::vec3 forwardDir = glm::normalize(cameraTransformation.direction);
+    glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, a));
     glm::vec3 upDir = glm::cross(forwardDir, rightDir);
 
     glm::vec3 moveDir{0.0f};
@@ -43,9 +42,9 @@ namespace NugieApp {
     }
 
     if (glm::dot(moveDir, moveDir) > std::numeric_limits<float>::epsilon()) {
-      newCameraPosition += moveSpeed * dt * glm::normalize(moveDir);
+      cameraTransformation.origin += moveSpeed * dt * glm::normalize(moveDir);
     }
 
-    return newCameraPosition;
+    return cameraTransformation;
   }
 } // namespace nugiEngin 

@@ -10,40 +10,46 @@
 #include <vector>
 
 namespace NugieApp {
-  struct Position {
-    glm::vec4 position;
+  struct Vertex {
+    alignas(16) glm::vec3 position;
+    alignas(16) glm::vec2 textCoord;
 
-    bool operator == (const Position &other) const {
-			return this->position == other.position;
+    bool operator == (const Vertex &other) const {
+			return this->position == other.position && this->textCoord == other.textCoord;
 		}
   };
 
-  struct Normal {
-    glm::vec4 normal;
-  };
-
-  struct TextCoord {
-    glm::vec2 textCoord;
-  };
-
-  struct Reference {
+  struct Primitive {
+    alignas(16) glm::uvec3 indices;
     uint32_t materialIndex;
+  };
+
+  struct Object {
+    uint32_t firstBvhIndex;
+    uint32_t firstPrimitiveIndex;
     uint32_t transformIndex;
   };
 
+  struct BvhNode {
+    uint32_t leftNode;
+    uint32_t rightNode;
+    uint32_t objIndex;
+    alignas(16) glm::vec3 maximum;
+    alignas(16) glm::vec3 minimum;
+  };
+
   struct Material {
-    alignas(16) glm::vec4 baseColor;
-    alignas(16) glm::vec4 params;
+    alignas(16) glm::vec3 baseColor;
+    alignas(16) glm::vec3 params;
     uint32_t colorTextureIndex;
   };
 
   struct Transformation {
-    glm::mat4 modelMatrix{1.0f};
-    glm::mat4 normalMatrix{1.0f};
-  };
-
-  struct ShadowTransformation {
-    glm::mat4 viewProjectionMatrix{1.0f};
+    glm::mat4 pointMatrix;
+    glm::mat4 dirMatrix;
+    glm::mat4 pointInverseMatrix;
+    glm::mat4 dirInverseMatrix;
+    glm::mat4 normalMatrix;
   };
 
   struct PointLight {
@@ -58,16 +64,30 @@ namespace NugieApp {
     float angle;
   };
 
-  struct DeferredUbo {
-    glm::vec4 origin;
-    glm::uvec4 numLights;
+  struct Ray {
+    alignas(16) glm::vec3 origin;
+    alignas(16) glm::vec3 direction;
   };
 
-  struct ForwardUbo {
-    glm::mat4 cameraTransforms;
+  struct HitRecord {
+    bool isHit;
+
+    uint32_t hitIndex;
+    alignas(16) glm::vec3 point;
+    alignas(16) glm::vec3 normal;
+    alignas(16) glm::vec2 uv;
   };
 
-  struct ShadowPushConstant {
-    uint32_t lightIndex;
+  struct RayGenData {
+    alignas(16) glm::vec3 origin;
+    alignas(16) glm::vec3 horizontal;
+    alignas(16) glm::vec3 vertical;
+    alignas(16) glm::vec3 lowerLeftCorner;
+    alignas(16) glm::uvec2 screenSize;
   };
+
+  struct ScreenRayCoord {
+    alignas(16) glm::uvec2 coord;
+  };
+  
 }

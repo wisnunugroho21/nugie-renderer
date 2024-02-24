@@ -1,0 +1,55 @@
+#version 460
+
+#include "core/struct.glsl"
+layout(local_size_x = 8, local_size_y = 4) in;
+
+// ----------------- Output -----------------
+
+layout(set = 0, binding = 0, rgba32f) uniform writeonly image2D resultImage;
+
+// ----------------- Input -----------------
+
+layout(set = 0, binding = 1) buffer readonly HitBuffer {
+  HitRecord hitRecords[];
+};
+
+// ----------------- Model -----------------
+
+layout(set = 0, binding = 2) uniform readonly RayGenUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 screenSize;
+} ubo;
+
+layout(set = 0, binding = 3) buffer readonly VertexModel {
+  Vertex vertices[];
+};
+
+layout(set = 0, binding = 4) buffer readonly MaterialModel {
+  Material materials[];
+};
+
+layout(set = 0, binding = 5) uniform sampler2D colorTexture[1];
+
+// ----------------- Main Function -----------------
+
+void main() {
+  HitRecord hit = hitRecords[gl_LocalInvocationIndex];
+  vec4 totalRadiance = vec4(0.0);
+
+  if (hit.isHit) {
+    Vertex vertex = vertices[hit.hitIndex];
+    /* Material material = materials[vertex.materialIndex];
+
+    vec4 surfaceColor = material.colorTextureIndex == 0 
+      ? material.baseColor
+      : texture(colorTexture[0], vertex.textCoord); */
+    
+    totalRadiance = vec4(1.0);
+  }
+
+  imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), totalRadiance);
+}
+
