@@ -47,7 +47,7 @@ namespace NugieApp {
           SubRenderer* build();
 
         private:
-          NugieVulkan::Device* device;
+          NugieVulkan::Device* device = nullptr;
           uint32_t width, height, imageCount, layerNum;
 
           std::vector<SubRendererAttachmentDesc> subRendererAttachmentDescs;
@@ -73,7 +73,7 @@ namespace NugieApp {
           void overwrite(SubRenderer* subRenderer);
 
         private:
-          NugieVulkan::Device* device;
+          NugieVulkan::Device* device = nullptr;
           uint32_t width, height, imageCount, layerNum;
 
           std::vector<std::vector<NugieVulkan::Image*>> outsideAttachments;
@@ -108,8 +108,8 @@ namespace NugieApp {
       std::vector<std::vector<NugieVulkan::Sampler*>> attachmentSamplers;
       std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> attachmentInfos;
 
-      NugieVulkan::Device* device;
-      NugieVulkan::RenderPass* renderPass;
+      NugieVulkan::Device* device = nullptr;
+      NugieVulkan::RenderPass* renderPass = nullptr;
 
       void createRenderPass(const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
         const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 

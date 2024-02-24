@@ -52,7 +52,7 @@ namespace NugieVulkan
         uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 
     private:
-      Device* device;
+      Device* device = nullptr;
 
       VkImage image;
       VkImageView imageView;

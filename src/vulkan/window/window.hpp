@@ -27,7 +27,7 @@ namespace NugieVulkan {
 			bool frameBufferResized = false;
 
 			std::string name;
-			GLFWwindow *window;
+			GLFWwindow *window = nullptr;
 
 			void init();
 			void destroy();

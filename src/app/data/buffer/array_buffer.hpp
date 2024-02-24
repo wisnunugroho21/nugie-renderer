@@ -21,11 +21,11 @@ namespace NugieApp {
 			void replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects);
 			
 		private:
-			NugieVulkan::Device* device;
+			NugieVulkan::Device* device = nullptr;
 			uint32_t count;
 
-			NugieVulkan::Buffer* stagingBuffer;
-			NugieVulkan::Buffer* buffer;
+			NugieVulkan::Buffer* stagingBuffer = nullptr;
+			NugieVulkan::Buffer* buffer = nullptr;
 
 			void createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount);
 	};

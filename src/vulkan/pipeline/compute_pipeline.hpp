@@ -26,7 +26,7 @@ namespace NugieVulkan {
 					VkPipeline basePipelineHandleInfo{};
 					int32_t basePipelineIndex;
 
-					Device* device;
+					Device* device = nullptr;
 			};
 
 			ComputePipeline(Device* device, VkPipelineLayout pipelineLayout, 
@@ -38,7 +38,7 @@ namespace NugieVulkan {
 			void dispatch(CommandBuffer* commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize);
 
 		private:
-			Device* device;
+			Device* device = nullptr;
 			VkPipeline computePipeline;
       VkShaderModule shaderModule{};
 

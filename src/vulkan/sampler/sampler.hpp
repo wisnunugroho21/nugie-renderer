@@ -22,8 +22,8 @@ namespace NugieVulkan
       VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
 
     private:
-      Device* device;
-      Image* image;
+      Device* device = nullptr;
+      Image* image = nullptr;
       VkSampler sampler;
 
       void createSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anistropyEnable, VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode);

@@ -24,10 +24,10 @@ namespace NugieApp {
 			virtual void createPipelineLayout();
 			virtual void createPipeline();
 
-			NugieVulkan::Device* device;
+			NugieVulkan::Device* device = nullptr;
 			
 			VkPipelineLayout pipelineLayout;
-			NugieVulkan::ComputePipeline* pipeline;
+			NugieVulkan::ComputePipeline* pipeline = nullptr;
 
 			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
 			std::string compFilePath;

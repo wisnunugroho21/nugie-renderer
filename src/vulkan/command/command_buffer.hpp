@@ -27,7 +27,7 @@ namespace NugieVulkan
         VkFence fence = VK_NULL_HANDLE);
 
     private:
-      Device* device;
+      Device* device = nullptr;
       VkCommandBuffer commandBuffer;
   };
   

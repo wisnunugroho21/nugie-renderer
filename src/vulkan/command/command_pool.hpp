@@ -34,7 +34,7 @@ namespace NugieVulkan {
       void createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags);
       void createCommandPool(uint32_t queueFamilyIndex);
 
-      Device* device;
+      Device* device = nullptr;
       VkCommandPool commandPool;
   };
 }

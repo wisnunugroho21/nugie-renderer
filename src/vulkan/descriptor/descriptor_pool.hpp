@@ -20,7 +20,7 @@ namespace NugieVulkan {
         DescriptorPool* build() const;
     
       private:
-        Device* device;
+        Device* device = nullptr;
         std::vector<VkDescriptorPoolSize> poolSizes{};
         uint32_t maxSets = 1000;
         VkDescriptorPoolCreateFlags poolFlags = 0;
@@ -46,7 +46,7 @@ namespace NugieVulkan {
       void reset();
     
     private:
-      Device* device;
+      Device* device = nullptr;
       VkDescriptorPool descriptorPool;
   };
 }

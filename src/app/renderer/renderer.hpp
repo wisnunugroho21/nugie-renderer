@@ -56,11 +56,11 @@ namespace NugieApp {
 			NugieVulkan::Window* window;
 			NugieVulkan::Device* device;
 			
-			NugieVulkan::DescriptorPool* descriptorPool;
-			NugieVulkan::SwapChain* swapChain;
+			NugieVulkan::DescriptorPool* descriptorPool = nullptr;
+			NugieVulkan::SwapChain* swapChain = nullptr;
 
-			NugieVulkan::CommandPool* graphicCommandPool;
-			NugieVulkan::CommandPool* transferCommandPool;
+			NugieVulkan::CommandPool* graphicCommandPool = nullptr;
+			NugieVulkan::CommandPool* transferCommandPool = nullptr;
 
 			std::vector<NugieVulkan::CommandBuffer*> graphicCommandBuffers;
 			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;

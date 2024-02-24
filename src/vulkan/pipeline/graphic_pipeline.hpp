@@ -53,8 +53,8 @@ namespace NugieVulkan {
 					GraphicPipeline* build();
 
 				private:
-					VkPipelineLayout pipelineLayout = nullptr;
-					VkRenderPass renderPass = nullptr;
+					VkPipelineLayout pipelineLayout;
+					VkRenderPass renderPass;
 					uint32_t subpass = 0;
 
 					VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -68,7 +68,7 @@ namespace NugieVulkan {
 					std::vector<VkDynamicState> dynamicStates{};
 					std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo{};
 					
-					Device* device;
+					Device* device = nullptr;
 			};
 
 			GraphicPipeline(
@@ -96,7 +96,7 @@ namespace NugieVulkan {
 			void drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount);
 
 		private:
-			Device* device;
+			Device* device = nullptr;
 			VkPipeline graphicPipeline;
 			std::vector<VkShaderModule> shaderModules{};
 

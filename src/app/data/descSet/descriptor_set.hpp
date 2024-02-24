@@ -35,8 +35,8 @@ namespace NugieApp {
 					DescriptorSet* build();
 
 				private:
-					NugieVulkan::Device* device;
-					NugieVulkan::DescriptorPool* descriptorPool;
+					NugieVulkan::Device* device = nullptr;
+					NugieVulkan::DescriptorPool* descriptorPool = nullptr;
 					uint32_t descSetCount;
 
 					std::unordered_map<uint32_t, DescriptorSetBinding> descriptorSetBindings;
@@ -79,11 +79,11 @@ namespace NugieApp {
 				std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos);
 
 		private:
-			NugieVulkan::Device* device;
-			NugieVulkan::DescriptorPool* descriptorPool;
+			NugieVulkan::Device* device = nullptr;
+			NugieVulkan::DescriptorPool* descriptorPool = nullptr;
 			uint32_t descSetCount;
 
-      NugieVulkan::DescriptorSetLayout* descSetLayout;
+      NugieVulkan::DescriptorSetLayout* descSetLayout = nullptr;
 			std::vector<VkDescriptorSet> descriptorSets;
 
 			void createDescriptorLayout(std::unordered_map<uint32_t, DescriptorSetBinding> descriptorSetBindings);

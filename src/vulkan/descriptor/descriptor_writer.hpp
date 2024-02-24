@@ -27,8 +27,8 @@ namespace NugieVulkan {
   
   private:
     Device* device;
-    DescriptorSetLayout *setLayout;
-    DescriptorPool *pool;
+    DescriptorSetLayout *setLayout = nullptr;
+    DescriptorPool *pool = nullptr;
     
     std::vector<VkWriteDescriptorSet> writes;
     std::vector<uint32_t> variableSetCounts;

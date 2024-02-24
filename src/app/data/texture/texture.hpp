@@ -24,10 +24,10 @@ namespace NugieApp
       void generateMipmap(NugieVulkan::CommandBuffer* commandBuffer);
 
     private:
-      NugieVulkan::Device* device;
-      NugieVulkan::Buffer* stagingBuffer;
-      NugieVulkan::Image* image;
-      NugieVulkan::Sampler* sampler;
+      NugieVulkan::Device* device = nullptr;
+      NugieVulkan::Buffer* stagingBuffer = nullptr;
+      NugieVulkan::Image* image = nullptr;
+      NugieVulkan::Sampler* sampler = nullptr;
 
       bool hasMipmapped = false;
 

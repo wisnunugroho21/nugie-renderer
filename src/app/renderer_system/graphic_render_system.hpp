@@ -28,13 +28,13 @@ namespace NugieApp {
 			virtual void createPipelineLayout();
 			virtual void createPipeline();
 		
-			NugieVulkan::Device* device;
+			NugieVulkan::Device* device = nullptr;
 			
 			VkPipelineLayout pipelineLayout;
-			NugieVulkan::GraphicPipeline* pipeline;
+			NugieVulkan::GraphicPipeline* pipeline = nullptr;
 
 			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
-			NugieVulkan::RenderPass* renderPass;
+			NugieVulkan::RenderPass* renderPass = nullptr;
 			std::string vertFilePath, fragFilePath;
 	};
 }

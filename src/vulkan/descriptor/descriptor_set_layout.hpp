@@ -29,7 +29,7 @@ namespace NugieVulkan {
         DescriptorSetLayout* build() const;
     
       private:
-        Device* device;
+        Device* device = nullptr;
 
         std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings{};
         std::unordered_map<uint32_t, VkDescriptorBindingFlags> flags{};
@@ -42,7 +42,7 @@ namespace NugieVulkan {
       std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> getBindings() const { return this->bindings; }
     
     private:
-      Device* device;
+      Device* device = nullptr;
       VkDescriptorSetLayout descriptorSetLayout;
 
       std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;

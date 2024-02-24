@@ -65,10 +65,10 @@ class Buffer {
  private:
   static VkDeviceSize getAlignment(VkDeviceSize instanceSize, VkDeviceSize minOffsetAlignment);
  
-  Device* device;
+  Device* device = nullptr;
 
   void* mapped = nullptr;
-  VkBuffer buffer = VK_NULL_HANDLE;
+  VkBuffer buffer;
  
   VkDeviceSize bufferSize;
   uint32_t instanceCount;

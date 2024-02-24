@@ -23,7 +23,7 @@ namespace NugieVulkan {
           RenderPass* build();
 
         private:
-          Device* device;
+          Device* device = nullptr;
           
           uint32_t width, height, layerNum;
           std::vector<VkSubpassDescription> subpasses;
@@ -41,7 +41,7 @@ namespace NugieVulkan {
       void recreateFrameBuffer(const std::vector<std::vector<VkImageView>> &viewImages, uint32_t width, uint32_t height, uint32_t layerNum);
 
     private:
-      Device* device;
+      Device* device = nullptr;
 
       std::vector<VkFramebuffer> framebuffers;
       VkRenderPass renderPass;

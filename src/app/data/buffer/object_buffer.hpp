@@ -21,7 +21,7 @@ namespace NugieApp {
 			void writeGlobalData(uint32_t frameIndex, T ubo);
 
 		private:
-      NugieVulkan::Device* device;
+      NugieVulkan::Device* device = nullptr;
 			std::vector<NugieVulkan::Buffer*> buffers;
 
 			void createBuffer(VkBufferUsageFlags usageFlags);

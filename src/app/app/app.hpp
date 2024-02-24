@@ -46,38 +46,38 @@ namespace NugieApp {
 			void init();
 			void resize();
 
-			NugieVulkan::Window* window;
-			NugieVulkan::Device* device;
+			NugieVulkan::Window* window = nullptr;
+			NugieVulkan::Device* device = nullptr;
 
-			Camera* camera;
-			KeyboardController* keyboardController;
-			MouseController* mouseController;
+			Camera* camera = nullptr;
+			KeyboardController* keyboardController = nullptr;
+			MouseController* mouseController = nullptr;
 
-			Renderer* renderer;
+			Renderer* renderer = nullptr;
 
-			SubRenderer* finalSubRenderer;
-			SubRenderer* shadowSubRenderer;
+			SubRenderer* finalSubRenderer = nullptr;
+			SubRenderer* shadowSubRenderer = nullptr;
 			
-			ForwardPassRenderSystem* forwardPassRenderer;
-			ShadowPassRenderSystem* shadowPassRenderer;
+			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
+			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
 
-			ArrayBuffer<uint32_t>* indexModel;
+			ArrayBuffer<uint32_t>* indexModel = nullptr;
 
-			ArrayBuffer<Position>* positionModel;
-			ArrayBuffer<Normal>* normalModel;
-			ArrayBuffer<TextCoord>* textCoordModel;
-			ArrayBuffer<Reference>* referenceModel;
+			ArrayBuffer<Position>* positionModel = nullptr;
+			ArrayBuffer<Normal>* normalModel = nullptr;
+			ArrayBuffer<TextCoord>* textCoordModel = nullptr;
+			ArrayBuffer<Reference>* referenceModel = nullptr;
 			
-			ArrayBuffer<Material>* materialModel;
-			ArrayBuffer<Transformation>* transformationModel;
-			ArrayBuffer<ShadowTransformation>* shadowTransformationModel;
-			ArrayBuffer<SpotLight>* spotLightModel;
+			ArrayBuffer<Material>* materialModel = nullptr;
+			ArrayBuffer<Transformation>* transformationModel = nullptr;
+			ArrayBuffer<ShadowTransformation>* shadowTransformationModel = nullptr;
+			ArrayBuffer<SpotLight>* spotLightModel = nullptr;
 
-			ObjectBuffer<ForwardUbo>* forwardUniform;
-			ObjectBuffer<DeferredUbo>* deferredUniform;
+			ObjectBuffer<ForwardUbo>* forwardUniform = nullptr;
+			ObjectBuffer<DeferredUbo>* deferredUniform = nullptr;
 			
-			DescriptorSet* forwardDescSet;
-			DescriptorSet* shadowDescSet;
+			DescriptorSet* forwardDescSet = nullptr;
+			DescriptorSet* shadowDescSet = nullptr;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 			bool isRendering = true;

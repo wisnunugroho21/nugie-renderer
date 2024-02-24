@@ -97,7 +97,7 @@ namespace NugieVulkan {
       VkPhysicalDeviceProperties properties;
 
       // window system
-      Window* window;
+      Window* window = nullptr;
       VkSurfaceKHR surface;
 
       // queue
