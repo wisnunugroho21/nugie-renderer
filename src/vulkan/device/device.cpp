@@ -1,7 +1,7 @@
 #include "device.hpp"
 
 #define VMA_IMPLEMENTATION
-#include "../../../libraries/vma/vk_mem_alloc.h"
+#include "vk_mem_alloc.h"
 
 // std headers
 #include <cstring>

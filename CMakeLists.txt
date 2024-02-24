@@ -69,10 +69,10 @@ if (NOT STB_PATH)
   set(STB_PATH libraries/stb_image)
 endif()
 
-# If IMGUI_PATH not specified in .env.cmake, try fetching from git repo
-if (NOT IMGUI_PATH)
-  message(STATUS "IMGUI_PATH not specified in .env.cmake, using libraries/imgui")
-  set(IMGUI_PATH libraries/imgui)
+# If VMA_PATH not specified in .env.cmake, try fetching from git repo
+if (NOT VMA_PATH)
+  message(STATUS "VMA_PATH not specified in .env.cmake, using libraries/vma")
+  set(VMA_PATH libraries/vma)
 endif()
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
@@ -100,9 +100,9 @@ if (WIN32)
     ${Vulkan_INCLUDE_DIRS}
     ${TINYOBJ_PATH}
     ${STB_PATH}
-    ${TINYGLTF_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
+    ${VMA_PATH}
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC
@@ -115,9 +115,10 @@ elseif (UNIX)
     message(STATUS "CREATING BUILD FOR UNIX")
     target_include_directories(${PROJECT_NAME} PUBLIC
       ${PROJECT_SOURCE_DIR}/src
+      ${Vulkan_INCLUDE_DIRS}
       ${TINYOBJ_PATH}
-      ${TINYGLTF_PATH}
-      ${STB_PATH} ${Vulkan_INCLUDE_DIRS}
+      ${STB_PATH}
+      ${VMA_PATH}
     )
     target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
 endif()

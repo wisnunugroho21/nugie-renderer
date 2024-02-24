@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "../../../libraries/vma/vk_mem_alloc.h"
+#include "vk_mem_alloc.h"
 
 namespace NugieVulkan {
   struct SwapChainSupportDetails {
