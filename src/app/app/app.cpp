@@ -450,7 +450,7 @@ namespace NugieApp {
 				this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
 			.build();
 
-		this->shadowSubRenderer = SubRenderer::Builder(this->device, width, height, this->spotNumLight * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->shadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->spotNumLight * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.setDepthAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_D16_UNORM, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
 			.build();
 
