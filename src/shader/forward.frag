@@ -27,7 +27,7 @@ layout(set = 0, binding = 5) buffer readonly ShadowTransformationModel {
 };
 
 layout(set = 0, binding = 6) uniform sampler2D colorTexture[1];
-layout(set = 0, binding = 7) uniform sampler2D shadowMapTexture[1];
+layout(set = 0, binding = 7) uniform sampler2DShadow shadowMapTexture[1];
 
 vec4 fresnelSchlick(float cosTheta, vec4 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -89,29 +89,14 @@ vec4 microfacetBRDF(vec4 lightDirection, vec4 viewDirection, vec4 fragNormal,
   return diff + spec;
 }
 
-bool isHitShadowSpotLight(uint lightIndex, vec4 shadowCoord, vec2 offset) {
+float computeShadowFactor(uint lightIndex, vec4 shadowCoord) {
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
   shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-  float dist = texture(shadowMapTexture[lightIndex], shadowCoord.xy + offset).x;
-  return dist < shadowCoord.z && shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f;
-}
+  vec3 uvc = vec3(shadowCoord.xy, shadowCoord.z);
+  float dist = texture(shadowMapTexture[lightIndex], uvc).x;
 
-float computeSpotShadowPCF(uint lightIndex, vec4 shadowCoord) {
-  ivec2 texDim = textureSize(shadowMapTexture[lightIndex], 0).xy;
-
-	vec2 dOffset = 1.0f / vec2(texDim);
-	float shadowFactor = 0.0;
-
-  for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-			shadowFactor += isHitShadowSpotLight(lightIndex, shadowCoord, dOffset * vec2(x, y))
-        ? 0.5f
-        : 1.0f;
-		}
-	}
-  
-	return shadowFactor / 9.0f;
+  return (shadowCoord.z <= 1.0f && shadowCoord.w > 0.0f) ? dist : 0.0f;
 }
 
 void main() {
@@ -142,7 +127,7 @@ void main() {
       vec4 irradiance = spotLights[i].color / (PI * dot(lightDirection, lightDirection)) * NoL * clamp(DoL, 0.0f, 1.0f);
       
       vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * fragPosition;
-      totalRadiance += brdf * irradiance * computeSpotShadowPCF(i, shadowCoord);
+      totalRadiance += brdf * irradiance * computeShadowFactor(i, shadowCoord);
     }
   }
 

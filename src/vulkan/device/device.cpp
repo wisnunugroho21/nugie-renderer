@@ -292,8 +292,7 @@ namespace NugieVulkan {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.sampleRateShading) 
-    {
+    if (!supportedFeatures.samplerAnisotropy || !supportedFeatures.sampleRateShading) {
       return score;
     }
 

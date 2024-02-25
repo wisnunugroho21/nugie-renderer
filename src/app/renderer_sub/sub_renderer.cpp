@@ -274,8 +274,8 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
       std::vector<NugieVulkan::Sampler*> samplers{};
       for (auto &&frameImage : frameImages) {
-        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
-          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_LINEAR, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_LESS, 
           VK_SAMPLER_MIPMAP_MODE_NEAREST));
       }
 
@@ -353,8 +353,8 @@ namespace NugieApp {
     else if (attachmentType == AttachmentType::OUTPUT_TEXTURE) {
       std::vector<NugieVulkan::Sampler*> samplers{};
       for (auto &&frameImage : frameImages) {
-        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST, 
-          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_NEVER, 
+        samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_LINEAR, 
+          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_LESS, 
           VK_SAMPLER_MIPMAP_MODE_NEAREST));
       }
 

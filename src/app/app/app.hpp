@@ -23,7 +23,7 @@
 
 #define WIDTH 800
 #define HEIGHT 800
-#define SHADOW_RESOLUTION 1024
+#define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {
 	class App
