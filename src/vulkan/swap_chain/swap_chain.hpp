@@ -44,8 +44,8 @@ namespace NugieVulkan {
       VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
       VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 
-      Device* device;
-      SwapChain* oldSwapChain;
+      Device* device = nullptr;
+      SwapChain* oldSwapChain = nullptr;
 
       VkSwapchainKHR swapChain;
       VkFormat swapChainImageFormat;
