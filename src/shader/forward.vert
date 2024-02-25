@@ -22,7 +22,7 @@ layout(set = 0, binding = 1) buffer readonly TransformationModel {
 };
 
 void main() {
-  fragPosition = transformations[transformIndex].modelMatrix * position;
+	fragPosition = transformations[transformIndex].modelMatrix * position;
 	gl_Position = ubo.cameraTransforms * fragPosition;
 	
 	fragNormal = normalize(transformations[transformIndex].normalMatrix * normal);
