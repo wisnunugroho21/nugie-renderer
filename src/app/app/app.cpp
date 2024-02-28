@@ -1,7 +1,9 @@
 #include "app.hpp"
 
 #include "../utils/load_model/load_model.hpp"
-#include "../utils/load_terrain/load_terrain.hpp"
+
+#include "../data/terrain/terrain_generation/terrain_generation.hpp"
+#include "../data/terrain/terrain_mesh/terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -294,14 +296,16 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		LoadedTerrain loadedTerrain = loadTerrain("../assets/terrain/heightmap.save");
+		TerrainMesh terrainMesh = TerrainMesh::convertPointsToMeshes(
+			(TerrainGeneration("../assets/terrain/heightmap.save").generateTerrainPoints())
+		); //loadTerrain("../assets/terrain/heightmap.save");
 
 		auto positionSize = static_cast<uint32_t>(positions.size());
-		for (auto &&index : loadedTerrain.indices) {
+		for (auto &&index : terrainMesh.indices) {
 			terrainIndices.emplace_back(positionSize + index);
 		}
 
-		for (auto &&position : loadedTerrain.positions) {
+		for (auto &&position : terrainMesh.positions) {
 			terrainPositions.emplace_back(position);
 		}
 
