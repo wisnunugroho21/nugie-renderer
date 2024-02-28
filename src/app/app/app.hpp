@@ -58,15 +58,18 @@ namespace NugieApp {
 			SubRenderer* finalSubRenderer = nullptr;
 			SubRenderer* shadowSubRenderer = nullptr;
 			
+			GraphicRenderSystem* terrainRenderer = nullptr;
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
 
 			ArrayBuffer<uint32_t>* indexModel = nullptr;
-
 			ArrayBuffer<Position>* positionModel = nullptr;
 			ArrayBuffer<Normal>* normalModel = nullptr;
 			ArrayBuffer<TextCoord>* textCoordModel = nullptr;
 			ArrayBuffer<Reference>* referenceModel = nullptr;
+
+			ArrayBuffer<uint32_t>* terrainIndexModel = nullptr;
+			ArrayBuffer<Position>* terrainPositionModel = nullptr;
 			
 			ArrayBuffer<Material>* materialModel = nullptr;
 			ArrayBuffer<Transformation>* transformationModel = nullptr;
@@ -76,6 +79,7 @@ namespace NugieApp {
 			ObjectBuffer<ForwardUbo>* forwardUniform = nullptr;
 			ObjectBuffer<DeferredUbo>* deferredUniform = nullptr;
 			
+			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
 			DescriptorSet* shadowDescSet = nullptr;
 
