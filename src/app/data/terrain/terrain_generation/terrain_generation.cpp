@@ -15,8 +15,9 @@ namespace NugieApp {
     float* f = (float*) ReadBinaryFile(filePath, &fileSize);
 		uint32_t terrainSize = static_cast<uint32_t>(sqrtf(static_cast<float>(fileSize) / sizeof(float)));
 
-    if (this->terrainPoints != nullptr) delete this->terrainPoints;
-    this->terrainPoints = new TerrainPoints(terrainSize);
+    if (this->terrainPoints == nullptr) {
+      this->terrainPoints = new TerrainPoints(terrainSize);
+    }
     
 		for (int z = 0; z < terrainSize; z++) {
 			for (int x = 0; x < terrainSize; x++) {
