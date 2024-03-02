@@ -47,22 +47,22 @@ namespace NugieApp {
 		std::vector<VkVertexInputAttributeDescription> attributeDescription(2);
 
 		bindingDescriptions[0].binding = 0;
-		bindingDescriptions[0].stride = sizeof(glm::vec4);
+		bindingDescriptions[0].stride = sizeof(Vertex);
 		bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		bindingDescriptions[1].binding = 1;
-		bindingDescriptions[1].stride = 2 * sizeof(uint32_t);
+		bindingDescriptions[1].stride = sizeof(Reference);
 		bindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		attributeDescription[0].binding = 0;
 		attributeDescription[0].location = 0;
 		attributeDescription[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescription[0].offset = 0;
+		attributeDescription[0].offset = offsetof(Vertex, position);
 
 		attributeDescription[1].binding = 1;
 		attributeDescription[1].location = 1;
 		attributeDescription[1].format = VK_FORMAT_R32_UINT;
-		attributeDescription[1].offset = sizeof(uint32_t);
+		attributeDescription[1].offset = offsetof(Reference, transformIndex);
 
 		std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
 

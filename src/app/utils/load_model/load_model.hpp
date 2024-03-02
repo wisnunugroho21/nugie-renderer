@@ -4,12 +4,11 @@
 #include <string>
 
 namespace NugieApp {
-  struct LoadedModel {
-    std::vector<Position> positions;
-    std::vector<Normal> normals;
-    std::vector<TextCoord> textCoords;
+  struct LoadedBuffer {
+    std::vector<Vertex> vertices;
+    std::vector<NormText> normTexts;
     std::vector<uint32_t> indices;
   };
 
-  LoadedModel loadObjModel(const std::string &filePath);
+  LoadedBuffer loadObjModel(const std::string &filePath);
 }

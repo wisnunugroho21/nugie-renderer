@@ -43,18 +43,17 @@ namespace NugieApp {
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 
-		if (this->forwardUniform != nullptr) delete this->forwardUniform;
-		if (this->deferredUniform != nullptr) delete this->deferredUniform;
+		if (this->forwardUniformBuffer != nullptr) delete this->forwardUniformBuffer;
+		if (this->deferredUniformBuffer != nullptr) delete this->deferredUniformBuffer;
 
-		if (this->indexModel != nullptr) delete this->indexModel;
-		if (this->positionModel != nullptr) delete this->positionModel;
-		if (this->normalModel != nullptr) delete this->normalModel;
-		if (this->textCoordModel != nullptr) delete this->textCoordModel;
-		if (this->referenceModel != nullptr) delete this->referenceModel;
-		if (this->materialModel != nullptr) delete this->materialModel;
-		if (this->transformationModel != nullptr) delete this->transformationModel;
-		if (this->shadowTransformationModel != nullptr) delete this->shadowTransformationModel;
-		if (this->spotLightModel != nullptr) delete this->spotLightModel;
+		if (this->indexBuffer != nullptr) delete this->indexBuffer;
+		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
+		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
+		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
+		if (this->materialBuffer != nullptr) delete this->materialBuffer;
+		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
+		if (this->shadowTransformationBuffer != nullptr) delete this->shadowTransformationBuffer;
+		if (this->spotLightBuffer != nullptr) delete this->spotLightBuffer;
 		
 		for (auto &&colorTexture : this->colorTextures) {
 			if (colorTexture != nullptr) delete colorTexture;
@@ -81,14 +80,13 @@ namespace NugieApp {
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
-		forwardBuffers.emplace_back(this->positionModel->getBuffer());
-		forwardBuffers.emplace_back(this->normalModel->getBuffer());
-		forwardBuffers.emplace_back(this->textCoordModel->getBuffer());
-		forwardBuffers.emplace_back(this->referenceModel->getBuffer());
+		forwardBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		forwardBuffers.emplace_back(this->normTextBuffer->getBuffer());
+		forwardBuffers.emplace_back(this->referenceBuffer->getBuffer());
 
 		std::vector<NugieVulkan::Buffer*> shadowBuffers;
-		shadowBuffers.emplace_back(this->positionModel->getBuffer());
-		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
+		shadowBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());
 
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
@@ -96,12 +94,12 @@ namespace NugieApp {
 
 				for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
-					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexModel->getBuffer(), this->indexModel->size(), lightIndex);
+					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size(), lightIndex);
 					this->shadowSubRenderer->endRenderPass(commandBuffer);
 				}
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexModel->getBuffer(), this->indexModel->size());
+				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				commandBuffer->endCommand();
@@ -119,7 +117,7 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->forwardUniformBuffer->writeGlobalData(frameIndex, this->forwardUbo);
 					this->cameraUpdateCount++;
 				}
 
@@ -146,8 +144,8 @@ namespace NugieApp {
 		uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
-			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
+			this->forwardUniformBuffer->writeGlobalData(i, this->forwardUbo);
+			this->deferredUniformBuffer->writeGlobalData(i, this->deferredUbo);
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
@@ -204,19 +202,18 @@ namespace NugieApp {
 		bool isMousePressed = false, isKeyboardPressed = false;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->forwardUniform->writeGlobalData(i, this->forwardUbo);
-			this->deferredUniform->writeGlobalData(i, this->deferredUbo);
+			this->forwardUniformBuffer->writeGlobalData(i, this->forwardUbo);
+			this->deferredUniformBuffer->writeGlobalData(i, this->deferredUbo);
 		}
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
-		forwardBuffers.emplace_back(this->positionModel->getBuffer());
-		forwardBuffers.emplace_back(this->normalModel->getBuffer());
-		forwardBuffers.emplace_back(this->textCoordModel->getBuffer());
-		forwardBuffers.emplace_back(this->referenceModel->getBuffer());
+		forwardBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		forwardBuffers.emplace_back(this->normTextBuffer->getBuffer());
+		forwardBuffers.emplace_back(this->referenceBuffer->getBuffer());
 
 		std::vector<NugieVulkan::Buffer*> shadowBuffers;
-		shadowBuffers.emplace_back(this->positionModel->getBuffer());
-		shadowBuffers.emplace_back(this->referenceModel->getBuffer());
+		shadowBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());
 
 		this->renderer->submitPrepareCommand();
 		auto oldTime = std::chrono::high_resolution_clock::now();
@@ -248,7 +245,7 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->forwardUniform->writeGlobalData(frameIndex, this->forwardUbo);
+					this->forwardUniformBuffer->writeGlobalData(frameIndex, this->forwardUbo);
 					this->cameraUpdateCount++;
 				}
 				
@@ -271,9 +268,8 @@ namespace NugieApp {
 	}
 
 	void App::loadObjects() {
-		std::vector<Position> positions;
-		std::vector<Normal> normals;
-		std::vector<TextCoord> textCoords;
+		std::vector<Vertex> vertices;
+		std::vector<NormText> normTexts;
 		std::vector<Reference> references;
 		std::vector<Material> materials;
 		std::vector<TransformComponent> transforms;
@@ -283,26 +279,22 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		LoadedModel loadedModel = loadObjModel("../assets/models/viking_room.obj");
+		LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
 
-		auto positionSize = static_cast<uint32_t>(positions.size());
-		for (auto &&index : loadedModel.indices) {
-			indices.emplace_back(positionSize + index);
+		auto verticesSize = static_cast<uint32_t>(vertices.size());
+		for (auto &&index : loadedBuffer.indices) {
+			indices.emplace_back(verticesSize + index);
 		}
 
-		for (auto &&position : loadedModel.positions) {
-			positions.emplace_back(position);
+		for (auto &&vertex : loadedBuffer.vertices) {
+			vertices.emplace_back(vertex);
 		}
 
-		for (auto &&normal : loadedModel.normals) {
-			normals.emplace_back(normal);
+		for (auto &&normText : loadedBuffer.normTexts) {
+			normTexts.emplace_back(normText);
 		}
 
-		for (auto &&textCoord : loadedModel.textCoords) {
-			textCoords.emplace_back(textCoord);
-		}
-
-		for (size_t i = 0; i < loadedModel.positions.size(); i++) {
+		for (size_t i = 0; i < loadedBuffer.vertices.size(); i++) {
 			references.emplace_back(Reference{ 1, 0 });
 		}
 
@@ -310,26 +302,22 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		loadedModel = loadObjModel("../assets/models/quad_model.obj");
+		loadedBuffer = loadObjModel("../assets/models/quad_model.obj");
 
-		positionSize = static_cast<uint32_t>(positions.size());
-		for (auto &&index : loadedModel.indices) {
-			indices.emplace_back(positionSize + index);
+		verticesSize = static_cast<uint32_t>(vertices.size());
+		for (auto &&index : loadedBuffer.indices) {
+			indices.emplace_back(verticesSize + index);
 		}
 
-		for (auto &&position : loadedModel.positions) {
-			positions.emplace_back(position);
+		for (auto &&vertex : loadedBuffer.vertices) {
+			vertices.emplace_back(vertex);
 		}
 
-		for (auto &&normal : loadedModel.normals) {
-			normals.emplace_back(normal);
+		for (auto &&normText : loadedBuffer.normTexts) {
+			normTexts.emplace_back(normText);
 		}
 
-		for (auto &&textCoord : loadedModel.textCoords) {
-			textCoords.emplace_back(textCoord);
-		}
-
-		for (size_t i = 0; i < loadedModel.positions.size(); i++) {
+		for (size_t i = 0; i < loadedBuffer.vertices.size(); i++) {
 			references.emplace_back(Reference{ 0, 1 });
 		}
 
@@ -375,32 +363,29 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-		this->indexModel = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
-		this->indexModel->replace(commandBuffer, indices);
+		this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
+		this->indexBuffer->replace(commandBuffer, indices);
 
-		this->positionModel = new ArrayBuffer<Position>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(positions.size()));
-		this->positionModel->replace(commandBuffer, positions);
+		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
+		this->vertexBuffer->replace(commandBuffer, vertices);
 
-		this->normalModel = new ArrayBuffer<Normal>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(normals.size()));
-		this->normalModel->replace(commandBuffer, normals);
+		this->normTextBuffer = new ArrayBuffer<NormText>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(normTexts.size()));
+		this->normTextBuffer->replace(commandBuffer, normTexts);
 
-		this->textCoordModel = new ArrayBuffer<TextCoord>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(textCoords.size()));
-		this->textCoordModel->replace(commandBuffer, textCoords);
+		this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
+		this->referenceBuffer->replace(commandBuffer, references);
 
-		this->referenceModel = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
-		this->referenceModel->replace(commandBuffer, references);
+		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(materials.size()));
+		this->materialBuffer->replace(commandBuffer, materials);
 
-		this->materialModel = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(materials.size()));
-		this->materialModel->replace(commandBuffer, materials);
+		this->transformationBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
+		this->transformationBuffer->replace(commandBuffer, ConvertComponentToTransform(transforms));
 
-		this->transformationModel = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
-		this->transformationModel->replace(commandBuffer, ConvertComponentToTransform(transforms));
+		this->shadowTransformationBuffer = new ArrayBuffer<ShadowTransformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(shadowTransforms.size()));
+		this->shadowTransformationBuffer->replace(commandBuffer, shadowTransforms);
 
-		this->shadowTransformationModel = new ArrayBuffer<ShadowTransformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(shadowTransforms.size()));
-		this->shadowTransformationModel->replace(commandBuffer, shadowTransforms);
-
-		this->spotLightModel = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
-		this->spotLightModel->replace(commandBuffer, spotLights);
+		this->spotLightBuffer = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
+		this->spotLightBuffer->replace(commandBuffer, spotLights);
 
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
@@ -438,8 +423,8 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
-		this->forwardUniform = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		this->deferredUniform = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->forwardUniformBuffer = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->deferredUniformBuffer = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
@@ -466,19 +451,19 @@ namespace NugieApp {
 		}
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniform->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->deferredUniform->getInfo())
-			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialModel->getInfo())
-			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightModel->getInfo())
-			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationModel->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniformBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->deferredUniformBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightBuffer->getInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationBuffer->getInfo())
 			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->colorTextures[0]->getDescriptorInfo())
 			.addManyImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
 			.build();
 
 		this->shadowDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationModel->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationModel->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationBuffer->getInfo())
 			.build();
 
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
