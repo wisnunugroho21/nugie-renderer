@@ -22,7 +22,8 @@ namespace NugieApp {
 
 			void initialize();
 			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount);
+				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount,
+				const std::vector<VkDeviceSize> &vertexOffset = {});
 		
 		protected:
 			virtual void createPipelineLayout();

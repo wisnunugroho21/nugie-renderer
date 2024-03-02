@@ -14,15 +14,15 @@ layout(set = 0, binding = 2) uniform readonly FragmentUniform {
   uvec4 numLights;
 } ubo;
 
-layout(set = 0, binding = 3) buffer readonly MaterialModel {
+layout(set = 0, binding = 3) buffer readonly MaterialBuffer {
   Material materials[];
 };
 
-layout(set = 0, binding = 4) buffer readonly SpotLightModel {
+layout(set = 0, binding = 4) buffer readonly SpotLightBuffer {
   SpotLight spotLights[];
 };
 
-layout(set = 0, binding = 5) buffer readonly ShadowTransformationModel {
+layout(set = 0, binding = 5) buffer readonly ShadowTransformationBuffer {
 	ShadowTransformation shadowTransformations[];
 };
 

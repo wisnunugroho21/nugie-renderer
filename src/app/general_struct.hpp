@@ -10,22 +10,20 @@
 #include <vector>
 
 namespace NugieApp {
-  struct Position {
+  struct Vertex {
     glm::vec4 position;
 
-    bool operator == (const Position &other) const {
+    bool operator == (const Vertex &other) const {
 			return this->position == other.position;
 		}
   };
 
-  struct Normal {
+  struct NormText {    
     glm::vec4 normal;
-  };
-
-  struct TextCoord {
     glm::vec2 textCoord;
   };
-
+  
+  
   struct Reference {
     uint32_t materialIndex;
     uint32_t transformIndex;

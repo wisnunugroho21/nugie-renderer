@@ -7,7 +7,7 @@
 
 #include <cassert>
 #include <stdexcept>
-#include <array>
+#include <vector>
 
 namespace NugieApp {
 	GraphicRenderSystem::GraphicRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
@@ -66,7 +66,8 @@ namespace NugieApp {
 	}
 
 	void GraphicRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount) 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, 
+		const std::vector<VkDeviceSize> &vertexOffsets) 
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 
@@ -83,12 +84,17 @@ namespace NugieApp {
 			nullptr
 		);
 
-		std::vector<VkDeviceSize> offsets;
-		for (auto &&vertexBuffer : vertexBuffers) {
-			offsets.emplace_back(0);
-		}
+		if (vertexOffsets.size() == 0) {
+			std::vector<VkDeviceSize> offsets{};
+			for (auto &&vertexBuffer : vertexBuffers) {
+				offsets.emplace_back(0);
+			}
 
-		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
+			this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
+		} else {
+			this->pipeline->bindBuffers(commandBuffer, vertexBuffers, vertexOffsets, indexBuffer);
+		}
+		
 		this->pipeline->drawIndexed(commandBuffer, indexCount);
 	}
 

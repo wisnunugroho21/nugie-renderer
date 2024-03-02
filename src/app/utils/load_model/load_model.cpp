@@ -18,37 +18,36 @@ namespace std {
   };
   
 	template<>
-	struct hash<NugieApp::Position> {
-		size_t operator () (NugieApp::Position const &position) const {
+	struct hash<NugieApp::Vertex> {
+		size_t operator () (NugieApp::Vertex const &vertex) const {
 			size_t seed = 0;
-			hashCombine(seed, position.position);
+			hashCombine(seed, vertex.position);
 			return seed;
 		}
 	};
 } 
 
 namespace NugieApp {
-  LoadedModel loadObjModel(const std::string &filePath) {
-    LoadedModel loadedModel;
+  LoadedBuffer loadObjModel(const std::string &filePath) {
+    LoadedBuffer loadedBuffer;
     
     tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
 		std::string warn, err;
 
-		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filePath.c_str())) {
+		if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filePath.c_str())) {
 			throw std::runtime_error(warn + err);
 		}
 
-		std::unordered_map<Position, uint32_t> uniqueVertices{};
+		std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 		for (const auto &shape: shapes) {
 			for (const auto &index: shape.mesh.indices) {
-				Position position{};
-        Normal normal{};
-				TextCoord textCoord{};
+				Vertex vertex;
+				NormText normText;
 
 				if (index.vertex_index >= 0) {
-					position.position = {
+					vertex.position = {
 						attrib.vertices[3 * index.vertex_index + 0],
 						attrib.vertices[3 * index.vertex_index + 1],
 						attrib.vertices[3 * index.vertex_index + 2],
@@ -57,7 +56,7 @@ namespace NugieApp {
 				}
 
 				if (index.normal_index >= 0) {
-					normal.normal = {
+					normText.normal = {
 						attrib.normals[3 * index.normal_index + 0],
 						attrib.normals[3 * index.normal_index + 1],
 						attrib.normals[3 * index.normal_index + 2],
@@ -66,24 +65,23 @@ namespace NugieApp {
 				}
 
 				if (index.texcoord_index >= 0) {
-					textCoord.textCoord = { // temoirary. for OBJ object only
+					normText.textCoord = { // temoirary. for OBJ object only
 						attrib.texcoords[2 * index.texcoord_index + 0],
     				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
 					};
 				}
 
-				if (uniqueVertices.count(position) == 0) {
-					uniqueVertices[position] = static_cast<uint32_t>(loadedModel.positions.size());
+				if (uniqueVertices.count(vertex) == 0) {
+					uniqueVertices[vertex] = static_cast<uint32_t>(loadedBuffer.vertices.size());
 
-					loadedModel.positions.push_back(position);
-          loadedModel.normals.push_back(normal);
-					loadedModel.textCoords.push_back(textCoord);
+					loadedBuffer.vertices.emplace_back(vertex);
+					loadedBuffer.normTexts.emplace_back(normText);
 				}
 
-				loadedModel.indices.push_back(uniqueVertices[position]);
+				loadedBuffer.indices.emplace_back(uniqueVertices[vertex]);
 			}
 		}
 
-    return loadedModel;
+    return loadedBuffer;
   }
 }

@@ -17,7 +17,7 @@ layout(set = 0, binding = 0) uniform readonly VertexUniform {
 	mat4 cameraTransforms;
 } ubo;
 
-layout(set = 0, binding = 1) buffer readonly TransformationModel {
+layout(set = 0, binding = 1) buffer readonly TransformationBuffer {
   Transformation transformations[];
 };
 

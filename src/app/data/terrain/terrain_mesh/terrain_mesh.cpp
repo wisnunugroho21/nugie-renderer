@@ -8,10 +8,10 @@ namespace NugieApp {
 			for (int x = 0; x < terrainPoints->getSize(); x++) {
 				float y = terrainPoints->get(x, z);
 
-				Position position{};
+				Vertex position{};
 				position.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
 
-				terrainMesh.positions.emplace_back(position);
+				terrainMesh.vertices.emplace_back(position);
 			}
 		}
 
@@ -39,17 +39,17 @@ namespace NugieApp {
 		TerrainMesh terrainMesh;
 
 		int terrainSize = static_cast<int>(sqrtf(terrainPoints.size()));
-		terrainMesh.positions.clear();
+		terrainMesh.vertices.clear();
 		terrainMesh.indices.clear();
 
 		for (int z = 0; z < terrainSize; z++) {
 			for (int x = 0; x < terrainSize; x++) {
 				float y = terrainPoints[x + terrainSize * z];
 
-				Position position{};
+				Vertex position{};
 				position.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
 
-				terrainMesh.positions.emplace_back(position);
+				terrainMesh.vertices.emplace_back(position);
 			}
 		}
 

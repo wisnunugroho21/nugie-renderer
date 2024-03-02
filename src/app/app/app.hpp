@@ -62,22 +62,22 @@ namespace NugieApp {
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
 
-			ArrayBuffer<uint32_t>* indexModel = nullptr;
-			ArrayBuffer<Position>* positionModel = nullptr;
-			ArrayBuffer<Normal>* normalModel = nullptr;
-			ArrayBuffer<TextCoord>* textCoordModel = nullptr;
-			ArrayBuffer<Reference>* referenceModel = nullptr;
+			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
 
-			ArrayBuffer<uint32_t>* terrainIndexModel = nullptr;
-			ArrayBuffer<Position>* terrainPositionModel = nullptr;
+			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
+			ArrayBuffer<NormText>* normTextBuffer = nullptr;
+			ArrayBuffer<Reference>* referenceBuffer = nullptr;
+
+			ArrayBuffer<uint32_t>* terrainIndexBuffer = nullptr;
+			ArrayBuffer<Vertex>* terrainVertexBuffer = nullptr;
 			
-			ArrayBuffer<Material>* materialModel = nullptr;
-			ArrayBuffer<Transformation>* transformationModel = nullptr;
-			ArrayBuffer<ShadowTransformation>* shadowTransformationModel = nullptr;
-			ArrayBuffer<SpotLight>* spotLightModel = nullptr;
+			ArrayBuffer<Material>* materialBuffer = nullptr;
+			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
+			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
+			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
 
-			ObjectBuffer<ForwardUbo>* forwardUniform = nullptr;
-			ObjectBuffer<DeferredUbo>* deferredUniform = nullptr;
+			ObjectBuffer<ForwardUbo>* forwardUniformBuffer = nullptr;
+			ObjectBuffer<DeferredUbo>* deferredUniformBuffer = nullptr;
 			
 			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
