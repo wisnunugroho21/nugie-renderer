@@ -56,12 +56,12 @@ namespace NugieApp {
     float angle;
   };
 
-  struct DeferredUbo {
+  struct FragmentData {
     glm::vec4 origin;
     glm::uvec4 numLights;
   };
 
-  struct ForwardUbo {
+  struct VertexData {
     glm::mat4 cameraTransforms;
   };
 

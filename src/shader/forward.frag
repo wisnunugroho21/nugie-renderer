@@ -9,7 +9,7 @@ layout(location = 3) in flat uint fragMaterialIndex;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 2) uniform readonly FragmentUniform {
+layout(set = 0, binding = 2) uniform readonly FragmentData {
 	vec4 origin;
   uvec4 numLights;
 } ubo;
