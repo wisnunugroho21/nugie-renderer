@@ -297,7 +297,7 @@ namespace NugieApp {
 		// ----------------------------------------------------------------------------
 
 		TerrainMesh terrainMesh = TerrainMesh::convertPointsToMeshes(
-			(TerrainGeneration("../assets/terrain/heightmap.save").generateTerrainPoints())
+			(TerrainGeneration("../assets/terrain/heightmap.save").getTerrainPoints())
 		); //loadTerrain("../assets/terrain/heightmap.save");
 
 		auto positionSize = static_cast<uint32_t>(positions.size());

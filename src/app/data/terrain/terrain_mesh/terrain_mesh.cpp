@@ -1,6 +1,40 @@
 #include "terrain_mesh.hpp"
 
 namespace NugieApp {
+	TerrainMesh TerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints) {
+		TerrainMesh terrainMesh{};
+
+		for (int z = 0; z < terrainPoints->getSize(); z++) {
+			for (int x = 0; x < terrainPoints->getSize(); x++) {
+				float y = terrainPoints->get(x, z);
+
+				Position position{};
+				position.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
+
+				terrainMesh.positions.emplace_back(position);
+			}
+		}
+
+		for (int z = 0; z < terrainPoints->getSize() - 1; z++) {
+			for (int x = 0; x < terrainPoints->getSize() - 1; x++) {
+				uint32_t indexBottomLeft = z * terrainPoints->getSize() + x;
+				uint32_t indexTopLeft = (z + 1) * terrainPoints->getSize() + x;
+				uint32_t indexTopRight = (z + 1) * terrainPoints->getSize() + x + 1;
+				uint32_t indexBottomRight = z * terrainPoints->getSize() + x + 1;
+
+				terrainMesh.indices.emplace_back(indexBottomLeft);
+				terrainMesh.indices.emplace_back(indexTopLeft);
+				terrainMesh.indices.emplace_back(indexTopRight);
+
+				terrainMesh.indices.emplace_back(indexBottomLeft);
+				terrainMesh.indices.emplace_back(indexTopRight);
+				terrainMesh.indices.emplace_back(indexBottomRight);
+			}
+		}
+		
+		return terrainMesh;
+	}
+
   TerrainMesh TerrainMesh::convertPointsToMeshes(std::vector<float> terrainPoints) {
 		TerrainMesh terrainMesh;
 
