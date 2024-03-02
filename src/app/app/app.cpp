@@ -48,8 +48,8 @@ namespace NugieApp {
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 
-		if (this->forwardUniformBuffer != nullptr) delete this->forwardUniformBuffer;
-		if (this->deferredUniformBuffer != nullptr) delete this->deferredUniformBuffer;
+		if (this->vertexDataBuffer != nullptr) delete this->vertexDataBuffer;
+		if (this->fragmentDataBuffer != nullptr) delete this->fragmentDataBuffer;
 
 		if (this->indexBuffer != nullptr) delete this->indexBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
@@ -127,7 +127,7 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->forwardUniformBuffer->writeGlobalData(frameIndex, this->forwardUbo);
+					this->vertexDataBuffer->writeGlobalData(frameIndex, this->vertexData);
 					this->cameraUpdateCount++;
 				}
 
@@ -154,8 +154,8 @@ namespace NugieApp {
 		uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->forwardUniformBuffer->writeGlobalData(i, this->forwardUbo);
-			this->deferredUniformBuffer->writeGlobalData(i, this->deferredUbo);
+			this->vertexDataBuffer->writeGlobalData(i, this->vertexData);
+			this->fragmentDataBuffer->writeGlobalData(i, this->fragmentData);
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
@@ -181,7 +181,7 @@ namespace NugieApp {
 
 			if (isMousePressed || isKeyboardPressed) {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
-				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+				this->vertexData.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -212,8 +212,8 @@ namespace NugieApp {
 		bool isMousePressed = false, isKeyboardPressed = false;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->forwardUniformBuffer->writeGlobalData(i, this->forwardUbo);
-			this->deferredUniformBuffer->writeGlobalData(i, this->deferredUbo);
+			this->vertexDataBuffer->writeGlobalData(i, this->vertexData);
+			this->fragmentDataBuffer->writeGlobalData(i, this->fragmentData);
 		}
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
@@ -246,7 +246,7 @@ namespace NugieApp {
 
 			if ((isMousePressed || isKeyboardPressed)) {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
-				this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+				this->vertexData.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -255,7 +255,7 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->forwardUniformBuffer->writeGlobalData(frameIndex, this->forwardUbo);
+					this->vertexDataBuffer->writeGlobalData(frameIndex, this->vertexData);
 					this->cameraUpdateCount++;
 				}
 				
@@ -366,7 +366,7 @@ namespace NugieApp {
 
 		// ---------------------------------------------------------------------
 
-		this->deferredUbo.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
+		this->fragmentData.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
 
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
@@ -445,8 +445,8 @@ namespace NugieApp {
 		glm::mat4 view = this->camera->getViewMatrix();
 		glm::mat4 projection = this->camera->getProjectionMatrix();
 
-		this->forwardUbo.cameraTransforms = projection * view;
-		this->deferredUbo.origin = glm::vec4(position, 1.0f);
+		this->vertexData.cameraTransforms = projection * view;
+		this->fragmentData.origin = glm::vec4(position, 1.0f);
 	}
 
 	void App::init() {
@@ -457,8 +457,8 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
-		this->forwardUniformBuffer = new ObjectBuffer<ForwardUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		this->deferredUniformBuffer = new ObjectBuffer<DeferredUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->vertexDataBuffer = new ObjectBuffer<VertexData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->fragmentDataBuffer = new ObjectBuffer<FragmentData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
@@ -485,9 +485,9 @@ namespace NugieApp {
 		}
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->forwardUniformBuffer->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->vertexDataBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->deferredUniformBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialBuffer->getInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationBuffer->getInfo())
@@ -528,7 +528,7 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		this->camera->setAspect(aspectRatio);
 
-		this->forwardUbo.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+		this->vertexData.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 		this->cameraUpdateCount = 0u;
 		
 		this->recordCommand();

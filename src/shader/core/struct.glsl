@@ -45,11 +45,3 @@ struct SpotLight {
   vec4 direction;
   float angle;
 };
-
-struct DeferredUbo {
-  uint numLights;
-};
-
-struct ForwardUbo {
-  mat4 cameraTransforms;
-};

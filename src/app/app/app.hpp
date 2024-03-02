@@ -76,8 +76,8 @@ namespace NugieApp {
 			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
 			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
 
-			ObjectBuffer<ForwardUbo>* forwardUniformBuffer = nullptr;
-			ObjectBuffer<DeferredUbo>* deferredUniformBuffer = nullptr;
+			ObjectBuffer<VertexData>* vertexDataBuffer = nullptr;
+			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;
 			
 			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
@@ -88,8 +88,8 @@ namespace NugieApp {
 
 			uint32_t frameCount = 0;
 
-			ForwardUbo forwardUbo;
-			DeferredUbo deferredUbo;
+			VertexData vertexData;
+			FragmentData fragmentData;
 
 			std::vector<NugieApp::Texture*> colorTextures;
 	};

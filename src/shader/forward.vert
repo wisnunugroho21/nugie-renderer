@@ -13,7 +13,7 @@ layout(location = 1) out vec4 fragNormal;
 layout(location = 2) out vec2 fragTextCoord;
 layout(location = 3) out flat uint fragMaterialIndex;
 
-layout(set = 0, binding = 0) uniform readonly VertexUniform {
+layout(set = 0, binding = 0) uniform readonly VertexData {
 	mat4 cameraTransforms;
 } ubo;
 
