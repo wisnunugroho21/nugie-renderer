@@ -94,6 +94,8 @@ namespace NugieApp {
 			FragmentData fragmentData;
 
 			std::vector<NugieApp::Texture*> colorTextures;
-			std::vector<NugieApp::Texture*> terrainTextures;
+			std::vector<NugieApp::Texture*> lowTerrainTextures;
+			std::vector<NugieApp::Texture*> midTerrainTextures;
+			std::vector<NugieApp::Texture*> highTerrainTextures;
 	};
 }

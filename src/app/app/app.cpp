@@ -69,7 +69,15 @@ namespace NugieApp {
 			if (colorTexture != nullptr) delete colorTexture;
 		}
 
-		for (auto &&terrainTexture : this->terrainTextures) {
+		for (auto &&terrainTexture : this->lowTerrainTextures) {
+			if (terrainTexture != nullptr) delete terrainTexture;
+		}
+
+		for (auto &&terrainTexture : this->midTerrainTextures) {
+			if (terrainTexture != nullptr) delete terrainTexture;
+		}
+
+		for (auto &&terrainTexture : this->highTerrainTextures) {
 			if (terrainTexture != nullptr) delete terrainTexture;
 		}
 
@@ -89,7 +97,19 @@ namespace NugieApp {
 			}
 		}
 
-		for (auto &&terrainTexture : this->terrainTextures) {
+		for (auto &&terrainTexture : this->lowTerrainTextures) {
+			if (!terrainTexture->hasBeenMipmapped()) {
+				terrainTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		for (auto &&terrainTexture : this->midTerrainTextures) {
+			if (!terrainTexture->hasBeenMipmapped()) {
+				terrainTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		for (auto &&terrainTexture : this->highTerrainTextures) {
 			if (!terrainTexture->hasBeenMipmapped()) {
 				terrainTexture->generateMipmap(prepareCommandBuffer);
 			}
@@ -447,7 +467,9 @@ namespace NugieApp {
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
 
-		this->terrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/IMGP5525_seamless.jpg"));
+		this->lowTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/snow.jpg"));
+		this->midTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/grass.png"));
+		this->highTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/rock.jpg"));
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -527,7 +549,9 @@ namespace NugieApp {
 
 		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->vertexDataBuffer->getInfo())
-			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->terrainTextures[0]->getDescriptorInfo())
+			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->lowTerrainTextures[0]->getDescriptorInfo())
+			.addImage(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->midTerrainTextures[0]->getDescriptorInfo())
+			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->highTerrainTextures[0]->getDescriptorInfo())
 			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
