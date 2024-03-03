@@ -21,7 +21,7 @@ namespace NugieApp {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(2);
-		std::vector<VkVertexInputAttributeDescription> attributeDescription(2);
+		std::vector<VkVertexInputAttributeDescription> attributeDescription(3);
 		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(1);
 
 		bindingDescriptions[0].binding = 0;
@@ -39,8 +39,13 @@ namespace NugieApp {
 
 		attributeDescription[1].binding = 1;
 		attributeDescription[1].location = 1;
-		attributeDescription[1].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescription[1].offset = offsetof(NormText, textCoord);
+		attributeDescription[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescription[1].offset = offsetof(NormText, normal);
+
+		attributeDescription[2].binding = 1;
+		attributeDescription[2].location = 2;
+		attributeDescription[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescription[2].offset = offsetof(NormText, textCoord);
 
     colorBlendAttachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment[0].blendEnable = VK_FALSE;

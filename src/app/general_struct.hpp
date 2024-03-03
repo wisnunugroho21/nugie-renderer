@@ -56,9 +56,15 @@ namespace NugieApp {
     float angle;
   };
 
+  struct SunLight {
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 direction;
+  };
+
   struct FragmentData {
     glm::vec4 origin;
     glm::uvec4 numLights;
+    SunLight sunLight;
   };
 
   struct VertexData {

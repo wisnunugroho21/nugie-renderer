@@ -45,3 +45,8 @@ struct SpotLight {
   vec4 direction;
   float angle;
 };
+
+struct SunLight {
+  vec4 color;
+  vec4 direction;
+};

@@ -6,25 +6,8 @@ namespace NugieApp {
 
 		float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
 
-		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
-			for (uint32_t x = 0; x < terrainPoints->getSize(); x++) {
-				float y = terrainPoints->get(x, z);
-
-				Vertex vertex{};
-				vertex.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
-
-				float tSize = static_cast<float>(terrainPoints->getSize());
-
-				NormText normText{};
-				normText.textCoord = glm::vec2 { static_cast<float>(x) / tSize * textureTerrainScale, static_cast<float>(z) / tSize * textureTerrainScale };
-
-				terrainMesh.vertices.emplace_back(vertex);
-				terrainMesh.normTexts.emplace_back(normText);
-			}
-		}
-
-		for (int z = 0; z < terrainPoints->getSize() - 1; z++) {
-			for (int x = 0; x < terrainPoints->getSize() - 1; x++) {
+		for (uint32_t z = 0; z < terrainPoints->getSize() - 1; z++) {
+			for (uint32_t x = 0; x < terrainPoints->getSize() - 1; x++) {
 				uint32_t indexBottomLeft = z * terrainPoints->getSize() + x;
 				uint32_t indexTopLeft = (z + 1) * terrainPoints->getSize() + x;
 				uint32_t indexTopRight = (z + 1) * terrainPoints->getSize() + x + 1;
@@ -39,49 +22,53 @@ namespace NugieApp {
 				terrainMesh.indices.emplace_back(indexBottomRight);
 			}
 		}
-		
-		return terrainMesh;
-	}
 
-  TerrainMesh TerrainMesh::convertPointsToMeshes(std::vector<float> terrainPoints) {
-		TerrainMesh terrainMesh;
-
-		int terrainSize = static_cast<int>(sqrtf(terrainPoints.size()));
-		terrainMesh.vertices.clear();
-		terrainMesh.indices.clear();
-
-		for (int z = 0; z < terrainSize; z++) {
-			for (int x = 0; x < terrainSize; x++) {
-				float y = terrainPoints[x + terrainSize * z];
+		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
+			for (uint32_t x = 0; x < terrainPoints->getSize(); x++) {
+				float y = terrainPoints->get(x, z);
 
 				Vertex vertex{};
 				vertex.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
 
-				NormText normText{};
-				normText.textCoord = glm::vec2 { x / terrainSize, z / terrainSize };
-
 				terrainMesh.vertices.emplace_back(vertex);
+			}
+		}
+
+		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
+			for (uint32_t x = 0; x < terrainPoints->getSize(); x++) {
+				float tSize = static_cast<float>(terrainPoints->getSize());
+
+				NormText normText{};
+				normText.textCoord = glm::vec2 { static_cast<float>(x) / tSize * textureTerrainScale, static_cast<float>(z) / tSize * textureTerrainScale };
+				normText.normal = glm::vec4{ 0.0f };
+
 				terrainMesh.normTexts.emplace_back(normText);
 			}
 		}
 
-		for (int z = 0; z < terrainSize - 1; z++) {
-			for (int x = 0; x < terrainSize - 1; x++) {
-				uint32_t indexBottomLeft = z * terrainSize + x;
-				uint32_t indexTopLeft = (z + 1) * terrainSize + x;
-				uint32_t indexTopRight = (z + 1) * terrainSize + x + 1;
-				uint32_t indexBottomRight = z * terrainSize + x + 1;
+		for (size_t i = 0; i < terrainMesh.indices.size(); i += 3) {
+			uint32_t index0 = terrainMesh.indices[i];
+			uint32_t index1 = terrainMesh.indices[i + 1];
+			uint32_t index2 = terrainMesh.indices[i + 2];
 
-				terrainMesh.indices.emplace_back(indexBottomLeft);
-				terrainMesh.indices.emplace_back(indexTopLeft);
-				terrainMesh.indices.emplace_back(indexTopRight);
+			glm::vec3 vertexPosition0 = glm::vec3(terrainMesh.vertices[index0].position);
+			glm::vec3 vertexPosition1 = glm::vec3(terrainMesh.vertices[index1].position);
+			glm::vec3 vertexPosition2 = glm::vec3(terrainMesh.vertices[index2].position);
 
-				terrainMesh.indices.emplace_back(indexBottomLeft);
-				terrainMesh.indices.emplace_back(indexTopRight);
-				terrainMesh.indices.emplace_back(indexBottomRight);
-			}
+			glm::vec3 edgeV0toV1 = vertexPosition1 - vertexPosition0;
+			glm::vec3 edgeV0toV2 = vertexPosition2 - vertexPosition0;
+
+			glm::vec3 totalNormal = glm::cross(edgeV0toV1, edgeV0toV2);
+
+			terrainMesh.normTexts[index0].normal += glm::vec4{ totalNormal, 0.0f };
+			terrainMesh.normTexts[index1].normal += glm::vec4{ totalNormal, 0.0f };
+			terrainMesh.normTexts[index2].normal += glm::vec4{ totalNormal, 0.0f };
+		}
+
+		for (size_t i = 0; i < terrainMesh.normTexts.size(); i++) {
+			terrainMesh.normTexts[i].normal = glm::normalize(terrainMesh.normTexts[i].normal);
 		}
 		
 		return terrainMesh;
-  }
+	}
 }

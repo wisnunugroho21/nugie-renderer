@@ -11,6 +11,5 @@ namespace NugieApp {
 
     public:
       static TerrainMesh convertPointsToMeshes(TerrainPoints* terrainPoints);
-      static TerrainMesh convertPointsToMeshes(std::vector<float> terrainPoints);
   };
 }

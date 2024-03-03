@@ -3,13 +3,24 @@
 #include "core/struct.glsl"
 
 layout(location = 0) in vec4 fragPosition;
-layout(location = 1) in vec2 fragTextCoord;
+layout(location = 1) in vec4 fragNormal;
+layout(location = 2) in vec2 fragTextCoord;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 1) uniform sampler2D terrainTextureLow[1];
-layout(set = 0, binding = 2) uniform sampler2D terrainTextureMid[1];
-layout(set = 0, binding = 3) uniform sampler2D terrainTextureHigh[1];
+layout(set = 0, binding = 1) uniform readonly FragmentData {
+	vec4 origin;
+  uvec4 numLights;
+  SunLight sunLight;
+} ubo;
+
+layout(set = 0, binding = 2) buffer readonly SpotLightBuffer {
+  SpotLight spotLights[];
+};
+
+layout(set = 0, binding = 3) uniform sampler2D terrainTextureLow[1];
+layout(set = 0, binding = 4) uniform sampler2D terrainTextureMid[1];
+layout(set = 0, binding = 5) uniform sampler2D terrainTextureHigh[1];
 
 // -----------------------------------------------------------
 
@@ -18,11 +29,11 @@ void main() {
   float gHeightMid = 128.0;
   float gHeightHigh = 192.0;
 
-  vec4 texColor = vec4(0.0f);
+  vec4 surfaceColor = vec4(0.0f);
   float height = fragPosition.y * -1.0f;
 
   if (height < gHeightLow) {
-    texColor = texture(terrainTextureLow[0], fragTextCoord);
+    surfaceColor = texture(terrainTextureLow[0], fragTextCoord);
   } 
 
   else if (height >= gHeightLow && height < gHeightMid) {
@@ -30,7 +41,7 @@ void main() {
     vec4 color1 = texture(terrainTextureMid[0], fragTextCoord);
     float delta = gHeightMid - gHeightLow;
     float factor = (height - gHeightLow) / delta;
-    texColor = mix(color0, color1, factor);
+    surfaceColor = mix(color0, color1, factor);
   } 
   
   else if (height >= gHeightMid && height < gHeightHigh) {
@@ -38,12 +49,17 @@ void main() {
     vec4 color1 = texture(terrainTextureHigh[0], fragTextCoord);
     float delta = gHeightHigh - gHeightMid;
     float factor = (height - gHeightMid) / delta;
-    texColor = mix(color0, color1, factor);
+    surfaceColor = mix(color0, color1, factor);
   } 
   
   else if (height >= gHeightHigh) {
-    texColor = texture(terrainTextureHigh[0], fragTextCoord);
+    surfaceColor = texture(terrainTextureHigh[0], fragTextCoord);
   }
 
-  outColor = texColor;
+  float NoL = abs(dot(fragNormal, ubo.sunLight.direction));
+    
+  vec4 irradiance = NoL * ubo.sunLight.color;
+  vec4 brdf = surfaceColor * RECIPROCAL_PI;
+
+  outColor = clamp(brdf * irradiance, 0.0f, 1.0f);
 }
