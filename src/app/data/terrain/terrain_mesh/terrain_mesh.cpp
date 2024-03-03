@@ -59,6 +59,9 @@ namespace NugieApp {
 			glm::vec3 edgeV0toV2 = vertexPosition2 - vertexPosition0;
 
 			glm::vec3 totalNormal = glm::cross(edgeV0toV1, edgeV0toV2);
+			if (totalNormal.y < 0) {
+				totalNormal *= -1.0f;
+			}
 
 			terrainMesh.normTexts[index0].normal += glm::vec4{ totalNormal, 0.0f };
 			terrainMesh.normTexts[index1].normal += glm::vec4{ totalNormal, 0.0f };

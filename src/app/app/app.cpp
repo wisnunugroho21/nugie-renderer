@@ -495,8 +495,8 @@ namespace NugieApp {
 		this->vertexData.cameraTransforms = projection * view;
 		this->fragmentData.origin = glm::vec4(position, 1.0f);
 
-		this->fragmentData.sunLight.direction = glm::vec4(glm::normalize(glm::vec3(0.0f, -1.0f, 0.0f) * -1.0f), 0.0f);
-		this->fragmentData.sunLight.color = glm::vec4(10.0f, 10.0f, 10.0f, 1.0f);
+		this->fragmentData.sunLight.direction = glm::normalize(glm::vec4(0.0f, -1.0f, 0.0f, 0.0f));
+		this->fragmentData.sunLight.color = glm::vec4(3.0f, 3.0f, 3.0f, 1.0f);
 	}
 
 	void App::init() {

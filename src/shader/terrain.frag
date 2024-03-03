@@ -39,16 +39,20 @@ void main() {
   else if (height >= gHeightLow && height < gHeightMid) {
     vec4 color0 = texture(terrainTextureLow[0], fragTextCoord);
     vec4 color1 = texture(terrainTextureMid[0], fragTextCoord);
+
     float delta = gHeightMid - gHeightLow;
     float factor = (height - gHeightLow) / delta;
+
     surfaceColor = mix(color0, color1, factor);
   } 
   
   else if (height >= gHeightMid && height < gHeightHigh) {
     vec4 color0 = texture(terrainTextureMid[0], fragTextCoord);
     vec4 color1 = texture(terrainTextureHigh[0], fragTextCoord);
+
     float delta = gHeightHigh - gHeightMid;
     float factor = (height - gHeightMid) / delta;
+    
     surfaceColor = mix(color0, color1, factor);
   } 
   
@@ -56,10 +60,8 @@ void main() {
     surfaceColor = texture(terrainTextureHigh[0], fragTextCoord);
   }
 
-  float NoL = abs(dot(fragNormal, ubo.sunLight.direction));
-    
-  vec4 irradiance = NoL * ubo.sunLight.color;
-  vec4 brdf = surfaceColor * RECIPROCAL_PI;
+  float NoL = max(dot(fragNormal, ubo.sunLight.direction * -1.0f), 0.3f);    
+  vec4 totalRadiance = NoL * surfaceColor * ubo.sunLight.color;
 
-  outColor = clamp(brdf * irradiance, 0.0f, 1.0f);
+  outColor = clamp(totalRadiance, 0.0f, 1.0f);
 }
