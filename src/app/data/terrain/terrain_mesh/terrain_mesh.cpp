@@ -1,7 +1,7 @@
 #include "terrain_mesh.hpp"
 
 namespace NugieApp {
-	TerrainMesh TerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints) {
+	TerrainMesh TerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints, float worldScale) {
 		TerrainMesh terrainMesh{};
 
 		float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
@@ -28,7 +28,7 @@ namespace NugieApp {
 				float y = terrainPoints->get(x, z);
 
 				Vertex vertex{};
-				vertex.position = glm::vec4 { x * 4, y * -1.0f, z * 4, 1.0f };
+				vertex.position = glm::vec4 { x * worldScale, y * -1.0f, z * worldScale, 1.0f };
 
 				terrainMesh.vertices.emplace_back(vertex);
 			}

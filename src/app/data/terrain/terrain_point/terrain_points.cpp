@@ -61,14 +61,9 @@ namespace NugieApp {
 
     float minMaxDelta = max - min;
     float minMaxRange = maxRange - minRange;
-
-    for (size_t i = 0; i < this->points.size(); i++) {
-      this->points[i] = ((this->points[i] - min) / minMaxDelta) * minMaxRange + minRange;
-    }
     
-
-    /* for (auto &&point : this->points) {
+    for (auto &&point : this->points) {
       point = ((point - min) / minMaxDelta) * minMaxRange + minRange;      
-    } */    
+    }  
   }
 }

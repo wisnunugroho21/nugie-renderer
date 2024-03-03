@@ -10,6 +10,6 @@ namespace NugieApp {
     std::vector<uint32_t> indices;
 
     public:
-      static TerrainMesh convertPointsToMeshes(TerrainPoints* terrainPoints);
+      static TerrainMesh convertPointsToMeshes(TerrainPoints* terrainPoints, float worldScale = 1.0f);
   };
 }

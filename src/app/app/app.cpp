@@ -333,9 +333,11 @@ namespace NugieApp {
 		float minHeight = 0.0f;
 		float maxHeight = 300.0f;
 		float filter = 0.5f;
+		float worldScale = 4.0f;
 
 		TerrainMesh terrainMesh = TerrainMesh::convertPointsToMeshes(
-			(FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints())
+			FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints(), 
+			worldScale
 		); //loadTerrain("../assets/terrain/heightmap.save");
 
 		auto vertexSize = static_cast<uint32_t>(vertices.size());
