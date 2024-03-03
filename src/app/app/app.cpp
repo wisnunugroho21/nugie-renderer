@@ -58,6 +58,7 @@ namespace NugieApp {
 
 		if (this->terrainIndexBuffer != nullptr) delete this->terrainIndexBuffer;
 		if (this->terrainVertexBuffer != nullptr) delete this->terrainVertexBuffer;
+		if (this->terrainNormTextBuffer != nullptr) delete this->terrainNormTextBuffer;
 		
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
@@ -66,6 +67,10 @@ namespace NugieApp {
 		
 		for (auto &&colorTexture : this->colorTextures) {
 			if (colorTexture != nullptr) delete colorTexture;
+		}
+
+		for (auto &&terrainTexture : this->terrainTextures) {
+			if (terrainTexture != nullptr) delete terrainTexture;
 		}
 
 		if (this->device != nullptr) delete this->device;
@@ -84,9 +89,19 @@ namespace NugieApp {
 			}
 		}
 
+		for (auto &&terrainTexture : this->terrainTextures) {
+			if (!terrainTexture->hasBeenMipmapped()) {
+				terrainTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
 		prepareCommandBuffer->endCommand();
 
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+
+		std::vector<NugieVulkan::Buffer*> terrainBuffers;
+		terrainBuffers.emplace_back(this->terrainVertexBuffer->getBuffer());
+		terrainBuffers.emplace_back(this->terrainNormTextBuffer->getBuffer());
 
 		/* std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->vertexBuffer->getBuffer());
@@ -108,7 +123,7 @@ namespace NugieApp {
 				} */
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, { this->terrainVertexBuffer->getBuffer() }, this->terrainIndexBuffer->getBuffer(), this->terrainIndexBuffer->size());
+				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->terrainIndexBuffer->getBuffer(), this->terrainIndexBuffer->size());
 				// this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -289,6 +304,7 @@ namespace NugieApp {
 		
 		std::vector<uint32_t> terrainIndices;
 		std::vector<Vertex> terrainVertices;
+		std::vector<NormText> terrainNormTexts;
 
 		// ----------------------------------------------------------------------------
 
@@ -303,6 +319,10 @@ namespace NugieApp {
 
 		for (auto &&vertex : terrainMesh.vertices) {
 			terrainVertices.emplace_back(vertex);
+		}
+
+		for (auto &&normText : terrainMesh.normTexts) {
+			terrainNormTexts.emplace_back(normText);
 		}
 
 		/* LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
@@ -409,6 +429,9 @@ namespace NugieApp {
 		this->terrainVertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(terrainVertices.size()));
 		this->terrainVertexBuffer->replace(commandBuffer, terrainVertices);
 
+		this->terrainNormTextBuffer = new ArrayBuffer<NormText>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(terrainNormTexts.size()));
+		this->terrainNormTextBuffer->replace(commandBuffer, terrainNormTexts);
+
 		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(materials.size()));
 		this->materialBuffer->replace(commandBuffer, materials);
 
@@ -423,6 +446,8 @@ namespace NugieApp {
 
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
+
+		this->terrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/IMGP5525_seamless.jpg"));
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -502,11 +527,12 @@ namespace NugieApp {
 
 		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->vertexDataBuffer->getInfo())
+			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->terrainTextures[0]->getDescriptorInfo())
 			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
-		this->terrainRenderer = new GraphicRenderSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.frag.spv");
+		this->terrainRenderer = new TerrainPassRenderSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.frag.spv");
 
 		this->forwardPassRenderer->initialize();
 		this->shadowPassRenderer->initialize();

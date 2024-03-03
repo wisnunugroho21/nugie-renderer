@@ -13,6 +13,7 @@
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
+#include "../renderer_system/terrain_pass_render_system.hpp"
 #include "../renderer_system/shadow_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
@@ -56,11 +57,11 @@ namespace NugieApp {
 			Renderer* renderer = nullptr;
 
 			SubRenderer* finalSubRenderer = nullptr;
-			SubRenderer* shadowSubRenderer = nullptr;
+			SubRenderer* shadowSubRenderer = nullptr;			
 			
-			GraphicRenderSystem* terrainRenderer = nullptr;
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
+			TerrainPassRenderSystem* terrainRenderer = nullptr;
 
 			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
 
@@ -69,6 +70,7 @@ namespace NugieApp {
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
 
 			ArrayBuffer<uint32_t>* terrainIndexBuffer = nullptr;
+			ArrayBuffer<NormText>* terrainNormTextBuffer = nullptr;
 			ArrayBuffer<Vertex>* terrainVertexBuffer = nullptr;
 			
 			ArrayBuffer<Material>* materialBuffer = nullptr;
@@ -92,5 +94,6 @@ namespace NugieApp {
 			FragmentData fragmentData;
 
 			std::vector<NugieApp::Texture*> colorTextures;
+			std::vector<NugieApp::Texture*> terrainTextures;
 	};
 }

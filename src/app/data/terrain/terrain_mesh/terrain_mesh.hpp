@@ -6,6 +6,7 @@
 namespace NugieApp {
   struct TerrainMesh {
     std::vector<Vertex> vertices;
+    std::vector<NormText> normTexts;
     std::vector<uint32_t> indices;
 
     public:

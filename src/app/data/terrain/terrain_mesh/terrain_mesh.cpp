@@ -4,14 +4,22 @@ namespace NugieApp {
 	TerrainMesh TerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints) {
 		TerrainMesh terrainMesh{};
 
-		for (int z = 0; z < terrainPoints->getSize(); z++) {
-			for (int x = 0; x < terrainPoints->getSize(); x++) {
+		float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
+
+		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
+			for (uint32_t x = 0; x < terrainPoints->getSize(); x++) {
 				float y = terrainPoints->get(x, z);
 
-				Vertex position{};
-				position.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
+				Vertex vertex{};
+				vertex.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
 
-				terrainMesh.vertices.emplace_back(position);
+				float tSize = static_cast<float>(terrainPoints->getSize());
+
+				NormText normText{};
+				normText.textCoord = glm::vec2 { static_cast<float>(x) / tSize * textureTerrainScale, static_cast<float>(z) / tSize * textureTerrainScale };
+
+				terrainMesh.vertices.emplace_back(vertex);
+				terrainMesh.normTexts.emplace_back(normText);
 			}
 		}
 
@@ -46,10 +54,14 @@ namespace NugieApp {
 			for (int x = 0; x < terrainSize; x++) {
 				float y = terrainPoints[x + terrainSize * z];
 
-				Vertex position{};
-				position.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
+				Vertex vertex{};
+				vertex.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
 
-				terrainMesh.vertices.emplace_back(position);
+				NormText normText{};
+				normText.textCoord = glm::vec2 { x / terrainSize, z / terrainSize };
+
+				terrainMesh.vertices.emplace_back(vertex);
+				terrainMesh.normTexts.emplace_back(normText);
 			}
 		}
 

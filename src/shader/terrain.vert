@@ -3,8 +3,10 @@
 #include "core/struct.glsl"
 
 layout(location = 0) in vec4 position;
+layout(location = 1) in vec2 textCoord;
 
 layout(location = 0) out vec4 fragPosition;
+layout(location = 1) out vec2 fragTextCoord;
 
 layout(set = 0, binding = 0) uniform readonly VertexUniform {
 	mat4 cameraTransforms;
@@ -12,5 +14,7 @@ layout(set = 0, binding = 0) uniform readonly VertexUniform {
 
 void main() {
 	fragPosition = position;
+	fragTextCoord = textCoord;
+	
 	gl_Position = ubo.cameraTransforms * fragPosition;
 }
