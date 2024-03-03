@@ -17,6 +17,11 @@ namespace NugieApp {
       void set(int x, int z, float height);
       void set(uint32_t index, float height);
 
+      float getMin();
+      float getMax();
+
+      void normalize(float minRange, float maxRange);
+
     protected:
       std::vector<float> points;
       uint32_t size;

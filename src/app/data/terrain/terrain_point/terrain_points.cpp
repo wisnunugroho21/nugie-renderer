@@ -32,4 +32,43 @@ namespace NugieApp {
   void TerrainPoints::set(uint32_t index, float height) {
     this->points[index] = height;
   }
+
+  float TerrainPoints::getMin() {
+    float min = 99999.0f;
+
+    for (auto &&point : this->points) {
+      if (point < min) min = point;
+    }
+
+    return min;    
+  }
+
+  float TerrainPoints::getMax() {
+    float max = -99999.0f;
+
+    for (auto &&point : this->points) {
+      if (point > max) max = point;
+    }
+
+    return max;
+  }
+
+  void TerrainPoints::normalize(float minRange, float maxRange) {
+    float min = this->getMin();
+    float max = this->getMax();
+
+    if (max <= min) return;
+
+    float minMaxDelta = max - min;
+    float minMaxRange = maxRange - minRange;
+
+    for (size_t i = 0; i < this->points.size(); i++) {
+      this->points[i] = ((this->points[i] - min) / minMaxDelta) * minMaxRange + minRange;
+    }
+    
+
+    /* for (auto &&point : this->points) {
+      point = ((point - min) / minMaxDelta) * minMaxRange + minRange;      
+    } */    
+  }
 }

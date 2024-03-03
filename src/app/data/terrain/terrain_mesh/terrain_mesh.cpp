@@ -28,7 +28,7 @@ namespace NugieApp {
 				float y = terrainPoints->get(x, z);
 
 				Vertex vertex{};
-				vertex.position = glm::vec4 { x, y * -1.0f, z, 1.0f };
+				vertex.position = glm::vec4 { x * 4, y * -1.0f, z * 4, 1.0f };
 
 				terrainMesh.vertices.emplace_back(vertex);
 			}

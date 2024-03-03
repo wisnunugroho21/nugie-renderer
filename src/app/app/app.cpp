@@ -2,7 +2,7 @@
 
 #include "../utils/load_model/load_model.hpp"
 
-#include "../data/terrain/terrain_generation/terrain_generation.hpp"
+#include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
 #include "../data/terrain/terrain_mesh/terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -328,8 +328,14 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
+		int size = 256;
+		int iterations = 500;
+		float minHeight = 0.0f;
+		float maxHeight = 300.0f;
+		float filter = 0.5f;
+
 		TerrainMesh terrainMesh = TerrainMesh::convertPointsToMeshes(
-			(TerrainGeneration("../assets/terrain/heightmap.save").getTerrainPoints())
+			(FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints())
 		); //loadTerrain("../assets/terrain/heightmap.save");
 
 		auto vertexSize = static_cast<uint32_t>(vertices.size());
@@ -476,8 +482,8 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 40.0f, -30.0f);
-		glm::vec3 target = glm::vec3(0.0f, 10.0f, 0.0f);
+		glm::vec3 position = glm::vec3(200.0f, 300.0f, -150.0f);
+		glm::vec3 target = glm::vec3(0.0f, -0.35f, 1.0f);
 		glm::vec3 vup = glm::vec3(0.0f, 1.0f, 0.0f);
 
 		float near = 0.1f;

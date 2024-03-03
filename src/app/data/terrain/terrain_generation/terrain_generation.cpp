@@ -17,6 +17,11 @@ namespace NugieApp {
 
     if (this->terrainPoints == nullptr) {
       this->terrainPoints = new TerrainPoints(terrainSize);
+    } 
+    
+    else if (this->terrainPoints->getSize() < terrainSize) {
+      delete this->terrainPoints;
+      this->terrainPoints = new TerrainPoints(terrainSize);
     }
     
 		for (int z = 0; z < terrainSize; z++) {
