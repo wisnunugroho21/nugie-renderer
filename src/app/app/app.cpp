@@ -56,9 +56,9 @@ namespace NugieApp {
 		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
 		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
 
-		if (this->terrainIndexBuffer != nullptr) delete this->terrainIndexBuffer;
+		/* if (this->terrainIndexBuffer != nullptr) delete this->terrainIndexBuffer;
 		if (this->terrainVertexBuffer != nullptr) delete this->terrainVertexBuffer;
-		if (this->terrainNormTextBuffer != nullptr) delete this->terrainNormTextBuffer;
+		if (this->terrainNormTextBuffer != nullptr) delete this->terrainNormTextBuffer; */
 		
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
@@ -120,8 +120,8 @@ namespace NugieApp {
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
 		std::vector<NugieVulkan::Buffer*> terrainBuffers;
-		terrainBuffers.emplace_back(this->terrainVertexBuffer->getBuffer());
-		terrainBuffers.emplace_back(this->terrainNormTextBuffer->getBuffer());
+		terrainBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		terrainBuffers.emplace_back(this->normTextBuffer->getBuffer());		
 
 		/* std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->vertexBuffer->getBuffer());
@@ -130,7 +130,16 @@ namespace NugieApp {
 
 		std::vector<NugieVulkan::Buffer*> shadowBuffers;
 		shadowBuffers.emplace_back(this->vertexBuffer->getBuffer());
-		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer()); */
+		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());		 
+		
+		std::vector<VkDeviceSize> forwardBufferOffsets;
+		forwardBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(Vertex));
+		forwardBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(NormText));
+		forwardBufferOffsets.emplace_back(0);
+
+		std::vector<VkDeviceSize> shadowBufferOffsets;
+		shadowBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(Vertex));
+		shadowBufferOffsets.emplace_back(0); */
 
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
@@ -138,12 +147,12 @@ namespace NugieApp {
 
 				/* for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
-					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size(), lightIndex);
-					this->shadowSubRenderer->endRenderPass(commandBuffer);
+					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size(), lightIndex, shadowBufferOffsets);
+					this->shadowSubRenderer->endRenderPass(commandBuffer); 
 				} */
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->terrainIndexBuffer->getBuffer(), this->terrainIndexBuffer->size());
+				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
 				// this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -340,18 +349,20 @@ namespace NugieApp {
 			worldScale
 		); //loadTerrain("../assets/terrain/heightmap.save");
 
-		auto vertexSize = static_cast<uint32_t>(vertices.size());
+		auto verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : terrainMesh.indices) {
-			terrainIndices.emplace_back(vertexSize + index);
+			indices.emplace_back(verticesSize + index);
 		}
 
 		for (auto &&vertex : terrainMesh.vertices) {
-			terrainVertices.emplace_back(vertex);
+			vertices.emplace_back(vertex);
 		}
 
 		for (auto &&normText : terrainMesh.normTexts) {
-			terrainNormTexts.emplace_back(normText);
+			normTexts.emplace_back(normText);
 		}
+
+		this->verticeTerrainCount = static_cast<uint32_t>(terrainMesh.vertices.size());
 
 		/* LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
 
@@ -439,7 +450,7 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-		/* this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
+		this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
 		this->indexBuffer->replace(commandBuffer, indices);
 
 		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
@@ -448,8 +459,8 @@ namespace NugieApp {
 		this->normTextBuffer = new ArrayBuffer<NormText>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(normTexts.size()));
 		this->normTextBuffer->replace(commandBuffer, normTexts);
 
-		this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
-		this->referenceBuffer->replace(commandBuffer, references); */
+		/* this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
+		this->referenceBuffer->replace(commandBuffer, references);
 
 		this->terrainIndexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(terrainIndices.size()));
 		this->terrainIndexBuffer->replace(commandBuffer, terrainIndices);
@@ -458,7 +469,7 @@ namespace NugieApp {
 		this->terrainVertexBuffer->replace(commandBuffer, terrainVertices);
 
 		this->terrainNormTextBuffer = new ArrayBuffer<NormText>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(terrainNormTexts.size()));
-		this->terrainNormTextBuffer->replace(commandBuffer, terrainNormTexts);
+		this->terrainNormTextBuffer->replace(commandBuffer, terrainNormTexts); */
 
 		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(materials.size()));
 		this->materialBuffer->replace(commandBuffer, materials);

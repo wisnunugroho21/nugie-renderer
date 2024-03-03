@@ -69,9 +69,9 @@ namespace NugieApp {
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
 
-			ArrayBuffer<uint32_t>* terrainIndexBuffer = nullptr;
+			/* ArrayBuffer<uint32_t>* terrainIndexBuffer = nullptr;
 			ArrayBuffer<NormText>* terrainNormTextBuffer = nullptr;
-			ArrayBuffer<Vertex>* terrainVertexBuffer = nullptr;
+			ArrayBuffer<Vertex>* terrainVertexBuffer = nullptr; */
 			
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
@@ -88,7 +88,7 @@ namespace NugieApp {
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 			bool isRendering = true;
 
-			uint32_t frameCount = 0;
+			uint32_t frameCount = 0, verticeTerrainCount = 0;
 
 			VertexData vertexData;
 			FragmentData fragmentData;

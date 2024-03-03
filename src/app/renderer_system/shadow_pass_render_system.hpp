@@ -22,7 +22,7 @@ namespace NugieApp {
 
 			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-				uint32_t indexCount, uint32_t lightIndex); 
+				uint32_t indexCount, uint32_t lightIndex, const std::vector<VkDeviceSize> &vertexOffsets = {}); 
 
 		private:
 			void createPipelineLayout() override;
