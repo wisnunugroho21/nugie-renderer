@@ -344,25 +344,25 @@ namespace NugieApp {
 		float filter = 0.5f;
 		float worldScale = 4.0f;
 
-		TerrainMesh terrainMesh = TerrainMesh::convertPointsToMeshes(
+		TerrainMesh terrainMesh = TerrainMesh(
 			FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints(), 
 			worldScale
 		); //loadTerrain("../assets/terrain/heightmap.save");
 
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
-		for (auto &&index : terrainMesh.indices) {
+		for (auto &&index : terrainMesh.getIndices()) {
 			indices.emplace_back(verticesSize + index);
 		}
 
-		for (auto &&vertex : terrainMesh.vertices) {
+		for (auto &&vertex : terrainMesh.getVertices()) {
 			vertices.emplace_back(vertex);
 		}
 
-		for (auto &&normText : terrainMesh.normTexts) {
+		for (auto &&normText : terrainMesh.getNormTexts()) {
 			normTexts.emplace_back(normText);
 		}
 
-		this->verticeTerrainCount = static_cast<uint32_t>(terrainMesh.vertices.size());
+		this->verticeTerrainCount = static_cast<uint32_t>(terrainMesh.getVertices().size());
 
 		/* LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
 

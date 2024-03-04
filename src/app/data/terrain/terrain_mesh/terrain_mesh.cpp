@@ -1,11 +1,20 @@
 #include "terrain_mesh.hpp"
 
 namespace NugieApp {
-	TerrainMesh TerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints, float worldScale) {
-		TerrainMesh terrainMesh{};
+	TerrainMesh::TerrainMesh(TerrainPoints* terrainPoints, float worldScale) {
+		this->generateIndices(terrainPoints, worldScale);
+		this->generateVertices(terrainPoints, worldScale);
+		this->generateTextureCoordinates(terrainPoints, worldScale);
+		this->generateNormals(terrainPoints, worldScale);
+	}
 
-		float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
+	void TerrainMesh::addTriangle(uint32_t index0, uint32_t index1, uint32_t index2) {
+		this->indices.emplace_back(index0);
+		this->indices.emplace_back(index1);
+		this->indices.emplace_back(index2);
+	}
 
+	void TerrainMesh::generateIndices(TerrainPoints* terrainPoints, float worldScale) {
 		for (uint32_t z = 0; z < terrainPoints->getSize() - 1; z++) {
 			for (uint32_t x = 0; x < terrainPoints->getSize() - 1; x++) {
 				uint32_t indexBottomLeft = z * terrainPoints->getSize() + x;
@@ -13,16 +22,13 @@ namespace NugieApp {
 				uint32_t indexTopRight = (z + 1) * terrainPoints->getSize() + x + 1;
 				uint32_t indexBottomRight = z * terrainPoints->getSize() + x + 1;
 
-				terrainMesh.indices.emplace_back(indexBottomLeft);
-				terrainMesh.indices.emplace_back(indexTopLeft);
-				terrainMesh.indices.emplace_back(indexTopRight);
-
-				terrainMesh.indices.emplace_back(indexBottomLeft);
-				terrainMesh.indices.emplace_back(indexTopRight);
-				terrainMesh.indices.emplace_back(indexBottomRight);
+				this->addTriangle(indexBottomLeft, indexTopLeft, indexTopRight);
+				this->addTriangle(indexBottomLeft, indexTopRight, indexBottomRight);
 			}
 		}
+	}
 
+	void TerrainMesh::generateVertices(TerrainPoints* terrainPoints, float worldScale) {
 		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
 			for (uint32_t x = 0; x < terrainPoints->getSize(); x++) {
 				float y = terrainPoints->get(x, z);
@@ -30,10 +36,14 @@ namespace NugieApp {
 				Vertex vertex{};
 				vertex.position = glm::vec4 { x * worldScale, y * -1.0f, z * worldScale, 1.0f };
 
-				terrainMesh.vertices.emplace_back(vertex);
+				this->vertices.emplace_back(vertex);
 			}
 		}
+	}
 
+	void TerrainMesh::generateTextureCoordinates(TerrainPoints* terrainPoints, float worldScale) {
+		float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
+		
 		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
 			for (uint32_t x = 0; x < terrainPoints->getSize(); x++) {
 				float tSize = static_cast<float>(terrainPoints->getSize());
@@ -42,18 +52,20 @@ namespace NugieApp {
 				normText.textCoord = glm::vec2 { static_cast<float>(x) / tSize * textureTerrainScale, static_cast<float>(z) / tSize * textureTerrainScale };
 				normText.normal = glm::vec4{ 0.0f };
 
-				terrainMesh.normTexts.emplace_back(normText);
+				this->normTexts.emplace_back(normText);
 			}
 		}
+	}
 
-		for (size_t i = 0; i < terrainMesh.indices.size(); i += 3) {
-			uint32_t index0 = terrainMesh.indices[i];
-			uint32_t index1 = terrainMesh.indices[i + 1];
-			uint32_t index2 = terrainMesh.indices[i + 2];
+	void TerrainMesh::generateNormals(TerrainPoints* terrainPoints, float worldScale) {
+		for (size_t i = 0; i < this->indices.size(); i += 3) {
+			uint32_t index0 = this->indices[i];
+			uint32_t index1 = this->indices[i + 1];
+			uint32_t index2 = this->indices[i + 2];
 
-			glm::vec3 vertexPosition0 = glm::vec3(terrainMesh.vertices[index0].position);
-			glm::vec3 vertexPosition1 = glm::vec3(terrainMesh.vertices[index1].position);
-			glm::vec3 vertexPosition2 = glm::vec3(terrainMesh.vertices[index2].position);
+			glm::vec3 vertexPosition0 = glm::vec3(this->vertices[index0].position);
+			glm::vec3 vertexPosition1 = glm::vec3(this->vertices[index1].position);
+			glm::vec3 vertexPosition2 = glm::vec3(this->vertices[index2].position);
 
 			glm::vec3 edgeV0toV1 = vertexPosition1 - vertexPosition0;
 			glm::vec3 edgeV0toV2 = vertexPosition2 - vertexPosition0;
@@ -63,15 +75,13 @@ namespace NugieApp {
 				totalNormal *= -1.0f;
 			}
 
-			terrainMesh.normTexts[index0].normal += glm::vec4{ totalNormal, 0.0f };
-			terrainMesh.normTexts[index1].normal += glm::vec4{ totalNormal, 0.0f };
-			terrainMesh.normTexts[index2].normal += glm::vec4{ totalNormal, 0.0f };
+			this->normTexts[index0].normal += glm::vec4{ totalNormal, 0.0f };
+			this->normTexts[index1].normal += glm::vec4{ totalNormal, 0.0f };
+			this->normTexts[index2].normal += glm::vec4{ totalNormal, 0.0f };
 		}
 
-		for (size_t i = 0; i < terrainMesh.normTexts.size(); i++) {
-			terrainMesh.normTexts[i].normal = glm::normalize(terrainMesh.normTexts[i].normal);
+		for (size_t i = 0; i < this->normTexts.size(); i++) {
+			this->normTexts[i].normal = glm::normalize(this->normTexts[i].normal);
 		}
-		
-		return terrainMesh;
 	}
 }
