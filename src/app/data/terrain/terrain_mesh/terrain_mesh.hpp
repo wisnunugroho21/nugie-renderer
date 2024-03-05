@@ -12,16 +12,21 @@ namespace NugieApp {
       std::vector<NormText> getNormTexts() { return this->normTexts; }
       std::vector<uint32_t> getIndices() { return this->indices; }
 
-    private:
+      void initialize();
+
+    protected:
+      void addTriangle(uint32_t index0, uint32_t index1, uint32_t index2);
+
       std::vector<Vertex> vertices;
       std::vector<NormText> normTexts;
       std::vector<uint32_t> indices;
 
-      void generateIndices(TerrainPoints* terrainPoints, float worldScale);
-      void generateVertices(TerrainPoints* terrainPoints, float worldScale);
-      void generateTextureCoordinates(TerrainPoints* terrainPoints, float worldScale);
-      void generateNormals(TerrainPoints* terrainPoints, float worldScale);
+      TerrainPoints* terrainPoints;
+      float worldScale = 1.0f;
 
-      void addTriangle(uint32_t index0, uint32_t index1, uint32_t index2);
+      virtual void generateIndices(TerrainPoints* terrainPoints, float worldScale);
+      virtual void generateVertices(TerrainPoints* terrainPoints, float worldScale);
+      virtual void generateTextureCoordinates(TerrainPoints* terrainPoints, float worldScale);
+      virtual void generateNormals(TerrainPoints* terrainPoints, float worldScale);
   };
 }

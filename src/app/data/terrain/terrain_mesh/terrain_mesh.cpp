@@ -1,11 +1,13 @@
 #include "terrain_mesh.hpp"
 
 namespace NugieApp {
-	TerrainMesh::TerrainMesh(TerrainPoints* terrainPoints, float worldScale) {
-		this->generateIndices(terrainPoints, worldScale);
-		this->generateVertices(terrainPoints, worldScale);
-		this->generateTextureCoordinates(terrainPoints, worldScale);
-		this->generateNormals(terrainPoints, worldScale);
+	TerrainMesh::TerrainMesh(TerrainPoints* terrainPoints, float worldScale) : terrainPoints{terrainPoints}, worldScale{worldScale} {}
+
+	void TerrainMesh::initialize() {
+		this->generateIndices(this->terrainPoints, this->worldScale);
+		this->generateVertices(this->terrainPoints, this->worldScale);
+		this->generateTextureCoordinates(terrainPoints, this->worldScale);
+		this->generateNormals(this->terrainPoints, this->worldScale);
 	}
 
 	void TerrainMesh::addTriangle(uint32_t index0, uint32_t index1, uint32_t index2) {

@@ -3,7 +3,7 @@
 #include "../utils/load_model/load_model.hpp"
 
 #include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
-#include "../data/terrain/terrain_mesh/terrain_mesh.hpp"
+#include "../data/terrain/terrain_mesh/patched_terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -337,17 +337,19 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		int size = 256;
+		int size = 513;
 		int iterations = 500;
 		float minHeight = 0.0f;
 		float maxHeight = 300.0f;
 		float filter = 0.5f;
 		float worldScale = 4.0f;
 
-		TerrainMesh terrainMesh = TerrainMesh(
+		PatchedTerrainMesh terrainMesh = PatchedTerrainMesh(
 			FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints(), 
 			worldScale
 		); //loadTerrain("../assets/terrain/heightmap.save");
+
+		terrainMesh.initialize();
 
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : terrainMesh.getIndices()) {
