@@ -4,10 +4,10 @@ namespace NugieApp {
 	TerrainMesh::TerrainMesh(TerrainPoints* terrainPoints, float worldScale) : terrainPoints{terrainPoints}, worldScale{worldScale} {}
 
 	void TerrainMesh::initialize() {
-		this->generateIndices(this->terrainPoints, this->worldScale);
+		this->generateIndices(this->terrainPoints);
 		this->generateVertices(this->terrainPoints, this->worldScale);
-		this->generateTextureCoordinates(terrainPoints, this->worldScale);
-		this->generateNormals(this->terrainPoints, this->worldScale);
+		this->generateTextureCoordinates(terrainPoints);
+		this->generateNormals(this->terrainPoints);
 	}
 
 	void TerrainMesh::addTriangle(uint32_t index0, uint32_t index1, uint32_t index2) {
@@ -16,7 +16,7 @@ namespace NugieApp {
 		this->indices.emplace_back(index2);
 	}
 
-	void TerrainMesh::generateIndices(TerrainPoints* terrainPoints, float worldScale) {
+	void TerrainMesh::generateIndices(TerrainPoints* terrainPoints) {
 		for (uint32_t z = 0; z < terrainPoints->getSize() - 1; z++) {
 			for (uint32_t x = 0; x < terrainPoints->getSize() - 1; x++) {
 				uint32_t indexBottomLeft = z * terrainPoints->getSize() + x;
@@ -43,7 +43,7 @@ namespace NugieApp {
 		}
 	}
 
-	void TerrainMesh::generateTextureCoordinates(TerrainPoints* terrainPoints, float worldScale) {
+	void TerrainMesh::generateTextureCoordinates(TerrainPoints* terrainPoints) {
 		float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
 		
 		for (uint32_t z = 0; z < terrainPoints->getSize(); z++) {
@@ -59,7 +59,7 @@ namespace NugieApp {
 		}
 	}
 
-	void TerrainMesh::generateNormals(TerrainPoints* terrainPoints, float worldScale) {
+	void TerrainMesh::generateNormals(TerrainPoints* terrainPoints) {
 		for (size_t i = 0; i < this->indices.size(); i += 3) {
 			uint32_t index0 = this->indices[i];
 			uint32_t index1 = this->indices[i + 1];

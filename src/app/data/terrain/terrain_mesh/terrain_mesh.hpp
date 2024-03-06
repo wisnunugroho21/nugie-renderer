@@ -24,9 +24,9 @@ namespace NugieApp {
       TerrainPoints* terrainPoints;
       float worldScale = 1.0f;
 
-      virtual void generateIndices(TerrainPoints* terrainPoints, float worldScale);
+      virtual void generateIndices(TerrainPoints* terrainPoints);
       virtual void generateVertices(TerrainPoints* terrainPoints, float worldScale);
-      virtual void generateTextureCoordinates(TerrainPoints* terrainPoints, float worldScale);
-      virtual void generateNormals(TerrainPoints* terrainPoints, float worldScale);
+      virtual void generateTextureCoordinates(TerrainPoints* terrainPoints);
+      virtual void generateNormals(TerrainPoints* terrainPoints);
   };
 }
