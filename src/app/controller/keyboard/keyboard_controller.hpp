@@ -23,7 +23,7 @@ namespace NugieApp {
       glm::vec3 moveInPlaceXZ(GLFWwindow* window, float dt, glm::vec3 currentCameraPosition, glm::vec3 currentCameraDirection, bool* isPressed);
 
       KeyMappings keymaps{};
-      float moveSpeed{10.0f};
+      float moveSpeed{100.0f};
   };
 
 }

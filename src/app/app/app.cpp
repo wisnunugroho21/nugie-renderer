@@ -2,7 +2,7 @@
 
 #include "../utils/load_model/load_model.hpp"
 
-#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
+#include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
 #include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -341,21 +341,21 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		int size = 2;
+		int size = 256;
 		int iterations = 500;
 		float minHeight = 0.0f;
 		float maxHeight = 300.0f;
 		float filter = 0.5f;
 		float worldScale = 4.0f;
 		
-		auto terrainPoints = FlatTerrainGeneration(size, 1.0f).getTerrainPoints();
+		auto terrainPoints = FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
 		auto quadMesh = QuadTerrainMesh();
-		quadMesh.convertPointsToMeshes(terrainPoints);
+		quadMesh.convertPointsToMeshes(terrainPoints, worldScale);
 
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : quadMesh.getIndices()) {
-			indices.emplace_back(verticesSize + index);
+			indices.emplace_back(index);
 		}
 
 		for (auto &&vertex : quadMesh.getVertices()) {

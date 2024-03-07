@@ -23,7 +23,7 @@ namespace NugieApp {
 				float y = terrainPoints->get(x, z);
 
 				Vertex vertex{};
-				vertex.position = glm::vec4 { x * worldScale, 1.0f, z * worldScale, 1.0f };
+				vertex.position = glm::vec4 { x * worldScale, y, z * worldScale, 1.0f };
 
 				this->vertices.emplace_back(vertex);
 			}
