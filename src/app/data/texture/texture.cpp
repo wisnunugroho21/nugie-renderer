@@ -8,6 +8,8 @@
 #include <cmath>
 
 namespace NugieApp {
+  Texture::Texture(NugieVulkan::Device* device) : device{device} {};
+
   Texture::Texture(NugieVulkan::Device* device, NugieVulkan::CommandBuffer* commandBuffer, const char* textureFileName) : device{device} {
     this->createImage(commandBuffer, textureFileName);
     this->createSampler();

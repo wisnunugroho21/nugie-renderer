@@ -2,8 +2,8 @@
 
 #include "../utils/load_model/load_model.hpp"
 
-#include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
-#include "../data/terrain/terrain_mesh/terrain_mesh.hpp"
+#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
+#include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -81,6 +81,8 @@ namespace NugieApp {
 			if (terrainTexture != nullptr) delete terrainTexture;
 		}
 
+		if (this->heightMapTexture != nullptr) delete this->heightMapTexture;
+
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
 
@@ -114,6 +116,8 @@ namespace NugieApp {
 				terrainTexture->generateMipmap(prepareCommandBuffer);
 			}
 		}
+
+		this->heightMapTexture->generateMipmap(prepareCommandBuffer);
 
 		prepareCommandBuffer->endCommand();
 
@@ -337,32 +341,32 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		int size = 256;
+		int size = 2;
 		int iterations = 500;
 		float minHeight = 0.0f;
 		float maxHeight = 300.0f;
 		float filter = 0.5f;
 		float worldScale = 4.0f;
+		
+		auto terrainPoints = FlatTerrainGeneration(size, 1.0f).getTerrainPoints();
 
-		TerrainMesh terrainMesh = TerrainMesh::convertPointsToMeshes(
-			FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints(), 
-			worldScale
-		); //loadTerrain("../assets/terrain/heightmap.save");
+		auto quadMesh = QuadTerrainMesh();
+		quadMesh.convertPointsToMeshes(terrainPoints);
 
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
-		for (auto &&index : terrainMesh.indices) {
+		for (auto &&index : quadMesh.getIndices()) {
 			indices.emplace_back(verticesSize + index);
 		}
 
-		for (auto &&vertex : terrainMesh.vertices) {
+		for (auto &&vertex : quadMesh.getVertices()) {
 			vertices.emplace_back(vertex);
 		}
 
-		for (auto &&normText : terrainMesh.normTexts) {
+		for (auto &&normText : quadMesh.getNormTexts()) {
 			normTexts.emplace_back(normText);
 		}
 
-		this->verticeTerrainCount = static_cast<uint32_t>(terrainMesh.vertices.size());
+		this->verticeTerrainCount = static_cast<uint32_t>(quadMesh.getVertices().size());
 
 		/* LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
 
@@ -490,6 +494,8 @@ namespace NugieApp {
 		this->midTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/grass.png"));
 		this->highTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/rock.jpg"));
 
+		this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());
+
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
 	}
@@ -570,17 +576,14 @@ namespace NugieApp {
 			.build();
 
 		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->vertexDataBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightBuffer->getInfo())
-			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->lowTerrainTextures[0]->getDescriptorInfo())
-			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->midTerrainTextures[0]->getDescriptorInfo())
-			.addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->highTerrainTextures[0]->getDescriptorInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->vertexDataBuffer->getInfo())
+			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->heightMapTexture->getDescriptorInfo())
 			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
-		this->terrainRenderer = new TerrainPassRenderSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.frag.spv");
+		this->terrainRenderer = new TerrainPassRenderSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.tesc.spv", 
+			"shader/terrain.tese.spv", "shader/terrain.frag.spv");
 
 		this->forwardPassRenderer->initialize();
 		this->shadowPassRenderer->initialize();

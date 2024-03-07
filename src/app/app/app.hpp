@@ -10,6 +10,7 @@
 #include "../data/buffer/object_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
+#include "../data/texture/heightmap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
@@ -68,10 +69,6 @@ namespace NugieApp {
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
-
-			/* ArrayBuffer<uint32_t>* terrainIndexBuffer = nullptr;
-			ArrayBuffer<NormText>* terrainNormTextBuffer = nullptr;
-			ArrayBuffer<Vertex>* terrainVertexBuffer = nullptr; */
 			
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
@@ -93,9 +90,11 @@ namespace NugieApp {
 			VertexData vertexData;
 			FragmentData fragmentData;
 
-			std::vector<NugieApp::Texture*> colorTextures;
-			std::vector<NugieApp::Texture*> lowTerrainTextures;
-			std::vector<NugieApp::Texture*> midTerrainTextures;
-			std::vector<NugieApp::Texture*> highTerrainTextures;
+			HeightMapTexture* heightMapTexture;
+
+			std::vector<Texture*> colorTextures;
+			std::vector<Texture*> lowTerrainTextures;
+			std::vector<Texture*> midTerrainTextures;
+			std::vector<Texture*> highTerrainTextures;
 	};
 }

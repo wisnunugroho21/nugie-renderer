@@ -23,7 +23,9 @@ namespace NugieApp
       VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
       void generateMipmap(NugieVulkan::CommandBuffer* commandBuffer);
 
-    private:
+    protected:
+      Texture(NugieVulkan::Device* device);
+
       NugieVulkan::Device* device = nullptr;
       NugieVulkan::Buffer* stagingBuffer = nullptr;
       NugieVulkan::Image* image = nullptr;
@@ -31,8 +33,8 @@ namespace NugieApp
 
       bool hasMipmapped = false;
 
-      void createImage(NugieVulkan::CommandBuffer* commandBuffer, const char* textureFileName);
-      void createSampler();
+      virtual void createImage(NugieVulkan::CommandBuffer* commandBuffer, const char* textureFileName);
+      virtual void createSampler();
   };
   
   
