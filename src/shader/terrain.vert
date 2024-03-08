@@ -1,11 +1,11 @@
 #version 460
 
-layout(location = 0) in vec4 position;
-layout(location = 1) in vec2 textCoord;
+layout(location = 0) in vec4 inPosition;
+layout(location = 1) in vec2 inTextCoord;
 
-layout(location = 0) out vec2 tescTextCoord;
+layout(location = 0) out vec2 outTextCoord;
 
 void main() {
-	tescTextCoord = textCoord;	
-	gl_Position = position;
+	outTextCoord = inTextCoord;	
+	gl_Position = inPosition;
 }

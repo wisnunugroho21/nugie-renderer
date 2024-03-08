@@ -3,6 +3,7 @@
 #include "../utils/load_model/load_model.hpp"
 
 #include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
+#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
 #include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -578,6 +579,10 @@ namespace NugieApp {
 		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->vertexDataBuffer->getInfo())
 			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->heightMapTexture->getDescriptorInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
+			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->lowTerrainTextures[0]->getDescriptorInfo())
+			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->midTerrainTextures[0]->getDescriptorInfo())
+			.addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->highTerrainTextures[0]->getDescriptorInfo())
 			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
