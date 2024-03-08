@@ -3,7 +3,6 @@
 #include "../utils/load_model/load_model.hpp"
 
 #include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
-#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
 #include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
 
 #define GLM_FORCE_RADIANS
