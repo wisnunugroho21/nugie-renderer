@@ -356,12 +356,12 @@ namespace NugieApp {
 
 
 		uint32_t size = 256;
-		uint32_t iterations = 500;
+		uint32_t iterations = 250;
 		uint32_t patchSize = 32;
 		float minHeight = 0.0f;
 		float maxHeight = 300.0f;
 		float filter = 0.5f;
-		float worldScale = 4.0f;
+		float worldScale = 10.0f;
 		
 		auto terrainPoints = FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
@@ -516,9 +516,8 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(200.0f, 300.0f, -150.0f);
-		glm::vec3 target = glm::vec3(0.0f, -0.35f, 1.0f);
-		glm::vec3 vup = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 position = glm::vec3(100.0f, 0.0f, 100.0f);
+		glm::vec3 target = glm::vec3(400.0f, 0.0f, 400.0f);
 
 		float near = 0.1f;
 		float far = 2000.0f;
@@ -527,7 +526,7 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
 		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
-		this->camera->setViewTarget(position, target, vup);
+		this->camera->setViewTarget(position, target);
 
 		glm::mat4 view = this->camera->getViewMatrix();
 		glm::mat4 projection = this->camera->getProjectionMatrix();
