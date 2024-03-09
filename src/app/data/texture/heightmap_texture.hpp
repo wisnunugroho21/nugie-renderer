@@ -19,6 +19,7 @@ namespace NugieApp
 
     private:
       void createImage(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<float> &heightPoints);
+      void createSampler() override;
   };
   
   
