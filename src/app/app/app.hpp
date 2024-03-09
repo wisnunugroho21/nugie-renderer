@@ -74,6 +74,7 @@ namespace NugieApp {
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
 			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
 			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
+			ArrayBuffer<VkDrawIndexedIndirectCommand>* drawCommandBuffer = nullptr;
 
 			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
 			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;

@@ -712,4 +712,9 @@ namespace NugieVulkan {
 	void GraphicPipeline::drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount) {
 		vkCmdDrawIndexed(commandBuffer->getCommandBuffer(), indexCount, 1, 0, 0, 0);
 	}
+
+	void GraphicPipeline::drawIndirectIndexed(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset) {
+		vkCmdDrawIndexedIndirect(commandBuffer->getCommandBuffer(), drawCommandBuffer->getBuffer(), offset, indexCount, 
+			static_cast<uint32_t>(sizeof(VkDrawIndexedIndirectCommand)));
+	}
 } // namespace NugieVulkan

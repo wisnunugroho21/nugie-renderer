@@ -52,6 +52,7 @@ namespace NugieApp {
 		if (this->tessellationDataBuffer != nullptr) delete this->tessellationDataBuffer;
 		if (this->fragmentDataBuffer != nullptr) delete this->fragmentDataBuffer;
 
+		if (this->drawCommandBuffer != nullptr) delete this->drawCommandBuffer;
 		if (this->indexBuffer != nullptr) delete this->indexBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
@@ -157,8 +158,11 @@ namespace NugieApp {
 				} */
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
+
+				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->drawCommandBuffer->getBuffer(), this->drawCommandBuffer->size(), 0);
+				// this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
 				// this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
+
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				commandBuffer->endCommand();
@@ -348,12 +352,13 @@ namespace NugieApp {
 		std::vector<uint32_t> indices;
 		std::vector<SpotLight> spotLights;
 		
-		std::vector<uint32_t> terrainIndices;
+		/* std::vector<uint32_t> terrainIndices;
 		std::vector<Vertex> terrainVertices;
-		std::vector<NormText> terrainNormTexts;
+		std::vector<NormText> terrainNormTexts; */
+
+		std::vector<VkDrawIndexedIndirectCommand> drawCommands;
 
 		// ----------------------------------------------------------------------------
-
 
 		uint32_t size = 256;
 		uint32_t iterations = 250;
@@ -467,6 +472,20 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
+		uint32_t quadCount = static_cast<uint32_t>(quadMesh.getIndices().size()) / 4;
+		for (uint32_t i = 0; i < quadCount; i++) {
+			VkDrawIndexedIndirectCommand drawCommand{};
+			drawCommand.indexCount = 4u;
+			drawCommand.instanceCount = 1u;
+			drawCommand.firstIndex = i * 4u;
+			drawCommand.vertexOffset = 0u;
+			drawCommand.firstInstance = 0u;
+
+			drawCommands.emplace_back(drawCommand);
+		}
+
+		// ----------------------------------------------------------------------------
+
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
 		this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
@@ -501,6 +520,9 @@ namespace NugieApp {
 
 		this->spotLightBuffer = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
 		this->spotLightBuffer->replace(commandBuffer, spotLights);
+
+		this->drawCommandBuffer = new ArrayBuffer<VkDrawIndexedIndirectCommand>(this->device, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, static_cast<uint32_t>(drawCommands.size()));
+		this->drawCommandBuffer->replace(commandBuffer, drawCommands);
 
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");

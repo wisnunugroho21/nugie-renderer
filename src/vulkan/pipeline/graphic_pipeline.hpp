@@ -121,8 +121,10 @@ namespace NugieVulkan {
 
 			void bindPipeline(CommandBuffer* commandBuffer);
 			void bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize>&vertexOffsets, Buffer* indexBuffer = nullptr);
+
 			void draw(CommandBuffer* commandBuffer, uint32_t vertextCount);
 			void drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount);
+			void drawIndirectIndexed(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset);
 
 		private:
 			Device* device = nullptr;

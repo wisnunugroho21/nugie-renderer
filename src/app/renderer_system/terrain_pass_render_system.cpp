@@ -68,4 +68,32 @@ namespace NugieApp {
 			.setRasterizationInfo(rasterizationInfo)
 			.buildTessallation();
 	}
+
+	void TerrainPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+		NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset)
+	{
+		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
+
+		this->pipeline->bindPipeline(commandBuffer);
+
+		vkCmdBindDescriptorSets(
+			commandBuffer->getCommandBuffer(),
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			this->pipelineLayout,
+			0,
+			static_cast<uint32_t>(descriptorSets.size()),
+			(descriptorSets.size() > 0) ? descriptorSets.data() : nullptr,
+			0,
+			nullptr
+		);
+
+		std::vector<VkDeviceSize> offsets{};
+		for (auto &&vertexBuffer : vertexBuffers) {
+			offsets.emplace_back(0);
+		}
+
+		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);		
+		this->pipeline->drawIndirectIndexed(commandBuffer, drawCommandBuffer, indexCount, offset);
+	}
 }
