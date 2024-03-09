@@ -19,12 +19,13 @@ namespace NugieApp {
 		public:
 			TerrainPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& tescFilePath, 
-				const std::string& teseFilePath, const std::string& fragFilePath);
+				const std::string& teseFilePath, const std::string& fragFilePath, bool isRasterLineMode = false);
 
 		private:
 			void createPipeline() override;
 
 			std::string tescFilePath;
 			std::string teseFilePath;
+			bool isRasterLineMode = false;
 	};
 }
