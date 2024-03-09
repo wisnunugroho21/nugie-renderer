@@ -13,6 +13,8 @@ layout(set = 0, binding = 0) uniform readonly CameraTransformation {
 
 layout(set = 0, binding = 1) uniform readonly TessellationData {
 	vec2 screenSize;
+	float tessellationFactor;
+	float tessellatedEdgeSize;
 };
 
 // Calculate the tessellation factor based on screen space
@@ -42,7 +44,7 @@ float screenSpaceTessFactor(vec4 p0, vec4 p1)
 	// Return the tessellation factor based on the screen size 
 	// given by the distance of the two edge control points in screen space
 	// and a reference (min.) tessellation size for the edge set by the application
-	return clamp(distance(clip0, clip1) / 32 * 1.0f, 1.0, 32.0);
+	return clamp(distance(clip0, clip1) / tessellatedEdgeSize * tessellationFactor, 1.0, 32.0);
 }
 
 void main() {

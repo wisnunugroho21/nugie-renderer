@@ -533,8 +533,8 @@ namespace NugieApp {
 		this->cameraTransformation.projection = projection;
 		this->cameraTransformation.view = view;
 
-		// this->tessellationData.tessellatedEdgeSize = 32;
-		// this->tessellationData.tessellationFactor = 1.0f;
+		this->tessellationData.tessellatedEdgeSize = 32;
+		this->tessellationData.tessellationFactor = 1.0f;
 		this->tessellationData.screenSize = { width, height };
 
 		this->fragmentData.origin = glm::vec4(position, 1.0f);
