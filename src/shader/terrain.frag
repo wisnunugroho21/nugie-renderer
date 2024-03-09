@@ -57,5 +57,5 @@ void main() {
   // float NoL = max(dot(fragNormal, ubo.sunLight.direction * -1.0f), 0.3f);
   // vec4 totalRadiance = NoL * surfaceColor * ubo.sunLight.color;
 
-  outColor = vec4(1.0f); // surfaceColor; //clamp(totalRadiance, 0.0f, 1.0f);
+  outColor = surfaceColor; //clamp(totalRadiance, 0.0f, 1.0f);
 }
