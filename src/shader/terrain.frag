@@ -7,15 +7,15 @@ layout(location = 1) in vec2 inTextCoord;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 2) uniform readonly FragmentData {
+layout(set = 0, binding = 4) uniform readonly FragmentData {
 	vec4 origin;
   uvec4 numLights;
   SunLight sunLight;
 } ubo;
 
-layout(set = 0, binding = 3) uniform sampler2D terrainTextureLow[1];
-layout(set = 0, binding = 4) uniform sampler2D terrainTextureMid[1];
-layout(set = 0, binding = 5) uniform sampler2D terrainTextureHigh[1];
+layout(set = 0, binding = 5) uniform sampler2D terrainTextureLow[1];
+layout(set = 0, binding = 6) uniform sampler2D terrainTextureMid[1];
+layout(set = 0, binding = 7) uniform sampler2D terrainTextureHigh[1];
 
 // -----------------------------------------------------------
 
@@ -57,5 +57,5 @@ void main() {
   // float NoL = max(dot(fragNormal, ubo.sunLight.direction * -1.0f), 0.3f);
   // vec4 totalRadiance = NoL * surfaceColor * ubo.sunLight.color;
 
-  outColor = surfaceColor; //clamp(totalRadiance, 0.0f, 1.0f);
+  outColor = vec4(1.0f); // surfaceColor; //clamp(totalRadiance, 0.0f, 1.0f);
 }

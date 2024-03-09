@@ -7,5 +7,5 @@ layout(location = 0) out vec2 outTextCoord;
 
 void main() {
 	outTextCoord = inTextCoord;	
-	gl_Position = inPosition;
+	gl_Position = vec4(inPosition.xyz, 1.0f);
 }

@@ -67,8 +67,13 @@ namespace NugieApp {
     SunLight sunLight;
   };
 
-  struct VertexData {
-    glm::mat4 cameraTransforms;
+  struct CameraTransformation {
+    glm::mat4 view;
+	  glm::mat4 projection;
+  };
+
+  struct TessellationData {
+    alignas(16) glm::vec2 screenSize;
   };
 
   struct ShadowPushConstant {

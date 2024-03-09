@@ -7,11 +7,12 @@ layout(location = 0) in vec2 inTextCoord[];
 layout(location = 0) out float outHeight;
 layout(location = 1) out vec2 outTextCoord;
 
-layout(set = 0, binding = 0) uniform readonly VertexData {
-	mat4 cameraTransforms;
-} ubo;
+layout(set = 0, binding = 2) uniform readonly CameraTransformation {
+	mat4 view;
+	mat4 projection;
+};
 
-layout(set = 0, binding = 1) uniform sampler2D heightMapTexture;
+layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
 
 void main() {
 	vec2 uv1 = mix(inTextCoord[0], inTextCoord[1], gl_TessCoord.x);
@@ -25,5 +26,5 @@ void main() {
 	outHeight = pos.y + texture(heightMapTexture, outTextCoord).r;
 	pos.y = outHeight * -1.0f;
 	
-	gl_Position = ubo.cameraTransforms * pos;
+	gl_Position = projection * view * pos;
 }

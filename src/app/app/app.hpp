@@ -75,7 +75,8 @@ namespace NugieApp {
 			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
 			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
 
-			ObjectBuffer<VertexData>* vertexDataBuffer = nullptr;
+			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
+			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;
 			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;
 			
 			DescriptorSet* terrainDescSet = nullptr;
@@ -87,7 +88,8 @@ namespace NugieApp {
 
 			uint32_t frameCount = 0, verticeTerrainCount = 0;
 
-			VertexData vertexData;
+			CameraTransformation cameraTransformation;
+			TessellationData tessellationData;
 			FragmentData fragmentData;
 
 			HeightMapTexture* heightMapTexture;
