@@ -8,5 +8,6 @@ namespace NugieApp {
   struct QuadTerrainMesh : public TerrainMesh {
     public:
       void convertPointsToMeshes(TerrainPoints* terrainPoints, float worldScale = 1.0f) override;
+      void convertPointsToMeshes(TerrainPoints* terrainPoints, uint32_t patchSize = 32, float worldScale = 1.0f);
   };
 }

@@ -354,8 +354,10 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		int size = 256;
-		int iterations = 500;
+
+		uint32_t size = 256;
+		uint32_t iterations = 500;
+		uint32_t patchSize = 32;
 		float minHeight = 0.0f;
 		float maxHeight = 300.0f;
 		float filter = 0.5f;
@@ -364,7 +366,7 @@ namespace NugieApp {
 		auto terrainPoints = FaultTerrainGeneration(size, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
 		auto quadMesh = QuadTerrainMesh();
-		quadMesh.convertPointsToMeshes(terrainPoints, worldScale);
+		quadMesh.convertPointsToMeshes(terrainPoints, patchSize, worldScale);
 
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : quadMesh.getIndices()) {

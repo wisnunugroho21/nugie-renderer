@@ -3,20 +3,20 @@
 #include "../../../utils/load_file/load_file.hpp"
 
 namespace NugieApp {
-  FaultTerrainGeneration::FaultTerrainGeneration(int terrainSize, int iterations, float minHeight, float maxHeight, float filter) {
+  FaultTerrainGeneration::FaultTerrainGeneration(uint32_t terrainSize, uint32_t iterations, float minHeight, float maxHeight, float filter) {
     this->generateTerrainPoints(terrainSize, iterations, minHeight, maxHeight, filter);
   }
 
-  void FaultTerrainGeneration::generateTerrainPoints(int terrainSize, int iterations, float minHeight, float maxHeight, float filter) {
+  void FaultTerrainGeneration::generateTerrainPoints(uint32_t terrainSize, uint32_t iterations, float minHeight, float maxHeight, float filter) {
     this->terrainPoints = new TerrainPoints(terrainSize);
     this->createFaultFormationInternal(iterations, minHeight, maxHeight, filter);
     this->terrainPoints->normalize(minHeight, maxHeight);
   }
 
-  void FaultTerrainGeneration::createFaultFormationInternal(int iterations, float minHeight, float maxHeight, float filter) {
+  void FaultTerrainGeneration::createFaultFormationInternal(uint32_t iterations, float minHeight, float maxHeight, float filter) {
     float deltaHeight = maxHeight - minHeight;
 
-    for (int curIter = 0; curIter < iterations; curIter++) {
+    for (uint32_t curIter = 0; curIter < iterations; curIter++) {
       float iterationRatio = (static_cast<float>(curIter) / static_cast<float>(iterations));
       float height = maxHeight - iterationRatio * deltaHeight;
 
@@ -64,7 +64,7 @@ namespace NugieApp {
 
   void FaultTerrainGeneration::applyFIRFilter(float filter) {
     // left to right
-    for (int z = 0; z < this->terrainPoints->getSize(); z++) {
+    for (uint32_t z = 0; z < this->terrainPoints->getSize(); z++) {
       float prevVal = this->terrainPoints->get(0, z);
       for (int x = 1; x < this->terrainPoints->getSize(); x++) {
         prevVal = this->firFilterSinglePoint(x, z, prevVal, filter);
@@ -72,7 +72,7 @@ namespace NugieApp {
     }
 
     // right to left
-    for (int z = 0; z < this->terrainPoints->getSize(); z++) {
+    for (uint32_t z = 0; z < this->terrainPoints->getSize(); z++) {
       float prevVal = this->terrainPoints->get(this->terrainPoints->getSize() - 1, z);
       for (int x = this->terrainPoints->getSize() - 2; x >= 0; x--) {
         prevVal = this->firFilterSinglePoint(x, z, prevVal, filter);
@@ -80,7 +80,7 @@ namespace NugieApp {
     }
 
     // bottom to top
-    for (int x = 0; x < this->terrainPoints->getSize(); x++) {
+    for (uint32_t x = 0; x < this->terrainPoints->getSize(); x++) {
       float prevVal = this->terrainPoints->get(x, 0);
       for (int z = 1; z < this->terrainPoints->getSize(); z++) {
         prevVal = this->firFilterSinglePoint(x, z, prevVal, filter);
@@ -88,7 +88,7 @@ namespace NugieApp {
     }
 
     // top to bottom
-    for (int x = 0; x < this->terrainPoints->getSize(); x++) {
+    for (uint32_t x = 0; x < this->terrainPoints->getSize(); x++) {
       float prevVal = this->terrainPoints->get(x, this->terrainPoints->getSize() - 1);
       for (int z = this->terrainPoints->getSize() - 2; z >= 0; z--) {
         prevVal = this->firFilterSinglePoint(x, z, prevVal, filter);

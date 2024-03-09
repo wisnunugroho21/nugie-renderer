@@ -7,12 +7,12 @@
 namespace NugieApp {
   class FaultTerrainGeneration : public TerrainGeneration { 
     public:
-      FaultTerrainGeneration(int terrainSize, int iterations, float minHeight, float maxHeight, float filter);
+      FaultTerrainGeneration(uint32_t terrainSize, uint32_t iterations, float minHeight, float maxHeight, float filter);
 
     private:
-      void generateTerrainPoints(int terrainSize, int iterations, float minHeight, float maxHeight, float filter);
+      void generateTerrainPoints(uint32_t terrainSize, uint32_t iterations, float minHeight, float maxHeight, float filter);
 
-      void createFaultFormationInternal(int iterations, float minHeight, float maxHeight, float filter);
+      void createFaultFormationInternal(uint32_t iterations, float minHeight, float maxHeight, float filter);
       void genRandomTerrainPoints(int* x1, int* x2, int* z1, int* z2);
       void applyFIRFilter(float filter);
       float firFilterSinglePoint(int x, int z, float prevFractalVal, float filter);
