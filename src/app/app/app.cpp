@@ -61,7 +61,7 @@ namespace NugieApp {
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
 		// if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
-		if (this->patchBuffer != nullptr) delete this->patchBuffer;
+		if (this->aabbBuffer != nullptr) delete this->aabbBuffer;
 
 		/* if (this->terrainIndexBuffer != nullptr) delete this->terrainIndexBuffer;
 		if (this->terrainVertexBuffer != nullptr) delete this->terrainVertexBuffer;
@@ -162,7 +162,7 @@ namespace NugieApp {
 					this->shadowSubRenderer->endRenderPass(commandBuffer); 
 				} */
 
-				this->frustumCullRenderer->render(commandBuffer, { this->frustumDescSet->getDescriptorSets(frameIndex) }, this->patchBuffer->size() / 32, 1, 1);
+				this->frustumCullRenderer->render(commandBuffer, { this->frustumDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
 
 				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 
 					VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -257,13 +257,6 @@ namespace NugieApp {
 
 				this->cameraTransformation.view = this->camera->getViewMatrix();
 				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
-
-				Frustum frustum;
-				frustum.setFromViewProjection(this->camera->getProjectionMatrix() * this->camera->getViewMatrix());
-
-				for (uint32_t i = 0; i < 6; i++) {
-					this->frustumData.frustumPlanes[i] = frustum.getPlanes()[i];
-				}
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -332,13 +325,6 @@ namespace NugieApp {
 
 				this->cameraTransformation.view = this->camera->getViewMatrix();
 				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
-
-				Frustum frustum;
-				frustum.setFromViewProjection(this->camera->getProjectionMatrix() * this->camera->getViewMatrix());
-
-				for (uint32_t i = 0; i < 6; i++) {
-					this->frustumData.frustumPlanes[i] = frustum.getPlanes()[i];
-				}
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -384,7 +370,7 @@ namespace NugieApp {
 		std::vector<ShadowTransformation> shadowTransforms;
 		std::vector<uint32_t> indices;
 		std::vector<SpotLight> spotLights;
-		std::vector<Patch> patches;
+		std::vector<Aabb> aabbs;
 		
 		/* std::vector<uint32_t> terrainIndices;
 		std::vector<Vertex> terrainVertices;
@@ -418,8 +404,8 @@ namespace NugieApp {
 			normTexts.emplace_back(normText);
 		}
 
-		for (auto &&patch : quadMesh.getPatches()) {
-			patches.emplace_back(patch);
+		for (auto &&aabb : quadMesh.getAabbs()) {
+			aabbs.emplace_back(aabb);
 		}
 
 		this->verticeTerrainCount = static_cast<uint32_t>(quadMesh.getVertices().size());
@@ -524,8 +510,8 @@ namespace NugieApp {
 		this->normTextBuffer = new ArrayBuffer<NormText>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(normTexts.size()));
 		this->normTextBuffer->replace(commandBuffer, normTexts);
 
-		this->patchBuffer = new ArrayBuffer<Patch>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(patches.size()));
-		this->patchBuffer->replace(commandBuffer, patches);
+		this->aabbBuffer = new ArrayBuffer<Aabb>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(aabbs.size()));
+		this->aabbBuffer->replace(commandBuffer, aabbs);
 
 		/* this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
 		this->referenceBuffer->replace(commandBuffer, references);
@@ -594,13 +580,6 @@ namespace NugieApp {
 
 		this->fragmentData.sunLight.direction = glm::normalize(glm::vec4(0.0f, -1.0f, 0.0f, 0.0f));
 		this->fragmentData.sunLight.color = glm::vec4(3.0f, 3.0f, 3.0f, 1.0f);
-
-		Frustum frustum;
-		frustum.setFromViewProjection(projection * view);
-
-		for (uint32_t i = 0; i < 6; i++) {
-			this->frustumData.frustumPlanes[i] = frustum.getPlanes()[i];
-		}
 	}
 
 	void App::init() {
@@ -670,8 +649,9 @@ namespace NugieApp {
 		this->frustumDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->drawCommandBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->frustumDataBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->patchBuffer->getInfo())
-			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->heightMapTexture->getDescriptorInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->aabbBuffer->getInfo())
+			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->heightMapTexture->getDescriptorInfo())
 			.build();
 		
 		// this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
@@ -706,13 +686,6 @@ namespace NugieApp {
 		this->tessellationData.screenSize = { width, height };
 
 		this->cameraUpdateCount = 0u;
-
-		Frustum frustum;
-		frustum.setFromViewProjection(this->camera->getProjectionMatrix() * this->camera->getViewMatrix());
-
-		for (uint32_t i = 0; i < 6; i++) {
-			this->frustumData.frustumPlanes[i] = frustum.getPlanes()[i];
-		}
 		
 		this->recordCommand();
 	}

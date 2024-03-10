@@ -41,18 +41,17 @@ namespace NugieApp {
 		}
 
 		for (uint32_t i = 0; i < static_cast<uint32_t>(this->indices.size()); i += 4) {
-			Patch patch;
+			Aabb aabb{};
 
-			float xPos = 0.5f * (this->vertices[this->indices[0]].position.x + this->vertices[this->indices[1]].position.x);
-			float zPos = 0.5f * (this->vertices[this->indices[0]].position.z + this->vertices[this->indices[3]].position.z);
+			glm::vec4 max1 = glm::max(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 max2 = glm::max(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.maxPosition = glm::max(max1, max2);
 
-			float xTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.x + this->normTexts[this->indices[1]].textCoord.x);
-			float zTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.y + this->normTexts[this->indices[3]].textCoord.y);
+			glm::vec4 min1 = glm::min(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 min2 = glm::min(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.minPosition = glm::min(min1, min2);
 
-			patch.position = glm::vec4{ xPos, 0.0f, zPos, 1.0f };
-			patch.textCoord = glm::vec2{ xTextCoord, zTextCoord };
-
-			this->patches.emplace_back(patch);
+			this->aabbs.emplace_back(aabb);
 		}		
 	}
 
@@ -97,18 +96,17 @@ namespace NugieApp {
 		}
 
 		for (uint32_t i = 0; i < static_cast<uint32_t>(this->indices.size()); i += 4) {
-			Patch patch;
+			Aabb aabb{};
 
-			float xPos = 0.5f * (this->vertices[this->indices[0]].position.x + this->vertices[this->indices[1]].position.x);
-			float zPos = 0.5f * (this->vertices[this->indices[0]].position.z + this->vertices[this->indices[3]].position.z);
+			glm::vec4 max1 = glm::max(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 max2 = glm::max(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.maxPosition = glm::max(max1, max2);
 
-			float xTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.x + this->normTexts[this->indices[1]].textCoord.x);
-			float zTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.y + this->normTexts[this->indices[3]].textCoord.y);
+			glm::vec4 min1 = glm::min(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 min2 = glm::min(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.minPosition = glm::min(min1, min2);
 
-			patch.position = glm::vec4{ xPos, 0.0f, zPos, 1.0f };
-			patch.textCoord = glm::vec2{ xTextCoord, zTextCoord };
-
-			this->patches.emplace_back(patch);
+			this->aabbs.emplace_back(aabb);
 		}
 	}
 }

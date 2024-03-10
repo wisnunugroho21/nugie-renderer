@@ -20,9 +20,9 @@ struct Reference {
   uint transformIndex;
 };
 
-struct Patch {
-  vec4 position;
-  vec2 textCoord;
+struct Aabb {
+  vec4 maxPosition;
+  vec4 minPosition;
 };
 
 struct Material {

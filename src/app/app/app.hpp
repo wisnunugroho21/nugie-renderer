@@ -71,7 +71,7 @@ namespace NugieApp {
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			// ArrayBuffer<Reference>* referenceBuffer = nullptr;
-			ArrayBuffer<Patch>* patchBuffer = nullptr;
+			ArrayBuffer<Aabb>* aabbBuffer = nullptr;
 			
 			// ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;

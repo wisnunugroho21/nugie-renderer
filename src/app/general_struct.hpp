@@ -28,9 +28,9 @@ namespace NugieApp {
     uint32_t transformIndex;
   };
 
-  struct Patch {
-    glm::vec4 position;
-    alignas(16) glm::vec2 textCoord;
+  struct Aabb {
+    glm::vec4 maxPosition;
+    glm::vec4 minPosition;
   };
 
   struct Material {
@@ -83,7 +83,6 @@ namespace NugieApp {
   };
 
   struct FrustumData {
-    alignas(16) glm::vec4 frustumPlanes[6];
     uint32_t drawObjectCount;
   };
 

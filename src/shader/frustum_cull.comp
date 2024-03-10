@@ -9,31 +9,34 @@ layout (set = 0, binding = 0) buffer writeonly DrawCommandBuffer {
 };
 
 layout (set = 0, binding = 1) buffer FrustumData {
-  vec4 frustumPlanes[6];
   uint drawObjectCount;
 };
 
-layout (set = 0, binding = 2) buffer readonly PatchBuffer {
-  Patch patches[];
+layout(set = 0, binding = 2) uniform readonly CameraTransformation {
+	mat4 view;
+	mat4 projection;
 };
 
-layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
+layout (set = 0, binding = 3) buffer readonly AabbBuffer {
+  Aabb aabbs[];
+};
+
+layout(set = 0, binding = 4) uniform sampler2D heightMapTexture;
+
+bool isVisible(vec4 screenPosition) {
+  return screenPosition.x > -screenPosition.w && screenPosition.x < screenPosition.w
+    && screenPosition.y > -screenPosition.w && screenPosition.y < screenPosition.w
+    && screenPosition.z > 0 && screenPosition.z < screenPosition.w;
+}
 
 void main() {
-  const float radius = 16.0f;
-  Patch curPatch = patches[gl_GlobalInvocationID.x];
+  Aabb aabb = aabbs[gl_GlobalInvocationID.x];
+  mat4 mvp = projection * view;
+  
+  vec4 screenMaxPos = mvp * aabb.maxPosition;
+  vec4 screenMinPos = mvp * aabb.minPosition;
 
-	vec4 pos = curPatch.position;
-	pos.y = texture(heightMapTexture, curPatch.textCoord).r * -1.0f;
-
-  bool isVisible = true;
-	for (uint i = 0; i < 6; i++) {
-		if (dot(pos, frustumPlanes[i]) + radius < 0.0f) {
-			isVisible = false;
-		}
-	}
-
-  if (isVisible) {
+  if (isVisible(screenMaxPos) || isVisible(screenMinPos)) {
     VkDrawIndexedIndirectCommand drawCommand;
     drawCommand.indexCount = 4u;
     drawCommand.instanceCount = 1u;    
