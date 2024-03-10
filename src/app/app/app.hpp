@@ -60,23 +60,23 @@ namespace NugieApp {
 			Renderer* renderer = nullptr;
 
 			SubRenderer* finalSubRenderer = nullptr;
-			SubRenderer* shadowSubRenderer = nullptr;			
+			// SubRenderer* shadowSubRenderer = nullptr;			
 			
 			ComputeRenderSystem* frustumCullRenderer = nullptr;
 			TerrainPassRenderSystem* terrainRenderer = nullptr;
-			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
-			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
+			// ForwardPassRenderSystem* forwardPassRenderer = nullptr;
+			// ShadowPassRenderSystem* shadowPassRenderer = nullptr;
 
 			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
-			ArrayBuffer<Reference>* referenceBuffer = nullptr;
+			// ArrayBuffer<Reference>* referenceBuffer = nullptr;
 			ArrayBuffer<Patch>* patchBuffer = nullptr;
 			
-			ArrayBuffer<Material>* materialBuffer = nullptr;
+			// ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
-			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
-			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
+			// ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
+			// ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
 			ManyArrayBuffer<VkDrawIndexedIndirectCommand>* drawCommandBuffer = nullptr;
 
 			ObjectBuffer<FrustumData>* frustumDataBuffer = nullptr;
@@ -86,8 +86,8 @@ namespace NugieApp {
 			
 			DescriptorSet* frustumDescSet = nullptr;
 			DescriptorSet* terrainDescSet = nullptr;
-			DescriptorSet* forwardDescSet = nullptr;
-			DescriptorSet* shadowDescSet = nullptr;
+			// DescriptorSet* forwardDescSet = nullptr;
+			// DescriptorSet* shadowDescSet = nullptr;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 			bool isRendering = true;
@@ -101,7 +101,7 @@ namespace NugieApp {
 
 			HeightMapTexture* heightMapTexture;
 
-			std::vector<Texture*> colorTextures;
+			// std::vector<Texture*> colorTextures;
 			std::vector<Texture*> lowTerrainTextures;
 			std::vector<Texture*> midTerrainTextures;
 			std::vector<Texture*> highTerrainTextures;
