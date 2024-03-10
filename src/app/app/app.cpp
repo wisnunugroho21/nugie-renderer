@@ -1,7 +1,6 @@
 #include "app.hpp"
 
 #include "../utils/load_model/load_model.hpp"
-#include "../data/frustum/frustum.hpp"
 
 #include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
 #include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
