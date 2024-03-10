@@ -88,7 +88,8 @@ namespace NugieApp {
 		rasterizationInfo.depthBiasEnable = VK_TRUE;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
-			.setDefaultVertex(this->vertFilePath, bindingDescriptions, attributeDescription)
+			.setDefault(bindingDescriptions, attributeDescription)
+			.addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, vertFilePath)
 			.setDynamicStateInfo(dynamicStateInfo)
 			.setMultisampleInfo(multisampleInfo)
 			.setRasterizationInfo(rasterizationInfo)

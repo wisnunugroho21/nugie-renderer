@@ -61,12 +61,21 @@ namespace NugieApp {
 		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_FALSE;
 
+		VkPipelineTessellationStateCreateInfo tessellationInfo{};
+		tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+		tessellationInfo.patchControlPoints = 4;
+		tessellationInfo.flags = 0;		
+
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
-			.setDefaultTessallation(this->vertFilePath, this->tescFilePath, this->teseFilePath, this->fragFilePath, 
-				colorBlendAttachment, bindingDescriptions, attributeDescription)
+			.setDefault(colorBlendAttachment, bindingDescriptions, attributeDescription)
+			.addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, this->vertFilePath)
+			.addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, this->fragFilePath)
+			.addShaderStage(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->tescFilePath)
+			.addShaderStage(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->teseFilePath)
 			.setInputAssemblyInfo(inputAssemblyInfo)
 			.setRasterizationInfo(rasterizationInfo)
-			.buildTessallation();
+			.setTessellationInfo(tessellationInfo)
+			.build();
 	}
 
 	void TerrainPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 

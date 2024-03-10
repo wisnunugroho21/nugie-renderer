@@ -27,29 +27,17 @@ namespace NugieVulkan {
 						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 					);
 
-					Builder& setDefaultVertexGeometry(
-						const std::string& vertFilePath, 
-						const std::string& geomFilePath,
+					Builder& setDefault(
+						const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments, 
 						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 					);
 
-					Builder& setDefaultVertex(
-						const std::string& vertFilePath,
+					Builder& setDefault( 
 						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 					);
-
-					Builder& setDefaultTessallation(
-						const std::string& vertFilePath,
-						const std::string& tescFilePath,
-						const std::string& teseFilePath, 
-						const std::string& fragFilePath, 
-						const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
-						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
-					);
-
+					
 					Builder& setSubpass(uint32_t subpass);
 					Builder& setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo);
 					Builder& setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo);
@@ -61,8 +49,9 @@ namespace NugieVulkan {
 					Builder& setShaderStagesInfo(const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo);
 					Builder& setTessellationInfo(VkPipelineTessellationStateCreateInfo tessellationInfo);
 
+					Builder& addShaderStage(VkShaderStageFlagBits shaderStage, const std::string& shaderFilePath);
+
 					GraphicPipeline* build();
-					GraphicPipeline* buildTessallation();
 
 				private:
 					VkPipelineLayout pipelineLayout;
@@ -83,21 +72,6 @@ namespace NugieVulkan {
 					
 					Device* device = nullptr;
 			};
-
-			GraphicPipeline(
-				Device* device, 
-				VkPipelineLayout pipelineLayout,
-				VkRenderPass renderPass,
-				uint32_t subpass,
-				VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-				VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-				VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-				VkPipelineMultisampleStateCreateInfo multisampleInfo,
-				VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-				VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-				VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo
-			);
 
 			GraphicPipeline(
 				Device* device, 
