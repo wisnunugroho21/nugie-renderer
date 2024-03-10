@@ -1,0 +1,50 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 32) in;
+
+layout (set = 0, binding = 0) buffer writeonly DrawCommandBuffer {
+  VkDrawIndexedIndirectCommand drawCommands[];
+};
+
+layout (set = 0, binding = 1) buffer FrustumData {
+  vec4 frustumPlanes[6];
+  uint drawObjectCount;
+};
+
+layout (set = 0, binding = 2) buffer readonly PatchBuffer {
+  Patch patches[];
+};
+
+layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
+
+void main() {
+  const float radius = 16.0f;
+  Patch curPatch = patches[gl_GlobalInvocationID.x];
+
+	vec4 pos = curPatch.position;
+	pos.y = texture(heightMapTexture, curPatch.textCoord).r * -1.0f;
+
+  bool isVisible = true;
+	for (uint i = 0; i < 6; i++) {
+		if (dot(pos, frustumPlanes[i]) + radius < 0.0f) {
+			isVisible = false;
+		}
+	}
+
+  if (isVisible) {
+    VkDrawIndexedIndirectCommand drawCommand;
+    drawCommand.indexCount = 4u;
+    drawCommand.instanceCount = 1u;    
+    drawCommand.vertexOffset = 0;
+    drawCommand.firstInstance = 0u;
+    drawCommand.firstIndex = gl_GlobalInvocationID.x * 4u;
+
+    uint curObjDrawIndex = atomicAdd(drawObjectCount, 1);
+    drawCommands[curObjDrawIndex] = drawCommand;
+  }
+}
+
+
+

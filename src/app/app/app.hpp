@@ -8,11 +8,13 @@
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
+#include "../data/buffer/many_array_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../data/texture/heightmap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
+#include "../renderer_system/compute_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/terrain_pass_render_system.hpp"
 #include "../renderer_system/shadow_pass_render_system.hpp"
@@ -60,26 +62,29 @@ namespace NugieApp {
 			SubRenderer* finalSubRenderer = nullptr;
 			SubRenderer* shadowSubRenderer = nullptr;			
 			
+			ComputeRenderSystem* frustumCullRenderer = nullptr;
+			TerrainPassRenderSystem* terrainRenderer = nullptr;
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
-			TerrainPassRenderSystem* terrainRenderer = nullptr;
 
 			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
-
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
+			ArrayBuffer<Patch>* patchBuffer = nullptr;
 			
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
 			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
 			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
-			ArrayBuffer<VkDrawIndexedIndirectCommand>* drawCommandBuffer = nullptr;
+			ManyArrayBuffer<VkDrawIndexedIndirectCommand>* drawCommandBuffer = nullptr;
 
+			ObjectBuffer<FrustumData>* frustumDataBuffer = nullptr;
 			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
 			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;
-			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;
+			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;			
 			
+			DescriptorSet* frustumDescSet = nullptr;
 			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
 			DescriptorSet* shadowDescSet = nullptr;
@@ -92,6 +97,7 @@ namespace NugieApp {
 			CameraTransformation cameraTransformation;
 			TessellationData tessellationData;
 			FragmentData fragmentData;
+			FrustumData frustumData{};
 
 			HeightMapTexture* heightMapTexture;
 

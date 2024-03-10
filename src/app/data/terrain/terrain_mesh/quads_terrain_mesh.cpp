@@ -38,6 +38,21 @@ namespace NugieApp {
 
 				this->normTexts.emplace_back(normText);
 			}
+		}
+
+		for (uint32_t i = 0; i < static_cast<uint32_t>(this->indices.size()); i += 4) {
+			Patch patch;
+
+			float xPos = 0.5f * (this->vertices[this->indices[0]].position.x + this->vertices[this->indices[1]].position.x);
+			float zPos = 0.5f * (this->vertices[this->indices[0]].position.z + this->vertices[this->indices[3]].position.z);
+
+			float xTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.x + this->normTexts[this->indices[1]].textCoord.x);
+			float zTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.y + this->normTexts[this->indices[3]].textCoord.y);
+
+			patch.position = glm::vec4{ xPos, 0.0f, zPos, 1.0f };
+			patch.textCoord = glm::vec2{ xTextCoord, zTextCoord };
+
+			this->patches.emplace_back(patch);
 		}		
 	}
 
@@ -79,6 +94,21 @@ namespace NugieApp {
 
 				this->normTexts.emplace_back(normText);
 			}
-		}		
+		}
+
+		for (uint32_t i = 0; i < static_cast<uint32_t>(this->indices.size()); i += 4) {
+			Patch patch;
+
+			float xPos = 0.5f * (this->vertices[this->indices[0]].position.x + this->vertices[this->indices[1]].position.x);
+			float zPos = 0.5f * (this->vertices[this->indices[0]].position.z + this->vertices[this->indices[3]].position.z);
+
+			float xTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.x + this->normTexts[this->indices[1]].textCoord.x);
+			float zTextCoord = 0.5f * (this->normTexts[this->indices[0]].textCoord.y + this->normTexts[this->indices[3]].textCoord.y);
+
+			patch.position = glm::vec4{ xPos, 0.0f, zPos, 1.0f };
+			patch.textCoord = glm::vec2{ xTextCoord, zTextCoord };
+
+			this->patches.emplace_back(patch);
+		}
 	}
 }
