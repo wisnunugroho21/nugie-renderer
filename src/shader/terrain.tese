@@ -4,10 +4,10 @@ layout(quads, equal_spacing, ccw) in;
 
 layout(location = 0) in vec2 inTextCoord[];
 
-layout(location = 0) out float outHeight;
+layout(location = 0) out vec4 outPosition;
 layout(location = 1) out vec2 outTextCoord;
 
-layout(set = 0, binding = 2) uniform readonly CameraTransformation {
+layout(set = 0, binding = 2) uniform readonly CameraTransformationBuffer {
 	mat4 view;
 	mat4 projection;
 };
@@ -23,10 +23,11 @@ void main() {
 	vec4 pos2 = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
 	vec4 pos = mix(pos1, pos2, gl_TessCoord.y);
 	
-	outHeight = pos.y + texture(heightMapTexture, heightTextCoord).r;
+	pos.y = texture(heightMapTexture, heightTextCoord).r;
+
+	outPosition = pos;
 	outTextCoord = vec2(gl_TessCoord);
 
-	pos.y = outHeight * -1.0f;
-	
+	// pos.y = pos.y * -1.0f;	
 	gl_Position = projection * view * pos;
 }

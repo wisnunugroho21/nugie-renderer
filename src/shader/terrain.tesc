@@ -6,7 +6,7 @@ layout(location = 0) in vec2 inTextCoord[];
 
 layout(location = 0) out vec2 outTextCoord[];
 
-layout(set = 0, binding = 0) uniform readonly CameraTransformation {
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
 	mat4 view;
 	mat4 projection;
 };

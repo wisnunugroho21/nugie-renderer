@@ -39,7 +39,8 @@ struct Transformation {
 };
 
 struct ShadowTransformation {
-  mat4 viewProjectionMatrix;
+  mat4 view;
+	mat4 projection;
 };
 
 struct PointLight {

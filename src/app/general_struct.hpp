@@ -47,7 +47,8 @@ namespace NugieApp {
   };
 
   struct ShadowTransformation {
-    glm::mat4 viewProjectionMatrix{1.0f};
+    glm::mat4 view{1.0f};
+	  glm::mat4 projection{1.0f};
   };
 
   struct PointLight {

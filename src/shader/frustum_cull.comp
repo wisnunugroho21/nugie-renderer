@@ -12,7 +12,7 @@ layout (set = 0, binding = 1) buffer FrustumData {
   uint drawObjectCount;
 };
 
-layout(set = 0, binding = 2) uniform readonly CameraTransformation {
+layout(set = 0, binding = 2) uniform readonly CameraTransformationBuffer {
 	mat4 view;
 	mat4 projection;
 };
