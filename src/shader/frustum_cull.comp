@@ -38,11 +38,11 @@ void main() {
 
   if (isVisible(screenMaxPos) || isVisible(screenMinPos)) {
     VkDrawIndexedIndirectCommand drawCommand;
-    drawCommand.indexCount = 4u;
+    drawCommand.indexCount = aabb.indicesCount;
     drawCommand.instanceCount = 1u;    
     drawCommand.vertexOffset = 0;
     drawCommand.firstInstance = 0u;
-    drawCommand.firstIndex = gl_GlobalInvocationID.x * 4u;
+    drawCommand.firstIndex = aabb.firstIndex;
 
     uint curObjDrawIndex = atomicAdd(drawObjectCount, 1);
     drawCommands[curObjDrawIndex] = drawCommand;

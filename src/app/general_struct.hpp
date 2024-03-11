@@ -29,8 +29,10 @@ namespace NugieApp {
   };
 
   struct Aabb {
-    glm::vec4 maxPosition;
-    glm::vec4 minPosition;
+    alignas(16) glm::vec4 maxPosition;
+    alignas(16) glm::vec4 minPosition;
+    uint32_t firstIndex;
+    uint32_t indicesCount;
   };
 
   struct Material {
@@ -83,7 +85,7 @@ namespace NugieApp {
   };
 
   struct FrustumData {
-    uint32_t drawObjectCount;
+    uint32_t drawObjectCount = 0;
   };
 
   struct ShadowPushConstant {

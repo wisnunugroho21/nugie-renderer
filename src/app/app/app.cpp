@@ -390,10 +390,18 @@ namespace NugieApp {
 		auto quadMesh = QuadTerrainMesh();
 		quadMesh.convertPointsToMeshes(terrainPoints, patchSize, worldScale);
 
+		this->verticeTerrainCount = static_cast<uint32_t>(quadMesh.getVertices().size());
+
+		auto indicesSize = static_cast<uint32_t>(indices.size());
+		for (auto &&aabb : quadMesh.getAabbs()) {
+			aabb.firstIndex += indicesSize;
+			aabbs.emplace_back(aabb);
+		}
+
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : quadMesh.getIndices()) {
-			indices.emplace_back(index);
-		}
+			indices.emplace_back(verticesSize + index);
+		}		
 
 		for (auto &&vertex : quadMesh.getVertices()) {
 			vertices.emplace_back(vertex);
@@ -402,12 +410,6 @@ namespace NugieApp {
 		for (auto &&normText : quadMesh.getNormTexts()) {
 			normTexts.emplace_back(normText);
 		}
-
-		for (auto &&aabb : quadMesh.getAabbs()) {
-			aabbs.emplace_back(aabb);
-		}
-
-		this->verticeTerrainCount = static_cast<uint32_t>(quadMesh.getVertices().size());
 
 		/* LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
 

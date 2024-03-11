@@ -23,6 +23,8 @@ struct Reference {
 struct Aabb {
   vec4 maxPosition;
   vec4 minPosition;
+  uint firstIndex;
+  uint indicesCount;
 };
 
 struct Material {
