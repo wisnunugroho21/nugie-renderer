@@ -1,0 +1,53 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 32) in;
+
+layout (set = 0, binding = 0) buffer writeonly DrawCommandBuffer {
+  VkDrawIndexedIndirectCommand drawCommands[];
+};
+
+layout (set = 0, binding = 1) buffer FrustumData {
+  uint drawObjectCount;
+};
+
+layout(set = 0, binding = 2) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
+layout (set = 0, binding = 3) buffer readonly AabbBuffer {
+  Aabb aabbs[];
+};
+
+layout(set = 0, binding = 4) uniform sampler2D heightMapTexture;
+
+bool isVisible(vec4 screenPosition) {
+  return screenPosition.x > -screenPosition.w && screenPosition.x < screenPosition.w
+    && screenPosition.y > -screenPosition.w && screenPosition.y < screenPosition.w
+    && screenPosition.z > 0 && screenPosition.z < screenPosition.w;
+}
+
+void main() {
+  Aabb aabb = aabbs[gl_GlobalInvocationID.x];
+  mat4 mvp = projection * view;
+  
+  vec4 screenMaxPos = mvp * aabb.maxPosition;
+  vec4 screenMinPos = mvp * aabb.minPosition;
+
+  if (isVisible(screenMaxPos) || isVisible(screenMinPos)) {
+    VkDrawIndexedIndirectCommand drawCommand;
+    drawCommand.indexCount = aabb.indicesCount;
+    drawCommand.instanceCount = 1u;    
+    drawCommand.vertexOffset = 0;
+    drawCommand.firstInstance = 0u;
+    drawCommand.firstIndex = aabb.firstIndex;
+
+    uint curObjDrawIndex = atomicAdd(drawObjectCount, 1);
+    drawCommands[curObjDrawIndex] = drawCommand;
+  }
+}
+
+
+

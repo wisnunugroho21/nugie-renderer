@@ -15,18 +15,21 @@
 #include <vector>
 
 namespace NugieApp {
-	class ShadowPassRenderSystem : public GraphicRenderSystem {
+	class TerrainPassRenderSystem : public GraphicRenderSystem {
 		public:
-			ShadowPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
-				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath);
+			TerrainPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& tescFilePath, 
+				const std::string& teseFilePath, const std::string& fragFilePath, bool isRasterLineMode = false);
 
 			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
-				uint32_t indexCount, uint32_t lightIndex, const std::vector<VkDeviceSize> &vertexOffsets = {}, 
-				VkDeviceSize indexOffset = 0); 
+				NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset);
 
 		private:
-			void createPipelineLayout() override;
 			void createPipeline() override;
+
+			std::string tescFilePath;
+			std::string teseFilePath;
+			bool isRasterLineMode = false;
 	};
 }

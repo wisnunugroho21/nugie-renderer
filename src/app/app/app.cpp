@@ -2,6 +2,10 @@
 
 #include "../utils/load_model/load_model.hpp"
 
+#include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
+#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
+#include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -32,6 +36,8 @@ namespace NugieApp {
 	}
 
 	App::~App() {
+		if (this->frustumCullRenderer != nullptr) delete this->frustumCullRenderer;
+		if (this->terrainRenderer != nullptr) delete this->terrainRenderer;
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->shadowPassRenderer != nullptr) delete this->shadowPassRenderer;
 
@@ -40,16 +46,23 @@ namespace NugieApp {
 
 		if (this->renderer != nullptr) delete this->renderer;
 
+		if (this->frustumDescSet != nullptr) delete this->frustumDescSet;
+		if (this->terrainDescSet != nullptr) delete this->terrainDescSet;
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 
-		if (this->vertexDataBuffer != nullptr) delete this->vertexDataBuffer;
+		if (this->frustumDataBuffer != nullptr) delete this->frustumDataBuffer;
+		if (this->cameraTransformationBuffer != nullptr) delete this->cameraTransformationBuffer;
+		if (this->tessellationDataBuffer != nullptr) delete this->tessellationDataBuffer;
 		if (this->fragmentDataBuffer != nullptr) delete this->fragmentDataBuffer;
 
+		if (this->drawCommandBuffer != nullptr) delete this->drawCommandBuffer;
 		if (this->indexBuffer != nullptr) delete this->indexBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
 		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
+		if (this->aabbBuffer != nullptr) delete this->aabbBuffer;
+		
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
 		if (this->shadowTransformationBuffer != nullptr) delete this->shadowTransformationBuffer;
@@ -58,6 +71,20 @@ namespace NugieApp {
 		for (auto &&colorTexture : this->colorTextures) {
 			if (colorTexture != nullptr) delete colorTexture;
 		}
+
+		for (auto &&terrainTexture : this->lowTerrainTextures) {
+			if (terrainTexture != nullptr) delete terrainTexture;
+		}
+
+		for (auto &&terrainTexture : this->midTerrainTextures) {
+			if (terrainTexture != nullptr) delete terrainTexture;
+		}
+
+		for (auto &&terrainTexture : this->highTerrainTextures) {
+			if (terrainTexture != nullptr) delete terrainTexture;
+		}
+
+		if (this->heightMapTexture != nullptr) delete this->heightMapTexture;
 
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
@@ -75,9 +102,33 @@ namespace NugieApp {
 			}
 		}
 
+		for (auto &&terrainTexture : this->lowTerrainTextures) {
+			if (!terrainTexture->hasBeenMipmapped()) {
+				terrainTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		for (auto &&terrainTexture : this->midTerrainTextures) {
+			if (!terrainTexture->hasBeenMipmapped()) {
+				terrainTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		for (auto &&terrainTexture : this->highTerrainTextures) {
+			if (!terrainTexture->hasBeenMipmapped()) {
+				terrainTexture->generateMipmap(prepareCommandBuffer);
+			}
+		}
+
+		this->heightMapTexture->generateMipmap(prepareCommandBuffer);
+
 		prepareCommandBuffer->endCommand();
 
 		uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+
+		std::vector<NugieVulkan::Buffer*> terrainBuffers;
+		terrainBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		terrainBuffers.emplace_back(this->normTextBuffer->getBuffer());		
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
 		forwardBuffers.emplace_back(this->vertexBuffer->getBuffer());
@@ -86,21 +137,44 @@ namespace NugieApp {
 
 		std::vector<NugieVulkan::Buffer*> shadowBuffers;
 		shadowBuffers.emplace_back(this->vertexBuffer->getBuffer());
-		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());
+		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());		 
+		
+		std::vector<VkDeviceSize> forwardBufferOffsets;
+		forwardBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(Vertex));
+		forwardBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(NormText));
+		forwardBufferOffsets.emplace_back(0);
+
+		std::vector<VkDeviceSize> shadowBufferOffsets;
+		shadowBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(Vertex));
+		shadowBufferOffsets.emplace_back(0);
+
+		uint32_t indexSize = this->indexBuffer->size() - this->indicesTerrainCount;
+		uint32_t indexOffset = this->indicesTerrainCount * sizeof(uint32_t);
 
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
+				this->frustumCullRenderer->render(commandBuffer, { this->frustumDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
+
+				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 
+					VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+
 				for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
-					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size(), lightIndex);
-					this->shadowSubRenderer->endRenderPass(commandBuffer);
-				}
+					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), indexSize, lightIndex, shadowBufferOffsets, indexOffset);
+					this->shadowSubRenderer->endRenderPass(commandBuffer); 
+				}				
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
+
+				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->drawCommandBuffer->getBuffer(frameIndex), this->drawCommandBuffer->size(), 0);
+				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), indexSize, forwardBufferOffsets, indexOffset);
+
 				this->finalSubRenderer->endRenderPass(commandBuffer);
+
+				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+					VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);				
 
 				commandBuffer->endCommand();
 			}
@@ -117,9 +191,15 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->vertexDataBuffer->writeGlobalData(frameIndex, this->vertexData);
+					this->cameraTransformationBuffer->writeGlobalData(frameIndex, this->cameraTransformation);
+					this->tessellationDataBuffer->writeGlobalData(frameIndex, this->tessellationData);
+					this->fragmentDataBuffer->writeGlobalData(frameIndex, this->fragmentData);
+					
 					this->cameraUpdateCount++;
 				}
+
+				this->frustumData.drawObjectCount = 0;
+				this->frustumDataBuffer->writeGlobalData(frameIndex, this->frustumData);
 
 				this->renderer->submitRenderCommand();
 
@@ -144,7 +224,8 @@ namespace NugieApp {
 		uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->vertexDataBuffer->writeGlobalData(i, this->vertexData);
+			this->cameraTransformationBuffer->writeGlobalData(i, this->cameraTransformation);
+			this->tessellationDataBuffer->writeGlobalData(i, this->tessellationData);
 			this->fragmentDataBuffer->writeGlobalData(i, this->fragmentData);
 		}
 
@@ -171,7 +252,9 @@ namespace NugieApp {
 
 			if (isMousePressed || isKeyboardPressed) {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
-				this->vertexData.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+
+				this->cameraTransformation.view = this->camera->getViewMatrix();
+				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -202,7 +285,8 @@ namespace NugieApp {
 		bool isMousePressed = false, isKeyboardPressed = false;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->vertexDataBuffer->writeGlobalData(i, this->vertexData);
+			this->cameraTransformationBuffer->writeGlobalData(i, this->cameraTransformation);
+			this->tessellationDataBuffer->writeGlobalData(i, this->tessellationData);
 			this->fragmentDataBuffer->writeGlobalData(i, this->fragmentData);
 		}
 
@@ -236,7 +320,9 @@ namespace NugieApp {
 
 			if ((isMousePressed || isKeyboardPressed)) {
 				this->camera->setViewDirection(cameraPosition, cameraDirection);
-				this->vertexData.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+
+				this->cameraTransformation.view = this->camera->getViewMatrix();
+				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -245,9 +331,15 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->vertexDataBuffer->writeGlobalData(frameIndex, this->vertexData);
+					this->cameraTransformationBuffer->writeGlobalData(frameIndex, this->cameraTransformation);
+					this->tessellationDataBuffer->writeGlobalData(frameIndex, this->tessellationData);
+					this->fragmentDataBuffer->writeGlobalData(frameIndex, this->fragmentData);
+
 					this->cameraUpdateCount++;
 				}
+
+				this->frustumData.drawObjectCount = 0;
+				this->frustumDataBuffer->writeGlobalData(frameIndex, this->frustumData);
 				
 				this->renderer->submitRenderCommand();
 
@@ -276,14 +368,52 @@ namespace NugieApp {
 		std::vector<ShadowTransformation> shadowTransforms;
 		std::vector<uint32_t> indices;
 		std::vector<SpotLight> spotLights;
+		std::vector<Aabb> aabbs;	
+
+		// ----------------------------------------------------------------------------
+
+		uint32_t terrainSize = 256;
+		uint32_t iterations = 250;
+		uint32_t patchSize = 32;
+		float minHeight = 0.0f;
+		float maxHeight = 300.0f;
+		float filter = 0.5f;
+		float worldScale = 10.0f;
+		
+		TerrainPoints* terrainPoints = FlatTerrainGeneration(terrainSize, 100.0f).getTerrainPoints();
+
+		QuadTerrainMesh quadMesh{};
+		quadMesh.convertPointsToMeshes(terrainPoints, patchSize, worldScale);
+
+		this->verticeTerrainCount = static_cast<uint32_t>(quadMesh.getVertices().size());
+		this->indicesTerrainCount = static_cast<uint32_t>(quadMesh.getIndices().size());
+
+		uint32_t indicesSize = static_cast<uint32_t>(indices.size());
+		for (auto &&aabb : quadMesh.getAabbs()) {
+			aabb.firstIndex += indicesSize;
+			aabbs.emplace_back(aabb);
+		}
+
+		auto verticesSize = static_cast<uint32_t>(vertices.size());
+		for (auto &&index : quadMesh.getIndices()) {
+			indices.emplace_back(verticesSize + index);
+		}		
+
+		for (auto &&vertex : quadMesh.getVertices()) {
+			vertices.emplace_back(vertex);
+		}
+
+		for (auto &&normText : quadMesh.getNormTexts()) {
+			normTexts.emplace_back(normText);
+		}
 
 		// ----------------------------------------------------------------------------
 
 		LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
 
-		auto verticesSize = static_cast<uint32_t>(vertices.size());
+		verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : loadedBuffer.indices) {
-			indices.emplace_back(verticesSize + index);
+			indices.emplace_back(index);
 		}
 
 		for (auto &&vertex : loadedBuffer.vertices) {
@@ -298,30 +428,7 @@ namespace NugieApp {
 			references.emplace_back(Reference{ 1, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
-
-		// ----------------------------------------------------------------------------
-
-		loadedBuffer = loadObjModel("../assets/models/quad_model.obj");
-
-		verticesSize = static_cast<uint32_t>(vertices.size());
-		for (auto &&index : loadedBuffer.indices) {
-			indices.emplace_back(verticesSize + index);
-		}
-
-		for (auto &&vertex : loadedBuffer.vertices) {
-			vertices.emplace_back(vertex);
-		}
-
-		for (auto &&normText : loadedBuffer.normTexts) {
-			normTexts.emplace_back(normText);
-		}
-
-		for (size_t i = 0; i < loadedBuffer.vertices.size(); i++) {
-			references.emplace_back(Reference{ 0, 1 });
-		}
-
-		transforms.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(50.0f), glm::vec3(glm::radians(0.0f), glm::radians(0.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(110.0f, 110.0f, 110.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 		
@@ -329,14 +436,14 @@ namespace NugieApp {
 		materials.emplace_back(Material{ glm::vec4{ 1.0f, 1.0f, 1.0f, 1.0f }, glm::vec4{ 0.0f, 0.0f, 0.0f, 0.0f }, 1u });
 
 		spotLights.resize(1);
-		spotLights[0].position = glm::vec4{ 40.0f, 50.0f, 0.0f, 1.0f };
-		spotLights[0].color = glm::vec4{ 50000.0f, 50000.0f, 50000.0f, 1.0f };
-		spotLights[0].direction = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f) - spotLights[0].position;
-		spotLights[0].angle = 60;
+		spotLights[0].position = glm::vec4{ 90.0f, 120.0f, 90.0f, 1.0f };
+		spotLights[0].color = glm::vec4{ 8000.0f, 8000.0f, 8000.0f, 1.0f };
+		spotLights[0].direction = glm::vec4(120.0f, 90.0f, 120.0f, 1.0f) - spotLights[0].position;
+		spotLights[0].angle = 45;
 
 		this->spotNumLight = static_cast<uint32_t>(spotLights.size());
 
-		// ---------------------------------------------------------------------
+		// ----------------------------------------------------------------------------
 
 		this->fragmentData.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
 
@@ -347,7 +454,7 @@ namespace NugieApp {
 		float near = 0.1f;
 		float far = 2000.0f;
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-		float theta = glm::radians(45.0);
+		float theta = glm::radians(spotLights[0].angle);
 
 		shadowCamera.setPerspectiveProjection(theta, aspectRatio, near, far);
 		glm::mat4 projection = shadowCamera.getProjectionMatrix();
@@ -355,9 +462,16 @@ namespace NugieApp {
 		shadowTransforms.resize(this->spotNumLight);
 
 		for (size_t i = 0; i < spotLights.size(); i++) {
-			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction, glm::vec3(0.0f, 0.0f, 1.0f));
-			shadowTransforms[i].viewProjectionMatrix = projection * shadowCamera.getViewMatrix();
+			shadowTransforms[i].projection = projection;
+
+			shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction);
+			shadowTransforms[i].view = shadowCamera.getViewMatrix();
 		}
+
+		// ----------------------------------------------------------------------------
+
+		uint32_t quadCount = static_cast<uint32_t>(quadMesh.getIndices().size()) / 4;
+		std::vector<VkDrawIndexedIndirectCommand> drawCommands { quadCount };
 
 		// ----------------------------------------------------------------------------
 
@@ -371,6 +485,9 @@ namespace NugieApp {
 
 		this->normTextBuffer = new ArrayBuffer<NormText>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(normTexts.size()));
 		this->normTextBuffer->replace(commandBuffer, normTexts);
+
+		this->aabbBuffer = new ArrayBuffer<Aabb>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(aabbs.size()));
+		this->aabbBuffer->replace(commandBuffer, aabbs);
 
 		this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
 		this->referenceBuffer->replace(commandBuffer, references);
@@ -387,17 +504,25 @@ namespace NugieApp {
 		this->spotLightBuffer = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
 		this->spotLightBuffer->replace(commandBuffer, spotLights);
 
+		this->drawCommandBuffer = new ManyArrayBuffer<VkDrawIndexedIndirectCommand>(this->device, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(drawCommands.size()));
+		this->drawCommandBuffer->replace(commandBuffer, drawCommands);
+
 		this->colorTextures.resize(1);
 		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
+
+		this->lowTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/snow.jpg"));
+		this->midTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/grass.png"));
+		this->highTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/rock.jpg"));
+
+		this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());		
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(0.0f, 40.0f, -30.0f);
-		glm::vec3 target = glm::vec3(0.0f, 10.0f, 0.0f);
-		glm::vec3 vup = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 position = glm::vec3(80.0f, 110.0f, 80.0f);
+		glm::vec3 target = glm::vec3(400.0f, 110.0f, 400.0f);
 
 		float near = 0.1f;
 		float far = 2000.0f;
@@ -406,13 +531,22 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
 		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
-		this->camera->setViewTarget(position, target, vup);
+		this->camera->setViewTarget(position, target);
 
 		glm::mat4 view = this->camera->getViewMatrix();
 		glm::mat4 projection = this->camera->getProjectionMatrix();
 
-		this->vertexData.cameraTransforms = projection * view;
+		this->cameraTransformation.projection = projection;
+		this->cameraTransformation.view = view;
+
+		this->tessellationData.tessellatedEdgeSize = 32;
+		this->tessellationData.tessellationFactor = 1.0f;
+		this->tessellationData.screenSize = { width, height };
+
 		this->fragmentData.origin = glm::vec4(position, 1.0f);
+
+		this->fragmentData.sunLight.direction = glm::normalize(glm::vec4(0.0f, -1.0f, 0.0f, 0.0f));
+		this->fragmentData.sunLight.color = glm::vec4(3.0f, 3.0f, 3.0f, 1.0f);
 	}
 
 	void App::init() {
@@ -423,8 +557,10 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
-		this->vertexDataBuffer = new ObjectBuffer<VertexData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->cameraTransformationBuffer = new ObjectBuffer<CameraTransformation>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->tessellationDataBuffer = new ObjectBuffer<TessellationData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		this->fragmentDataBuffer = new ObjectBuffer<FragmentData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->frustumDataBuffer = new ObjectBuffer<FrustumData>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
@@ -451,7 +587,7 @@ namespace NugieApp {
 		}
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->vertexDataBuffer->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->cameraTransformationBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialBuffer->getInfo())
@@ -466,11 +602,37 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationBuffer->getInfo())
 			.build();
 
+		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->tessellationDataBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->cameraTransformationBuffer->getInfo())
+			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->heightMapTexture->getDescriptorInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationBuffer->getInfo())
+			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->lowTerrainTextures[0]->getDescriptorInfo())
+			.addImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->midTerrainTextures[0]->getDescriptorInfo())
+			.addImage(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->highTerrainTextures[0]->getDescriptorInfo())
+			.addManyImage(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
+			.build();
+		
+		this->frustumDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->drawCommandBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->frustumDataBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->aabbBuffer->getInfo())
+			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->heightMapTexture->getDescriptorInfo())
+			.build();
+		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
+		this->terrainRenderer = new TerrainPassRenderSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.tesc.spv", 
+			"shader/terrain.tese.spv", "shader/terrain.frag.spv");
+		this->frustumCullRenderer = new ComputeRenderSystem(this->device, { this->frustumDescSet->getDescSetLayout() }, "shader/frustum_cull.comp.spv");
 
 		this->forwardPassRenderer->initialize();
 		this->shadowPassRenderer->initialize();
+		this->terrainRenderer->initialize();
+		this->frustumCullRenderer->initialize();
 	}
 
 	void App::resize() {
@@ -488,7 +650,10 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		this->camera->setAspect(aspectRatio);
 
-		this->vertexData.cameraTransforms = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
+		this->cameraTransformation.view = this->camera->getViewMatrix();
+		this->cameraTransformation.projection = this->camera->getProjectionMatrix();
+		this->tessellationData.screenSize = { width, height };
+
 		this->cameraUpdateCount = 0u;
 		
 		this->recordCommand();

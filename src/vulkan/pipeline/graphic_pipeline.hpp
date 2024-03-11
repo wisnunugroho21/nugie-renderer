@@ -27,19 +27,17 @@ namespace NugieVulkan {
 						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 					);
 
-					Builder& setDefaultVertexGeometry(
-						const std::string& vertFilePath, 
-						const std::string& geomFilePath,
+					Builder& setDefault(
+						const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments, 
 						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 					);
 
-					Builder& setDefaultVertex(
-						const std::string& vertFilePath,
+					Builder& setDefault( 
 						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 					);
-
+					
 					Builder& setSubpass(uint32_t subpass);
 					Builder& setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo);
 					Builder& setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo);
@@ -49,6 +47,9 @@ namespace NugieVulkan {
 					Builder& setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo depthStencilInfo);
 					Builder& setDynamicStateInfo(VkPipelineDynamicStateCreateInfo dynamicStateInfo);
 					Builder& setShaderStagesInfo(const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo);
+					Builder& setTessellationInfo(VkPipelineTessellationStateCreateInfo tessellationInfo);
+
+					Builder& addShaderStage(VkShaderStageFlagBits shaderStage, const std::string& shaderFilePath);
 
 					GraphicPipeline* build();
 
@@ -64,6 +65,7 @@ namespace NugieVulkan {
 					VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
 					VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
 					VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
+					VkPipelineTessellationStateCreateInfo tessellationInfo{};
 
 					std::vector<VkDynamicState> dynamicStates{};
 					std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo{};
@@ -83,7 +85,8 @@ namespace NugieVulkan {
 				VkPipelineColorBlendStateCreateInfo colorBlendInfo,
 				VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
 				VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo
+				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
+				VkPipelineTessellationStateCreateInfo tessellationInfo
 			);
 			~GraphicPipeline();
 
@@ -91,9 +94,12 @@ namespace NugieVulkan {
 			static void createShaderModule(Device* device, const std::vector<char>& code, VkShaderModule* shaderModule);
 
 			void bindPipeline(CommandBuffer* commandBuffer);
-			void bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize>&vertexOffsets, Buffer* indexBuffer = nullptr);
+			void bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize>&vertexOffsets, 
+				Buffer* indexBuffer = nullptr, VkDeviceSize indexOffset = 0);
+
 			void draw(CommandBuffer* commandBuffer, uint32_t vertextCount);
 			void drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount);
+			void drawIndirectIndexed(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset);
 
 		private:
 			Device* device = nullptr;
@@ -112,6 +118,21 @@ namespace NugieVulkan {
 				VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
 				VkPipelineDynamicStateCreateInfo dynamicStateInfo,
 				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo
+			);
+
+			void createGraphicPipeline(
+				VkPipelineLayout pipelineLayout,
+				VkRenderPass renderPass,
+				uint32_t subpass,
+				VkPipelineVertexInputStateCreateInfo vertexInputInfo,
+				VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
+				VkPipelineRasterizationStateCreateInfo rasterizationInfo,
+				VkPipelineMultisampleStateCreateInfo multisampleInfo,
+				VkPipelineColorBlendStateCreateInfo colorBlendInfo,
+				VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
+				VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
+				VkPipelineTessellationStateCreateInfo tessellationInfo
 			);
 	};
 }

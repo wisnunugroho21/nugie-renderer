@@ -18,5 +18,5 @@ layout(push_constant) uniform Push {
 };
 
 void main() {
-  gl_Position = (shadowTransformations[shadowIndex].viewProjectionMatrix * transformations[transformIndex].modelMatrix) * position; 
+  gl_Position = (shadowTransformations[shadowIndex].projection * shadowTransformations[shadowIndex].view * transformations[transformIndex].modelMatrix) * position;
 }

@@ -13,9 +13,10 @@ layout(location = 1) out vec4 fragNormal;
 layout(location = 2) out vec2 fragTextCoord;
 layout(location = 3) out flat uint fragMaterialIndex;
 
-layout(set = 0, binding = 0) uniform readonly VertexData {
-	mat4 cameraTransforms;
-} ubo;
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
 
 layout(set = 0, binding = 1) buffer readonly TransformationBuffer {
   Transformation transformations[];
@@ -23,7 +24,7 @@ layout(set = 0, binding = 1) buffer readonly TransformationBuffer {
 
 void main() {
 	fragPosition = transformations[transformIndex].modelMatrix * position;
-	gl_Position = ubo.cameraTransforms * fragPosition;
+	gl_Position = projection * view * fragPosition;
 	
 	fragNormal = normalize(transformations[transformIndex].normalMatrix * normal);
 	fragTextCoord = textCoord;

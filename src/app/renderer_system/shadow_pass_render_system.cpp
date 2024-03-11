@@ -88,7 +88,8 @@ namespace NugieApp {
 		rasterizationInfo.depthBiasEnable = VK_TRUE;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
-			.setDefaultVertex(this->vertFilePath, bindingDescriptions, attributeDescription)
+			.setDefault(bindingDescriptions, attributeDescription)
+			.addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, vertFilePath)
 			.setDynamicStateInfo(dynamicStateInfo)
 			.setMultisampleInfo(multisampleInfo)
 			.setRasterizationInfo(rasterizationInfo)
@@ -96,7 +97,8 @@ namespace NugieApp {
 	}
 
 	void ShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, uint32_t lightIndex) 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, uint32_t lightIndex,
+		const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset) 
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 
@@ -124,12 +126,17 @@ namespace NugieApp {
 			&lightIndex
 		);
 
-		std::vector<VkDeviceSize> offsets;
-		for (auto &&vertexBuffer : vertexBuffers) {
-			offsets.emplace_back(0);
+		if (vertexOffsets.size() == 0) {
+			std::vector<VkDeviceSize> offsets{};
+			for (auto &&vertexBuffer : vertexBuffers) {
+				offsets.emplace_back(0);
+			}
+
+			this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer, indexOffset);
+		} else {
+			this->pipeline->bindBuffers(commandBuffer, vertexBuffers, vertexOffsets, indexBuffer, indexOffset);
 		}
 
-		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);
 		this->pipeline->drawIndexed(commandBuffer, indexCount);
 	}
 }

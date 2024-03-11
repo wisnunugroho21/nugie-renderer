@@ -8,8 +8,9 @@
 #include <cmath>
 
 namespace NugieApp {
-  Texture::Texture(NugieVulkan::Device* device, NugieVulkan::CommandBuffer* commandBuffer, const char* textureFileName) : device{device} 
-  {
+  Texture::Texture(NugieVulkan::Device* device) : device{device} {};
+
+  Texture::Texture(NugieVulkan::Device* device, NugieVulkan::CommandBuffer* commandBuffer, const char* textureFileName) : device{device} {
     this->createImage(commandBuffer, textureFileName);
     this->createSampler();
   }
@@ -57,8 +58,7 @@ namespace NugieApp {
     this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
   }
 
-  void Texture::createSampler() 
-  {
+  void Texture::createSampler() {
     this->sampler = new NugieVulkan::Sampler(this->device, this->image, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, 
       VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, VK_SAMPLER_MIPMAP_MODE_LINEAR);
   }

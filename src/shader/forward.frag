@@ -55,11 +55,12 @@ void main() {
       vec4 irradiance = NoL * clamp(DoL, 0.0f, 1.0f) * RECIPROCAL_PI / dot(lightDirection, lightDirection) * spotLight.color;      
       vec4 brdf = surfaceColor * RECIPROCAL_PI;
 
-      vec4 shadowCoord = shadowTransformations[i].viewProjectionMatrix * fragPosition;
+      vec4 shadowCoord = shadowTransformations[i].projection * shadowTransformations[i].view * fragPosition;
       shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
       shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
       float shadowFactor = texture(shadowMapTexture[i], shadowCoord.xyz).x;
+      shadowFactor = shadowCoord.w <= 0.0f ? 1.0f : shadowFactor;
 
       totalRadiance += clamp(shadowFactor * brdf * irradiance, 0.0f, 1.0f);
       activeLight++;      

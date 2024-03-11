@@ -21,12 +21,18 @@ namespace NugieApp {
   struct NormText {    
     glm::vec4 normal;
     glm::vec2 textCoord;
-  };
-  
+  };  
   
   struct Reference {
     uint32_t materialIndex;
     uint32_t transformIndex;
+  };
+
+  struct Aabb {
+    alignas(16) glm::vec4 maxPosition;
+    alignas(16) glm::vec4 minPosition;
+    uint32_t firstIndex;
+    uint32_t indicesCount;
   };
 
   struct Material {
@@ -41,7 +47,8 @@ namespace NugieApp {
   };
 
   struct ShadowTransformation {
-    glm::mat4 viewProjectionMatrix{1.0f};
+    glm::mat4 view{1.0f};
+	  glm::mat4 projection{1.0f};
   };
 
   struct PointLight {
@@ -56,13 +63,30 @@ namespace NugieApp {
     float angle;
   };
 
+  struct SunLight {
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 direction;
+  };
+
   struct FragmentData {
     glm::vec4 origin;
     glm::uvec4 numLights;
+    SunLight sunLight;
   };
 
-  struct VertexData {
-    glm::mat4 cameraTransforms;
+  struct CameraTransformation {
+    glm::mat4 view;
+	  glm::mat4 projection;
+  };
+
+  struct TessellationData {
+    alignas(16) glm::vec2 screenSize;
+    float tessellationFactor;
+	  float tessellatedEdgeSize;
+  };
+
+  struct FrustumData {
+    uint32_t drawObjectCount = 0;
   };
 
   struct ShadowPushConstant {
