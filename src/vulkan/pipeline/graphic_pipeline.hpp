@@ -94,7 +94,8 @@ namespace NugieVulkan {
 			static void createShaderModule(Device* device, const std::vector<char>& code, VkShaderModule* shaderModule);
 
 			void bindPipeline(CommandBuffer* commandBuffer);
-			void bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize>&vertexOffsets, Buffer* indexBuffer = nullptr);
+			void bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize>&vertexOffsets, 
+				Buffer* indexBuffer = nullptr, VkDeviceSize indexOffset = 0);
 
 			void draw(CommandBuffer* commandBuffer, uint32_t vertextCount);
 			void drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount);

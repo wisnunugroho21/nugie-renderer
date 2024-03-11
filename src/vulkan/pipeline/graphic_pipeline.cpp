@@ -30,8 +30,12 @@ namespace NugieVulkan {
 		this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		this->colorBlendInfo.logicOpEnable = VK_FALSE;
 		this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-		this->colorBlendInfo.attachmentCount = 0;
-		this->colorBlendInfo.pAttachments = nullptr;
+		this->colorBlendInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+		this->colorBlendInfo.pAttachments = colorBlendAttachments.size() > 0 ? colorBlendAttachments.data() : nullptr;
+		this->colorBlendInfo.blendConstants[0] = 0.0f;  // Optional
+		this->colorBlendInfo.blendConstants[1] = 0.0f;  // Optional
+		this->colorBlendInfo.blendConstants[2] = 0.0f;  // Optional
+		this->colorBlendInfo.blendConstants[3] = 0.0f;  // Optional
 		
 		this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		this->rasterizationInfo.depthClampEnable = VK_FALSE;
@@ -505,7 +509,9 @@ namespace NugieVulkan {
 		vkCmdBindPipeline(commandBuffer->getCommandBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, this->graphicPipeline);
 	}
 
-	void GraphicPipeline::bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize> &vertexOffsets, Buffer* indexBuffer) {
+	void GraphicPipeline::bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize> &vertexOffsets, 
+		Buffer* indexBuffer, VkDeviceSize indexOffset) 
+	{
 		std::vector<VkBuffer> vBuffers;
 
 		for (auto &&vertexBuffer : vertexBuffers) {
@@ -515,7 +521,7 @@ namespace NugieVulkan {
 		vkCmdBindVertexBuffers(commandBuffer->getCommandBuffer(), 0u, static_cast<uint32_t>(vertexBuffers.size()), vBuffers.data(), vertexOffsets.data());
 
 		if (indexBuffer != nullptr) {
-			vkCmdBindIndexBuffer(commandBuffer->getCommandBuffer(), indexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(commandBuffer->getCommandBuffer(), indexBuffer->getBuffer(), indexOffset, VK_INDEX_TYPE_UINT32);
 		}
 	}
 
