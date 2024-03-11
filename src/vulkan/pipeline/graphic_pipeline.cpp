@@ -30,12 +30,8 @@ namespace NugieVulkan {
 		this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		this->colorBlendInfo.logicOpEnable = VK_FALSE;
 		this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-		this->colorBlendInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
-		this->colorBlendInfo.pAttachments = colorBlendAttachments.size() > 0 ? colorBlendAttachments.data() : nullptr;
-		this->colorBlendInfo.blendConstants[0] = 0.0f;  // Optional
-		this->colorBlendInfo.blendConstants[1] = 0.0f;  // Optional
-		this->colorBlendInfo.blendConstants[2] = 0.0f;  // Optional
-		this->colorBlendInfo.blendConstants[3] = 0.0f;  // Optional
+		this->colorBlendInfo.attachmentCount = 0;
+		this->colorBlendInfo.pAttachments = nullptr;
 		
 		this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		this->rasterizationInfo.depthClampEnable = VK_FALSE;
@@ -75,6 +71,12 @@ namespace NugieVulkan {
 		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
 		this->dynamicStateInfo.flags = 0;
 
+		this->tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+		this->tessellationInfo.patchControlPoints = 0;
+		this->tessellationInfo.flags = 0;
+
+		this->subpass = 0u;
+
 		VkShaderModule vertShaderModule;
 		VkShaderModule fragShaderModule;
 
@@ -103,14 +105,10 @@ namespace NugieVulkan {
 		fragmentShaderStageInfo.pSpecializationInfo = nullptr;
 
 		this->shaderStagesInfo = { vertexShaderStageInfo, fragmentShaderStageInfo };
-		this->subpass = 0u;
-
 		return *this;
 	}
 
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultVertexGeometry(
-		const std::string& vertFilePath, 
-		const std::string& geomFilePath,
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefault( 
 		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 	) {
@@ -119,7 +117,7 @@ namespace NugieVulkan {
 		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
 		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
 		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
-
+		
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
@@ -168,40 +166,17 @@ namespace NugieVulkan {
 		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
 		this->dynamicStateInfo.flags = 0;
 
-		VkShaderModule vertShaderModule;
-		auto vertCode = GraphicPipeline::readFile(vertFilePath);
-		GraphicPipeline::createShaderModule(this->device, vertCode, &vertShaderModule);
+		this->tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+		this->tessellationInfo.patchControlPoints = 0;
+		this->tessellationInfo.flags = 0;
 
-		VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
-		vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertexShaderStageInfo.module = vertShaderModule;
-		vertexShaderStageInfo.pName = "main";
-		vertexShaderStageInfo.flags = 0;
-		vertexShaderStageInfo.pNext = nullptr;
-		vertexShaderStageInfo.pSpecializationInfo = nullptr;
-
-		VkShaderModule geomShaderModule;
-		auto geomCode = GraphicPipeline::readFile(geomFilePath);
-		GraphicPipeline::createShaderModule(this->device, geomCode, &geomShaderModule);
-
-		VkPipelineShaderStageCreateInfo geometryShaderStageInfo{};
-		geometryShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		geometryShaderStageInfo.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
-		geometryShaderStageInfo.module = geomShaderModule;
-		geometryShaderStageInfo.pName = "main";
-		geometryShaderStageInfo.flags = 0;
-		geometryShaderStageInfo.pNext = nullptr;
-		geometryShaderStageInfo.pSpecializationInfo = nullptr;
-
-		this->shaderStagesInfo = { vertexShaderStageInfo, geometryShaderStageInfo };
 		this->subpass = 0u;
 
 		return *this;
 	}
 
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultVertex(
-		const std::string& vertFilePath,
+	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefault(
+		const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments, 
 		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
 		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
 	) {
@@ -210,91 +185,9 @@ namespace NugieVulkan {
 		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
 		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
 		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
-		
+
 		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-
-		this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		this->colorBlendInfo.logicOpEnable = VK_FALSE;
-		this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-		this->colorBlendInfo.attachmentCount = 0;
-		this->colorBlendInfo.pAttachments = nullptr;
-		
-		this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		this->rasterizationInfo.depthClampEnable = VK_FALSE;
-		this->rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-		this->rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-		this->rasterizationInfo.lineWidth = 1.0f;
-		this->rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
-		this->rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-		this->rasterizationInfo.depthBiasEnable = VK_FALSE;
-		this->rasterizationInfo.depthBiasConstantFactor = 0.0f;  // Optional
-		this->rasterizationInfo.depthBiasClamp = 0.0f;           // Optional
-		this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
-		
-		this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		this->multisampleInfo.sampleShadingEnable = VK_TRUE;
-		this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
-		this->multisampleInfo.minSampleShading = 0.2f;           
-		this->multisampleInfo.pSampleMask = nullptr;             // Optional
-		this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
-		this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
-		
-		this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		this->depthStencilInfo.depthTestEnable = VK_TRUE;
-		this->depthStencilInfo.depthWriteEnable = VK_TRUE;
-		this->depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-		this->depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
-		this->depthStencilInfo.minDepthBounds = 0.0f;  // Optional
-		this->depthStencilInfo.maxDepthBounds = 1.0f;  // Optional
-		this->depthStencilInfo.stencilTestEnable = VK_FALSE;
-		this->depthStencilInfo.front = {};  // Optional
-		this->depthStencilInfo.back = {};   // Optional
-
-		this->dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-
-		this->dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
-		this->dynamicStateInfo.pDynamicStates = this->dynamicStates.size() > 0 ? this->dynamicStates.data() : nullptr;
-		this->dynamicStateInfo.flags = 0;
-
-		VkShaderModule vertShaderModule;
-		auto vertCode = GraphicPipeline::readFile(vertFilePath);
-		GraphicPipeline::createShaderModule(this->device, vertCode, &vertShaderModule);
-
-		VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
-		vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertexShaderStageInfo.module = vertShaderModule;
-		vertexShaderStageInfo.pName = "main";
-		vertexShaderStageInfo.flags = 0;
-		vertexShaderStageInfo.pNext = nullptr;
-		vertexShaderStageInfo.pSpecializationInfo = nullptr;
-
-		this->shaderStagesInfo = { vertexShaderStageInfo };
-		this->subpass = 0u;
-
-		return *this;
-	}
-
-	GraphicPipeline::Builder& GraphicPipeline::Builder::setDefaultTessallation(
-		const std::string& vertFilePath,
-		const std::string& tescFilePath,
-		const std::string& teseFilePath, 
-		const std::string& fragFilePath, 
-		const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
-		const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-		const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions)
-	{
-		this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-		this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
-		this->vertexInputInfo.pVertexAttributeDescriptions = (attributeDescriptions.size() > 0) ? attributeDescriptions.data() : nullptr;
-		this->vertexInputInfo.pVertexBindingDescriptions = (bindingDescriptions.size() > 0) ? bindingDescriptions.data() : nullptr;
-
-		this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
 		this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
 		this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -346,61 +239,9 @@ namespace NugieVulkan {
 		this->dynamicStateInfo.flags = 0;
 
 		this->tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-		this->tessellationInfo.patchControlPoints = 4;
+		this->tessellationInfo.patchControlPoints = 0;
 		this->tessellationInfo.flags = 0;
 
-		VkShaderModule vertShaderModule;
-		VkShaderModule fragShaderModule;
-		VkShaderModule tescShaderModule;
-		VkShaderModule teseShaderModule;
-
-		auto vertCode = GraphicPipeline::readFile(vertFilePath);
-		auto fragCode = GraphicPipeline::readFile(fragFilePath);
-		auto tescCode = GraphicPipeline::readFile(tescFilePath);
-		auto teseCode = GraphicPipeline::readFile(teseFilePath);
-
-		GraphicPipeline::createShaderModule(this->device, vertCode, &vertShaderModule);
-		GraphicPipeline::createShaderModule(this->device, fragCode, &fragShaderModule);
-		GraphicPipeline::createShaderModule(this->device, tescCode, &tescShaderModule);
-		GraphicPipeline::createShaderModule(this->device, teseCode, &teseShaderModule);
-
-		VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
-		vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertexShaderStageInfo.module = vertShaderModule;
-		vertexShaderStageInfo.pName = "main";
-		vertexShaderStageInfo.flags = 0;
-		vertexShaderStageInfo.pNext = nullptr;
-		vertexShaderStageInfo.pSpecializationInfo = nullptr;
-
-		VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{};
-		fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragmentShaderStageInfo.module = fragShaderModule;
-		fragmentShaderStageInfo.pName = "main";
-		fragmentShaderStageInfo.flags = 0;
-		fragmentShaderStageInfo.pNext = nullptr;
-		fragmentShaderStageInfo.pSpecializationInfo = nullptr;
-
-		VkPipelineShaderStageCreateInfo tessellationControlShaderStageInfo{};
-		tessellationControlShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		tessellationControlShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-		tessellationControlShaderStageInfo.module = tescShaderModule;
-		tessellationControlShaderStageInfo.pName = "main";
-		tessellationControlShaderStageInfo.flags = 0;
-		tessellationControlShaderStageInfo.pNext = nullptr;
-		tessellationControlShaderStageInfo.pSpecializationInfo = nullptr;
-
-		VkPipelineShaderStageCreateInfo tessellationEvaluationShaderStageInfo{};
-		tessellationEvaluationShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		tessellationEvaluationShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-		tessellationEvaluationShaderStageInfo.module = teseShaderModule;
-		tessellationEvaluationShaderStageInfo.pName = "main";
-		tessellationEvaluationShaderStageInfo.flags = 0;
-		tessellationEvaluationShaderStageInfo.pNext = nullptr;
-		tessellationEvaluationShaderStageInfo.pSpecializationInfo = nullptr;
-
-		this->shaderStagesInfo = { vertexShaderStageInfo, fragmentShaderStageInfo, tessellationControlShaderStageInfo, tessellationEvaluationShaderStageInfo };
 		this->subpass = 0u;
 
 		return *this;
@@ -456,24 +297,27 @@ namespace NugieVulkan {
 		return *this;
 	}
 
-	GraphicPipeline* GraphicPipeline::Builder::build() {
-		return new GraphicPipeline(
-			this->device,
-			this->pipelineLayout,
-			this->renderPass,
-			this->subpass,
-			this->vertexInputInfo,
-			this->inputAssemblyInfo,
-			this->rasterizationInfo,
-			this->multisampleInfo,
-			this->colorBlendInfo,
-			this->depthStencilInfo,
-			this->dynamicStateInfo,
-			this->shaderStagesInfo
-		);
+	GraphicPipeline::Builder& GraphicPipeline::Builder::addShaderStage(VkShaderStageFlagBits shaderStage, const std::string& shaderFilePath) {		
+		auto shaderCode = GraphicPipeline::readFile(shaderFilePath);
+		VkShaderModule shaderModule;
+
+		GraphicPipeline::createShaderModule(this->device, shaderCode, &shaderModule);
+
+		VkPipelineShaderStageCreateInfo shaderStageInfo{};
+		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStageInfo.stage = shaderStage;
+		shaderStageInfo.module = shaderModule;
+		shaderStageInfo.pName = "main";
+		shaderStageInfo.flags = 0;
+		shaderStageInfo.pNext = nullptr;
+		shaderStageInfo.pSpecializationInfo = nullptr;
+
+		this->shaderStagesInfo.emplace_back(shaderStageInfo);
+
+		return *this;
 	}
 
-	GraphicPipeline* GraphicPipeline::Builder::buildTessallation(){
+	GraphicPipeline* GraphicPipeline::Builder::build(){
 		return new GraphicPipeline(
 			this->device,
 			this->pipelineLayout,
@@ -488,36 +332,6 @@ namespace NugieVulkan {
 			this->dynamicStateInfo,
 			this->shaderStagesInfo,
 			this->tessellationInfo
-		);
-	}
-
-	GraphicPipeline::GraphicPipeline(
-		Device* device, 
-		VkPipelineLayout pipelineLayout,
-		VkRenderPass renderPass,
-		uint32_t subpass,
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-		VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-		VkPipelineMultisampleStateCreateInfo multisampleInfo,
-		VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-		VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-		VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-		const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo
-	) : device{device} 
-	{
-		this->createGraphicPipeline(
-			pipelineLayout,
-			renderPass,
-			subpass,
-			vertexInputInfo,
-			inputAssemblyInfo,
-			rasterizationInfo,
-			multisampleInfo,
-			colorBlendInfo,
-			depthStencilInfo,
-			dynamicStateInfo,
-			shaderStagesInfo
 		);
 	}
 
@@ -711,5 +525,10 @@ namespace NugieVulkan {
 
 	void GraphicPipeline::drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount) {
 		vkCmdDrawIndexed(commandBuffer->getCommandBuffer(), indexCount, 1, 0, 0, 0);
+	}
+
+	void GraphicPipeline::drawIndirectIndexed(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset) {
+		vkCmdDrawIndexedIndirect(commandBuffer->getCommandBuffer(), drawCommandBuffer->getBuffer(), offset, indexCount, 
+			static_cast<uint32_t>(sizeof(VkDrawIndexedIndirectCommand)));
 	}
 } // namespace NugieVulkan

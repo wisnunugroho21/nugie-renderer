@@ -38,6 +38,25 @@ namespace NugieApp {
 
 				this->normTexts.emplace_back(normText);
 			}
+		}
+
+		uint32_t totalIndex = 0u;
+		for (uint32_t i = 0; i < static_cast<uint32_t>(this->indices.size()); i += 4) {
+			Aabb aabb{};
+
+			glm::vec4 max1 = glm::max(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 max2 = glm::max(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.maxPosition = glm::max(max1, max2);
+
+			glm::vec4 min1 = glm::min(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 min2 = glm::min(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.minPosition = glm::min(min1, min2);
+
+			aabb.indicesCount = 4;
+			aabb.firstIndex = totalIndex;
+
+			totalIndex += aabb.indicesCount;
+			this->aabbs.emplace_back(aabb);
 		}		
 	}
 
@@ -79,6 +98,25 @@ namespace NugieApp {
 
 				this->normTexts.emplace_back(normText);
 			}
-		}		
+		}
+
+		uint32_t totalIndex = 0u;
+		for (uint32_t i = 0; i < static_cast<uint32_t>(this->indices.size()); i += 4) {
+			Aabb aabb{};
+
+			glm::vec4 max1 = glm::max(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 max2 = glm::max(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.maxPosition = glm::max(max1, max2);
+
+			glm::vec4 min1 = glm::min(this->vertices[this->indices[0]].position, this->vertices[this->indices[1]].position);
+			glm::vec4 min2 = glm::min(this->vertices[this->indices[2]].position, this->vertices[this->indices[3]].position);
+			aabb.minPosition = glm::min(min1, min2);
+
+			aabb.indicesCount = 4;
+			aabb.firstIndex = totalIndex;
+
+			totalIndex += aabb.indicesCount;
+			this->aabbs.emplace_back(aabb);
+		}
 	}
 }

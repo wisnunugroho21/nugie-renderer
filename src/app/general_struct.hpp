@@ -21,12 +21,18 @@ namespace NugieApp {
   struct NormText {    
     glm::vec4 normal;
     glm::vec2 textCoord;
-  };
-  
+  };  
   
   struct Reference {
     uint32_t materialIndex;
     uint32_t transformIndex;
+  };
+
+  struct Aabb {
+    alignas(16) glm::vec4 maxPosition;
+    alignas(16) glm::vec4 minPosition;
+    uint32_t firstIndex;
+    uint32_t indicesCount;
   };
 
   struct Material {
@@ -76,6 +82,10 @@ namespace NugieApp {
     alignas(16) glm::vec2 screenSize;
     float tessellationFactor;
 	  float tessellatedEdgeSize;
+  };
+
+  struct FrustumData {
+    uint32_t drawObjectCount = 0;
   };
 
   struct ShadowPushConstant {

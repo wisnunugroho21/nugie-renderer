@@ -8,11 +8,13 @@
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
+#include "../data/buffer/many_array_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../data/texture/heightmap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
+#include "../renderer_system/compute_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/terrain_pass_render_system.hpp"
 #include "../renderer_system/shadow_pass_render_system.hpp"
@@ -58,30 +60,34 @@ namespace NugieApp {
 			Renderer* renderer = nullptr;
 
 			SubRenderer* finalSubRenderer = nullptr;
-			SubRenderer* shadowSubRenderer = nullptr;			
+			// SubRenderer* shadowSubRenderer = nullptr;			
 			
-			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
-			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
+			ComputeRenderSystem* frustumCullRenderer = nullptr;
 			TerrainPassRenderSystem* terrainRenderer = nullptr;
+			// ForwardPassRenderSystem* forwardPassRenderer = nullptr;
+			// ShadowPassRenderSystem* shadowPassRenderer = nullptr;
 
 			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
-
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
-			ArrayBuffer<Reference>* referenceBuffer = nullptr;
+			// ArrayBuffer<Reference>* referenceBuffer = nullptr;
+			ArrayBuffer<Aabb>* aabbBuffer = nullptr;
 			
-			ArrayBuffer<Material>* materialBuffer = nullptr;
+			// ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
-			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
-			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
+			// ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
+			// ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
+			ManyArrayBuffer<VkDrawIndexedIndirectCommand>* drawCommandBuffer = nullptr;
 
+			ObjectBuffer<FrustumData>* frustumDataBuffer = nullptr;
 			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
 			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;
-			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;
+			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;			
 			
+			DescriptorSet* frustumDescSet = nullptr;
 			DescriptorSet* terrainDescSet = nullptr;
-			DescriptorSet* forwardDescSet = nullptr;
-			DescriptorSet* shadowDescSet = nullptr;
+			// DescriptorSet* forwardDescSet = nullptr;
+			// DescriptorSet* shadowDescSet = nullptr;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 			bool isRendering = true;
@@ -91,10 +97,11 @@ namespace NugieApp {
 			CameraTransformation cameraTransformation;
 			TessellationData tessellationData;
 			FragmentData fragmentData;
+			FrustumData frustumData{};
 
 			HeightMapTexture* heightMapTexture;
 
-			std::vector<Texture*> colorTextures;
+			// std::vector<Texture*> colorTextures;
 			std::vector<Texture*> lowTerrainTextures;
 			std::vector<Texture*> midTerrainTextures;
 			std::vector<Texture*> highTerrainTextures;

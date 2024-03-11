@@ -61,11 +61,48 @@ namespace NugieApp {
 		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_FALSE;
 
+		VkPipelineTessellationStateCreateInfo tessellationInfo{};
+		tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+		tessellationInfo.patchControlPoints = 4;
+		tessellationInfo.flags = 0;		
+
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
-			.setDefaultTessallation(this->vertFilePath, this->tescFilePath, this->teseFilePath, this->fragFilePath, 
-				colorBlendAttachment, bindingDescriptions, attributeDescription)
+			.setDefault(colorBlendAttachment, bindingDescriptions, attributeDescription)
+			.addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, this->vertFilePath)
+			.addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, this->fragFilePath)
+			.addShaderStage(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->tescFilePath)
+			.addShaderStage(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->teseFilePath)
 			.setInputAssemblyInfo(inputAssemblyInfo)
 			.setRasterizationInfo(rasterizationInfo)
-			.buildTessallation();
+			.setTessellationInfo(tessellationInfo)
+			.build();
+	}
+
+	void TerrainPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
+		NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset)
+	{
+		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
+
+		this->pipeline->bindPipeline(commandBuffer);
+
+		vkCmdBindDescriptorSets(
+			commandBuffer->getCommandBuffer(),
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			this->pipelineLayout,
+			0,
+			static_cast<uint32_t>(descriptorSets.size()),
+			(descriptorSets.size() > 0) ? descriptorSets.data() : nullptr,
+			0,
+			nullptr
+		);
+
+		std::vector<VkDeviceSize> offsets{};
+		for (auto &&vertexBuffer : vertexBuffers) {
+			offsets.emplace_back(0);
+		}
+
+		this->pipeline->bindBuffers(commandBuffer, vertexBuffers, offsets, indexBuffer);		
+		this->pipeline->drawIndirectIndexed(commandBuffer, drawCommandBuffer, indexCount, offset);
 	}
 }
