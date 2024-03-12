@@ -84,7 +84,7 @@ namespace NugieApp {
 		rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationInfo.lineWidth = 1.0f;
 		rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
-		rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationInfo.depthBiasEnable = VK_TRUE;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)

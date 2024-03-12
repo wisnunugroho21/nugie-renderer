@@ -409,7 +409,7 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		LoadedBuffer loadedBuffer = loadObjModel("../assets/models/viking_room.obj");
+		LoadedBuffer loadedBuffer = loadObjModel("../assets/models/box.obj");
 
 		verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : loadedBuffer.indices) {
@@ -425,10 +425,10 @@ namespace NugieApp {
 		}
 
 		for (size_t i = 0; i < loadedBuffer.vertices.size(); i++) {
-			references.emplace_back(Reference{ 1, 0 });
+			references.emplace_back(Reference{ 0, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(110.0f, 110.0f, 110.0f), glm::vec3(10.0f), glm::vec3(glm::radians(270.0f), glm::radians(90.0f), glm::radians(0.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(110.0f, 110.0f, 110.0f), glm::vec3(5.0f), glm::vec3(glm::radians(90.0f)) });
 
 		// ----------------------------------------------------------------------------
 		

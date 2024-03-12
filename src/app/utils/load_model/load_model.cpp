@@ -25,9 +25,19 @@ namespace std {
 			return seed;
 		}
 	};
-} 
+}
 
 namespace NugieApp {
+	uint32_t findSameVertex(Vertex vertex, NormText normText, std::vector<Vertex> vertices, std::vector<NormText> normTexts) {
+		for (uint32_t i = 0; i < static_cast<uint32_t>(vertices.size()); i++) {
+			if (vertices[i].position == vertex.position && normTexts[i].normal == normText.normal && normTexts[i].textCoord == normText.textCoord) {
+				return i + 1u;
+			}
+		}
+
+		return 0u;		
+	}
+
   LoadedBuffer loadObjModel(const std::string &filePath) {
     LoadedBuffer loadedBuffer;
     
@@ -40,7 +50,6 @@ namespace NugieApp {
 			throw std::runtime_error(warn + err);
 		}
 
-		std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 		for (const auto &shape: shapes) {
 			for (const auto &index: shape.mesh.indices) {
 				Vertex vertex;
@@ -71,14 +80,17 @@ namespace NugieApp {
 					};
 				}
 
-				if (uniqueVertices.count(vertex) == 0) {
-					uniqueVertices[vertex] = static_cast<uint32_t>(loadedBuffer.vertices.size());
+				uint32_t sameVertex = findSameVertex(vertex, normText, loadedBuffer.vertices, loadedBuffer.normTexts);
+
+				if (sameVertex == 0u) {
+					uint32_t index = static_cast<uint32_t>(loadedBuffer.vertices.size());
 
 					loadedBuffer.vertices.emplace_back(vertex);
 					loadedBuffer.normTexts.emplace_back(normText);
+					loadedBuffer.indices.emplace_back(index);
+				} else {
+					loadedBuffer.indices.emplace_back(sameVertex - 1u);
 				}
-
-				loadedBuffer.indices.emplace_back(uniqueVertices[vertex]);
 			}
 		}
 
