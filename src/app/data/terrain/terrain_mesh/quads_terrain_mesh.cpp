@@ -2,8 +2,6 @@
 
 namespace NugieApp {
 	void QuadTerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints, float worldScale) {
-		// float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
-
 		for (uint32_t z = 0; z < terrainPoints->getSize() - 1; z++) {
 			for (uint32_t x = 0; x < terrainPoints->getSize() - 1; x++) {
 				uint32_t indexBottomLeft = z * terrainPoints->getSize() + x;
@@ -23,7 +21,7 @@ namespace NugieApp {
 				float y = terrainPoints->get(x, z);
 
 				Vertex vertex{};
-				vertex.position = glm::vec4 { x * worldScale, 0.0f, z * worldScale, 1.0f };
+				vertex.position = glm::vec4 { x * worldScale, y, z * worldScale, 1.0f };
 
 				this->vertices.emplace_back(vertex);
 			}
@@ -61,7 +59,6 @@ namespace NugieApp {
 	}
 
 	void QuadTerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints, uint32_t patchSize, float worldScale) {
-		// float textureTerrainScale = static_cast<float>(floor(terrainPoints->getSize() / 100));
 		uint32_t patchCount = terrainPoints->getSize() / patchSize;
 
 		for (uint32_t z = 0; z < patchCount - 1; z++) {
@@ -83,7 +80,7 @@ namespace NugieApp {
 				float y = terrainPoints->get(x, z);
 
 				Vertex vertex{};
-				vertex.position = glm::vec4 { x * worldScale, 0.0f, z * worldScale, 1.0f };
+				vertex.position = glm::vec4 { x * worldScale, y, z * worldScale, 1.0f };
 
 				this->vertices.emplace_back(vertex);
 			}

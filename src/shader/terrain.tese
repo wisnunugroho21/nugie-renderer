@@ -27,7 +27,6 @@ void main() {
 
 	outPosition = pos;
 	outTextCoord = vec2(gl_TessCoord);
-
-	// pos.y = pos.y * -1.0f;	
+	
 	gl_Position = projection * view * pos;
 }

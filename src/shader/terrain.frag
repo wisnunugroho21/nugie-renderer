@@ -17,48 +17,13 @@ layout(set = 0, binding = 5) buffer readonly ShadowTransformationBuffer {
 	ShadowTransformation shadowTransformations[];
 };
 
-layout(set = 0, binding = 6) uniform sampler2D terrainTextureLow[1];
-layout(set = 0, binding = 7) uniform sampler2D terrainTextureMid[1];
-layout(set = 0, binding = 8) uniform sampler2D terrainTextureHigh[1];
-
-layout(set = 0, binding = 9) uniform sampler2DShadow shadowMapTexture[1];
+layout(set = 0, binding = 6) uniform sampler2D terrainTexture[1];
+layout(set = 0, binding = 7) uniform sampler2DShadow shadowMapTexture[1];
 
 // -----------------------------------------------------------
 
-void main() { 
-  float gHeightLow = 32.0;
-  float gHeightMid = 128.0;
-  float gHeightHigh = 192.0;
-
-  vec4 surfaceColor = vec4(0.0f);
-
-  if (inPosition.y < gHeightLow) {
-    surfaceColor = texture(terrainTextureLow[0], inTextCoord);
-  } 
-
-  else if (inPosition.y >= gHeightLow && inPosition.y < gHeightMid) {
-    vec4 color0 = texture(terrainTextureLow[0], inTextCoord);
-    vec4 color1 = texture(terrainTextureMid[0], inTextCoord);
-
-    float delta = gHeightMid - gHeightLow;
-    float factor = (inPosition.y - gHeightLow) / delta;
-
-    surfaceColor = mix(color0, color1, factor);
-  } 
-  
-  else if (inPosition.y >= gHeightMid && inPosition.y < gHeightHigh) {
-    vec4 color0 = texture(terrainTextureMid[0], inTextCoord);
-    vec4 color1 = texture(terrainTextureHigh[0], inTextCoord);
-
-    float delta = gHeightHigh - gHeightMid;
-    float factor = (inPosition.y - gHeightMid) / delta;
-    
-    surfaceColor = mix(color0, color1, factor);
-  } 
-  
-  else if (inPosition.y >= gHeightHigh) {
-    surfaceColor = texture(terrainTextureHigh[0], inTextCoord);
-  }
+void main() {
+  vec4 surfaceColor = texture(terrainTexture[0], inTextCoord);
 
   vec4 shadowCoord = shadowTransformations[0].projection * shadowTransformations[0].view * inPosition;
   shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
