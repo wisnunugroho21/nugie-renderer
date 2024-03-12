@@ -102,8 +102,6 @@ namespace NugieApp {
 			HeightMapTexture* heightMapTexture;
 
 			std::vector<Texture*> colorTextures;
-			std::vector<Texture*> lowTerrainTextures;
-			std::vector<Texture*> midTerrainTextures;
-			std::vector<Texture*> highTerrainTextures;
+			std::vector<Texture*> terrainTextures;
 	};
 }

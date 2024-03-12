@@ -72,15 +72,7 @@ namespace NugieApp {
 			if (colorTexture != nullptr) delete colorTexture;
 		}
 
-		for (auto &&terrainTexture : this->lowTerrainTextures) {
-			if (terrainTexture != nullptr) delete terrainTexture;
-		}
-
-		for (auto &&terrainTexture : this->midTerrainTextures) {
-			if (terrainTexture != nullptr) delete terrainTexture;
-		}
-
-		for (auto &&terrainTexture : this->highTerrainTextures) {
+		for (auto &&terrainTexture : this->terrainTextures) {
 			if (terrainTexture != nullptr) delete terrainTexture;
 		}
 
@@ -102,19 +94,7 @@ namespace NugieApp {
 			}
 		}
 
-		for (auto &&terrainTexture : this->lowTerrainTextures) {
-			if (!terrainTexture->hasBeenMipmapped()) {
-				terrainTexture->generateMipmap(prepareCommandBuffer);
-			}
-		}
-
-		for (auto &&terrainTexture : this->midTerrainTextures) {
-			if (!terrainTexture->hasBeenMipmapped()) {
-				terrainTexture->generateMipmap(prepareCommandBuffer);
-			}
-		}
-
-		for (auto &&terrainTexture : this->highTerrainTextures) {
+		for (auto &&terrainTexture : this->terrainTextures) {
 			if (!terrainTexture->hasBeenMipmapped()) {
 				terrainTexture->generateMipmap(prepareCommandBuffer);
 			}
@@ -425,10 +405,10 @@ namespace NugieApp {
 		}
 
 		for (size_t i = 0; i < loadedBuffer.vertices.size(); i++) {
-			references.emplace_back(Reference{ 0, 0 });
+			references.emplace_back(Reference{ 1, 0 });
 		}
 
-		transforms.emplace_back(TransformComponent{ glm::vec3(110.0f, 110.0f, 110.0f), glm::vec3(5.0f), glm::vec3(glm::radians(90.0f)) });
+		transforms.emplace_back(TransformComponent{ glm::vec3(110.0f, 110.0f, 110.0f), glm::vec3(5.0f), glm::vec3(glm::radians(0.0f)) });
 
 		// ----------------------------------------------------------------------------
 		
@@ -507,12 +487,8 @@ namespace NugieApp {
 		this->drawCommandBuffer = new ManyArrayBuffer<VkDrawIndexedIndirectCommand>(this->device, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(drawCommands.size()));
 		this->drawCommandBuffer->replace(commandBuffer, drawCommands);
 
-		this->colorTextures.resize(1);
-		this->colorTextures[0] = new Texture(this->device, commandBuffer, "../assets/textures/viking_room.png");
-
-		this->lowTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/snow.jpg"));
-		this->midTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/grass.png"));
-		this->highTerrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/rock.jpg"));
+		this->colorTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/smile.png"));
+		this->terrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/gray.jpg"));
 
 		this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());		
 
@@ -609,10 +585,8 @@ namespace NugieApp {
 			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->heightMapTexture->getDescriptorInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationBuffer->getInfo())
-			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->lowTerrainTextures[0]->getDescriptorInfo())
-			.addImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->midTerrainTextures[0]->getDescriptorInfo())
-			.addImage(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->highTerrainTextures[0]->getDescriptorInfo())
-			.addManyImage(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
+			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->terrainTextures[0]->getDescriptorInfo())
+			.addManyImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
 			.build();
 		
 		this->frustumDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -620,7 +594,6 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->frustumDataBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->cameraTransformationBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->aabbBuffer->getInfo())
-			.addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, this->heightMapTexture->getDescriptorInfo())
 			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
