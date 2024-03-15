@@ -8,3 +8,4 @@ glslc src/shader/terrain.vert -o build/shader/terrain.vert.spv
 glslc src/shader/terrain.tesc -o build/shader/terrain.tesc.spv
 glslc src/shader/terrain.tese -o build/shader/terrain.tese.spv
 glslc src/shader/frustum_cull.comp -o build/shader/frustum_cull.comp.spv
+glslc src/shader/reset_cull.comp -o build/shader/reset_cull.comp.spv

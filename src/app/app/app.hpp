@@ -63,6 +63,7 @@ namespace NugieApp {
 			SubRenderer* shadowSubRenderer = nullptr;			
 			
 			ComputeRenderSystem* frustumCullRenderer = nullptr;
+			ComputeRenderSystem* resetCullRenderer = nullptr;
 			TerrainPassRenderSystem* terrainRenderer = nullptr;
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
@@ -84,7 +85,8 @@ namespace NugieApp {
 			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;
 			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;			
 			
-			DescriptorSet* frustumDescSet = nullptr;
+			DescriptorSet* frustumCullDescSet = nullptr;
+			DescriptorSet* resetCullDescSet = nullptr;
 			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
 			DescriptorSet* shadowDescSet = nullptr;

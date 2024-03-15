@@ -37,6 +37,7 @@ namespace NugieApp {
 
 	App::~App() {
 		if (this->frustumCullRenderer != nullptr) delete this->frustumCullRenderer;
+		if (this->resetCullRenderer != nullptr) delete this->resetCullRenderer;
 		if (this->terrainRenderer != nullptr) delete this->terrainRenderer;
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->shadowPassRenderer != nullptr) delete this->shadowPassRenderer;
@@ -46,7 +47,8 @@ namespace NugieApp {
 
 		if (this->renderer != nullptr) delete this->renderer;
 
-		if (this->frustumDescSet != nullptr) delete this->frustumDescSet;
+		if (this->frustumCullDescSet != nullptr) delete this->frustumCullDescSet;
+		if (this->resetCullDescSet != nullptr) delete this->resetCullDescSet;
 		if (this->terrainDescSet != nullptr) delete this->terrainDescSet;
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
@@ -135,7 +137,7 @@ namespace NugieApp {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-				this->frustumCullRenderer->render(commandBuffer, { this->frustumDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
+				this->frustumCullRenderer->render(commandBuffer, { this->frustumCullDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
 
 				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 
 					VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -154,7 +156,9 @@ namespace NugieApp {
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
 				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-					VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);				
+					VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+
+				this->resetCullRenderer->render(commandBuffer, { this->resetCullDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
 
 				commandBuffer->endCommand();
 			}
@@ -370,13 +374,12 @@ namespace NugieApp {
 
 		uint32_t indicesSize = static_cast<uint32_t>(indices.size());
 		for (auto &&aabb : quadMesh.getAabbs()) {
-			aabb.firstIndex += indicesSize;
 			aabbs.emplace_back(aabb);
 		}
 
 		auto verticesSize = static_cast<uint32_t>(vertices.size());
 		for (auto &&index : quadMesh.getIndices()) {
-			indices.emplace_back(verticesSize + index);
+			indices.emplace_back(index);
 		}		
 
 		for (auto &&vertex : quadMesh.getVertices()) {
@@ -589,23 +592,29 @@ namespace NugieApp {
 			.addManyImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
 			.build();
 		
-		this->frustumDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->frustumCullDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->drawCommandBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->frustumDataBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->cameraTransformationBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->aabbBuffer->getInfo())
+			.build();
+
+		this->resetCullDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->drawCommandBuffer->getInfo())
 			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
 		this->terrainRenderer = new TerrainPassRenderSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.tesc.spv", 
 			"shader/terrain.tese.spv", "shader/terrain.frag.spv");
-		this->frustumCullRenderer = new ComputeRenderSystem(this->device, { this->frustumDescSet->getDescSetLayout() }, "shader/frustum_cull.comp.spv");
+		this->frustumCullRenderer = new ComputeRenderSystem(this->device, { this->frustumCullDescSet->getDescSetLayout() }, "shader/frustum_cull.comp.spv");
+		this->resetCullRenderer = new ComputeRenderSystem(this->device, { this->resetCullDescSet->getDescSetLayout() }, "shader/reset_cull.comp.spv");
 
 		this->forwardPassRenderer->initialize();
 		this->shadowPassRenderer->initialize();
 		this->terrainRenderer->initialize();
 		this->frustumCullRenderer->initialize();
+		this->resetCullRenderer->initialize();
 	}
 
 	void App::resize() {
