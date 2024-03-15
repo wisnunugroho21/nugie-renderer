@@ -5,6 +5,7 @@
 #include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
 #include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
 #include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
+#include "../data/skybox/skybox.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -41,6 +42,7 @@ namespace NugieApp {
 		if (this->terrainRenderer != nullptr) delete this->terrainRenderer;
 		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->shadowPassRenderer != nullptr) delete this->shadowPassRenderer;
+		if (this->skyboxRenderer != nullptr) delete this->skyboxRenderer;
 
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
 		if (this->shadowSubRenderer != nullptr) delete this->shadowSubRenderer;
@@ -52,6 +54,7 @@ namespace NugieApp {
 		if (this->terrainDescSet != nullptr) delete this->terrainDescSet;
 		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
+		if (this->skyboxDescSet != nullptr) delete this->skyboxDescSet;
 
 		if (this->frustumDataBuffer != nullptr) delete this->frustumDataBuffer;
 		if (this->cameraTransformationBuffer != nullptr) delete this->cameraTransformationBuffer;
@@ -64,6 +67,9 @@ namespace NugieApp {
 		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
 		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
 		if (this->aabbBuffer != nullptr) delete this->aabbBuffer;
+
+		if (this->skyboxIndicesBuffer != nullptr) delete this->skyboxIndicesBuffer;
+		if (this->skyboxVerticesBuffer != nullptr) delete this->skyboxVerticesBuffer;
 		
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
@@ -79,6 +85,7 @@ namespace NugieApp {
 		}
 
 		if (this->heightMapTexture != nullptr) delete this->heightMapTexture;
+		if (this->skyboxTexture != nullptr) delete this->skyboxTexture;
 
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
@@ -103,6 +110,11 @@ namespace NugieApp {
 		}
 
 		this->heightMapTexture->generateMipmap(prepareCommandBuffer);
+
+		this->skyboxTexture->generateMipmap(prepareCommandBuffer);
+
+		/* this->skyboxTexture->getImage()->transitionImageLayout(prepareCommandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+      VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT); */
 
 		prepareCommandBuffer->endCommand();
 
@@ -150,6 +162,7 @@ namespace NugieApp {
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
+				this->skyboxRenderer->render(commandBuffer, { this->skyboxDescSet->getDescriptorSets(frameIndex) }, { this->skyboxVerticesBuffer->getBuffer() }, this->skyboxIndicesBuffer->getBuffer(), this->skyboxIndicesBuffer->size());
 				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->drawCommandBuffer->getBuffer(frameIndex), this->drawCommandBuffer->size(), 0);
 				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), indexSize, forwardBufferOffsets, indexOffset);
 
@@ -458,6 +471,20 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
+		std::vector<uint32_t> skyboxIndices = SkyBox::getSkyBoxIndices();
+		std::vector<glm::vec4> skyboxVertices = SkyBox::getSkyBoxVertices();
+
+		std::string skyboxTexturFilenames[6] = {
+			"../assets/textures/skybox/front.jpg",
+			"../assets/textures/skybox/back.jpg",
+			"../assets/textures/skybox/top.jpg",
+			"../assets/textures/skybox/bottom.jpg",
+			"../assets/textures/skybox/right.jpg",
+			"../assets/textures/skybox/left.jpg"
+		};
+
+		// ----------------------------------------------------------------------------
+
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
 		this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
@@ -490,10 +517,17 @@ namespace NugieApp {
 		this->drawCommandBuffer = new ManyArrayBuffer<VkDrawIndexedIndirectCommand>(this->device, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(drawCommands.size()));
 		this->drawCommandBuffer->replace(commandBuffer, drawCommands);
 
+		this->skyboxIndicesBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(skyboxIndices.size()));
+		this->skyboxIndicesBuffer->replace(commandBuffer, skyboxIndices);
+
+		this->skyboxVerticesBuffer = new ArrayBuffer<glm::vec4>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(skyboxVertices.size()));
+		this->skyboxVerticesBuffer->replace(commandBuffer, skyboxVertices);
+
 		this->colorTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/smile.png"));
 		this->terrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/gray.jpg"));
-
-		this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());		
+		
+		this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());	
+		this->skyboxTexture = new CubeMapTexture(this->device, commandBuffer, skyboxTexturFilenames);	
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -602,6 +636,11 @@ namespace NugieApp {
 		this->resetCullDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->drawCommandBuffer->getInfo())
 			.build();
+
+		this->skyboxDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->cameraTransformationBuffer->getInfo())
+			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->skyboxTexture->getDescriptorInfo())
+			.build();
 		
 		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv");
@@ -609,12 +648,14 @@ namespace NugieApp {
 			"shader/terrain.tese.spv", "shader/terrain.frag.spv");
 		this->frustumCullRenderer = new ComputeRenderSystem(this->device, { this->frustumCullDescSet->getDescSetLayout() }, "shader/frustum_cull.comp.spv");
 		this->resetCullRenderer = new ComputeRenderSystem(this->device, { this->resetCullDescSet->getDescSetLayout() }, "shader/reset_cull.comp.spv");
+		this->skyboxRenderer = new SkyboxPassRenderSystem(this->device, { this->skyboxDescSet->getDescSetLayout() }, this->finalSubRenderer->getRenderPass(), "shader/skybox.vert.spv", "shader/skybox.frag.spv");
 
 		this->forwardPassRenderer->initialize();
 		this->shadowPassRenderer->initialize();
 		this->terrainRenderer->initialize();
 		this->frustumCullRenderer->initialize();
 		this->resetCullRenderer->initialize();
+		this->skyboxRenderer->initialize();
 	}
 
 	void App::resize() {

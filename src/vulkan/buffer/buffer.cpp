@@ -329,10 +329,10 @@ namespace NugieVulkan {
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.aspectMask = destImage->getAspectFlag();
     region.imageSubresource.mipLevel = 0;
     region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = 1u;
+    region.imageSubresource.layerCount = destImage->getLayerNum();
 
     region.imageOffset = {0, 0, 0};
     region.imageExtent = {destImage->getWidth(), destImage->getHeight(), 1};
@@ -353,10 +353,10 @@ namespace NugieVulkan {
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.aspectMask = srcImage->getAspectFlag();
     region.imageSubresource.mipLevel = 0;
     region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = 1u;
+    region.imageSubresource.layerCount = srcImage->getLayerNum();
 
     region.imageOffset = {0, 0, 0};
     region.imageExtent = {srcImage->getWidth(), srcImage->getHeight(), 1};

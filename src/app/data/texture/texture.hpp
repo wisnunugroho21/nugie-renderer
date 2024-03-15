@@ -18,6 +18,7 @@ namespace NugieApp
       
       ~Texture();
       
+      NugieVulkan::Image* getImage() const { return this->image; }
       bool hasBeenMipmapped() const { return this->hasMipmapped; }
 
       VkDescriptorImageInfo getDescriptorInfo(VkImageLayout desiredImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) const;
