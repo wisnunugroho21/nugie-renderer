@@ -59,7 +59,7 @@ namespace NugieApp {
 	}
 
 	void QuadTerrainMesh::convertPointsToMeshes(TerrainPoints* terrainPoints, uint32_t patchSize, float worldScale) {
-		uint32_t patchCount = terrainPoints->getSize() / patchSize;
+		uint32_t patchCount = terrainPoints->getSize() / patchSize + 1;
 
 		for (uint32_t z = 0; z < patchCount - 1; z++) {
 			for (uint32_t x = 0; x < patchCount - 1; x++) {
@@ -75,23 +75,24 @@ namespace NugieApp {
 			}
 		}
 
-		for (uint32_t z = 0; z < terrainPoints->getSize(); z += patchSize) {
-			for (uint32_t x = 0; x < terrainPoints->getSize(); x += patchSize) {
-				float y = terrainPoints->get(x, z);
+		float y;
+		for (uint32_t z = 0; z < patchCount; z++) {
+			for (uint32_t x = 0; x < patchCount; x++) {
+				y = terrainPoints->get(x * patchCount, z * patchCount);
 
 				Vertex vertex{};
-				vertex.position = glm::vec4 { x * worldScale, y, z * worldScale, 1.0f };
+				vertex.position = glm::vec4 { x * patchCount * worldScale, y, z * patchCount * worldScale, 1.0f };
 
 				this->vertices.emplace_back(vertex);
 			}
 		}
 
-		for (uint32_t z = 0; z < terrainPoints->getSize(); z += patchSize) {
-			for (uint32_t x = 0; x < terrainPoints->getSize(); x += patchSize) {
+		for (uint32_t z = 0; z < patchCount; z++) {
+			for (uint32_t x = 0; x < patchCount; x++) {
 				float tSize = static_cast<float>(terrainPoints->getSize());
 
 				NormText normText{};
-				normText.textCoord = glm::vec2 { static_cast<float>(x) / tSize, static_cast<float>(z) / tSize };
+				normText.textCoord = glm::vec2 { static_cast<float>(x * patchCount) / tSize, static_cast<float>(z * patchCount) / tSize };
 
 				this->normTexts.emplace_back(normText);
 			}
