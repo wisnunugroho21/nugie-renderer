@@ -466,8 +466,9 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		uint32_t quadCount = static_cast<uint32_t>(quadMesh.getIndices().size()) / 4;
-		std::vector<VkDrawIndexedIndirectCommand> drawCommands { quadCount };
+		uint32_t quadCount = static_cast<uint32_t>(quadMesh.getAabbs().size());
+		std::vector<VkDrawIndexedIndirectCommand> drawCommands;
+		drawCommands.resize(quadCount);
 
 		// ----------------------------------------------------------------------------
 

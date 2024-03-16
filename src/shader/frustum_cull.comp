@@ -21,7 +21,7 @@ layout (set = 0, binding = 3) buffer readonly AabbBuffer {
   Aabb aabbs[];
 };
 
-bool isVisible(vec4 screenPosition) {
+bool isPointVisible(vec4 screenPosition) {
   return screenPosition.x >= -screenPosition.w && screenPosition.x <= screenPosition.w
     && screenPosition.y >= -screenPosition.w && screenPosition.y <= screenPosition.w
     && screenPosition.z >= 0 && screenPosition.z <= screenPosition.w;
@@ -31,10 +31,21 @@ void main() {
   Aabb aabb = aabbs[gl_GlobalInvocationID.x];
   mat4 mvp = projection * view;
   
-  vec4 screenMaxPos = mvp * aabb.maxPosition;
-  vec4 screenMinPos = mvp * aabb.minPosition;
+  vec4 screenPositionPoint0 = mvp * aabb.point0;
+  vec4 screenPositionPoint1 = mvp * aabb.point1;
+  vec4 screenPositionPoint2 = mvp * aabb.point2;
+  vec4 screenPositionPoint3 = mvp * aabb.point3;
+  vec4 screenPositionPoint4 = mvp * aabb.point4;
+  vec4 screenPositionPoint5 = mvp * aabb.point5;
+  vec4 screenPositionPoint6 = mvp * aabb.point6;
+  vec4 screenPositionPoint7 = mvp * aabb.point7;
 
-  if (isVisible(screenMaxPos) || isVisible(screenMinPos)) {
+  bool isVisible = isPointVisible(screenPositionPoint0) || isPointVisible(screenPositionPoint1)
+    || isPointVisible(screenPositionPoint2) || isPointVisible(screenPositionPoint3)
+    || isPointVisible(screenPositionPoint4) || isPointVisible(screenPositionPoint5)
+    || isPointVisible(screenPositionPoint6) || isPointVisible(screenPositionPoint7);
+
+  if (isVisible) {
     VkDrawIndexedIndirectCommand drawCommand;
     drawCommand.indexCount = aabb.indicesCount;
     drawCommand.instanceCount = 1u;    

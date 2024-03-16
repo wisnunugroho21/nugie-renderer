@@ -21,8 +21,15 @@ struct Reference {
 };
 
 struct Aabb {
-  vec4 maxPosition;
-  vec4 minPosition;
+  vec4 point0;
+  vec4 point1;
+  vec4 point2;
+  vec4 point3;
+  vec4 point4;
+  vec4 point5;
+  vec4 point6;
+  vec4 point7;
+
   uint firstIndex;
   uint indicesCount;
 };
