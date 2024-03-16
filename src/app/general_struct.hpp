@@ -29,8 +29,15 @@ namespace NugieApp {
   };
 
   struct Aabb {
-    alignas(16) glm::vec4 maxPosition;
-    alignas(16) glm::vec4 minPosition;
+    alignas(16) glm::vec4 point0;
+    alignas(16) glm::vec4 point1;
+    alignas(16) glm::vec4 point2;
+    alignas(16) glm::vec4 point3;
+    alignas(16) glm::vec4 point4;
+    alignas(16) glm::vec4 point5;
+    alignas(16) glm::vec4 point6;
+    alignas(16) glm::vec4 point7;
+
     uint32_t firstIndex;
     uint32_t indicesCount;
   };

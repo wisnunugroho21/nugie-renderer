@@ -44,11 +44,21 @@ namespace NugieApp {
 
 			glm::vec4 max1 = glm::max(this->vertices[this->indices[i + 0]].position, this->vertices[this->indices[i + 1]].position);
 			glm::vec4 max2 = glm::max(this->vertices[this->indices[i + 2]].position, this->vertices[this->indices[i + 3]].position);
-			aabb.maxPosition = glm::max(max1, max2);
+			glm::vec4 maxPoint = glm::max(max1, max2);
 
 			glm::vec4 min1 = glm::min(this->vertices[this->indices[i + 0]].position, this->vertices[this->indices[i + 1]].position);
 			glm::vec4 min2 = glm::min(this->vertices[this->indices[i + 2]].position, this->vertices[this->indices[i + 3]].position);
-			aabb.minPosition = glm::min(min1, min2);
+			glm::vec4 minPoint = glm::min(min1, min2);
+
+			aabb.point0 = glm::vec4{ minPoint.x, minPoint.y, minPoint.z, 1.0f };
+			aabb.point1 = glm::vec4{ maxPoint.x, minPoint.y, minPoint.z, 1.0f };
+			aabb.point2 = glm::vec4{ maxPoint.x, minPoint.y, maxPoint.z, 1.0f };
+			aabb.point3 = glm::vec4{ minPoint.x, minPoint.y, maxPoint.z, 1.0f };
+
+			aabb.point4 = glm::vec4{ minPoint.x, maxPoint.y, minPoint.z, 1.0f };
+			aabb.point5 = glm::vec4{ maxPoint.x, maxPoint.y, minPoint.z, 1.0f };
+			aabb.point6 = glm::vec4{ maxPoint.x, maxPoint.y, maxPoint.z, 1.0f };
+			aabb.point7 = glm::vec4{ minPoint.x, maxPoint.y, maxPoint.z, 1.0f };
 
 			aabb.indicesCount = 4;
 			aabb.firstIndex = totalIndex;
@@ -104,11 +114,21 @@ namespace NugieApp {
 
 			glm::vec4 max1 = glm::max(this->vertices[this->indices[i + 0]].position, this->vertices[this->indices[i + 1]].position);
 			glm::vec4 max2 = glm::max(this->vertices[this->indices[i + 2]].position, this->vertices[this->indices[i + 3]].position);
-			aabb.maxPosition = glm::max(max1, max2);
+			glm::vec4 maxPoint = glm::max(max1, max2);
 
 			glm::vec4 min1 = glm::min(this->vertices[this->indices[i + 0]].position, this->vertices[this->indices[i + 1]].position);
 			glm::vec4 min2 = glm::min(this->vertices[this->indices[i + 2]].position, this->vertices[this->indices[i + 3]].position);
-			aabb.minPosition = glm::min(min1, min2);
+			glm::vec4 minPoint = glm::min(min1, min2);
+
+			aabb.point0 = glm::vec4{ minPoint.x, minPoint.y, minPoint.z, 1.0f };
+			aabb.point1 = glm::vec4{ maxPoint.x, minPoint.y, minPoint.z, 1.0f };
+			aabb.point2 = glm::vec4{ maxPoint.x, minPoint.y, maxPoint.z, 1.0f };
+			aabb.point3 = glm::vec4{ minPoint.x, minPoint.y, maxPoint.z, 1.0f };
+
+			aabb.point4 = glm::vec4{ minPoint.x, maxPoint.y, minPoint.z, 1.0f };
+			aabb.point5 = glm::vec4{ maxPoint.x, maxPoint.y, minPoint.z, 1.0f };
+			aabb.point6 = glm::vec4{ maxPoint.x, maxPoint.y, maxPoint.z, 1.0f };
+			aabb.point7 = glm::vec4{ minPoint.x, maxPoint.y, maxPoint.z, 1.0f };
 
 			aabb.indicesCount = 4;
 			aabb.firstIndex = totalIndex;
