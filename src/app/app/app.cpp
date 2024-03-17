@@ -215,7 +215,9 @@ namespace NugieApp {
 	}
 
 	void App::run() {
-		glm::vec3 cameraPosition, cameraDirection;
+		glm::vec3 cameraPosition;
+		glm::vec2 cameraRotation;
+
 		bool isMousePressed = false, isKeyboardPressed = false;
 
 		uint32_t t = 0;
@@ -235,7 +237,7 @@ namespace NugieApp {
 			this->window->pollEvents();
 
 			cameraPosition = this->camera->getPosition();
-			cameraDirection = this->camera->getDirection();
+			cameraRotation = this->camera->getRotation();
 
 			isMousePressed = false;
 			isKeyboardPressed = false;
@@ -244,11 +246,11 @@ namespace NugieApp {
 			float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
 			oldTime = newTime;
 
-			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
-			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
+			cameraRotation = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraRotation, &isMousePressed);
+			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, this->camera->getDirection(), &isKeyboardPressed);
 
 			if (isMousePressed || isKeyboardPressed) {
-				this->camera->setViewDirection(cameraPosition, cameraDirection);
+				this->camera->setViewYXZ(cameraPosition, cameraRotation);
 
 				this->cameraTransformation.view = this->camera->getViewMatrix();
 				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
@@ -278,7 +280,9 @@ namespace NugieApp {
 	}
 
 	void App::singleThreadRun() {
-		glm::vec3 cameraPosition, cameraDirection;
+		glm::vec3 cameraPosition;
+		glm::vec2 cameraRotation;
+
 		bool isMousePressed = false, isKeyboardPressed = false;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -303,7 +307,7 @@ namespace NugieApp {
 			this->window->pollEvents();
 
 			cameraPosition = this->camera->getPosition();
-			cameraDirection = this->camera->getDirection();
+			cameraRotation = this->camera->getRotation();
 
 			isMousePressed = false;
 			isKeyboardPressed = false;
@@ -312,11 +316,11 @@ namespace NugieApp {
 			float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
 			oldTime = newTime;
 
-			cameraDirection = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraDirection, &isMousePressed);
-			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, cameraDirection, &isKeyboardPressed);
+			cameraRotation = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraRotation, &isMousePressed);
+			cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, this->camera->getDirection(), &isKeyboardPressed);
 
 			if ((isMousePressed || isKeyboardPressed)) {
-				this->camera->setViewDirection(cameraPosition, cameraDirection);
+				this->camera->setViewYXZ(cameraPosition, cameraRotation);
 
 				this->cameraTransformation.view = this->camera->getViewMatrix();
 				this->cameraTransformation.projection = this->camera->getProjectionMatrix();

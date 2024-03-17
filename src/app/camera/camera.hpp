@@ -9,6 +9,7 @@ namespace NugieApp {
     public:
       glm::vec3 getPosition() const { return this->position; }
       glm::vec3 getDirection() const { return this->direction; }
+      glm::vec2 getRotation() const { return this->rotation; }
 
       void setAspect(float aspectRatio);
 
@@ -17,7 +18,7 @@ namespace NugieApp {
 
       void setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up = glm::vec3{0.0f, 1.0f, 0.0f});
       void setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 up = glm::vec3{0.0f, 1.0f, 0.0f});
-      void setViewYXZ(glm::vec3 position, glm::vec3 rotation);
+      void setViewYXZ(glm::vec3 position, glm::vec2 rotation, glm::vec3 up = glm::vec3{0.0f, 1.0f, 0.0f});
 
       const glm::mat4 getProjectionMatrix() const { return this->projectionMatrix; }
       const glm::mat4 getViewMatrix() const { return this->viewMatrix; }
@@ -29,6 +30,8 @@ namespace NugieApp {
       glm::mat4 inverseViewMatrix{1.0f};
 
       glm::vec3 position, direction;
+      glm::vec2 rotation;
+
       float fovy, aspectRatio, near, far;
   };
 } // namespace nugiEngine
