@@ -14,6 +14,6 @@ layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
 void main() {
   outTextCoord = inPosition.xyz;
 
-  mat4 viewMat = mat4(mat3(view));
-  gl_Position = projection * viewMat * vec4(inPosition.xyz, 1.0f);
+  vec4 pos = (projection * mat4(mat3(view))) * inPosition;
+  gl_Position = pos.xyww;
 }

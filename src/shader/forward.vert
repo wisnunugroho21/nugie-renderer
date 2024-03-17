@@ -24,7 +24,7 @@ layout(set = 0, binding = 1) buffer readonly TransformationBuffer {
 
 void main() {
 	fragPosition = transformations[transformIndex].modelMatrix * position;
-	gl_Position = projection * view * fragPosition;
+	gl_Position = (projection * view) * fragPosition;
 	
 	fragNormal = normalize(transformations[transformIndex].normalMatrix * normal);
 	fragTextCoord = textCoord;
