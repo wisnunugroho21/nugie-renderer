@@ -484,8 +484,8 @@ namespace NugieApp {
 			"../assets/textures/skybox/back.jpg",
 			"../assets/textures/skybox/top.jpg",
 			"../assets/textures/skybox/bottom.jpg",
-			"../assets/textures/skybox/right.jpg",
-			"../assets/textures/skybox/left.jpg"
+			"../assets/textures/skybox/left.jpg",
+			"../assets/textures/skybox/right.jpg",			
 		};
 
 		// ----------------------------------------------------------------------------
