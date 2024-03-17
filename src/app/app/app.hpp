@@ -12,12 +12,14 @@
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../data/texture/heightmap_texture.hpp"
+#include "../data/texture/cubemap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/compute_render_system.hpp"
 #include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/terrain_pass_render_system.hpp"
 #include "../renderer_system/shadow_pass_render_system.hpp"
+#include "../renderer_system/skybox_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -67,12 +69,16 @@ namespace NugieApp {
 			TerrainPassRenderSystem* terrainRenderer = nullptr;
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
+			SkyboxPassRenderSystem* skyboxRenderer = nullptr;
 
 			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
 			ArrayBuffer<Aabb>* aabbBuffer = nullptr;
+
+			ArrayBuffer<uint32_t>* skyboxIndicesBuffer = nullptr;
+			ArrayBuffer<glm::vec4>* skyboxVerticesBuffer = nullptr;
 			
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
@@ -90,6 +96,7 @@ namespace NugieApp {
 			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
 			DescriptorSet* shadowDescSet = nullptr;
+			DescriptorSet* skyboxDescSet = nullptr;
 
 			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
 			bool isRendering = true;
@@ -105,5 +112,6 @@ namespace NugieApp {
 
 			std::vector<Texture*> colorTextures;
 			std::vector<Texture*> terrainTextures;
+			CubeMapTexture* skyboxTexture;
 	};
 }
