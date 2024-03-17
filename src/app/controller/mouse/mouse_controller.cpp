@@ -1,8 +1,10 @@
 #include "mouse_controller.hpp"
 
+#include <iostream>
+
 namespace NugieApp {
-  glm::vec3 MouseController::rotateInPlaceXZ(GLFWwindow* window, double dt, glm::vec3 currentCameraDirection, bool* isPressed) {
-    glm::vec3 newCameraDirection = currentCameraDirection;
+  glm::vec2 MouseController::rotateInPlaceXZ(GLFWwindow* window, double dt, glm::vec2 currentRotation, bool* isPressed) {
+    glm::vec2 newRotation = currentRotation;
 
     if (glfwGetMouseButton(window, this->keymaps.rightButton) == GLFW_PRESS) {
       glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -17,17 +19,26 @@ namespace NugieApp {
         double theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed * -1.0);
         double phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
 
-        newCameraDirection.x = static_cast<float>(glm::cos(phi) * currentCameraDirection.x + glm::sin(phi) * currentCameraDirection.z);
-        newCameraDirection.z = static_cast<float>(-1.0f * glm::sin(phi) * currentCameraDirection.x + glm::cos(phi) * currentCameraDirection.z);
+        newRotation.x += phi;
+        newRotation.y += theta;
 
-        newCameraDirection.y = static_cast<float>(glm::cos(theta) * currentCameraDirection.y - glm::sin(theta) * currentCameraDirection.z);
-        newCameraDirection.z = static_cast<float>(glm::sin(theta) * currentCameraDirection.y + glm::cos(theta) * currentCameraDirection.z);
+        if (newRotation.x > 360) {
+          newRotation.x -= 360;
+        } else if (newRotation.x < 0) {
+          newRotation.x = 360 + newRotation.x;
+        }
+
+        if (newRotation.y > 360) {
+          newRotation.y -= 360;
+        } else if (newRotation.y < 0) {
+          newRotation.y = 360 + newRotation.y;
+        }
+      } else {
+        this->isFirstPressed = false;
       }
 
       this->lastDragged_x = curDragged_x;
       this->lastDragged_y = curDragged_y;
-      this->isFirstPressed = false;
-
     } else if (glfwGetMouseButton(window, this->keymaps.rightButton) == GLFW_RELEASE) {
       this->lastDragged_x = 0;
       this->lastDragged_y = 0;
@@ -37,6 +48,6 @@ namespace NugieApp {
       *isPressed = false;
     }
 
-    return newCameraDirection;
+    return newRotation;
   }
 } // namespace nugiEngin 

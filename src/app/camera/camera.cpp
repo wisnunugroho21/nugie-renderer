@@ -45,9 +45,12 @@ namespace NugieApp {
 
   void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up) {
     this->position = position;
-    this->direction = direction;
+    this->direction = glm::normalize(direction);
 
-    const glm::vec3 w{glm::normalize(direction)};
+    this->rotation.x = glm::acos(this->direction.z);
+    this->rotation.y = glm::atan(this->direction.y / this->direction.x);
+
+    const glm::vec3 w{this->direction};
     const glm::vec3 u{glm::normalize(glm::cross(w, up))};
     const glm::vec3 v{glm::cross(w, u)};
 
@@ -61,9 +64,9 @@ namespace NugieApp {
     this->viewMatrix[0][2] = w.x;
     this->viewMatrix[1][2] = w.y;
     this->viewMatrix[2][2] = w.z;
-    this->viewMatrix[3][0] = -glm::dot(u, position);
-    this->viewMatrix[3][1] = -glm::dot(v, position);
-    this->viewMatrix[3][2] = -glm::dot(w, position);
+    this->viewMatrix[3][0] = -glm::dot(u, this->position);
+    this->viewMatrix[3][1] = -glm::dot(v, this->position);
+    this->viewMatrix[3][2] = -glm::dot(w, this->position);
 
     this->inverseViewMatrix = glm::mat4{1.0f};
     this->inverseViewMatrix[0][0] = u.x;
@@ -75,26 +78,26 @@ namespace NugieApp {
     this->inverseViewMatrix[2][0] = w.x;
     this->inverseViewMatrix[2][1] = w.y;
     this->inverseViewMatrix[2][2] = w.z;
-    this->inverseViewMatrix[3][0] = position.x;
-    this->inverseViewMatrix[3][1] = position.y;
-    this->inverseViewMatrix[3][2] = position.z;
+    this->inverseViewMatrix[3][0] = this->position.x;
+    this->inverseViewMatrix[3][1] = this->position.y;
+    this->inverseViewMatrix[3][2] = this->position.z;
   }
 
   void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 up) {
     this->setViewDirection(position, target - position, up);
   }
 
-  void Camera::setViewYXZ(glm::vec3 position, glm::vec3 rotation) {
-    const float c3 = glm::cos(rotation.z);
-    const float s3 = glm::sin(rotation.z);
-    const float c2 = glm::cos(rotation.x);
-    const float s2 = glm::sin(rotation.x);
-    const float c1 = glm::cos(rotation.y);
-    const float s1 = glm::sin(rotation.y);
+  void Camera::setViewYXZ(glm::vec3 position, glm::vec2 rotation, glm::vec3 up) {
+    this->position = position;
+    this->rotation = rotation;
 
-    const glm::vec3 u{(c1 * c3 + s1 * s2 * s3), (c2 * s3), (c1 * s2 * s3 - c3 * s1)};
-    const glm::vec3 v{(c3 * s1 * s2 - c1 * s3), (c2 * c3), (c1 * c3 * s2 + s1 * s3)};
-    const glm::vec3 w{(c2 * s1), (-s2), (c1 * c2)};
+    this->direction.x = cos(glm::radians(this->rotation.x)) * cos(glm::radians(this->rotation.y));
+    this->direction.y = sin(glm::radians(this->rotation.y));
+    this->direction.z = sin(glm::radians(this->rotation.x)) * cos(glm::radians(this->rotation.y));
+
+    const glm::vec3 w{glm::normalize(this->direction)};
+    const glm::vec3 u{glm::normalize(glm::cross(w, up))};
+    const glm::vec3 v{glm::cross(w, u)};
 
     this->viewMatrix = glm::mat4{1.0f};
     this->viewMatrix[0][0] = u.x;
@@ -106,9 +109,9 @@ namespace NugieApp {
     this->viewMatrix[0][2] = w.x;
     this->viewMatrix[1][2] = w.y;
     this->viewMatrix[2][2] = w.z;
-    this->viewMatrix[3][0] = -glm::dot(u, position);
-    this->viewMatrix[3][1] = -glm::dot(v, position);
-    this->viewMatrix[3][2] = -glm::dot(w, position);
+    this->viewMatrix[3][0] = -glm::dot(u, this->position);
+    this->viewMatrix[3][1] = -glm::dot(v, this->position);
+    this->viewMatrix[3][2] = -glm::dot(w, this->position);
 
     this->inverseViewMatrix = glm::mat4{1.0f};
     this->inverseViewMatrix[0][0] = u.x;
@@ -120,9 +123,9 @@ namespace NugieApp {
     this->inverseViewMatrix[2][0] = w.x;
     this->inverseViewMatrix[2][1] = w.y;
     this->inverseViewMatrix[2][2] = w.z;
-    this->inverseViewMatrix[3][0] = position.x;
-    this->inverseViewMatrix[3][1] = position.y;
-    this->inverseViewMatrix[3][2] = position.z;
+    this->inverseViewMatrix[3][0] = this->position.x;
+    this->inverseViewMatrix[3][1] = this->position.y;
+    this->inverseViewMatrix[3][2] = this->position.z;
   }
   
 } // namespace nugiEngine
