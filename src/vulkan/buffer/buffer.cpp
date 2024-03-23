@@ -224,8 +224,7 @@ namespace NugieVulkan {
   }
 
   void Buffer::transitionBuffer(CommandBuffer* commandBuffer, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
-    VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex, 
-    uint32_t dstQueueFamilyIndex)
+    VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex)
   {
     VkBufferMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -323,15 +322,15 @@ namespace NugieVulkan {
     vkCmdCopyBuffer(commandBuffer->getCommandBuffer(), this->buffer, destBuffer->getBuffer(), 1, &copyRegion);
   }
 
-  void Buffer::copyBufferToImage(CommandBuffer* commandBuffer, Image* destImage) {
+  void Buffer::copyBufferToImage(CommandBuffer* commandBuffer, Image* destImage, uint32_t srcOffset, uint32_t dstMipLevel, uint32_t dstLayer) {
     VkBufferImageCopy region{};
-    region.bufferOffset = 0;
+    region.bufferOffset = srcOffset;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
     region.imageSubresource.aspectMask = destImage->getAspectFlag();
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.mipLevel = dstMipLevel;
+    region.imageSubresource.baseArrayLayer = dstLayer;
     region.imageSubresource.layerCount = destImage->getLayerNum();
 
     region.imageOffset = {0, 0, 0};
@@ -347,15 +346,15 @@ namespace NugieVulkan {
     );
   }
 
-  void Buffer::copyImageToBuffer(CommandBuffer* commandBuffer, Image* srcImage) {
+  void Buffer::copyImageToBuffer(CommandBuffer* commandBuffer, Image* srcImage, uint32_t dstOffset, uint32_t srcMipLevel, uint32_t srcLayer) {
     VkBufferImageCopy region{};
-    region.bufferOffset = 0;
+    region.bufferOffset = dstOffset;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
 
     region.imageSubresource.aspectMask = srcImage->getAspectFlag();
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.mipLevel = srcMipLevel;
+    region.imageSubresource.baseArrayLayer = srcLayer;
     region.imageSubresource.layerCount = srcImage->getLayerNum();
 
     region.imageOffset = {0, 0, 0};

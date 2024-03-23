@@ -21,6 +21,7 @@ namespace NugieApp {
 				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& tescFilePath, 
 				const std::string& teseFilePath, const std::string& fragFilePath, bool isRasterLineMode = false);
 
+			using GraphicRenderSystem::render;
 			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 				NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset);

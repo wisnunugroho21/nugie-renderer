@@ -149,7 +149,7 @@ namespace NugieApp {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-				this->frustumCullRenderer->render(commandBuffer, { this->frustumCullDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
+				this->frustumCullRenderer->render(commandBuffer, { this->frustumCullDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 64, 1, 1);
 
 				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 
 					VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -171,7 +171,7 @@ namespace NugieApp {
 				this->drawCommandBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 					VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-				this->resetCullRenderer->render(commandBuffer, { this->resetCullDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 32, 1, 1);
+				this->resetCullRenderer->render(commandBuffer, { this->resetCullDescSet->getDescriptorSets(frameIndex) }, this->aabbBuffer->size() / 64, 1, 1);
 
 				commandBuffer->endCommand();
 			}
