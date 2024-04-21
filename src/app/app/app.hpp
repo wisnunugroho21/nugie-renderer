@@ -64,8 +64,6 @@ namespace NugieApp {
 			SubRenderer* finalSubRenderer = nullptr;
 			SubRenderer* shadowSubRenderer = nullptr;			
 			
-			ComputeRenderSystem* frustumCullRenderer = nullptr;
-			ComputeRenderSystem* resetCullRenderer = nullptr;
 			TerrainPassRenderSystem* terrainRenderer = nullptr;
 			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
@@ -75,7 +73,6 @@ namespace NugieApp {
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
-			ArrayBuffer<Aabb>* aabbBuffer = nullptr;
 
 			ArrayBuffer<uint32_t>* skyboxIndicesBuffer = nullptr;
 			ArrayBuffer<glm::vec4>* skyboxVerticesBuffer = nullptr;
@@ -84,15 +81,11 @@ namespace NugieApp {
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
 			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
 			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
-			ManyArrayBuffer<VkDrawIndexedIndirectCommand>* drawCommandBuffer = nullptr;
 
-			ObjectBuffer<FrustumData>* frustumDataBuffer = nullptr;
 			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
 			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;
 			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;			
 			
-			DescriptorSet* frustumCullDescSet = nullptr;
-			DescriptorSet* resetCullDescSet = nullptr;
 			DescriptorSet* terrainDescSet = nullptr;
 			DescriptorSet* forwardDescSet = nullptr;
 			DescriptorSet* shadowDescSet = nullptr;
@@ -106,7 +99,6 @@ namespace NugieApp {
 			CameraTransformation cameraTransformation;
 			TessellationData tessellationData;
 			FragmentData fragmentData;
-			FrustumData frustumData{};
 
 			HeightMapTexture* heightMapTexture;
 
