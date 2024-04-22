@@ -73,9 +73,6 @@ namespace NugieApp {
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<NormText>* normTextBuffer = nullptr;
 			ArrayBuffer<Reference>* referenceBuffer = nullptr;
-
-			ArrayBuffer<uint32_t>* skyboxIndicesBuffer = nullptr;
-			ArrayBuffer<glm::vec4>* skyboxVerticesBuffer = nullptr;
 			
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformationBuffer = nullptr;

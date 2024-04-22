@@ -60,9 +60,6 @@ namespace NugieApp {
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->normTextBuffer != nullptr) delete this->normTextBuffer;
 		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
-
-		if (this->skyboxIndicesBuffer != nullptr) delete this->skyboxIndicesBuffer;
-		if (this->skyboxVerticesBuffer != nullptr) delete this->skyboxVerticesBuffer;
 		
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
@@ -120,19 +117,25 @@ namespace NugieApp {
 
 		std::vector<NugieVulkan::Buffer*> shadowBuffers;
 		shadowBuffers.emplace_back(this->vertexBuffer->getBuffer());
-		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());		 
+		shadowBuffers.emplace_back(this->referenceBuffer->getBuffer());
+
+		std::vector<VkDeviceSize> terrainBufferOffsets;
+		terrainBufferOffsets.emplace_back(8u * sizeof(Vertex));
+		terrainBufferOffsets.emplace_back(8u * sizeof(NormText));
 		
 		std::vector<VkDeviceSize> forwardBufferOffsets;
-		forwardBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(Vertex));
-		forwardBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(NormText));
+		forwardBufferOffsets.emplace_back((this->verticeTerrainCount + 8u) * sizeof(Vertex));
+		forwardBufferOffsets.emplace_back((this->verticeTerrainCount + 8u) * sizeof(NormText));
 		forwardBufferOffsets.emplace_back(0);
 
 		std::vector<VkDeviceSize> shadowBufferOffsets;
-		shadowBufferOffsets.emplace_back(this->verticeTerrainCount * sizeof(Vertex));
-		shadowBufferOffsets.emplace_back(0);
+		shadowBufferOffsets.emplace_back((this->verticeTerrainCount + 8u) * sizeof(Vertex));
+		shadowBufferOffsets.emplace_back(0);		
 
-		uint32_t indexSize = this->indexBuffer->size() - this->indicesTerrainCount;
-		uint32_t indexOffset = this->indicesTerrainCount * sizeof(uint32_t);
+		uint32_t terrainIndexOffset = 36u * sizeof(uint32_t);
+
+		uint32_t modelIndexSize = this->indexBuffer->size() - this->indicesTerrainCount - 36u;
+		uint32_t modelIndexOffset = (this->indicesTerrainCount + 36u) * sizeof(uint32_t);
 
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
@@ -140,15 +143,15 @@ namespace NugieApp {
 
 				for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
 					this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
-					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), indexSize, lightIndex, shadowBufferOffsets, indexOffset);
+					this->shadowPassRenderer->render(commandBuffer, { this->shadowDescSet->getDescriptorSets(frameIndex) }, shadowBuffers, this->indexBuffer->getBuffer(), modelIndexSize, lightIndex, shadowBufferOffsets, modelIndexOffset);
 					this->shadowSubRenderer->endRenderPass(commandBuffer); 
 				}				
 
 				this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
-				this->skyboxRenderer->render(commandBuffer, { this->skyboxDescSet->getDescriptorSets(frameIndex) }, { this->skyboxVerticesBuffer->getBuffer() }, this->skyboxIndicesBuffer->getBuffer(), this->skyboxIndicesBuffer->size());
-				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->indicesTerrainCount);
-				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), indexSize, forwardBufferOffsets, indexOffset);
+				this->skyboxRenderer->render(commandBuffer, { this->skyboxDescSet->getDescriptorSets(frameIndex) }, { this->vertexBuffer->getBuffer() }, this->indexBuffer->getBuffer(), 36u);
+				this->terrainRenderer->render(commandBuffer, { this->terrainDescSet->getDescriptorSets(frameIndex) }, terrainBuffers, this->indexBuffer->getBuffer(), this->indicesTerrainCount, terrainBufferOffsets, terrainIndexOffset);
+				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), modelIndexSize, forwardBufferOffsets, modelIndexOffset);
 
 				this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -346,6 +349,28 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
+		std::vector<uint32_t> skyboxIndices = SkyBox::getSkyBoxIndices();
+		std::vector<Vertex> skyboxVertices = SkyBox::getSkyBoxVertices();
+
+		std::string skyboxTexturFilenames[6] = {
+			"../assets/textures/skybox/front.jpg",
+			"../assets/textures/skybox/back.jpg",
+			"../assets/textures/skybox/top.jpg",
+			"../assets/textures/skybox/bottom.jpg",
+			"../assets/textures/skybox/left.jpg",
+			"../assets/textures/skybox/right.jpg",			
+		};
+
+		for (auto &&index : skyboxIndices) {
+			indices.emplace_back(index);
+		}		
+
+		for (auto &&vertex : skyboxVertices) {
+			vertices.emplace_back(vertex);
+		}
+
+		// ----------------------------------------------------------------------------
+
 		uint32_t terrainSize = 256;
 		uint32_t iterations = 250;
 		uint32_t patchSize = 32;
@@ -447,21 +472,7 @@ namespace NugieApp {
 		std::vector<VkDrawIndexedIndirectCommand> drawCommands;
 		drawCommands.resize(quadCount);
 
-		// ----------------------------------------------------------------------------
-
-		std::vector<uint32_t> skyboxIndices = SkyBox::getSkyBoxIndices();
-		std::vector<glm::vec4> skyboxVertices = SkyBox::getSkyBoxVertices();
-
-		std::string skyboxTexturFilenames[6] = {
-			"../assets/textures/skybox/front.jpg",
-			"../assets/textures/skybox/back.jpg",
-			"../assets/textures/skybox/top.jpg",
-			"../assets/textures/skybox/bottom.jpg",
-			"../assets/textures/skybox/left.jpg",
-			"../assets/textures/skybox/right.jpg",			
-		};
-
-		// ----------------------------------------------------------------------------
+		// ----------------------------------------------------------------------------		
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
@@ -488,12 +499,6 @@ namespace NugieApp {
 
 		this->spotLightBuffer = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
 		this->spotLightBuffer->replace(commandBuffer, spotLights);
-
-		this->skyboxIndicesBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(skyboxIndices.size()));
-		this->skyboxIndicesBuffer->replace(commandBuffer, skyboxIndices);
-
-		this->skyboxVerticesBuffer = new ArrayBuffer<glm::vec4>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(skyboxVertices.size()));
-		this->skyboxVerticesBuffer->replace(commandBuffer, skyboxVertices);
 
 		this->colorTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/smile.png"));
 		this->terrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/white.jpg"));

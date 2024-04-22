@@ -1,17 +1,17 @@
 #include "skybox.hpp"
 
 namespace NugieApp {
-	std::vector<glm::vec4> SkyBox::getSkyBoxVertices() {
-		std::vector<glm::vec4> skyboxVertices;
+	std::vector<Vertex> SkyBox::getSkyBoxVertices() {
+		std::vector<Vertex> skyboxVertices;
 
-		skyboxVertices.emplace_back(glm::vec4{ -1.0f, -1.0f,  1.0f, 1.0f }); //        7--------6
-		skyboxVertices.emplace_back(glm::vec4{ 1.0f, -1.0f,  1.0f, 1.0f }); //       /|       /|
-		skyboxVertices.emplace_back(glm::vec4{ 1.0f, -1.0f, -1.0f, 1.0f });//      	4--------5 |
-		skyboxVertices.emplace_back(glm::vec4{ -1.0f, -1.0f, -1.0f, 1.0f });//      | |      | |
-		skyboxVertices.emplace_back(glm::vec4{ -1.0f,  1.0f,  1.0f, 1.0f });//      | 3------|-2
-		skyboxVertices.emplace_back(glm::vec4{ 1.0f,  1.0f,  1.0f, 1.0f });//      	|/       |/
-		skyboxVertices.emplace_back(glm::vec4{ 1.0f,  1.0f, -1.0f, 1.0f });//      	0--------1
-		skyboxVertices.emplace_back(glm::vec4{ -1.0f,  1.0f, -1.0f, 1.0f });
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ -1.0f, -1.0f,  1.0f, 1.0f } }); //        7--------6
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ 1.0f, -1.0f,  1.0f, 1.0f } }); //       /|       /|
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ 1.0f, -1.0f, -1.0f, 1.0f } });//      	4--------5 |
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ -1.0f, -1.0f, -1.0f, 1.0f } });//      | |      | |
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ -1.0f,  1.0f,  1.0f, 1.0f } });//      | 3------|-2
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ 1.0f,  1.0f,  1.0f, 1.0f } });//      	|/       |/
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ 1.0f,  1.0f, -1.0f, 1.0f } });//      	0--------1
+		skyboxVertices.emplace_back(Vertex { glm::vec4{ -1.0f,  1.0f, -1.0f, 1.0f } });
 
 		return skyboxVertices;
 	}
