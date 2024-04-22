@@ -407,54 +407,6 @@ namespace NugieVulkan {
 		VkPipelineColorBlendStateCreateInfo colorBlendInfo,
 		VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
 		VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-		const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo)
-	{
-		VkPipelineViewportStateCreateInfo viewportInfo{};
-		viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		viewportInfo.viewportCount = 1;
-		viewportInfo.scissorCount = 1;
-
-		VkGraphicsPipelineCreateInfo pipelineInfo{};
-		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		pipelineInfo.stageCount = static_cast<uint32_t>(shaderStagesInfo.size());
-		pipelineInfo.pStages = (shaderStagesInfo.size() > 0) ? shaderStagesInfo.data() : nullptr;
-		pipelineInfo.pVertexInputState = &vertexInputInfo;
-		pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
-		pipelineInfo.pViewportState = &viewportInfo;
-		pipelineInfo.pRasterizationState = &rasterizationInfo;
-		pipelineInfo.pMultisampleState = &multisampleInfo;
-		pipelineInfo.pColorBlendState = &colorBlendInfo;
-		pipelineInfo.pDepthStencilState = &depthStencilInfo;
-		pipelineInfo.pDynamicState = &dynamicStateInfo;
-
-		pipelineInfo.layout = pipelineLayout;
-		pipelineInfo.renderPass = renderPass;
-		pipelineInfo.subpass = subpass;
-
-		pipelineInfo.basePipelineIndex = -1;
-		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-
-		if (vkCreateGraphicsPipelines(this->device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &this->graphicPipeline) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create graphic pipelines");
-		}
-		
-		this->shaderModules.clear();
-		for (auto& shaderStage : shaderStagesInfo) {
-			this->shaderModules.push_back(shaderStage.module);
-		}
-	}
-
-	void GraphicPipeline::createGraphicPipeline(
-		VkPipelineLayout pipelineLayout,
-		VkRenderPass renderPass,
-		uint32_t subpass,
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-		VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-		VkPipelineMultisampleStateCreateInfo multisampleInfo,
-		VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-		VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-		VkPipelineDynamicStateCreateInfo dynamicStateInfo,
 		const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
 		VkPipelineTessellationStateCreateInfo tessellationInfo)
 	{
@@ -529,8 +481,13 @@ namespace NugieVulkan {
 		vkCmdDraw(commandBuffer->getCommandBuffer(), vertextCount, 1, 0, 0);
 	}
 
-	void GraphicPipeline::drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount) {
-		vkCmdDrawIndexed(commandBuffer->getCommandBuffer(), indexCount, 1, 0, 0, 0);
+	void GraphicPipeline::drawIndirect(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t offset, uint32_t drawCount) {
+		vkCmdDrawIndirect(commandBuffer->getCommandBuffer(), drawCommandBuffer->getBuffer(), offset, drawCount, 
+			static_cast<uint32_t>(sizeof(VkDrawIndexedIndirectCommand)));
+	}
+
+	void GraphicPipeline::drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount, uint32_t instanceCount) {
+		vkCmdDrawIndexed(commandBuffer->getCommandBuffer(), indexCount, instanceCount, 0, 0, 0);
 	}
 
 	void GraphicPipeline::drawIndirectIndexed(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset) {
