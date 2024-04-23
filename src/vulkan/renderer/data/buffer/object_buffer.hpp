@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../../../vulkan/command/command_buffer.hpp"
-#include "../../../vulkan/device/device.hpp"
-#include "../../../vulkan/pipeline/compute_pipeline.hpp"
-#include "../../../vulkan/buffer/buffer.hpp"
+#include "../../../object/command/command_buffer.hpp"
+#include "../../../object/device/device.hpp"
+#include "../../../object/pipeline/compute_pipeline.hpp"
+#include "../../../object/buffer/buffer.hpp"
 
 #include <memory>
 #include <vector>

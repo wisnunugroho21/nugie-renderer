@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../camera/camera.hpp"
-#include "../../../vulkan/window/window.hpp"
+#include "../../../object/window/window.hpp"
 
 namespace NugieApp {
   class MouseController

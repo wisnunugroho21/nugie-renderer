@@ -1,5 +1,5 @@
 #include "descriptor_set.hpp"
-#include "../../../vulkan/descriptor/descriptor_writer.hpp"
+#include "../../../object/descriptor/descriptor_writer.hpp"
 
 namespace NugieApp {
   DescriptorSet::Builder::Builder(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, uint32_t descSetCount) 

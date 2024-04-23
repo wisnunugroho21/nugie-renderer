@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../../vulkan/command/command_buffer.hpp"
-#include "../../vulkan/device/device.hpp"
-#include "../../vulkan/pipeline/graphic_pipeline.hpp"
-#include "../../vulkan/buffer/buffer.hpp"
-#include "../../vulkan/descriptor/descriptor_set_layout.hpp"
-#include "../../vulkan/swap_chain/swap_chain.hpp"
-#include "../../vulkan/renderpass/renderpass.hpp"
+#include "../../object/command/command_buffer.hpp"
+#include "../../object/device/device.hpp"
+#include "../../object/pipeline/graphic_pipeline.hpp"
+#include "../../object/buffer/buffer.hpp"
+#include "../../object/descriptor/descriptor_set_layout.hpp"
+#include "../../object/swap_chain/swap_chain.hpp"
+#include "../../object/renderpass/renderpass.hpp"
 
 #include "../general_struct.hpp"
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../../../vulkan/device/device.hpp"
-#include "../../../vulkan/buffer/buffer.hpp"
-#include "../../../vulkan/descriptor/descriptor_pool.hpp"
-#include "../../../vulkan/descriptor/descriptor_set_layout.hpp"
-#include "../../../vulkan/descriptor/descriptor_writer.hpp"
+#include "../../../object/device/device.hpp"
+#include "../../../object/buffer/buffer.hpp"
+#include "../../../object/descriptor/descriptor_pool.hpp"
+#include "../../../object/descriptor/descriptor_set_layout.hpp"
+#include "../../../object/descriptor/descriptor_writer.hpp"
 
 #include <memory>
 #include <unordered_map>

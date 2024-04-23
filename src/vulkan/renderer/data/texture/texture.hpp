@@ -3,10 +3,10 @@
 #include <vulkan/vulkan.h>
 #include <stdexcept>
 
-#include "../../../vulkan/buffer/buffer.hpp"
-#include "../../../vulkan/command/command_buffer.hpp"
-#include "../../../vulkan/image/image.hpp"
-#include "../../../vulkan/sampler/sampler.hpp"
+#include "../../../object/buffer/buffer.hpp"
+#include "../../../object/command/command_buffer.hpp"
+#include "../../../object/image/image.hpp"
+#include "../../../object/sampler/sampler.hpp"
 
 #include <memory>
 

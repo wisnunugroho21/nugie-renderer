@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../vulkan/image/image.hpp"
-#include "../../vulkan/sampler/sampler.hpp"
-#include "../../vulkan/renderpass/renderpass.hpp"
+#include "../../object/image/image.hpp"
+#include "../../object/sampler/sampler.hpp"
+#include "../../object/renderpass/renderpass.hpp"
 
 #include <vulkan/vulkan.h>
 #include <vector>

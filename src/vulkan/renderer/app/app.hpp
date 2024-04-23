@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../vulkan/window/window.hpp"
-#include "../../vulkan/device/device.hpp"
-#include "../../vulkan/buffer/buffer.hpp"
+#include "../../object/window/window.hpp"
+#include "../../object/device/device.hpp"
+#include "../../object/buffer/buffer.hpp"
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"

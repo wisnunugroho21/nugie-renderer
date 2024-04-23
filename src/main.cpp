@@ -2,7 +2,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "app/app/app.hpp"
+#include "vulkan/renderer/app/app.hpp"
 
 int main(int argc, char const *argv[])
 {
