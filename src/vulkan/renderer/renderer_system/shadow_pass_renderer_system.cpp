@@ -1,4 +1,4 @@
-#include "shadow_pass_render_system.hpp"
+#include "shadow_pass_renderer_system.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,14 +10,14 @@
 #include <string>
 
 namespace NugieApp {
-	ShadowPassRenderSystem::ShadowPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+	ShadowPassRendererSystem::ShadowPassRendererSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 		NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath)
-		: GraphicRenderSystem(device, descriptorSetLayouts, renderPass, vertFilePath, "")
+		: GraphicRendererSystem(device, descriptorSetLayouts, renderPass, vertFilePath, "")
 	{
 		
 	}
 
-	void ShadowPassRenderSystem::createPipelineLayout() {
+	void ShadowPassRendererSystem::createPipelineLayout() {
 		std::vector<VkDescriptorSetLayout> setLayouts;
 		for (auto &&descriptorSetLayout: this->descriptorSetLayouts) {
 			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
@@ -40,7 +40,7 @@ namespace NugieApp {
 		}
 	}
 
-	void ShadowPassRenderSystem::createPipeline() {
+	void ShadowPassRendererSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(2);
@@ -96,7 +96,7 @@ namespace NugieApp {
 			.build();
 	}
 
-	void ShadowPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+	void ShadowPassRendererSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, uint32_t lightIndex,
 		const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset) 
 	{

@@ -2,74 +2,105 @@
 
 #include "../../object/window/window.hpp"
 #include "../../object/device/device.hpp"
-#include "../../object/swap_chain/swap_chain.hpp"
 #include "../../object/buffer/buffer.hpp"
-#include "../../object/descriptor/descriptor_pool.hpp"
-#include "../../object/command/command_buffer.hpp"
-#include "../general_struct.hpp"
+#include "../camera/camera.hpp"
+#include "../controller/keyboard/keyboard_controller.hpp"
+#include "../controller/mouse/mouse_controller.hpp"
+#include "../data/buffer/array_buffer.hpp"
+#include "../data/buffer/object_buffer.hpp"
+#include "../data/buffer/many_array_buffer.hpp"
+#include "../data/descSet/descriptor_set.hpp"
+#include "../data/texture/texture.hpp"
+#include "../data/texture/heightmap_texture.hpp"
+#include "../data/texture/cubemap_texture.hpp"
+#include "../renderer_head/renderer_head.hpp"
+#include "../renderer_pass/renderer_pass.hpp"
+#include "../renderer_system/compute_renderer_system.hpp"
+#include "../renderer_system/forward_pass_renderer_system.hpp"
+#include "../renderer_system/terrain_pass_renderer_system.hpp"
+#include "../renderer_system/shadow_pass_renderer_system.hpp"
+#include "../renderer_system/skybox_pass_renderer_system.hpp"
+#include "../utils/transform/transform.hpp"
 
 #include <memory>
 #include <vector>
 
+#define APP_TITLE "Nugie Renderer"
+
+#define WIDTH 1280
+#define HEIGHT 720
+#define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {
-	class Renderer
+	class VulkanRenderer
 	{
 		public:
-			Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device);
-			~Renderer();
+			VulkanRenderer();
+			~VulkanRenderer();
 
-			NugieVulkan::SwapChain* getSwapChain() const { return this->swapChain; }
-			NugieVulkan::DescriptorPool* getDescriptorPool() const { return this->descriptorPool; }
-			bool isFrameInProgress() const { return this->isFrameStarted; }
+			void recordCommand();
 
-			uint32_t getFrameIndex() const {
-				assert(this->isFrameStarted && "cannot get frame index when frame is not in progress");
-				return this->currentFrameIndex;
-			}
+			void run();
+			void renderLoop();
 
-			uint32_t getImageIndex() const {
-				assert(this->isFrameStarted && "cannot get image index when frame is not in progress");
-				return this->currentImageIndex;
-			}
-
-			void resetCommandPool();
-
-			NugieVulkan::CommandBuffer* beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
-			NugieVulkan::CommandBuffer* beginRecordPrepareCommand();
-			NugieVulkan::CommandBuffer* beginRecordTransferCommand();
-
-			void submitRenderCommand();
-			void submitPrepareCommand();
-			void submitTransferCommand();
-
-			bool acquireFrame();
-			bool presentFrame();
+			void singleThreadRun();
 
 		private:
-			void recreateSwapChain();
-			void createSyncObjects();
-			void createDescriptorPool();
-			void createCommandPool();
-			void createCommandBuffers();
-
-			NugieVulkan::Window* window;
-			NugieVulkan::Device* device;
+			void loadObjects();
+			void initCamera(uint32_t width, uint32_t height);
 			
-			NugieVulkan::DescriptorPool* descriptorPool = nullptr;
-			NugieVulkan::SwapChain* swapChain = nullptr;
+			void init();
+			void resize();
 
-			NugieVulkan::CommandPool* graphicCommandPool = nullptr;
-			NugieVulkan::CommandPool* transferCommandPool = nullptr;
+			NugieVulkan::Window* window = nullptr;
+			NugieVulkan::Device* device = nullptr;
 
-			std::vector<NugieVulkan::CommandBuffer*> graphicCommandBuffers;
-			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
+			Camera* camera = nullptr;
+			KeyboardController* keyboardController = nullptr;
+			MouseController* mouseController = nullptr;
 
-			std::vector<VkFence> inFlightFences;
-			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
-				prepareFinishedSemaphores, transferFinishedSemaphores;
+			RendererHead* rendererHead = nullptr;
 
-			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0;
-			bool isFrameStarted = false, isTransferStarted = false, isPrepareStarted = false;
+			RendererPass* finalRendererPass = nullptr;
+			RendererPass* shadowRendererPass = nullptr;			
+			
+			TerrainPassRendererSystem* terrainRenderer = nullptr;
+			ForwardPassRendererSystem* forwardPassRenderer = nullptr;
+			ShadowPassRendererSystem* shadowPassRenderer = nullptr;
+			SkyboxPassRendererSystem* skyboxRenderer = nullptr;
+
+			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
+			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
+			ArrayBuffer<NormText>* normTextBuffer = nullptr;
+			ArrayBuffer<Reference>* referenceBuffer = nullptr;
+			
+			ArrayBuffer<Material>* materialBuffer = nullptr;
+			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
+			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
+			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
+
+			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
+			ObjectBuffer<TessellationData>* tessellationDataBuffer = nullptr;
+			ObjectBuffer<FragmentData>* fragmentDataBuffer = nullptr;			
+			
+			DescriptorSet* terrainDescSet = nullptr;
+			DescriptorSet* forwardDescSet = nullptr;
+			DescriptorSet* shadowDescSet = nullptr;
+			DescriptorSet* skyboxDescSet = nullptr;
+
+			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
+			bool isRendering = true;
+
+			uint32_t frameCount = 0, verticeTerrainCount = 0, indicesTerrainCount = 0u;
+
+			CameraTransformation cameraTransformation;
+			TessellationData tessellationData;
+			FragmentData fragmentData;
+
+			HeightMapTexture* heightMapTexture;
+
+			std::vector<Texture*> colorTextures;
+			std::vector<Texture*> terrainTextures;
+			CubeMapTexture* skyboxTexture;
 	};
 }

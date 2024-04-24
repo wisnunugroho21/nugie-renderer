@@ -14,11 +14,11 @@
 #include <string>
 
 namespace NugieApp {
-	class GraphicRenderSystem {
+	class GraphicRendererSystem {
 		public:
-			GraphicRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+			GraphicRendererSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath);
-			~GraphicRenderSystem();
+			~GraphicRendererSystem();
 
 			void initialize();
 			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 

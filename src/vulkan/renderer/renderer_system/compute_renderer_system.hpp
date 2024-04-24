@@ -11,10 +11,10 @@
 #include <vector>
 
 namespace NugieApp {
-	class ComputeRenderSystem {
+	class ComputeRendererSystem {
 		public:
-			ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, std::string compFilePath);
-			~ComputeRenderSystem();
+			ComputeRendererSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, std::string compFilePath);
+			~ComputeRendererSystem();
 			
 			void initialize();
 			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 

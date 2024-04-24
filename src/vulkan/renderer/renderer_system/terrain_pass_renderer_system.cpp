@@ -1,4 +1,4 @@
-#include "terrain_pass_render_system.hpp"
+#include "terrain_pass_renderer_system.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,15 +10,15 @@
 #include <string>
 
 namespace NugieApp {
-	TerrainPassRenderSystem::TerrainPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+	TerrainPassRendererSystem::TerrainPassRendererSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 		NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& tescFilePath, const std::string& teseFilePath, 
 		const std::string& fragFilePath, bool isRasterLineMode) 
-		: GraphicRenderSystem(device, descriptorSetLayouts, renderPass, vertFilePath, fragFilePath), tescFilePath{tescFilePath}, teseFilePath{teseFilePath}, isRasterLineMode{isRasterLineMode}
+		: GraphicRendererSystem(device, descriptorSetLayouts, renderPass, vertFilePath, fragFilePath), tescFilePath{tescFilePath}, teseFilePath{teseFilePath}, isRasterLineMode{isRasterLineMode}
 	{
 		
 	}
 
-	void TerrainPassRenderSystem::createPipeline() {
+	void TerrainPassRendererSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(2);
@@ -78,7 +78,7 @@ namespace NugieApp {
 			.build();
 	}
 
-	void TerrainPassRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+	void TerrainPassRendererSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, 
 		NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset)
 	{

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "graphic_render_system.hpp"
+#include "graphic_renderer_system.hpp"
 
 #include "../../object/command/command_buffer.hpp"
 #include "../../object/device/device.hpp"
@@ -15,9 +15,9 @@
 #include <vector>
 
 namespace NugieApp {
-	class ForwardPassRenderSystem : public GraphicRenderSystem {
+	class SkyboxPassRendererSystem : public GraphicRendererSystem {
 		public:
-			ForwardPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+			SkyboxPassRendererSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath);
 
 		private:

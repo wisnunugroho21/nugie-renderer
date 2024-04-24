@@ -2,14 +2,14 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "vulkan/renderer/app/app.hpp"
+#include "vulkan/renderer/renderer/renderer.hpp"
 
 int main(int argc, char const *argv[])
 {
-    NugieApp::App app{};
+    NugieApp::VulkanRenderer vulkanRenderer{};
 
     try {
-        app.run();
+        vulkanRenderer.run();
     } catch(const std::exception &e) {
         std::cerr << e.what() << "\n";
         return EXIT_FAILURE;

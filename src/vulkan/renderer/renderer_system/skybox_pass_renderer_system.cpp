@@ -1,4 +1,4 @@
-#include "skybox_pass_render_system.hpp"
+#include "skybox_pass_renderer_system.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,14 +10,14 @@
 #include <string>
 
 namespace NugieApp {
-	SkyboxPassRenderSystem::SkyboxPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+	SkyboxPassRendererSystem::SkyboxPassRendererSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 		NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath)
-		: GraphicRenderSystem(device, descriptorSetLayouts, renderPass, vertFilePath, fragFilePath)
+		: GraphicRendererSystem(device, descriptorSetLayouts, renderPass, vertFilePath, fragFilePath)
 	{
 		
 	}
 
-	void SkyboxPassRenderSystem::createPipeline() {
+	void SkyboxPassRendererSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(1);

@@ -1,4 +1,4 @@
-#include "graphic_render_system.hpp"
+#include "graphic_renderer_system.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace NugieApp {
-	GraphicRenderSystem::GraphicRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
+	GraphicRendererSystem::GraphicRendererSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 		NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath)
 		: device{device}, descriptorSetLayouts{descriptorSetLayouts}, renderPass{renderPass}, vertFilePath{vertFilePath}, 
 			fragFilePath{fragFilePath}
@@ -18,12 +18,12 @@ namespace NugieApp {
 		
 	}
 
-	GraphicRenderSystem::~GraphicRenderSystem() {
+	GraphicRendererSystem::~GraphicRendererSystem() {
 		vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
 		if (this->pipeline != nullptr) delete this->pipeline;
 	}
 
-	void GraphicRenderSystem::createPipelineLayout() {
+	void GraphicRendererSystem::createPipelineLayout() {
 		std::vector<VkDescriptorSetLayout> setLayouts;
 		for (auto &&descriptorSetLayout: this->descriptorSetLayouts) {
 			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
@@ -41,7 +41,7 @@ namespace NugieApp {
 		}
 	}
 
-	void GraphicRenderSystem::createPipeline() {
+	void GraphicRendererSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions(1);
@@ -65,7 +65,7 @@ namespace NugieApp {
 			.build();
 	}
 
-	void GraphicRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+	void GraphicRendererSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 		const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount, 
 		const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset) 
 	{
@@ -98,7 +98,7 @@ namespace NugieApp {
 		this->pipeline->drawIndexed(commandBuffer, indexCount);
 	}
 
-	void GraphicRenderSystem::initialize() {
+	void GraphicRendererSystem::initialize() {
 		this->createPipelineLayout();
 		this->createPipeline();
 	}

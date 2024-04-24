@@ -1,10 +1,10 @@
-#include "sub_renderer.hpp"
+#include "renderer_pass.hpp"
 
 #include <assert.h>
 #include <array>
 
 namespace NugieApp {
-  SubRenderer::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum) 
+  RendererPass::Builder::Builder(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum) 
     : device{device}, width{width}, height{height}, imageCount{imageCount}, layerNum{layerNum}
   {
     this->outputAttachmentRefs.emplace_back();
@@ -14,10 +14,10 @@ namespace NugieApp {
     this->attachmentInfos.emplace_back();
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
+  RendererPass::Builder& RendererPass::Builder::addAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
     VkSampleCountFlagBits sample) 
   {
-    SubRendererAttachmentDesc attachDesc{};
+    RendererPassAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::COLOR;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
@@ -113,11 +113,11 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
+  RendererPass::Builder& RendererPass::Builder::addAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
     AttachmentType attachmentType, VkFormat format, VkImageLayout layout, 
     VkSampleCountFlagBits sample) 
   {
-    SubRendererAttachmentDesc attachDesc{};
+    RendererPassAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::COLOR;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
@@ -193,10 +193,10 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(AttachmentType attachmentType, 
+  RendererPass::Builder& RendererPass::Builder::setDepthAttachment(AttachmentType attachmentType, 
     VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
   {
-    SubRendererAttachmentDesc attachDesc{};
+    RendererPassAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::DEPTH;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
@@ -292,10 +292,10 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::setDepthAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
+  RendererPass::Builder& RendererPass::Builder::setDepthAttachment(const std::vector<NugieVulkan::Image*> &frameImages, 
     AttachmentType attachmentType, VkFormat format, VkImageLayout layout, VkSampleCountFlagBits sample) 
   {
-    SubRendererAttachmentDesc attachDesc{};
+    RendererPassAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::DEPTH;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
@@ -371,9 +371,9 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout)
+  RendererPass::Builder& RendererPass::Builder::addResolvedAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout)
   {
-    SubRendererAttachmentDesc attachDesc{};
+    RendererPassAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::RESOLVED;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
@@ -469,10 +469,10 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::addResolvedAttachment(const std::vector<NugieVulkan::Image*> &frameImages, AttachmentType attachmentType, 
+  RendererPass::Builder& RendererPass::Builder::addResolvedAttachment(const std::vector<NugieVulkan::Image*> &frameImages, AttachmentType attachmentType, 
     VkFormat format, VkImageLayout layout) 
   {
-    SubRendererAttachmentDesc attachDesc{};
+    RendererPassAttachmentDesc attachDesc{};
     attachDesc.attachmentRole = AttachmentRole::RESOLVED;
     attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
     attachDesc.attachmentType = attachmentType;
@@ -548,7 +548,7 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer::Builder& SubRenderer::Builder::nextSubpass() {
+  RendererPass::Builder& RendererPass::Builder::nextSubpass() {
     this->outputAttachmentRefs.emplace_back();
     this->depthAttachmentRefs.emplace_back();
     this->inputAttachmentRefs.emplace_back();
@@ -558,35 +558,35 @@ namespace NugieApp {
     return *this;
   }
 
-  SubRenderer* SubRenderer::Builder::build() {
+  RendererPass* RendererPass::Builder::build() {
     std::vector<std::vector<NugieVulkan::Image*>> attachments = this->attachments;
     
 
-    return new SubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments, this->createdAttachments, 
+    return new RendererPass(this->device, this->width, this->height, this->layerNum, this->attachments, this->createdAttachments, 
       this->attachmentDescs, this->outputAttachmentRefs, this->depthAttachmentRefs, this->inputAttachmentRefs, 
       this->resolveAttachmentRefs, this->attachmentSamplers, this->subRendererAttachmentDescs, this->attachmentInfos);
   }
 
-  SubRenderer::Overwriter::Overwriter(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum) 
+  RendererPass::Overwriter::Overwriter(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t imageCount, uint32_t layerNum) 
     : device{device}, width{width}, height{height}, imageCount{imageCount}, layerNum{layerNum}
   {
 
   }
 
-  SubRenderer::Overwriter& SubRenderer::Overwriter::addOutsideAttachment(const std::vector<NugieVulkan::Image*> &attachments) {
+  RendererPass::Overwriter& RendererPass::Overwriter::addOutsideAttachment(const std::vector<NugieVulkan::Image*> &attachments) {
     this->outsideAttachments.emplace_back(attachments);
     return *this;
   }
 
-  void SubRenderer::Overwriter::overwrite(SubRenderer* subRenderer) {
+  void RendererPass::Overwriter::overwrite(RendererPass* subRenderer) {
     subRenderer->recreateResources(this->width, this->height, this->imageCount, this->outsideAttachments);
   }
 
-  SubRenderer::SubRenderer(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
+  RendererPass::RendererPass(NugieVulkan::Device* device, uint32_t width, uint32_t height, uint32_t layerNum, const std::vector<std::vector<NugieVulkan::Image*>> &attachments, 
     const std::vector<std::vector<NugieVulkan::Image*>> &createdAttachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
     const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
     const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &resolveAttachmentRefs,
-    const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers, const std::vector<SubRendererAttachmentDesc> &subRendererAttachmentDescs,
+    const std::vector<std::vector<NugieVulkan::Sampler*>> &attachmentSamplers, const std::vector<RendererPassAttachmentDesc> &subRendererAttachmentDescs,
     const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos)
     : device{device}, width{width}, height{height}, layerNum{layerNum}, createdAttachments{createdAttachments}, 
       attachmentSamplers{attachmentSamplers}, subRendererAttachmentDescs{subRendererAttachmentDescs}, attachmentInfos{attachmentInfos}
@@ -594,7 +594,7 @@ namespace NugieApp {
     this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs, inputAttachmentRefs, resolveAttachmentRefs);
   }
 
-  SubRenderer::~SubRenderer() {
+  RendererPass::~RendererPass() {
     if (this->renderPass != nullptr) delete this->renderPass;
 
     for (auto &&attachmentSampler : attachmentSamplers) {
@@ -610,7 +610,7 @@ namespace NugieApp {
     }
   }
 
-  void SubRenderer::createRenderPass(const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
+  void RendererPass::createRenderPass(const std::vector<std::vector<NugieVulkan::Image*>> &attachments, const std::vector<VkAttachmentDescription> &attachmentDescs, 
     const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs, const std::vector<VkAttachmentReference> &depthAttachmentRefs, 
     const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs, const std::vector<std::vector<VkAttachmentReference>> &resolveAttachmentRefs)
   {
@@ -708,7 +708,7 @@ namespace NugieApp {
     this->renderPass = renderPassBuilder.build();
   }
 
-  void SubRenderer::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t imageIndex) {
+  void RendererPass::beginRenderPass(NugieVulkan::CommandBuffer* commandBuffer, uint32_t imageIndex) {
 		VkRenderPassBeginInfo renderBeginInfo{};
 		renderBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderBeginInfo.renderPass = this->getRenderPass()->getRenderPass();
@@ -735,15 +735,15 @@ namespace NugieApp {
 		vkCmdSetScissor(commandBuffer->getCommandBuffer(), 0, 1, &scissor);
 	}
 
-  void SubRenderer::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
+  void RendererPass::nextSubpass(NugieVulkan::CommandBuffer* commandBuffer, VkSubpassContents subPassContent) {
     vkCmdNextSubpass(commandBuffer->getCommandBuffer(), subPassContent);
   }
 
-	void SubRenderer::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
+	void RendererPass::endRenderPass(NugieVulkan::CommandBuffer* commandBuffer) {
 		vkCmdEndRenderPass(commandBuffer->getCommandBuffer());
 	}
 
-  void SubRenderer::deleteCreatedAttachments() {
+  void RendererPass::deleteCreatedAttachments() {
     for (auto &&attachmentSampler : this->attachmentSamplers) {
       for (auto &&sampler : attachmentSampler) {
         if (sampler != nullptr) delete sampler;
@@ -757,7 +757,7 @@ namespace NugieApp {
     }
   }
 
-  void SubRenderer::recreateResources(uint32_t width, uint32_t height, uint32_t imageCount, const std::vector<std::vector<NugieVulkan::Image*>> &outsideAttachments) {
+  void RendererPass::recreateResources(uint32_t width, uint32_t height, uint32_t imageCount, const std::vector<std::vector<NugieVulkan::Image*>> &outsideAttachments) {
     this->width = width;
     this->height = height;
 

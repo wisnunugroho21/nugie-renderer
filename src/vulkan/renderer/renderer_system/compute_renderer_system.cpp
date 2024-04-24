@@ -1,4 +1,4 @@
-#include "compute_render_system.hpp"
+#include "compute_renderer_system.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -10,19 +10,19 @@
 #include <string>
 
 namespace NugieApp {
-	ComputeRenderSystem::ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
+	ComputeRendererSystem::ComputeRendererSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
 		std::string compFilePath)
 		: device{device}, descriptorSetLayouts{descriptorSetLayouts}, compFilePath{compFilePath}
 	{
 		
 	}
 
-	ComputeRenderSystem::~ComputeRenderSystem() {
+	ComputeRendererSystem::~ComputeRendererSystem() {
 		vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
 		if (this->pipeline != nullptr) delete this->pipeline;
 	}
 
-	void ComputeRenderSystem::createPipelineLayout() {
+	void ComputeRendererSystem::createPipelineLayout() {
 		std::vector<VkDescriptorSetLayout> setLayouts;
 		for (auto &&descriptorSetLayout: this->descriptorSetLayouts) {
 			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
@@ -40,7 +40,7 @@ namespace NugieApp {
 		}
 	}
 
-	void ComputeRenderSystem::createPipeline() {
+	void ComputeRendererSystem::createPipeline() {
 		assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 		this->pipeline = NugieVulkan::ComputePipeline::Builder(this->device, this->pipelineLayout)
@@ -48,7 +48,7 @@ namespace NugieApp {
 			.build();
 	}
 
-	void ComputeRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
+	void ComputeRendererSystem::render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 		uint32_t xInvocations, uint32_t yInvocations, uint32_t zInvocations)
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
@@ -69,7 +69,7 @@ namespace NugieApp {
 		this->pipeline->dispatch(commandBuffer, xInvocations, yInvocations, zInvocations);
 	}
 
-	void ComputeRenderSystem::initialize() {
+	void ComputeRendererSystem::initialize() {
 		this->createPipelineLayout();
 		this->createPipeline();
 	}
