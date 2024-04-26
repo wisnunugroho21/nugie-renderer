@@ -137,6 +137,6 @@ namespace NugieApp {
 			this->pipeline->bindBuffers(commandBuffer, vertexBuffers, vertexOffsets, indexBuffer, indexOffset);
 		}
 
-		this->pipeline->drawIndexed(commandBuffer, indexCount);
+		this->pipeline->drawIndexed(commandBuffer, indexCount, 1);
 	}
 }
