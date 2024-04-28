@@ -87,9 +87,7 @@ namespace NugieApp {
   };
 
   struct TessellationData {
-    alignas(16) glm::vec2 screenSize;
-    float tessellationFactor;
-	  float tessellatedEdgeSize;
+    glm::vec4 tessellationScreenSizeFactorEdgeSize;
   };
 
   struct FrustumData {

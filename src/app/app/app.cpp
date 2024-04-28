@@ -529,10 +529,7 @@ namespace NugieApp {
 		this->cameraTransformation.projection = projection;
 		this->cameraTransformation.view = view;
 
-		this->tessellationData.tessellatedEdgeSize = 32;
-		this->tessellationData.tessellationFactor = 1.0f;
-		this->tessellationData.screenSize = { width, height };
-
+		this->tessellationData.tessellationScreenSizeFactorEdgeSize = glm::vec4{ width, height, 1.0f, 32 };
 		this->fragmentData.origin = glm::vec4(position, 1.0f);
 
 		this->fragmentData.sunLight.direction = glm::normalize(glm::vec4(0.0f, -1.0f, 0.0f, 0.0f));
@@ -636,7 +633,8 @@ namespace NugieApp {
 
 		this->cameraTransformation.view = this->camera->getViewMatrix();
 		this->cameraTransformation.projection = this->camera->getProjectionMatrix();
-		this->tessellationData.screenSize = { width, height };
+		this->tessellationData.tessellationScreenSizeFactorEdgeSize.x = width;
+		this->tessellationData.tessellationScreenSizeFactorEdgeSize.y = height;
 
 		this->cameraUpdateCount = 0u;
 		
