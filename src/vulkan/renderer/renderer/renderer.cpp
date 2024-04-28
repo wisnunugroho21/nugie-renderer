@@ -606,11 +606,19 @@ namespace NugieApp {
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->cameraTransformationBuffer->getInfo())
 			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->skyboxTexture->getDescriptorInfo())
 			.build();
+
+		#ifdef __APPLE__
+			std::string forwardFragFilePath = "shader/forward_apple.frag.spv";
+			std::string terrainFragFilePath = "shader/terrain_apple.frag.spv";
+		#else
+			std::string forwardFragFilePath = "shader/forward.frag.spv";
+			std::string terrainFragFilePath = "shader/terrain.frag.spv";
+		#endif
 		
-		this->forwardPassRenderer = new ForwardPassRendererSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalRendererPass->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
+		this->forwardPassRenderer = new ForwardPassRendererSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->finalRendererPass->getRenderPass(), "shader/forward.vert.spv", forwardFragFilePath);
 		this->shadowPassRenderer = new ShadowPassRendererSystem(this->device, { this->shadowDescSet->getDescSetLayout() }, this->shadowRendererPass->getRenderPass(), "shader/shadow_map.vert.spv");
 		this->terrainRenderer = new TerrainPassRendererSystem(this->device, { this->terrainDescSet->getDescSetLayout() }, this->finalRendererPass->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.tesc.spv", 
-			"shader/terrain.tese.spv", "shader/terrain.frag.spv");
+			"shader/terrain.tese.spv", terrainFragFilePath);
 		this->skyboxRenderer = new SkyboxPassRendererSystem(this->device, { this->skyboxDescSet->getDescSetLayout() }, this->finalRendererPass->getRenderPass(), "shader/skybox.vert.spv", "shader/skybox.frag.spv");
 
 		this->forwardPassRenderer->initialize();
