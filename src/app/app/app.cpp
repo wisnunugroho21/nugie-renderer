@@ -52,9 +52,7 @@ namespace NugieApp {
 		if (this->shadowDescSet != nullptr) delete this->shadowDescSet;
 		if (this->skyboxDescSet != nullptr) delete this->skyboxDescSet;
 
-		if (this->cameraTransformationBuffer != nullptr) delete this->cameraTransformationBuffer;
-		if (this->tessellationDataBuffer != nullptr) delete this->tessellationDataBuffer;
-		if (this->fragmentDataBuffer != nullptr) delete this->fragmentDataBuffer;
+		if (this->renderDataBuffer != nullptr) delete this->renderDataBuffer;
 
 		if (this->indexBuffer != nullptr) delete this->indexBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
@@ -170,10 +168,7 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->cameraTransformationBuffer->writeGlobalData(frameIndex, this->cameraTransformation);
-					this->tessellationDataBuffer->writeGlobalData(frameIndex, this->tessellationData);
-					this->fragmentDataBuffer->writeGlobalData(frameIndex, this->fragmentData);
-					
+					this->renderDataBuffer->writeGlobalData(frameIndex, this->renderData);					
 					this->cameraUpdateCount++;
 				}
 
@@ -202,9 +197,7 @@ namespace NugieApp {
 		uint32_t t = 0;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->cameraTransformationBuffer->writeGlobalData(i, this->cameraTransformation);
-			this->tessellationDataBuffer->writeGlobalData(i, this->tessellationData);
-			this->fragmentDataBuffer->writeGlobalData(i, this->fragmentData);
+			this->renderDataBuffer->writeGlobalData(i, this->renderData);
 		}
 
 		std::thread renderThread(&App::renderLoop, std::ref(*this));
@@ -231,8 +224,8 @@ namespace NugieApp {
 			if (isMousePressed || isKeyboardPressed) {
 				this->camera->setViewYXZ(cameraPosition, cameraRotation);
 
-				this->cameraTransformation.view = this->camera->getViewMatrix();
-				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
+				this->renderData.cameraTransformation.view = this->camera->getViewMatrix();
+				this->renderData.cameraTransformation.projection = this->camera->getProjectionMatrix();
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -265,9 +258,7 @@ namespace NugieApp {
 		bool isMousePressed = false, isKeyboardPressed = false;
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->cameraTransformationBuffer->writeGlobalData(i, this->cameraTransformation);
-			this->tessellationDataBuffer->writeGlobalData(i, this->tessellationData);
-			this->fragmentDataBuffer->writeGlobalData(i, this->fragmentData);
+			this->renderDataBuffer->writeGlobalData(i, this->renderData);
 		}
 
 		std::vector<NugieVulkan::Buffer*> forwardBuffers;
@@ -301,8 +292,8 @@ namespace NugieApp {
 			if ((isMousePressed || isKeyboardPressed)) {
 				this->camera->setViewYXZ(cameraPosition, cameraRotation);
 
-				this->cameraTransformation.view = this->camera->getViewMatrix();
-				this->cameraTransformation.projection = this->camera->getProjectionMatrix();
+				this->renderData.cameraTransformation.view = this->camera->getViewMatrix();
+				this->renderData.cameraTransformation.projection = this->camera->getProjectionMatrix();
 				
 				this->cameraUpdateCount = 0u;
 			}
@@ -311,10 +302,7 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-					this->cameraTransformationBuffer->writeGlobalData(frameIndex, this->cameraTransformation);
-					this->tessellationDataBuffer->writeGlobalData(frameIndex, this->tessellationData);
-					this->fragmentDataBuffer->writeGlobalData(frameIndex, this->fragmentData);
-
+					this->renderDataBuffer->writeGlobalData(frameIndex, this->renderData);
 					this->cameraUpdateCount++;
 				}
 				
@@ -443,7 +431,7 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
-		this->fragmentData.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
+		this->renderData.fragmentData.numLights = glm::uvec4(this->spotNumLight, 0u, 0u, 0u);
 
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
@@ -526,14 +514,14 @@ namespace NugieApp {
 		glm::mat4 view = this->camera->getViewMatrix();
 		glm::mat4 projection = this->camera->getProjectionMatrix();
 
-		this->cameraTransformation.projection = projection;
-		this->cameraTransformation.view = view;
+		this->renderData.cameraTransformation.projection = projection;
+		this->renderData.cameraTransformation.view = view;
 
-		this->tessellationData.tessellationScreenSizeFactorEdgeSize = glm::vec4{ width, height, 1.0f, 32 };
-		this->fragmentData.origin = glm::vec4(position, 1.0f);
+		this->renderData.tessellationData.tessellationScreenSizeFactorEdgeSize = glm::vec4{ width, height, 1.0f, 32 };
+		this->renderData.fragmentData.origin = glm::vec4(position, 1.0f);
 
-		this->fragmentData.sunLight.direction = glm::normalize(glm::vec4(0.0f, -1.0f, 0.0f, 0.0f));
-		this->fragmentData.sunLight.color = glm::vec4(3.0f, 3.0f, 3.0f, 1.0f);
+		this->renderData.fragmentData.sunLight.direction = glm::normalize(glm::vec4(0.0f, -1.0f, 0.0f, 0.0f));
+		this->renderData.fragmentData.sunLight.color = glm::vec4(3.0f, 3.0f, 3.0f, 1.0f);
 	}
 
 	void App::init() {
@@ -543,10 +531,7 @@ namespace NugieApp {
 		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
 		this->initCamera(width, height);
-
-		this->cameraTransformationBuffer = new ObjectBuffer<CameraTransformation>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		this->tessellationDataBuffer = new ObjectBuffer<TessellationData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		this->fragmentDataBuffer = new ObjectBuffer<FragmentData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->renderDataBuffer = new ObjectBuffer<RenderData>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
 			.addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(), 
@@ -573,9 +558,9 @@ namespace NugieApp {
 		}
 
 		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->renderDataBuffer->getInfo(sizeof(FragmentData), offsetof(RenderData, fragmentData)))
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->materialBuffer->getInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->spotLightBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationBuffer->getInfo())
@@ -589,18 +574,18 @@ namespace NugieApp {
 			.build();
 
 		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->cameraTransformationBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->tessellationDataBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->renderDataBuffer->getInfo(sizeof(TessellationData), offsetof(RenderData, tessellationData)))
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
 			.addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->heightMapTexture->getDescriptorInfo())
-			.addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->fragmentDataBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->renderDataBuffer->getInfo(sizeof(FragmentData), offsetof(RenderData, fragmentData)))
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->shadowTransformationBuffer->getInfo())
 			.addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->terrainTextures[0]->getDescriptorInfo())
 			.addManyImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
 			.build();
 
 		this->skyboxDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
 			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->skyboxTexture->getDescriptorInfo())
 			.build();
 		
@@ -631,10 +616,10 @@ namespace NugieApp {
 		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		this->camera->setAspect(aspectRatio);
 
-		this->cameraTransformation.view = this->camera->getViewMatrix();
-		this->cameraTransformation.projection = this->camera->getProjectionMatrix();
-		this->tessellationData.tessellationScreenSizeFactorEdgeSize.x = width;
-		this->tessellationData.tessellationScreenSizeFactorEdgeSize.y = height;
+		this->renderData.cameraTransformation.view = this->camera->getViewMatrix();
+		this->renderData.cameraTransformation.projection = this->camera->getProjectionMatrix();
+		this->renderData.tessellationData.tessellationScreenSizeFactorEdgeSize.x = width;
+		this->renderData.tessellationData.tessellationScreenSizeFactorEdgeSize.y = height;
 
 		this->cameraUpdateCount = 0u;
 		

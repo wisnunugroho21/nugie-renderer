@@ -73,13 +73,7 @@ namespace NugieApp {
   struct SunLight {
     alignas(16) glm::vec4 color;
     alignas(16) glm::vec4 direction;
-  };
-
-  struct FragmentData {
-    glm::vec4 origin;
-    glm::uvec4 numLights;
-    SunLight sunLight;
-  };
+  };  
 
   struct CameraTransformation {
     glm::mat4 view;
@@ -89,6 +83,18 @@ namespace NugieApp {
   struct TessellationData {
     glm::vec4 tessellationScreenSizeFactorEdgeSize;
   };
+
+  struct FragmentData {
+    glm::vec4 origin;
+    glm::uvec4 numLights;
+    SunLight sunLight;
+  };
+
+  struct RenderData {
+    CameraTransformation cameraTransformation;
+    TessellationData tessellationData;
+    FragmentData fragmentData;
+  };  
 
   struct FrustumData {
     uint32_t drawObjectCount = 0;
