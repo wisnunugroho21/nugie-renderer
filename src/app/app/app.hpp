@@ -86,11 +86,10 @@ namespace NugieApp {
 			DescriptorSet* shadowDescSet = nullptr;
 			DescriptorSet* skyboxDescSet = nullptr;
 
-			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u;
+			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u,
+				frameCount = 0, verticeTerrainCount = 0, indicesTerrainCount = 0u;
+
 			bool isRendering = true;
-
-			uint32_t frameCount = 0, verticeTerrainCount = 0, indicesTerrainCount = 0u;
-
 			RenderData renderData;
 
 			HeightMapTexture* heightMapTexture;
