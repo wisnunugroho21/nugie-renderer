@@ -12,9 +12,7 @@ layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
 };
 
 layout(set = 0, binding = 1) uniform readonly TessellationData {
-	vec2 screenSize;
-	float tessellationFactor;
-	float tessellatedEdgeSize;
+	vec4 tessellationScreenSizeFactorEdgeSize;
 };
 
 float screenSpaceTessFactor(vec4 p0, vec4 p1) {
@@ -29,10 +27,10 @@ float screenSpaceTessFactor(vec4 p0, vec4 p1) {
 	clip0 /= clip0.w;
 	clip1 /= clip1.w;
 
-	clip0.xy *= screenSize;
-	clip1.xy *= screenSize;
+	clip0.xy *= tessellationScreenSizeFactorEdgeSize.xy;
+	clip1.xy *= tessellationScreenSizeFactorEdgeSize.xy;
 	
-	return clamp(distance(clip0, clip1) / tessellatedEdgeSize * tessellationFactor, 1.0, 64.0);
+	return clamp(distance(clip0, clip1) / tessellationScreenSizeFactorEdgeSize.z * tessellationScreenSizeFactorEdgeSize.w, 1.0, 64.0);
 }
 
 void main() {

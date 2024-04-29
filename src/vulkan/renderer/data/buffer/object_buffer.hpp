@@ -16,9 +16,9 @@ namespace NugieApp {
 			~ObjectBuffer();
 
 			NugieVulkan::Buffer* getBuffer(uint32_t index) const { return this->buffers[index]; }
-			std::vector<VkDescriptorBufferInfo> getInfo() const;
+			std::vector<VkDescriptorBufferInfo> getInfo(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0) const;
 
-			void writeGlobalData(uint32_t frameIndex, T ubo);
+			void writeGlobalData(uint32_t frameIndex, T ubo, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 
 		private:
       NugieVulkan::Device* device = nullptr;
@@ -40,11 +40,11 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	std::vector<VkDescriptorBufferInfo> ObjectBuffer<T>::getInfo() const {
+	std::vector<VkDescriptorBufferInfo> ObjectBuffer<T>::getInfo(VkDeviceSize size, VkDeviceSize offset) const {
 		std::vector<VkDescriptorBufferInfo> buffersInfo{};
 		
 		for (int i = 0; i < this->buffers.size(); i++) {
-			buffersInfo.emplace_back(this->buffers[i]->descriptorInfo());
+			buffersInfo.emplace_back(this->buffers[i]->descriptorInfo(size, offset));
 		}
 
 		return buffersInfo;
@@ -70,8 +70,8 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ObjectBuffer<T>::writeGlobalData(uint32_t frameIndex, T ubo) {
-		this->buffers[frameIndex]->writeToBuffer(&ubo);
+	void ObjectBuffer<T>::writeGlobalData(uint32_t frameIndex, T ubo, VkDeviceSize size, VkDeviceSize offset) {
+		this->buffers[frameIndex]->writeToBuffer(&ubo, size, offset);
 		this->buffers[frameIndex]->flush();
 	}
 }
