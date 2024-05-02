@@ -39,8 +39,6 @@ void main() {
     : texture(colorTexture[0], fragTextCoord);
 
   vec4 totalRadiance = vec4(0.0f);
-  uint activeLight = 0u;
-
   for (uint i = 0; i < ubo.numLights.x; i++) {
     SpotLight spotLight = spotLights[i];
 
@@ -63,9 +61,8 @@ void main() {
       shadowFactor = shadowCoord.w <= 0.0f ? 1.0f : shadowFactor;
 
       totalRadiance += clamp(shadowFactor * brdf * irradiance, 0.0f, 1.0f);
-      activeLight++;      
     }
   }
 
-  outColor = totalRadiance / activeLight;
+  outColor = totalRadiance;
 }

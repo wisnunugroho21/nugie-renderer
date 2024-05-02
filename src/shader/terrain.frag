@@ -25,15 +25,20 @@ layout(set = 0, binding = 7) uniform sampler2DShadow shadowMapTexture[1];
 void main() {
   vec4 surfaceColor = texture(terrainTexture[0], inTextCoord);
 
-  vec4 shadowCoord = shadowTransformations[0].projection * shadowTransformations[0].view * inPosition;
-  shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
-  shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+  vec4 totalRadiance = vec4(0.0f);
+  for (uint i = 0; i < ubo.numLights.x; i++) {
+    vec4 shadowCoord = shadowTransformations[i].projection * shadowTransformations[i].view * inPosition;
+    shadowCoord.xyz = shadowCoord.xyz / shadowCoord.w;
+    shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 
-  float shadowFactor = texture(shadowMapTexture[0], shadowCoord.xyz).x;
-  shadowFactor = shadowCoord.w <= 0.0f ? 1.0f : shadowFactor;
+    float shadowFactor = texture(shadowMapTexture[i], shadowCoord.xyz).x;
+    shadowFactor = shadowCoord.w <= 0.0f ? 1.0f : shadowFactor;
+
+    totalRadiance += clamp(shadowFactor * surfaceColor, 0.0f, 1.0f);
+  }  
 
   // float NoL = max(dot(fragNormal, ubo.sunLight.direction * -1.0f), 0.3f);
   // vec4 totalRadiance = NoL * surfaceColor * ubo.sunLight.color;
 
-  outColor = clamp(shadowFactor * surfaceColor, 0.0f, 1.0f); //clamp(totalRadiance, 0.0f, 1.0f);
+  outColor = totalRadiance; //clamp(totalRadiance, 0.0f, 1.0f);
 }
