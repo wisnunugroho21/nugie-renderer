@@ -557,7 +557,7 @@ namespace NugieApp {
 			shadowImageInfos.emplace_back(shadowFrameImageInfos);
 		}
 
-		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->forwardDescSet = DescriptorSet::Builder(this->device, this->rendererHead->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformationBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, this->renderDataBuffer->getInfo(sizeof(FragmentData), offsetof(RenderData, fragmentData)))
@@ -573,7 +573,7 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->shadowTransformationBuffer->getInfo())
 			.build();
 
-		this->terrainDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->terrainDescSet = DescriptorSet::Builder(this->device, this->rendererHead->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, this->renderDataBuffer->getInfo(sizeof(TessellationData), offsetof(RenderData, tessellationData)))
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
@@ -584,7 +584,7 @@ namespace NugieApp {
 			.addManyImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, shadowImageInfos)
 			.build();
 
-		this->skyboxDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->skyboxDescSet = DescriptorSet::Builder(this->device, this->rendererHead->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->renderDataBuffer->getInfo(sizeof(CameraTransformation), offsetof(RenderData, cameraTransformation)))
 			.addImage(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, this->skyboxTexture->getDescriptorInfo())
 			.build();
