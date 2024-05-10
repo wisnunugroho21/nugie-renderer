@@ -43,6 +43,7 @@ namespace NugieApp {
 		if (this->indirectSamplerRender != nullptr) delete this->indirectSamplerRender;
 		if (this->directSamplerRender != nullptr) delete this->directSamplerRender;
 		if (this->sunDirectSamplerRender != nullptr) delete this->sunDirectSamplerRender;
+		if (this->samplingRayRender != nullptr) delete this->samplingRayRender;
 
 		if (this->finalSubRenderer != nullptr) delete this->finalSubRenderer;
 
@@ -90,6 +91,17 @@ namespace NugieApp {
 		
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;
 		if (this->transformationBuffer != nullptr) delete this->transformationBuffer;
+
+		if (this->quadIndexBuffer != nullptr) delete this->quadIndexBuffer;
+		if (this->quadVertexBuffer != nullptr) delete this->quadVertexBuffer;
+
+		for (auto &&accumulateImage : this->accumulateImages) {
+			if (accumulateImage != nullptr) delete accumulateImage;
+		}
+
+		for (auto &&indirectImage : this->indirectImages) {
+			if (indirectImage != nullptr) delete indirectImage;
+		}		
 
 		if (this->device != nullptr) delete this->device;
 		if (this->window != nullptr) delete this->window;
