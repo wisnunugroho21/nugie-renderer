@@ -22,9 +22,6 @@ layout(set = 0, binding = 2) uniform readonly GlobalUniform {
 } ubo;
 
 void main() {
-  vec4 accColor = imageLoad(accumulateImage, ivec2(gl_FragCoord.xy));
-  vec4 totalColor = (clamp(imageLoad(inputImage, ivec2(gl_FragCoord.xy)), 0.0f, 1.0f) + accColor * ubo.numLightsRandomSeed.y) / (ubo.numLightsRandomSeed.y + 1.0f);
-
-  imageStore(accumulateImage, ivec2(gl_FragCoord.xy), totalColor);
-  outColor = totalColor; //imageLoad(inputImage, ivec2(gl_FragCoord.xy));
+  
+  outColor = vec4(0.5f); //imageLoad(inputImage, ivec2(gl_FragCoord.xy));
 }

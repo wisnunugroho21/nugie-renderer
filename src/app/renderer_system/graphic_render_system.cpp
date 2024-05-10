@@ -49,12 +49,12 @@ namespace NugieApp {
 		std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachment(1);
 
 		bindingDescriptions[0].binding = 0;
-		bindingDescriptions[0].stride = sizeof(glm::vec4);
+		bindingDescriptions[0].stride = sizeof(Vertex);
 		bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		attributeDescription[0].binding = 0;
 		attributeDescription[0].location = 0;
-		attributeDescription[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescription[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attributeDescription[0].offset = 0;
 
     colorBlendAttachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
