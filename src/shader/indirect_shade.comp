@@ -1,0 +1,151 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) uniform readonly GlobalUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 imgSize;
+  SunLight sunLight;
+  vec3 skyColor;
+  uvec2 numLightsRandomSeed;
+} ubo;
+
+layout(set = 0, binding = 1) buffer writeonly IndirectBuffer {
+  IndirectShadeRecord records[];
+} indirectBuffer;
+
+layout(set = 0, binding = 2) buffer readonly ObjectHitBuffer {
+  HitRecord records[];
+} objectHitBuffer;
+
+layout(set = 0, binding = 3) buffer readonly LightHitBuffer {
+  HitRecord records[];
+} lightHitBuffer;
+
+layout(set = 0, binding = 4) buffer readonly MaterialModel {
+  Material materials[];
+};
+
+// ------------- Basic -------------
+
+float maxComponent(vec3 v) {
+  return max(v.x, max(v.y, v.z));
+}
+
+vec3 rayAt(Ray r, float t) {
+  return r.origin + t * r.direction;
+}
+
+vec3[3] buildOnb(vec3 normal) {
+  vec3 a = abs(normalize(normal).x) > 0.9 ? vec3(0.0f, 1.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
+
+  vec3 z = normalize(normal);
+  vec3 y = normalize(cross(z, a));
+  vec3 x = cross(z, y);
+
+  return vec3[3](x, y, z);
+}
+
+// ------------- Integrand ------------- 
+
+vec3 integrandOverHemisphere(vec3 color, float brdf, float NoL, float pdf) {
+  return color * brdf * NoL / pdf; 
+}
+
+vec3 integrandOverArea(vec3 color, float brdf, float NoL, float NloL, float squareDistance, float area) {
+  return color * brdf * NoL * NloL * area / squareDistance;
+}
+
+vec3 partialIntegrand(vec3 color, float brdf, float NoL) {
+  return color * brdf * NoL;
+}
+
+float Gfactor(float NloL, float squareDistance, float area) {
+  return NloL * area / squareDistance;
+}
+
+// ------------- Random ------------- 
+
+// Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
+uint stepRNG(uint rngState) {
+  return rngState * 747796405 + 1;
+}
+
+// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
+float stepAndOutputRNGFloat(inout uint rngState) {
+  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
+  rngState  = stepRNG(rngState);
+  uint word = ((rngState >> ((rngState >> 28u) + 4u)) ^ rngState) * 277803737u;
+  word      = (word >> 22u) ^ word;
+  return float(word) / 4294967295.0f;
+}
+
+float randomFloat(uint additionalRandomSeed) {
+  uint rngState =  gl_GlobalInvocationID.x * (ubo.numLightsRandomSeed.y + 1 + additionalRandomSeed);
+  return stepAndOutputRNGFloat(rngState);
+}
+
+// ------------- Lambert ------------- 
+
+vec3 randomCosineDirection(uint additionalRandomSeed) {
+  float r1 = randomFloat(additionalRandomSeed);
+  float r2 = randomFloat(additionalRandomSeed + 1);
+
+  float cosTheta = sqrt(r1);
+  float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+  
+  float phi = 2 * pi * r2;
+
+  float x = cos(phi) * sinTheta;
+  float y = sin(phi) * sinTheta;
+  float z = cosTheta;
+
+  return vec3(x, y, z);
+}
+
+vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
+  vec3 source = randomCosineDirection(additionalRandomSeed);
+  return source.x * globalOnb[0] + source.y * globalOnb[1] + source.z * globalOnb[2];
+}
+
+float lambertPdfValue(float NoL) {
+  return NoL / pi;
+}
+
+float lambertBrdfValue() {
+  return 1.0f / pi;
+}
+
+void main() {
+  HitRecord objectHit = objectHitBuffer.records[gl_GlobalInvocationID.x];
+  HitRecord lightHit = lightHitBuffer.records[gl_GlobalInvocationID.x];
+  
+  Material surfaceMaterial = materials[objectHit.materialIndex];
+
+  IndirectShadeRecord indirectShadeResult;
+  indirectShadeResult.isIlluminate = objectHit.isHit && (!lightHit.isHit || length(lightHit.dir) > length(objectHit.dir));
+  indirectShadeResult.radiance = vec3(0.0f);
+  indirectShadeResult.pdf = 0.0f;
+
+  indirectShadeResult.nextRay.origin = vec3(0.0f);
+  indirectShadeResult.nextRay.direction = vec3(0.0f);
+
+  if (indirectShadeResult.isIlluminate) {
+    indirectShadeResult.nextRay.origin = objectHit.point;
+    indirectShadeResult.nextRay.direction = lambertRandomDirection(buildOnb(objectHit.normal), 0u);
+
+    float NoL = max(dot(objectHit.normal, normalize(indirectShadeResult.nextRay.direction)), 0.01f);
+    float brdf = lambertBrdfValue();
+    float pdf = lambertPdfValue(NoL);
+
+    indirectShadeResult.radiance = surfaceMaterial.baseColor * brdf * NoL;
+    indirectShadeResult.pdf = maxComponent(indirectShadeResult.radiance) > 0.00001f ? pdf : 0.0f;
+  }
+  
+  indirectBuffer.records[gl_GlobalInvocationID.x] = indirectShadeResult;
+}

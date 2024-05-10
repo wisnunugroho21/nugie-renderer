@@ -231,6 +231,7 @@ namespace NugieVulkan {
     deviceFeatures.fillModeNonSolid = VK_TRUE;
     deviceFeatures.tessellationShader = VK_TRUE;
     deviceFeatures.multiDrawIndirect = VK_TRUE;
+    deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
 
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.pNext = &descriptorIndexingFeatures;

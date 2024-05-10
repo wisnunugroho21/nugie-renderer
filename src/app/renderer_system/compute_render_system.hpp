@@ -20,7 +20,7 @@ namespace NugieApp {
 			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
 				uint32_t xInvocations, uint32_t yInvocations, uint32_t zInvocations);
 		
-		private:
+		protected:
 			virtual void createPipelineLayout();
 			virtual void createPipeline();
 

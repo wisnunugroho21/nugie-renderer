@@ -1,0 +1,120 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0, rgba8) uniform image2D resultImage;
+
+layout(set = 0, binding = 1) uniform readonly GlobalUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 imgSize;
+  SunLight sunLight;
+  vec3 skyColor;
+  uvec2 numLightsRandomSeed;
+} ubo;
+
+layout(set = 0, binding = 2) buffer IndirectSamplerDataBuffer {
+  IndirectSamplerData datas[];
+} indirectSamplerDataBuffer;
+
+layout(set = 0, binding = 3) buffer RenderResultBuffer {
+  RenderResult datas[];
+} renderResultBuffer;
+
+layout(set = 0, binding = 4) buffer readonly MissBuffer {
+  MissRecord records[];
+} missBuffer;
+
+layout(set = 0, binding = 5) buffer readonly LightShadeBuffer {
+  LightShadeRecord records[];
+} lightShadeBuffer;
+
+layout(set = 0, binding = 6) buffer readonly IndirectShadeBuffer {
+  IndirectShadeRecord records[];
+} indirectShadeBuffer;
+
+layout(set = 0, binding = 7) buffer readonly DirectShadeBuffer {
+  DirectShadeRecord records[];
+} directShadeBuffer;
+
+layout(set = 0, binding = 8) buffer readonly SunDirectShadeBuffer {
+  DirectShadeRecord records[];
+} sunDirectShadeBuffer;
+
+// ------------- Random ------------- 
+
+// Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
+uint stepRNG(uint rngState) {
+  return rngState * 747796405 + 1;
+}
+
+// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
+float stepAndOutputRNGFloat(inout uint rngState) {
+  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
+  rngState  = stepRNG(rngState);
+  uint word = ((rngState >> ((rngState >> 28u) + 4u)) ^ rngState) * 277803737u;
+  word      = (word >> 22u) ^ word;
+  return float(word) / 4294967295.0f;
+}
+
+float randomFloat(uint additionalRandomSeed) {
+  uint rngState =  gl_GlobalInvocationID.x * (ubo.numLightsRandomSeed.y + 1 + additionalRandomSeed);
+  return stepAndOutputRNGFloat(rngState);
+}
+
+void main() {
+  IndirectSamplerData samplerData = indirectSamplerDataBuffer.datas[gl_GlobalInvocationID.x];
+  IndirectShadeRecord indirectRecord = indirectShadeBuffer.records[gl_GlobalInvocationID.x];
+  DirectShadeRecord directRecord = directShadeBuffer.records[gl_GlobalInvocationID.x];
+  DirectShadeRecord sunDirectRecord = sunDirectShadeBuffer.records[gl_GlobalInvocationID.x];
+  LightShadeRecord lightShadeRecord = lightShadeBuffer.records[gl_GlobalInvocationID.x];
+  MissRecord missRecord = missBuffer.records[gl_GlobalInvocationID.x];
+  RenderResult prevRenderResult = renderResultBuffer.datas[gl_GlobalInvocationID.x];
+
+  ivec2 pixelCoord = ivec2(samplerData.xCoord, samplerData.yCoord);
+  float totalPdf = indirectRecord.pdf + directRecord.pdf + sunDirectRecord.pdf;
+  vec3 totalPrevIndirect = prevRenderResult.totalIndirect / prevRenderResult.pdf;
+
+  vec3 curRadiance = vec3(0.0f);
+  vec3 curIndirect = vec3(1.0f);
+
+  if (missRecord.isMiss) {
+    curRadiance = missRecord.radiance * totalPrevIndirect;
+  }
+
+  else if (lightShadeRecord.isIlluminate) {
+    curRadiance = lightShadeRecord.radiance * prevRenderResult.totalIndirect;
+  }
+
+  else {
+    curRadiance = (directRecord.radiance * directRecord.pdf + sunDirectRecord.radiance * sunDirectRecord.pdf) / totalPdf * totalPrevIndirect;
+    curIndirect = indirectRecord.radiance * indirectRecord.pdf / totalPdf;
+  }
+
+  vec3 totalRadiance = prevRenderResult.totalRadiance + curRadiance;
+  vec3 totalIndirect = totalPrevIndirect * curIndirect;
+
+  bool isRayContinue = indirectRecord.isIlluminate && max(totalIndirect.x, max(totalIndirect.y, totalIndirect.z)) > 0.1f;
+  if (!isRayContinue) {
+    imageStore(resultImage, pixelCoord, vec4(totalRadiance, 1.0f));
+  }
+
+  RenderResult renderResult;
+  renderResult.totalRadiance = isRayContinue ? totalRadiance : vec3(0.0f);
+  renderResult.totalIndirect = isRayContinue ? totalIndirect : vec3(1.0f);
+  renderResult.pdf = isRayContinue ? indirectRecord.pdf : 1.0f;
+
+  renderResultBuffer.datas[gl_GlobalInvocationID.x] = renderResult;
+
+  IndirectSamplerData newSamplerData;
+  newSamplerData.xCoord = samplerData.xCoord;
+  newSamplerData.yCoord = samplerData.yCoord;
+  newSamplerData.rayBounce = isRayContinue ? lightShadeRecord.rayBounce + 1u : 0u;
+  newSamplerData.nextRay = indirectRecord.nextRay;
+  
+  indirectSamplerDataBuffer.datas[gl_GlobalInvocationID.x] = newSamplerData;
+}

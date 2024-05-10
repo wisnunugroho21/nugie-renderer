@@ -1,0 +1,65 @@
+#version 460
+
+#include "core/struct.glsl"
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) buffer writeonly LightShadeBuffer {
+  LightShadeRecord records[];
+} lightShadeBuffer;
+
+layout(set = 0, binding = 1) buffer readonly ObjectHitBuffer {
+  HitRecord records[];
+} objectHitBuffer;
+
+layout(set = 0, binding = 2) buffer readonly LightHitBuffer {
+  HitRecord records[];
+} lightHitBuffer;
+
+layout(set = 0, binding = 3) buffer readonly LightModel {
+  TriangleLight lights[];
+};
+
+layout(set = 0, binding = 4) buffer readonly VertexModel {
+  Vertex vertices[];
+};
+
+// ------------- Triangle -------------
+
+float triangleArea(uvec3 triIndices) {
+  Vertex vertex0 = vertices[triIndices.x];
+  Vertex vertex1 = vertices[triIndices.y];
+  Vertex vertex2 = vertices[triIndices.z];
+
+  vec3 v0v1 = vertex1.position - vertex0.position;
+  vec3 v0v2 = vertex2.position - vertex0.position;
+
+  vec3 pvec = cross(v0v1, v0v2);
+  return 0.5 * sqrt(dot(pvec, pvec)); 
+}
+
+// ------------- Integrand ------------- 
+
+void main() {
+  HitRecord objectHit = objectHitBuffer.records[gl_GlobalInvocationID.x];
+  HitRecord lightHit = lightHitBuffer.records[gl_GlobalInvocationID.x];
+
+  LightShadeRecord lightShadeRecord;
+  lightShadeRecord.isIlluminate = lightHit.isHit && (!objectHit.isHit || length(lightHit.dir) <= length(objectHit.dir));
+  lightShadeRecord.radiance = vec3(0.0f);
+  lightShadeRecord.rayBounce = objectHit.rayBounce;
+
+  if (lightShadeRecord.isIlluminate) {
+    TriangleLight hittedLight = lights[lightHit.hitIndex];
+    lightShadeRecord.radiance = hittedLight.color;
+
+    if (objectHit.rayBounce >= 1u) {
+      float squareDistance = dot(lightHit.dir, lightHit.dir);
+      float NloL = max(dot(lightHit.normal, -1.0f * normalize(lightHit.dir)), 0.01f);
+      float area = triangleArea(hittedLight.indices);
+
+      lightShadeRecord.radiance *=  NloL * area / squareDistance;
+    }
+  }
+
+  lightShadeBuffer.records[gl_GlobalInvocationID.x] = lightShadeRecord;
+}

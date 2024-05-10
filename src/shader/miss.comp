@@ -1,0 +1,43 @@
+#version 460
+
+#include "core/struct.glsl"
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) uniform readonly GlobalUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 imgSize;
+  SunLight sunLight;
+  vec3 skyColor;
+  uvec2 numLightsRandomSeed;
+} ubo;
+
+layout(set = 0, binding = 1) buffer writeonly MissBuffer {
+  MissRecord records[];
+} missBuffer;
+
+layout(set = 0, binding = 2) buffer readonly ObjectHitBuffer {
+  HitRecord records[];
+} objectHitBuffer;
+
+layout(set = 0, binding = 3) buffer readonly LightHitBuffer {
+  HitRecord records[];
+} lightHitBuffer;
+
+
+void main() {
+  HitRecord objectHit = objectHitBuffer.records[gl_GlobalInvocationID.x];
+  HitRecord lightHit = lightHitBuffer.records[gl_GlobalInvocationID.x];
+
+  MissRecord missRecord;
+  missRecord.isMiss = !objectHit.isHit && !lightHit.isHit;
+  missRecord.radiance = vec3(0.0f);
+
+  if (missRecord.isMiss) {
+    missRecord.radiance = objectHit.rayBounce == 0u ? ubo.skyColor : vec3(0.0f);
+  }
+
+  missBuffer.records[gl_GlobalInvocationID.x] = missRecord;
+}

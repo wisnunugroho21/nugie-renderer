@@ -1,0 +1,209 @@
+#version 460
+
+#include "core/struct.glsl"
+layout(local_size_x = 32) in;
+
+layout(set = 0, binding = 0) buffer writeonly LightHitBuffer {
+  HitRecord records[];
+} lightHitBuffer;
+
+layout(set = 0, binding = 1) buffer readonly LightRayBuffer {
+  RayData rayDatas[];
+} lightRayBuffer;
+
+layout(set = 0, binding = 2) buffer readonly LightModel {
+  TriangleLight lights[];
+};
+
+layout(set = 0, binding = 3) buffer readonly LightBvhModel {
+  BvhNode lightBvhNodes[];
+};
+
+layout(set = 0, binding = 4) buffer readonly VertexModel {
+  Vertex vertices[];
+};
+
+#define KEPSILON 0.00001
+
+// ------------- Basic -------------
+
+vec3 rayAt(Ray r, float t) {
+  return r.origin + t * r.direction;
+}
+
+vec3 setFaceNormal(vec3 r_direction, vec3 outwardNormal) {
+  return dot(normalize(r_direction), outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+}
+
+// ------------- Triangle Light -------------
+
+HitRecord hitTriangleLight(uvec3 triIndices, Ray r, float dirMin, vec3 dirMax) {
+  HitRecord hit;
+  hit.isHit = false;
+
+  vec3 v0v1 = vertices[triIndices.y].position - vertices[triIndices.x].position;
+  vec3 v0v2 = vertices[triIndices.z].position - vertices[triIndices.x].position;
+  vec3 pvec = cross(r.direction, v0v2);
+  float det = dot(v0v1, pvec);
+  
+#ifdef BACKFACE_CULLING
+  if (det < KEPSILON) {
+    return hit;
+  }
+#else
+  if (abs(det) < KEPSILON) {
+    return hit;
+  }
+#endif
+
+  vec3 tvec = r.origin - vertices[triIndices.x].position;
+  float u = dot(tvec, pvec) / det;
+  if (u < 0.0f || u > 1.0f) {
+    return hit;
+  }
+
+  vec3 qvec = cross(tvec, v0v1);
+  float v = dot(r.direction, qvec) / det;
+  if (v < 0.0f || u + v > 1.0f) {
+    return hit;
+  }
+  
+  float t = dot(v0v2, qvec) / det;
+  vec3 dir = t * r.direction;
+
+  if (length(dir) < dirMin || length(dir) > length(dirMax)) {
+    return hit;
+  }
+
+  hit.isHit = true;
+  hit.dir = dir;
+  hit.point = rayAt(r, t);
+
+  vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+  hit.normal = setFaceNormal(r.direction, outwardNormal);
+
+  return hit;
+}
+
+// ------------- Point Light -------------
+
+HitRecord hitPointLight(PointLight light, Ray r, float dirMin, vec3 dirMax) {
+  HitRecord hit;
+  hit.isHit = false;
+
+  vec3 lightDirection = light.position - r.origin;
+  vec3 lightNormal = normalize(lightDirection);
+
+  if (dot(normalize(r.direction), lightNormal) < 0.99f || length(lightDirection) < dirMin || length(lightDirection) > length(dirMax)) {
+    return hit;
+  }
+
+  hit.isHit = true;
+  hit.dir = lightDirection;
+  hit.point = light.position;
+  hit.normal = setFaceNormal(r.direction, lightNormal);
+
+  return hit;
+}
+
+// ------------- Bvh -------------
+
+float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
+  vec3 tMin = (boxMin - r.origin) / r.direction;
+  vec3 tMax = (boxMax - r.origin) / r.direction;
+  vec3 t1 = min(tMin, tMax);
+  vec3 t2 = max(tMin, tMax);
+  float tNear = max(max(t1.x, t1.y), t1.z);
+  float tFar = min(min(t2.x, t2.y), t2.z);
+
+  return tNear <= tFar ? tNear : FLT_MAX;
+}
+
+// ------------- Triangle Light-------------
+
+HitRecord hitTriangleLightBvh(Ray r, float dirMin, vec3 dirMax) {
+  BvhNode curNode = lightBvhNodes[0u];
+
+  if (intersectAABB(r, curNode.minimum, curNode.maximum) == FLT_MAX) {
+    return HitRecord(false, 0u, 0u, 0u, vec3(0.0f), vec3(0.0f), vec3(0.0f), vec2(0.0f));
+  }
+
+  uint stack[30];
+  stack[0] = 1u;
+
+  int stackIndex = 1;
+  while(stackIndex > 0 && stackIndex <= 30) {
+    uint currentNode = stack[--stackIndex];
+    if (currentNode == 0u) {
+      continue;
+    }
+
+    curNode = lightBvhNodes[currentNode - 1u];
+
+    uint lightIndex = curNode.objIndex;
+    if (lightIndex > 0u) {
+      HitRecord hit = hitTriangleLight(lights[lightIndex - 1u].indices, r, dirMin, dirMax);
+
+      if (hit.isHit) {
+        hit.hitIndex = lightIndex - 1u;
+        return hit;
+      }
+    }
+
+    uint leftNodeIndex = curNode.leftNode, rightNodeIndex = curNode.rightNode;
+    float leftDist = FLT_MAX, rightDist = FLT_MAX;
+
+    if (leftNodeIndex > 0u) {
+      BvhNode leftNode = lightBvhNodes[leftNodeIndex - 1u];
+      leftDist = intersectAABB(r, leftNode.minimum, leftNode.maximum);
+    }
+
+    if (rightNodeIndex > 0u) {
+      BvhNode rightNode = lightBvhNodes[rightNodeIndex - 1u];
+      rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
+    }
+
+    if (leftDist == FLT_MAX && rightDist == FLT_MAX) {
+      continue;
+    }
+    
+    if (leftDist == FLT_MAX) {
+      stack[stackIndex++] = rightNodeIndex;
+      continue;
+    }
+    
+    if (rightDist == FLT_MAX) {
+      stack[stackIndex++] = leftNodeIndex;
+      continue;
+    }
+
+    if (leftDist <= rightDist) {
+      stack[stackIndex++] = rightNodeIndex;
+      stack[stackIndex++] = leftNodeIndex;
+    } else {
+      stack[stackIndex++] = leftNodeIndex;
+      stack[stackIndex++] = rightNodeIndex;
+    }
+  }
+
+  return HitRecord(false, 0u, 0u, 0u, vec3(0.0f), vec3(0.0f), vec3(0.0f), vec2(0.0f));
+}
+
+void main() {
+  RayData rayData = lightRayBuffer.rayDatas[gl_GlobalInvocationID.x];
+  HitRecord hitRecord;
+  
+  hitRecord.isHit = false;
+  hitRecord.hitIndex = 0u;
+  hitRecord.materialIndex = 0u;
+  hitRecord.point = vec3(0.0f);
+  hitRecord.dir = vec3(0.0f);
+  hitRecord.normal = vec3(0.0f);
+
+  if (length(rayData.ray.direction) > 0.1f) {
+    hitRecord = hitTriangleLightBvh(rayData.ray, rayData.dirMin, rayData.dirMax);
+  }
+
+  hitRecord.rayBounce = rayData.rayBounce;
+  lightHitBuffer.records[gl_GlobalInvocationID.x] = hitRecord;
+}

@@ -3,9 +3,7 @@
 #include <iostream>
 
 namespace NugieApp {
-  glm::vec2 MouseController::rotateInPlaceXZ(GLFWwindow* window, double dt, glm::vec2 currentRotation, bool* isPressed) {
-    glm::vec2 newRotation = currentRotation;
-
+  CameraTransformation MouseController::rotateInPlaceXZ(GLFWwindow* window, float dt, CameraTransformation cameraTransformation, bool* isPressed) {
     if (glfwGetMouseButton(window, this->keymaps.rightButton) == GLFW_PRESS) {
       glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
       *isPressed = true;
@@ -16,29 +14,20 @@ namespace NugieApp {
       glfwGetCursorPos(window, &curDragged_x, &curDragged_y);
 
       if (!this->isFirstPressed) {
-        double theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed * -1.0);
-        double phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
+        float theta = glm::radians((curDragged_y - this->lastDragged_y) * dt * this->lookSpeed);
+        float phi = glm::radians((curDragged_x - this->lastDragged_x) * dt * this->lookSpeed);
 
-        newRotation.x += phi;
-        newRotation.y += theta;
+        cameraTransformation.direction.x = glm::cos(phi) * cameraTransformation.direction.x + glm::sin(phi) * cameraTransformation.direction.z;
+        cameraTransformation.direction.z = -1.0f * glm::sin(phi) * cameraTransformation.direction.x + glm::cos(phi) * cameraTransformation.direction.z;
 
-        if (newRotation.x > 360) {
-          newRotation.x -= 360;
-        } else if (newRotation.x < 0) {
-          newRotation.x = 360 + newRotation.x;
-        }
-
-        if (newRotation.y > 360) {
-          newRotation.y -= 360;
-        } else if (newRotation.y < 0) {
-          newRotation.y = 360 + newRotation.y;
-        }
-      } else {
-        this->isFirstPressed = false;
+        cameraTransformation.direction.y = glm::cos(theta) * cameraTransformation.direction.y - glm::sin(theta) * cameraTransformation.direction.z;
+        cameraTransformation.direction.z = glm::sin(theta) * cameraTransformation.direction.y + glm::cos(theta) * cameraTransformation.direction.z;
       }
 
       this->lastDragged_x = curDragged_x;
       this->lastDragged_y = curDragged_y;
+      this->isFirstPressed = false;
+
     } else if (glfwGetMouseButton(window, this->keymaps.rightButton) == GLFW_RELEASE) {
       this->lastDragged_x = 0;
       this->lastDragged_y = 0;
@@ -48,6 +37,6 @@ namespace NugieApp {
       *isPressed = false;
     }
 
-    return newRotation;
+    return cameraTransformation;
   }
 } // namespace nugiEngin 

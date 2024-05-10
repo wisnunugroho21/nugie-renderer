@@ -20,7 +20,7 @@ namespace NugieApp {
         int lookDown = GLFW_KEY_DOWN;
       };
 
-      glm::vec3 moveInPlaceXZ(GLFWwindow* window, float dt, glm::vec3 currentCameraPosition, glm::vec3 currentCameraDirection, bool* isPressed);
+      CameraTransformation moveInPlaceXZ(GLFWwindow* window, float dt, CameraTransformation cameraTransformation, bool* isPressed);
 
       KeyMappings keymaps{};
       float moveSpeed{100.0f};
