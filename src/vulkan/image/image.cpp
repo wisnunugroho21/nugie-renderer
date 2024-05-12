@@ -206,43 +206,51 @@ namespace NugieVulkan {
   }
 
   void Image::copyImageFromOther(CommandBuffer* commandBuffer, Image* srcImage, uint32_t srcMipLevel, uint32_t srcLayer, uint32_t dstMipLevel, uint32_t dstLayer) {
-    VkImageCopy copyInfo{};
+    VkImageBlit blitRegion{};
 
-    copyInfo.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyInfo.srcSubresource.mipLevel = srcMipLevel;
-    copyInfo.srcSubresource.baseArrayLayer = srcLayer;
-    copyInfo.srcSubresource.layerCount = srcImage->getLayerNum();
+    blitRegion.srcOffsets[1].x = srcImage->getWidth();
+    blitRegion.srcOffsets[1].y = srcImage->getHeight();
+    blitRegion.srcOffsets[1].z = 1;
 
-    copyInfo.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyInfo.dstSubresource.mipLevel = dstMipLevel;
-    copyInfo.dstSubresource.baseArrayLayer = dstLayer;
-    copyInfo.dstSubresource.layerCount = this->layerNum;
+    blitRegion.dstOffsets[1].x = this->width; 
+    blitRegion.dstOffsets[1].y = this->height; 
+    blitRegion.dstOffsets[1].z = 1;
 
-		copyInfo.srcOffset      = {0, 0, 0};
-		copyInfo.dstOffset      = {0, 0, 0};
-		copyInfo.extent         = {this->width, this->height, 1};
+    blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitRegion.srcSubresource.baseArrayLayer = 0;
+    blitRegion.srcSubresource.layerCount = 1;
+    blitRegion.srcSubresource.mipLevel = 0;
 
-    vkCmdCopyImage(commandBuffer->getCommandBuffer(), srcImage->getImage(), srcImage->getLayout(), this->image, this->layout, 1u, &copyInfo);
+    blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitRegion.dstSubresource.baseArrayLayer = 0;
+    blitRegion.dstSubresource.layerCount = 1;
+    blitRegion.dstSubresource.mipLevel = 0;
+
+    vkCmdBlitImage(commandBuffer->getCommandBuffer(), srcImage->getImage(), srcImage->getLayout(), this->image, this->getLayout(), 1, &blitRegion, VK_FILTER_LINEAR);
   }
 
   void Image::copyImageToOther(CommandBuffer* commandBuffer, Image* dstImage, uint32_t srcMipLevel, uint32_t srcLayer, uint32_t dstMipLevel, uint32_t dstLayer) {
-    VkImageCopy copyInfo{};
+    VkImageBlit blitRegion{};
 
-    copyInfo.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyInfo.srcSubresource.mipLevel = srcMipLevel;
-    copyInfo.srcSubresource.baseArrayLayer = srcLayer;
-    copyInfo.srcSubresource.layerCount = this->layerNum;
+    blitRegion.srcOffsets[1].x = this->width;
+    blitRegion.srcOffsets[1].y = this->height;
+    blitRegion.srcOffsets[1].z = 1;
 
-    copyInfo.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyInfo.dstSubresource.mipLevel = dstMipLevel;
-    copyInfo.dstSubresource.baseArrayLayer = dstLayer;
-    copyInfo.dstSubresource.layerCount = dstImage->getLayerNum();
+    blitRegion.dstOffsets[1].x = dstImage->getWidth();
+    blitRegion.dstOffsets[1].y = dstImage->getHeight();
+    blitRegion.dstOffsets[1].z = 1;
 
-		copyInfo.srcOffset      = {0, 0, 0};
-		copyInfo.dstOffset      = {0, 0, 0};
-		copyInfo.extent         = {this->width, this->height, 1};
+    blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitRegion.srcSubresource.baseArrayLayer = 0;
+    blitRegion.srcSubresource.layerCount = 1;
+    blitRegion.srcSubresource.mipLevel = 0;
 
-    vkCmdCopyImage(commandBuffer->getCommandBuffer(), this->image, this->layout, dstImage->getImage(), dstImage->getLayout(), 1u, &copyInfo);
+    blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitRegion.dstSubresource.baseArrayLayer = 0;
+    blitRegion.dstSubresource.layerCount = 1;
+    blitRegion.dstSubresource.mipLevel = 0;
+
+    vkCmdBlitImage(commandBuffer->getCommandBuffer(), this->image, this->getLayout(), dstImage->getImage(), dstImage->getLayout(), 1, &blitRegion, VK_FILTER_LINEAR);
   }
 
   void Image::generateMipMap(CommandBuffer* commandBuffer) {

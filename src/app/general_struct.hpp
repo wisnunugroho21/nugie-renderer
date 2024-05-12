@@ -11,7 +11,7 @@
 
 namespace NugieApp {
   struct Vertex {
-    glm::vec4 position;
+    alignas(16) glm::vec3 position;
 
     bool operator == (const Vertex &other) const {
 			return this->position == other.position;
@@ -21,25 +21,15 @@ namespace NugieApp {
   struct NormText {    
     glm::vec4 normal;
     glm::vec2 textCoord;
+  };
+
+  struct Primitive {
+    alignas(16) glm::uvec3 vertexIndexes;
   };  
   
   struct Reference {
     uint32_t materialIndex;
     uint32_t transformIndex;
-  };
-
-  struct Aabb {
-    alignas(16) glm::vec4 point0;
-    alignas(16) glm::vec4 point1;
-    alignas(16) glm::vec4 point2;
-    alignas(16) glm::vec4 point3;
-    alignas(16) glm::vec4 point4;
-    alignas(16) glm::vec4 point5;
-    alignas(16) glm::vec4 point6;
-    alignas(16) glm::vec4 point7;
-
-    uint32_t firstIndex;
-    uint32_t indicesCount;
   };
 
   struct Material {
@@ -51,11 +41,6 @@ namespace NugieApp {
   struct Transformation {
     glm::mat4 modelMatrix{1.0f};
     glm::mat4 normalMatrix{1.0f};
-  };
-
-  struct ShadowTransformation {
-    glm::mat4 view{1.0f};
-	  glm::mat4 projection{1.0f};
   };
 
   struct PointLight {
@@ -78,29 +63,5 @@ namespace NugieApp {
   struct CameraTransformation {
     glm::mat4 view;
 	  glm::mat4 projection;
-  };
-
-  struct TessellationData {
-    glm::vec4 tessellationScreenSizeFactorEdgeSize;
-  };
-
-  struct FragmentData {
-    glm::vec4 origin;
-    glm::uvec4 numLights;
-    SunLight sunLight;
-  };
-
-  struct RenderData {
-    CameraTransformation cameraTransformation;
-    TessellationData tessellationData;
-    FragmentData fragmentData;
-  };  
-
-  struct FrustumData {
-    uint32_t drawObjectCount = 0;
-  };
-
-  struct ShadowPushConstant {
-    uint32_t lightIndex;
   };
 }
