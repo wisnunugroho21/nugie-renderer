@@ -6,13 +6,21 @@
 #define FLT_MAX 3.402823e+38
 #define FLT_MIN 1.175494e-38
 
+struct Sphere {
+  vec4 positionRadius;
+};
+
 struct Vertex {
-  vec4 position;
+  vec3 position;
 };
 
 struct NormText {    
   vec4 normal;
   vec2 textCoord;
+};
+
+struct Primitive {
+  uvec3 vertexIndexes;
 };
 
 struct Reference {
@@ -67,10 +75,7 @@ struct SunLight {
   vec4 direction;
 };
 
-struct VkDrawIndexedIndirectCommand {
-  uint indexCount;
-  uint instanceCount;
-  uint firstIndex;
-  int vertexOffset;
-  uint firstInstance;
+struct Ray {
+  vec3 origin;
+  vec3 direction;
 };

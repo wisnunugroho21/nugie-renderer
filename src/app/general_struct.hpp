@@ -10,6 +10,14 @@
 #include <vector>
 
 namespace NugieApp {
+  struct Sphere {
+    glm::vec4 positionRadius;
+
+    bool operator == (const Sphere &other) const {
+			return this->positionRadius == other.positionRadius;
+		}
+  };
+
   struct Vertex {
     alignas(16) glm::vec3 position;
 
@@ -58,10 +66,18 @@ namespace NugieApp {
   struct SunLight {
     alignas(16) glm::vec4 color;
     alignas(16) glm::vec4 direction;
-  };  
+  };
 
-  struct CameraTransformation {
-    glm::mat4 view;
-	  glm::mat4 projection;
+  struct Ray {
+    alignas(16) glm::vec3 origin{0.0f};
+    alignas(16) glm::vec3 direction{0.0f};
+  };
+
+  struct RayTraceUbo {
+    alignas(16) glm::vec3 origin{0.0f};
+    alignas(16) glm::vec3 horizontal{0.0f};
+    alignas(16) glm::vec3 vertical{0.0f};
+    alignas(16) glm::vec3 lowerLeftCorner{0.0f};
+    alignas(16) glm::uvec2 imgSize{0u};
   };
 }

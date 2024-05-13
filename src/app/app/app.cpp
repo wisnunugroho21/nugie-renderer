@@ -20,19 +20,27 @@ namespace NugieApp {
 		this->device = new NugieVulkan::Device(this->window);
 		this->renderer = new Renderer(this->window, this->device);
 
+		this->camera = new Camera(WIDTH, HEIGHT);
+
 		this->loadObjects();
 		this->init();
 		this->recordCommand();
 	}
 
 	App::~App() {
+		if (this->rayGenRenderer != nullptr) delete this->rayGenRenderer;
 		if (this->samplingRenderer != nullptr) delete this->samplingRenderer;
+
 		if (this->renderer != nullptr) delete this->renderer;
 
+		if (this->rayGenDescSet != nullptr) delete this->rayGenDescSet;
 		if (this->samplingDescSet != nullptr) delete this->samplingDescSet;
 
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->primitiveBuffer != nullptr) delete this->primitiveBuffer;
+
+		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
+		if (this->rayTraceUniformBuffer != nullptr) delete this->rayTraceUniformBuffer;
 
 		for (auto &&resultImage : this->resultImages) {
 			if (resultImage != nullptr) delete resultImage;
@@ -66,7 +74,12 @@ namespace NugieApp {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 				auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
 
-				this->samplingRenderer->render(commandBuffer, { this->samplingDescSet->getDescriptorSets(imageIndex) }, height / 8, width / 8, 1);
+				this->rayGenRenderer->render(commandBuffer, { this->rayGenDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+
+				this->rayGenBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+					VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+				this->samplingRenderer->render(commandBuffer, { this->samplingDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
 
 				this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
@@ -96,6 +109,7 @@ namespace NugieApp {
 			if (this->renderer->acquireFrame()) {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
+				this->rayTraceUniformBuffer->writeGlobalData(frameIndex, this->rayTraceUbo);
 				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
@@ -180,14 +194,16 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		glm::vec3 position = glm::vec3(80.0f, 110.0f, 80.0f);
-		glm::vec3 target = glm::vec3(400.0f, 110.0f, 400.0f);
+		RayTraceUbo ubo{};
 
-		float near = 0.1f;
-		float far = 2000.0f;
-
-		float theta = glm::radians(45.0f);
-		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+		this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
+		CameraRay cameraRay = this->camera->getCameraRay();
+		
+		this->rayTraceUbo.origin = cameraRay.origin;
+		this->rayTraceUbo.horizontal = cameraRay.horizontal;
+		this->rayTraceUbo.vertical = cameraRay.vertical;
+		this->rayTraceUbo.lowerLeftCorner = cameraRay.lowerLeftCorner;
+		this->rayTraceUbo.imgSize = glm::uvec2{width, height};
 	}
 
 	void App::init() {
@@ -197,6 +213,9 @@ namespace NugieApp {
 		VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
 		this->initCamera(width, height);
+
+		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->rayGenBuffer = new ManyArrayBuffer<Ray>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 
 		std::vector<VkDescriptorImageInfo> resultImageInfos { NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT };
 		this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
@@ -208,13 +227,21 @@ namespace NugieApp {
 
 			resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
 		}
-		
-		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), imageCount)
-			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, resultImageInfos)
+
+		this->rayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
 			.build();
 		
+		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
+			.addImage(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, resultImageInfos)
+			.build();
+		
+		this->rayGenRenderer = new ComputeRenderSystem(this->device, { this->rayGenDescSet->getDescSetLayout() }, "shader/ray_gen.comp.spv");
 		this->samplingRenderer = new ComputeRenderSystem(this->device, { this->samplingDescSet->getDescSetLayout() }, "shader/sampling.comp.spv");
 
+		this->rayGenRenderer->initialize();
 		this->samplingRenderer->initialize();
 	}
 

@@ -47,16 +47,26 @@ namespace NugieApp {
 			NugieVulkan::Window* window = nullptr;
 			NugieVulkan::Device* device = nullptr;
 
+			Camera* camera = nullptr;
 			Renderer* renderer = nullptr;
+
+			ComputeRenderSystem* rayGenRenderer = nullptr;
 			ComputeRenderSystem* samplingRenderer = nullptr;
 
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<Primitive>* primitiveBuffer = nullptr;
 
+			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
+			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
+
 			std::vector<NugieVulkan::Image*> resultImages{};
+
+			DescriptorSet* rayGenDescSet = nullptr;
 			DescriptorSet* samplingDescSet = nullptr;
 
 			uint32_t frameCount = 0u, randomSeed = 0u;
 			bool isRendering = true;
+
+			RayTraceUbo rayTraceUbo;
 	};
 }

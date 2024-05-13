@@ -1,11 +1,25 @@
 #version 460
 
+#include "core/struct.glsl"
+
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-layout(set = 0, binding = 0, rgba8) writeonly uniform image2D resultImage;
+layout(set = 0, binding = 0) buffer writeonly RayGenBuffer {
+  Ray rays[];
+} rayGenBuffer;
+
+layout(set = 0, binding = 1, rgba8) writeonly uniform image2D resultImage;
+
+vec3 rayColor(Ray r) {
+  vec3 unit_direction = normalize(r.direction);
+  float a = 0.5 * (unit_direction.y + 1.0);
+  return mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), a);
+}
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+  uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
   
-  imageStore(resultImage, pixelCoord, vec4(0.5f));
+  vec3 finalColor = rayColor(rayGenBuffer.rays[bufferIndex]);
+  imageStore(resultImage, pixelCoord, vec4(finalColor, 1.0f));
 }
