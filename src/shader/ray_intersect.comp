@@ -4,13 +4,17 @@
 
 layout(local_size_x = 64) in;
 
-layout(set = 0, binding = 0) buffer readonly RayGenBuffer {
+layout(set = 0, binding = 0) buffer writeonly IntersectBuffer {
+  HitRecord hits[];
+} intersectBuffer;
+
+layout(set = 0, binding = 1) buffer readonly RayGenBuffer {
   Ray rays[];
 } rayGenBuffer;
 
-layout(set = 0, binding = 1) buffer writeonly IntersectBuffer {
-  HitRecord hits[];
-} intersectBuffer;
+layout(set = 0, binding = 2) buffer readonly SphereBuffer {
+  Sphere spheres[];
+} sphereBuffer;
 
 vec3 rayAt(Ray r, float t) {
   return r.origin + t * r.direction;
@@ -20,10 +24,10 @@ HitRecord hitSphere(Sphere sphere, Ray r, float ray_tmin, float ray_tmax) {
   HitRecord hit;
   hit.isHit = false;
 
-  vec3 oc = sphere.center - r.origin;
+  vec3 oc = sphere.centerRadius.xyz - r.origin;
   float a = dot(r.direction, r.direction);
   float h = dot(r.direction, oc);
-  float c = dot(oc, oc) - sphere.radius * sphere.radius;
+  float c = dot(oc, oc) - sphere.centerRadius.w * sphere.centerRadius.w;
   float discriminant = h * h - a * c;
 
   if (discriminant < 0) {
@@ -46,6 +50,5 @@ HitRecord hitSphere(Sphere sphere, Ray r, float ray_tmin, float ray_tmax) {
 }
 
 void main() {
-  Sphere sphere = Sphere(vec3(0.0f, 0.0f, 1.0f), 0.3f);
-  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitSphere(sphere, rayGenBuffer.rays[gl_GlobalInvocationID.x], 0.0001f, 1000000000.0f);
+  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitSphere(sphereBuffer.spheres[0], rayGenBuffer.rays[gl_GlobalInvocationID.x], 0.0001f, 1000000000.0f);
 }

@@ -11,10 +11,10 @@
 
 namespace NugieApp {
   struct Sphere {
-    glm::vec4 positionRadius;
+    glm::vec4 centerRadius;
 
     bool operator == (const Sphere &other) const {
-			return this->positionRadius == other.positionRadius;
+			return this->centerRadius == other.centerRadius;
 		}
   };
 

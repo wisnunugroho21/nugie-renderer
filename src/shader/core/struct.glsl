@@ -7,8 +7,7 @@
 #define FLT_MIN 1.175494e-38
 
 struct Sphere {
-  vec3 center;
-  float radius;
+  vec4 centerRadius;
 };
 
 struct Vertex {
