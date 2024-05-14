@@ -31,7 +31,7 @@ namespace NugieApp {
     glm::vec2 textCoord;
   };
 
-  struct Primitive {
+  struct Triangle {
     alignas(16) glm::uvec3 vertexIndexes;
   };  
   

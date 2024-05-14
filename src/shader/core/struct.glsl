@@ -5,6 +5,7 @@
 #define PI 3.14159265359
 #define FLT_MAX 3.402823e+38
 #define FLT_MIN 1.175494e-38
+#define K_EPSILON 1e-8
 
 struct Sphere {
   vec4 centerRadius;
@@ -19,7 +20,7 @@ struct NormText {
   vec2 textCoord;
 };
 
-struct Primitive {
+struct Triangle {
   uvec3 vertexIndexes;
 };
 

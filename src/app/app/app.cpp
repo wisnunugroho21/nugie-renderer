@@ -38,7 +38,8 @@ namespace NugieApp {
 		if (this->rayIntersectDescSet != nullptr) delete this->rayIntersectDescSet;
 		if (this->samplingDescSet != nullptr) delete this->samplingDescSet;
 
-		if (this->sphereBuffer != nullptr) delete this->sphereBuffer;
+		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
+		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
 
 		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
 		if (this->rayIntersectBuffer != nullptr) delete this->rayIntersectBuffer;
@@ -169,18 +170,26 @@ namespace NugieApp {
 	}	
 
 	void App::loadObjects() {
-		std::vector<Sphere> spheres;
+		std::vector<Vertex> vertices;
+		std::vector<Triangle> primitives;
 
 		// ----------------------------------------------------------------------------
 
-		spheres.emplace_back(Sphere{ glm::vec4{ 0.0f, 0.0f, 1.0f, 0.3f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, -1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, -1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 1.0f, 10.0f } });
+
+		primitives.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
 
 		// ----------------------------------------------------------------------------		
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-		this->sphereBuffer = new ArrayBuffer<Sphere>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spheres.size()));
-		this->sphereBuffer->replace(commandBuffer, spheres);
+		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
+		this->vertexBuffer->replace(commandBuffer, vertices);
+
+		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(primitives.size()));
+		this->triangleBuffer->replace(commandBuffer, primitives);
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -230,7 +239,8 @@ namespace NugieApp {
 		this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->sphereBuffer->getInfo())			
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())			
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			
