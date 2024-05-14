@@ -73,6 +73,10 @@ namespace NugieApp {
     alignas(16) glm::vec3 direction{0.0f};
   };
 
+  struct Hit {
+    alignas(4) bool isHit;
+  };
+
   struct RayTraceUbo {
     alignas(16) glm::vec3 origin{0.0f};
     alignas(16) glm::vec3 horizontal{0.0f};

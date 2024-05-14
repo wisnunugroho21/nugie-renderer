@@ -4,9 +4,9 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-layout(set = 0, binding = 0) buffer writeonly RayGenBuffer {
-  Ray rays[];
-} rayGenBuffer;
+layout(set = 0, binding = 0) buffer readonly IntersectBuffer {
+  HitRecord hits[];
+} intersectBuffer;
 
 layout(set = 0, binding = 1, rgba8) writeonly uniform image2D resultImage;
 
@@ -20,6 +20,6 @@ void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
   
-  vec3 finalColor = rayColor(rayGenBuffer.rays[bufferIndex]);
+  vec3 finalColor = intersectBuffer.hits[bufferIndex].isHit ? vec3(1.0f, 0.0f, 0.0f) : vec3(0.5f);
   imageStore(resultImage, pixelCoord, vec4(finalColor, 1.0f));
 }

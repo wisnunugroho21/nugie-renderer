@@ -2,7 +2,7 @@
 
 #include "core/struct.glsl"
 
-layout(local_size_x = 64) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   vec3 origin;
@@ -17,10 +17,10 @@ layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
 } rayGenBuffer;
 
 void main() {
-  ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.x % ubo.imgSize.x, gl_GlobalInvocationID.x / ubo.imgSize.x);
+  ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
 
-  vec2 uv = vec2(pixelCoord) / ubo.imgSize;
+  vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSize);
   vec3 rayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
   
-  rayGenBuffer.rays[gl_GlobalInvocationID.x] = Ray(ubo.origin, rayDirection);
+  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(ubo.origin, rayDirection);
 }

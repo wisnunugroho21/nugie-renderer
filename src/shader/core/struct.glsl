@@ -7,7 +7,8 @@
 #define FLT_MIN 1.175494e-38
 
 struct Sphere {
-  vec4 positionRadius;
+  vec3 center;
+  float radius;
 };
 
 struct Vertex {
@@ -78,4 +79,8 @@ struct SunLight {
 struct Ray {
   vec3 origin;
   vec3 direction;
+};
+
+struct HitRecord {
+  bool isHit;
 };

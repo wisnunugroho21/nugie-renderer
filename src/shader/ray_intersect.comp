@@ -1,0 +1,51 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) buffer readonly RayGenBuffer {
+  Ray rays[];
+} rayGenBuffer;
+
+layout(set = 0, binding = 1) buffer writeonly IntersectBuffer {
+  HitRecord hits[];
+} intersectBuffer;
+
+vec3 rayAt(Ray r, float t) {
+  return r.origin + t * r.direction;
+}
+
+HitRecord hitSphere(Sphere sphere, Ray r, float ray_tmin, float ray_tmax) {
+  HitRecord hit;
+  hit.isHit = false;
+
+  vec3 oc = sphere.center - r.origin;
+  float a = dot(r.direction, r.direction);
+  float h = dot(r.direction, oc);
+  float c = dot(oc, oc) - sphere.radius * sphere.radius;
+  float discriminant = h * h - a * c;
+
+  if (discriminant < 0) {
+    return hit;
+  }    
+
+  float sqrtd = sqrt(discriminant);
+
+  // Find the nearest root that lies in the acceptable range.
+  float root = (h - sqrtd) / a;
+  if (root <= ray_tmin || ray_tmax <= root) {
+    root = (h + sqrtd) / a;
+    if (root <= ray_tmin || ray_tmax <= root) {
+      return hit;
+    }      
+  }
+
+  hit.isHit = true;
+  return hit;
+}
+
+void main() {
+  Sphere sphere = Sphere(vec3(0.0f, 0.0f, 1.0f), 0.3f);
+  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitSphere(sphere, rayGenBuffer.rays[gl_GlobalInvocationID.x], 0.0001f, 1000000000.0f);
+}
