@@ -12,11 +12,15 @@ layout(set = 0, binding = 1) buffer readonly RayGenBuffer {
   Ray rays[];
 } rayGenBuffer;
 
-layout(set = 0, binding = 2) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 2) buffer readonly TriangleBvhBuffer {
+  BvhNode triangleBvhNodes[];
+} triangleBvhBuffer;
+
+layout(set = 0, binding = 3) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 3) buffer readonly VertexBuffer {
+layout(set = 0, binding = 4) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
@@ -63,35 +67,95 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
   return hit;
 }
 
-HitRecord hitSphere(Sphere sphere, Ray r, float ray_tmin, float ray_tmax) {
+// ------------- Bvh -------------
+
+float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
+  vec3 tMin = (boxMin - r.origin) / r.direction;
+  vec3 tMax = (boxMax - r.origin) / r.direction;
+  vec3 t1 = min(tMin, tMax);
+  vec3 t2 = max(tMin, tMax);
+  float tNear = max(max(t1.x, t1.y), t1.z);
+  float tFar = min(min(t2.x, t2.y), t2.z);
+
+  return tNear <= tFar ? tNear : FLT_MAX;
+}
+
+HitRecord hitTriangleBvh(Ray r) {
   HitRecord hit;
   hit.isHit = false;
 
-  vec3 oc = sphere.centerRadius.xyz - r.origin;
-  float a = dot(r.direction, r.direction);
-  float h = dot(r.direction, oc);
-  float c = dot(oc, oc) - sphere.centerRadius.w * sphere.centerRadius.w;
-  float discriminant = h * h - a * c;
+  uint firstBvhIndex = 0u;
+  uint firstTriangleIndex = 0u;
 
-  if (discriminant < 0) {
-    return hit;
-  }    
+  BvhNode curNode = triangleBvhBuffer.triangleBvhNodes[firstBvhIndex];
 
-  float sqrtd = sqrt(discriminant);
-
-  // Find the nearest root that lies in the acceptable range.
-  float root = (h - sqrtd) / a;
-  if (root <= ray_tmin || ray_tmax <= root) {
-    root = (h + sqrtd) / a;
-    if (root <= ray_tmin || ray_tmax <= root) {
-      return hit;
-    }      
+  if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
+    return HitRecord(false);
   }
 
-  hit.isHit = true;
-  return hit;
+  uint stack[32];
+  stack[0] = 1u;
+
+  int stackIndex = 1;
+
+  while(stackIndex > 0 && stackIndex <= 30) {
+    uint currentNode = stack[--stackIndex];
+    if (currentNode == 0u) {
+      continue;
+    }
+
+    curNode = triangleBvhBuffer.triangleBvhNodes[currentNode - 1u + firstBvhIndex];
+
+    uint primIndex = curNode.objIndex;
+    if (primIndex > 0u) {
+      Triangle triangle = triangleBuffer.triangles[primIndex - 1u + firstTriangleIndex]; 
+      HitRecord hit = hitTriangle(triangle, r);
+
+      if (hit.isHit) {
+        // hit.hitIndex = primIndex - 1u + firstTriangleIndex;
+        return hit;
+      }
+    }
+
+    uint leftNodeIndex = curNode.leftNode, rightNodeIndex = curNode.rightNode;
+    float leftDist = FLT_MAX, rightDist = FLT_MAX;
+
+    if (leftNodeIndex > 0u) {
+      BvhNode leftNode = triangleBvhBuffer.triangleBvhNodes[leftNodeIndex - 1u + firstBvhIndex];
+      leftDist = intersectAABB(r, leftNode.minimum, leftNode.maximum);
+    }
+
+    if (rightNodeIndex > 0u) {
+      BvhNode rightNode = triangleBvhBuffer.triangleBvhNodes[rightNodeIndex - 1u + firstBvhIndex];
+      rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
+    }
+
+    if (leftDist == FLT_MAX && rightDist == FLT_MAX) {
+      continue;
+    }
+    
+    if (leftDist == FLT_MAX) {
+      stack[stackIndex++] = rightNodeIndex;
+      continue;
+    }
+    
+    if (rightDist == FLT_MAX) {
+      stack[stackIndex++] = leftNodeIndex;
+      continue;
+    }
+
+    if (leftDist <= rightDist) {
+      stack[stackIndex++] = rightNodeIndex;
+      stack[stackIndex++] = leftNodeIndex;
+    } else {
+      stack[stackIndex++] = leftNodeIndex;
+      stack[stackIndex++] = rightNodeIndex;
+    }
+  }
+
+  return HitRecord(false);
 }
 
 void main() {
-  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitTriangle(triangleBuffer.triangles[0], rayGenBuffer.rays[gl_GlobalInvocationID.x]);
+  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitTriangleBvh(rayGenBuffer.rays[gl_GlobalInvocationID.x]);
 }

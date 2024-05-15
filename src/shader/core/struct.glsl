@@ -29,18 +29,13 @@ struct Reference {
   uint transformIndex;
 };
 
-struct Aabb {
-  vec4 point0;
-  vec4 point1;
-  vec4 point2;
-  vec4 point3;
-  vec4 point4;
-  vec4 point5;
-  vec4 point6;
-  vec4 point7;
+struct BvhNode {
+  uint leftNode;
+  uint rightNode;
+  uint objIndex;
 
-  uint firstIndex;
-  uint indicesCount;
+  vec3 maximum;
+  vec3 minimum;
 };
 
 struct Material {
@@ -52,11 +47,6 @@ struct Material {
 struct Transformation {
   mat4 modelMatrix;
   mat4 normalMatrix;
-};
-
-struct ShadowTransformation {
-  mat4 view;
-	mat4 projection;
 };
 
 struct PointLight {

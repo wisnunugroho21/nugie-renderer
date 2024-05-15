@@ -1,5 +1,7 @@
 #include "app.hpp"
 
+#include "../utils/bvh/bvh.hpp"
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -38,8 +40,9 @@ namespace NugieApp {
 		if (this->rayIntersectDescSet != nullptr) delete this->rayIntersectDescSet;
 		if (this->samplingDescSet != nullptr) delete this->samplingDescSet;
 
-		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
+		if (this->triangleBvhBuffer != nullptr) delete this->triangleBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
+		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;		
 
 		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
 		if (this->rayIntersectBuffer != nullptr) delete this->rayIntersectBuffer;
@@ -171,15 +174,27 @@ namespace NugieApp {
 
 	void App::loadObjects() {
 		std::vector<Vertex> vertices;
-		std::vector<Triangle> primitives;
+		std::vector<Triangle> triangles;
+		std::vector<BvhNode> bvhTriangles;
 
 		// ----------------------------------------------------------------------------
 
-		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, -1.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, -1.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 5.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 5.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 1.0f, 5.0f } });
 
-		primitives.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 5.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 5.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, -1.0f, 5.0f } });
+
+		triangles.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
+		triangles.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 } });
+
+		std::vector<BoundBox*> boundBoxes;
+		boundBoxes.emplace_back(new TriangleBoundBox{ 1, triangles[0], vertices });
+		boundBoxes.emplace_back(new TriangleBoundBox{ 2, triangles[1], vertices });
+
+		bvhTriangles = createBvh(boundBoxes);
 
 		// ----------------------------------------------------------------------------		
 
@@ -188,8 +203,11 @@ namespace NugieApp {
 		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
 		this->vertexBuffer->replace(commandBuffer, vertices);
 
-		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(primitives.size()));
-		this->triangleBuffer->replace(commandBuffer, primitives);
+		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(triangles.size()));
+		this->triangleBuffer->replace(commandBuffer, triangles);
+
+		this->triangleBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
+		this->triangleBvhBuffer->replace(commandBuffer, bvhTriangles);
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -239,8 +257,9 @@ namespace NugieApp {
 		this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
-			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())			
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBvhBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())			
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			

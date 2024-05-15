@@ -40,6 +40,15 @@ namespace NugieApp {
     uint32_t transformIndex;
   };
 
+  struct BvhNode {
+    uint32_t leftNode = 0u;
+    uint32_t rightNode = 0u;
+    uint32_t objIndex = 0u;
+
+    alignas(16) glm::vec3 maximum{0.0f};
+    alignas(16) glm::vec3 minimum{0.0f};
+  };
+
   struct Material {
     alignas(16) glm::vec4 baseColor;
     alignas(16) glm::vec4 params;
