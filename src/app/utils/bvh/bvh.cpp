@@ -36,8 +36,8 @@ namespace NugieApp {
 
   Aabb ObjectBoundBox::boundingBox() {
     return Aabb {
-      glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2)),
-      glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2))
+      glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2)) - eps,
+      glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2)) + eps
     };
   }
 

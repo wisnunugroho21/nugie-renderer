@@ -181,30 +181,77 @@ namespace NugieApp {
 		std::vector<BvhNode> bvhTriangles;
 		std::vector<Vertex> vertices;		
 
+		std::vector<BoundBox*> objectBoundBoxes;
+		std::vector<BoundBox*> triangleBoundBoxes;
+		std::vector<Triangle> curTris;
+
 		// ----------------------------------------------------------------------------
 
-		std::vector<BoundBox*> triangleBoundBoxes;
-		std::vector<BoundBox*> objectBoundBoxes;
+		vertices.emplace_back(Vertex{ glm::vec3{ -3.0f, 0.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -2.0f, 1.0f, 10.0f } });
+
+		vertices.emplace_back(Vertex{ glm::vec3{ -3.0f, 0.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ -2.0f, -1.0f, 10.0f } });
+
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 } });
 
 		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), 0 });
 
-		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
+		uint32_t objSize = static_cast<uint32_t>(objects.size());
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], curTris, vertices });
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangles.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		// ----------------------------------------------------------------------------
+
+		vertices.emplace_back(Vertex{ glm::vec3{ 3.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 2.0f, 1.0f, 10.0f } });
 
-		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 3.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, -1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 2.0f, -1.0f, 10.0f } });
 
-		triangles.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
-		triangles.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 } });
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 6, 7, 8 } });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 9, 10, 11 } });
 
-		objectBoundBoxes.emplace_back(new ObjectBoundBox{ 1, objects[0], triangles, vertices });
-		triangleBoundBoxes.emplace_back(new TriangleBoundBox{ 1, triangles[0], vertices });
-		triangleBoundBoxes.emplace_back(new TriangleBoundBox{ 2, triangles[1], vertices });		
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), 0 });
+
+		objSize = static_cast<uint32_t>(objects.size());
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], curTris, vertices });
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangles.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		// ----------------------------------------------------------------------------
 
 		bvhObjects = createBvh(objectBoundBoxes);
-		bvhTriangles = createBvh(triangleBoundBoxes);
 
 		// ----------------------------------------------------------------------------		
 
