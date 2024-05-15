@@ -40,6 +40,12 @@ namespace NugieApp {
     uint32_t transformIndex;
   };
 
+  struct Object {
+    uint32_t firstBvhIndex;
+    uint32_t firstTriangleIndex;
+    uint32_t transformIndex;
+  };
+
   struct BvhNode {
     uint32_t leftNode = 0u;
     uint32_t rightNode = 0u;

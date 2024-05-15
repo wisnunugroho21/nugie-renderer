@@ -29,6 +29,12 @@ struct Reference {
   uint transformIndex;
 };
 
+struct Object {
+  uint firstBvhIndex;
+  uint firstTriangleIndex;
+  uint transformIndex;
+};
+
 struct BvhNode {
   uint leftNode;
   uint rightNode;

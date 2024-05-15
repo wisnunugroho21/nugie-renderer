@@ -44,9 +44,23 @@ namespace NugieApp {
     Triangle triangle;
     std::vector<Vertex> vertices;
 
-    TriangleBoundBox(uint32_t i, const Triangle &p, const std::vector<Vertex> &v) : BoundBox(i), triangle{p}, vertices{v} {}
+    TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {}
 
     Aabb boundingBox();
+  };
+
+  struct ObjectBoundBox : BoundBox {
+    Object object;
+    std::vector<Triangle> triangles;
+    std::vector<Vertex> vertices;
+
+    ObjectBoundBox(uint32_t i, const Object &o, const std::vector<Triangle> &t, const std::vector<Vertex> &v) : BoundBox(i), object{o}, triangles{t}, vertices{v} {}
+    
+    Aabb boundingBox();
+
+    private:
+      float findMax(uint32_t index);
+      float findMin(uint32_t index);
   };
 
   // Intermediate BvhNode structure needed for constructing Bvh.

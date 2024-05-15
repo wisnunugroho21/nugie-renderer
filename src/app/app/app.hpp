@@ -54,9 +54,11 @@ namespace NugieApp {
 			ComputeRenderSystem* rayIntersectRenderer = nullptr;
 			ComputeRenderSystem* samplingRenderer = nullptr;
 
-			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
+			ArrayBuffer<Object>* objectBuffer = nullptr;
+			ArrayBuffer<BvhNode>* objectBvhBuffer = nullptr;
 			ArrayBuffer<Triangle>* triangleBuffer = nullptr;
 			ArrayBuffer<BvhNode>* triangleBvhBuffer = nullptr;
+			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
 			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;

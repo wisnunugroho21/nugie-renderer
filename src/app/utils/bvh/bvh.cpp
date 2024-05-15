@@ -34,6 +34,35 @@ namespace NugieApp {
     };
   }
 
+  Aabb ObjectBoundBox::boundingBox() {
+    return Aabb {
+      glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2)),
+      glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2))
+    };
+  }
+
+  float ObjectBoundBox::findMax(uint32_t index) {
+    float max = FLT_MIN;
+    for (auto &&triangle : this->triangles) {
+      if (this->vertices[triangle.vertexIndexes.x].position[index] > max) max = this->vertices[triangle.vertexIndexes.x].position[index];
+      if (this->vertices[triangle.vertexIndexes.y].position[index] > max) max = this->vertices[triangle.vertexIndexes.y].position[index];
+      if (this->vertices[triangle.vertexIndexes.z].position[index] > max) max = this->vertices[triangle.vertexIndexes.z].position[index];
+    }
+
+    return max;
+  }
+
+  float ObjectBoundBox::findMin(uint32_t index) {
+    float min = FLT_MAX;
+    for (auto &&triangle : this->triangles) {
+      if (this->vertices[triangle.vertexIndexes.x].position[index] < min) min = this->vertices[triangle.vertexIndexes.x].position[index];
+      if (this->vertices[triangle.vertexIndexes.y].position[index] < min) min = this->vertices[triangle.vertexIndexes.y].position[index];
+      if (this->vertices[triangle.vertexIndexes.z].position[index] < min) min = this->vertices[triangle.vertexIndexes.z].position[index];
+    }
+
+    return min;
+  }
+
   BvhNode BvhItemBuild::getGpuModel() {
     bool leaf = leftNodeIndex == 0 && rightNodeIndex == 0;
 
@@ -157,6 +186,7 @@ namespace NugieApp {
   // Stack is used instead of a tree.
   std::vector<BvhNode> createBvh(const std::vector<BoundBox*> &boundedBoxes) {
     uint32_t nodeCounter = 1u;
+    
     std::vector<BvhItemBuild> intermediate;
     std::stack<BvhItemBuild> nodeStack;
 

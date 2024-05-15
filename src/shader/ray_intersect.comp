@@ -12,15 +12,23 @@ layout(set = 0, binding = 1) buffer readonly RayGenBuffer {
   Ray rays[];
 } rayGenBuffer;
 
-layout(set = 0, binding = 2) buffer readonly TriangleBvhBuffer {
+layout(set = 0, binding = 2) buffer readonly ObjectBvhBuffer {
+  BvhNode objectBvhNodes[];
+} objectBvhBuffer;
+
+layout(set = 0, binding = 3) buffer readonly ObjectBuffer {
+  Object objects[];
+} objectBuffer;
+
+layout(set = 0, binding = 4) buffer readonly TriangleBvhBuffer {
   BvhNode triangleBvhNodes[];
 } triangleBvhBuffer;
 
-layout(set = 0, binding = 3) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 4) buffer readonly VertexBuffer {
+layout(set = 0, binding = 6) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
@@ -80,12 +88,9 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
   return tNear <= tFar ? tNear : FLT_MAX;
 }
 
-HitRecord hitTriangleBvh(Ray r) {
+HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex) {
   HitRecord hit;
   hit.isHit = false;
-
-  uint firstBvhIndex = 0u;
-  uint firstTriangleIndex = 0u;
 
   BvhNode curNode = triangleBvhBuffer.triangleBvhNodes[firstBvhIndex];
 
@@ -156,6 +161,74 @@ HitRecord hitTriangleBvh(Ray r) {
   return HitRecord(false);
 }
 
+HitRecord hitObjectBvh(Ray r) {
+  BvhNode curNode = objectBvhBuffer.objectBvhNodes[0u];
+
+  if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
+    return HitRecord(false);
+  }
+
+  uint stack[30];
+  stack[0] = 1u;
+
+  int stackIndex = 1;
+  while(stackIndex > 0 && stackIndex <= 30) {
+    uint currentNode = stack[--stackIndex];
+    if (currentNode == 0u) {
+      continue;
+    }
+
+    curNode = objectBvhBuffer.objectBvhNodes[currentNode - 1u];
+
+    uint objIndex = curNode.objIndex;
+    if (objIndex > 0u) {
+      Object object = objectBuffer.objects[objIndex - 1u];
+      HitRecord hit = hitTriangleBvh(r, object.firstBvhIndex, object.firstTriangleIndex);
+
+      if (hit.isHit) {
+        return hit;
+      }
+    }
+
+    uint leftNodeIndex = curNode.leftNode, rightNodeIndex = curNode.rightNode;
+    float leftDist = FLT_MAX, rightDist = FLT_MAX;
+
+    if (leftNodeIndex > 0u) {
+      BvhNode leftNode = objectBvhBuffer.objectBvhNodes[leftNodeIndex - 1u];
+      leftDist = intersectAABB(r, leftNode.minimum, leftNode.maximum);
+    }
+
+    if (rightNodeIndex > 0u) {
+      BvhNode rightNode = objectBvhBuffer.objectBvhNodes[rightNodeIndex - 1u];
+      rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
+    }
+
+    if (leftDist == FLT_MAX && rightDist == FLT_MAX) {
+      continue;
+    }
+    
+    if (leftDist == FLT_MAX) {
+      stack[stackIndex++] = rightNodeIndex;
+      continue;
+    }
+    
+    if (rightDist == FLT_MAX) {
+      stack[stackIndex++] = leftNodeIndex;
+      continue;
+    }
+
+    if (leftDist <= rightDist) {
+      stack[stackIndex++] = rightNodeIndex;
+      stack[stackIndex++] = leftNodeIndex;
+    } else {
+      stack[stackIndex++] = leftNodeIndex;
+      stack[stackIndex++] = rightNodeIndex;
+    }
+  }
+
+  return HitRecord(false);
+}
+
 void main() {
-  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitTriangleBvh(rayGenBuffer.rays[gl_GlobalInvocationID.x]);
+  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitObjectBvh(rayGenBuffer.rays[gl_GlobalInvocationID.x]);
 }
