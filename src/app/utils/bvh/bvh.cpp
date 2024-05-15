@@ -185,7 +185,7 @@ namespace NugieApp {
         intermediate.push_back(currentNode);
       } else {
         float length = currentNode.box.max[axis] - currentNode.box.min[axis];
-        float splitPos = std::ceil(objectSpan / 2); // findTriangleSplitPosition(currentNode, axis, length); //  
+        float splitPos = findTriangleSplitPosition(currentNode, axis, length); //  std::ceil(objectSpan / 2);
 
         BvhItemBuild leftNode, rightNode;
 
