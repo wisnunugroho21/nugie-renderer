@@ -139,20 +139,20 @@ HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex) {
       continue;
     }
     
-    if (leftDist == FLT_MAX) {
+    else if (leftDist == FLT_MAX) {
       stack[stackIndex++] = rightNodeIndex;
-      continue;
     }
     
-    if (rightDist == FLT_MAX) {
+    else if (rightDist == FLT_MAX) {
       stack[stackIndex++] = leftNodeIndex;
-      continue;
     }
 
-    if (leftDist <= rightDist) {
+    else if (leftDist <= rightDist) {
       stack[stackIndex++] = rightNodeIndex;
       stack[stackIndex++] = leftNodeIndex;
-    } else {
+    } 
+    
+    else {
       stack[stackIndex++] = leftNodeIndex;
       stack[stackIndex++] = rightNodeIndex;
     }
@@ -207,20 +207,20 @@ HitRecord hitObjectBvh(Ray r) {
       continue;
     }
     
-    if (leftDist == FLT_MAX) {
+    else if (leftDist == FLT_MAX) {
       stack[stackIndex++] = rightNodeIndex;
-      continue;
     }
     
-    if (rightDist == FLT_MAX) {
+    else if (rightDist == FLT_MAX) {
       stack[stackIndex++] = leftNodeIndex;
-      continue;
     }
 
-    if (leftDist <= rightDist) {
+    else if (leftDist <= rightDist) {
       stack[stackIndex++] = rightNodeIndex;
       stack[stackIndex++] = leftNodeIndex;
-    } else {
+    } 
+    
+    else {
       stack[stackIndex++] = leftNodeIndex;
       stack[stackIndex++] = rightNodeIndex;
     }
