@@ -93,6 +93,11 @@ namespace NugieApp {
 
   struct Hit {
     alignas(4) bool isHit;
+    alignas(16) glm::vec2 uv;
+  };
+
+  struct Result {
+    glm::vec4 finalColor;
   };
 
   struct RayTraceUbo {

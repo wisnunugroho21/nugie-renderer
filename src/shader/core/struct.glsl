@@ -82,4 +82,9 @@ struct Ray {
 
 struct HitRecord {
   bool isHit;
+  vec2 uv;
+};
+
+struct Result {
+  vec4 finalColor;
 };

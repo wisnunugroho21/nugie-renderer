@@ -1,0 +1,17 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) buffer writeonly RayHitBuffer {
+  Result results[];
+} rayHitBuffer;
+
+layout(set = 0, binding = 1) buffer readonly IntersectBuffer {
+  HitRecord hits[];
+} intersectBuffer;
+
+void main() {
+  rayHitBuffer.results[gl_GlobalInvocationID.x].finalColor = intersectBuffer.hits[gl_GlobalInvocationID.x].isHit ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(0.5f, 0.5f, 0.5f, 1.0f);
+}

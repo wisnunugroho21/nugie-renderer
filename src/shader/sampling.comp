@@ -2,24 +2,17 @@
 
 #include "core/struct.glsl"
 
-layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 0, binding = 0, rgba8) writeonly uniform image2D resultImage;
 
-layout(set = 0, binding = 1) buffer readonly IntersectBuffer {
-  HitRecord hits[];
-} intersectBuffer;
-
-vec3 rayColor(Ray r) {
-  vec3 unit_direction = normalize(r.direction);
-  float a = 0.5 * (unit_direction.y + 1.0);
-  return mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.7, 1.0), a);
-}
+layout(set = 0, binding = 1) buffer readonly RayHitBuffer {
+  Result results[];
+} rayHitBuffer;
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
   
-  vec3 finalColor = intersectBuffer.hits[bufferIndex].isHit ? vec3(1.0f, 0.0f, 0.0f) : vec3(0.5f);
-  imageStore(resultImage, pixelCoord, vec4(finalColor, 1.0f));
+  imageStore(resultImage, pixelCoord, rayHitBuffer.results[bufferIndex].finalColor);
 }

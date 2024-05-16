@@ -52,6 +52,7 @@ namespace NugieApp {
 
 			ComputeRenderSystem* rayGenRenderer = nullptr;
 			ComputeRenderSystem* rayIntersectRenderer = nullptr;
+			ComputeRenderSystem* rayHitRenderer = nullptr;
 			ComputeRenderSystem* samplingRenderer = nullptr;
 
 			ArrayBuffer<Object>* objectBuffer = nullptr;
@@ -64,11 +65,13 @@ namespace NugieApp {
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
 			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
 			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;
+			ManyArrayBuffer<Result>* rayHitBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 
 			DescriptorSet* rayGenDescSet = nullptr;
 			DescriptorSet* rayIntersectDescSet = nullptr;
+			DescriptorSet* rayHitDescSet = nullptr;
 			DescriptorSet* samplingDescSet = nullptr;
 
 			uint32_t frameCount = 0u, randomSeed = 0u;

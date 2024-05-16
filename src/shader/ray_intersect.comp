@@ -76,6 +76,8 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
   float t = inv_det * dot(edge2, s_cross_e1);
 
   hit.isHit = true;
+  hit.uv = vec2(u, v);
+  
   return hit;
 }
 
@@ -93,9 +95,6 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
 }
 
 HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex, uint transformIndex) {
-  HitRecord hit;
-  hit.isHit = false;
-
   Transformation curTransf = transformationBuffer.transformations[transformIndex];
   BvhNode curNode = triangleBvhBuffer.triangleBvhNodes[firstBvhIndex];
 
@@ -103,7 +102,7 @@ HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex, uin
   r.direction = mat3(curTransf.dirInverseMatrix) * r.direction;
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
-    return HitRecord(false);
+    return HitRecord(false, vec2(0.0f));
   }
 
   uint stack[30];
@@ -163,14 +162,14 @@ HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex, uin
     }    
   }
 
-  return HitRecord(false);
+  return HitRecord(false, vec2(0.0f));
 }
 
 HitRecord hitObjectBvh(Ray r) {
   BvhNode curNode = objectBvhBuffer.objectBvhNodes[0u];
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
-    return HitRecord(false);
+    return HitRecord(false, vec2(0.0f));
   }
 
   uint stack[30];
@@ -228,7 +227,7 @@ HitRecord hitObjectBvh(Ray r) {
     }    
   }
 
-  return HitRecord(false);
+  return HitRecord(false, vec2(0.0f));
 }
 
 void main() {
