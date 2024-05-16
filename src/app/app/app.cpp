@@ -44,7 +44,8 @@ namespace NugieApp {
 		if (this->objectBuffer != nullptr) delete this->objectBuffer;
 		if (this->triangleBvhBuffer != nullptr) delete this->triangleBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
-		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;		
+		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
+		if (this->transformBuffer != nullptr) delete this->transformBuffer;		
 
 		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
 		if (this->rayIntersectBuffer != nullptr) delete this->rayIntersectBuffer;
@@ -179,13 +180,15 @@ namespace NugieApp {
 		std::vector<BvhNode> bvhObjects;
 		std::vector<Triangle> triangles;
 		std::vector<BvhNode> bvhTriangles;
-		std::vector<Vertex> vertices;		
+		std::vector<Vertex> vertices;
+		std::vector<Transformation> transforms;		
 
 		std::vector<BoundBox*> objectBoundBoxes;
 		std::vector<BoundBox*> triangleBoundBoxes;
 		std::vector<Triangle> curTris;
+		std::vector<TransformComponent> transformComponents;
 
-		// ----------------------------------------------------------------------------
+		// ----------------------------------------------------------------------------		
 
 		vertices.emplace_back(Vertex{ glm::vec3{ -3.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
@@ -199,10 +202,14 @@ namespace NugieApp {
 		curTris.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
 		curTris.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 } });
 
-		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), 0 });
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		uint32_t transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), transformIndex });
 		uint32_t objSize = static_cast<uint32_t>(objects.size());
-		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], curTris, vertices });
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		uint32_t boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
 
 		triangleBoundBoxes.clear();
 		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
@@ -216,6 +223,9 @@ namespace NugieApp {
 		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
 			bvhTriangles.emplace_back(bvhTri);
 		}
+
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
 
 		// ----------------------------------------------------------------------------
 
@@ -231,10 +241,14 @@ namespace NugieApp {
 		curTris.emplace_back(Triangle{ glm::uvec3{ 6, 7, 8 } });
 		curTris.emplace_back(Triangle{ glm::uvec3{ 9, 10, 11 } });
 
-		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), 0 });
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), transformIndex });
 		objSize = static_cast<uint32_t>(objects.size());
-		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], curTris, vertices });
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
 
 		triangleBoundBoxes.clear();
 		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
@@ -249,8 +263,12 @@ namespace NugieApp {
 			bvhTriangles.emplace_back(bvhTri);
 		}
 
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
+
 		// ----------------------------------------------------------------------------
 
+		transforms = ConvertComponentToTransform(transformComponents);
 		bvhObjects = createBvh(objectBoundBoxes);
 
 		// ----------------------------------------------------------------------------		
@@ -271,6 +289,9 @@ namespace NugieApp {
 
 		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
 		this->vertexBuffer->replace(commandBuffer, vertices);
+
+		this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
+		this->transformBuffer->replace(commandBuffer, transforms);
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -324,7 +345,8 @@ namespace NugieApp {
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBuffer->getInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBvhBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
-			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())			
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformBuffer->getInfo())
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			

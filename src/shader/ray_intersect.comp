@@ -32,6 +32,10 @@ layout(set = 0, binding = 6) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
+layout(set = 0, binding = 7) buffer readonly TransformationBuffer {
+  Transformation transformations[];
+} transformationBuffer;
+
 vec3 rayAt(Ray r, float t) {
   return r.origin + t * r.direction;
 }
@@ -88,17 +92,21 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
   return tNear <= tFar ? tNear : FLT_MAX;
 }
 
-HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex) {
+HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex, uint transformIndex) {
   HitRecord hit;
   hit.isHit = false;
 
+  Transformation curTransf = transformationBuffer.transformations[transformIndex];
   BvhNode curNode = triangleBvhBuffer.triangleBvhNodes[firstBvhIndex];
+
+  r.origin = (curTransf.pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
+  r.direction = mat3(curTransf.dirInverseMatrix) * r.direction;
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
     return HitRecord(false);
   }
 
-  uint stack[32];
+  uint stack[30];
   stack[0] = 1u;
 
   int stackIndex = 1;
@@ -178,7 +186,7 @@ HitRecord hitObjectBvh(Ray r) {
 
       if (objIndex > 0u) {
         Object object = objectBuffer.objects[objIndex - 1u];
-        HitRecord hit = hitTriangleBvh(r, object.firstBvhIndex, object.firstTriangleIndex);
+        HitRecord hit = hitTriangleBvh(r, object.firstBvhIndex, object.firstTriangleIndex, object.transformIndex);
 
         if (hit.isHit) {
           return hit;

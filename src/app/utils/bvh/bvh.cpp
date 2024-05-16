@@ -34,10 +34,47 @@ namespace NugieApp {
     };
   }
 
+  ObjectBoundBox::ObjectBoundBox(uint32_t i, const Object &o, const TransformComponent &tc, const std::vector<Triangle> &t, const std::vector<Vertex> &v) : BoundBox(i), object{o}, transformation{tc}, triangles{t}, vertices{v} {
+    this->originalMin = glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2));
+    this->originalMax = glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2));
+  }
+
   Aabb ObjectBoundBox::boundingBox() {
+    auto curTransf = glm::mat4{ 1.0f };
+    auto originScalePosition = glm::vec3((this->originalMax - this->originalMin) / 2.0f + this->originalMin);
+
+    curTransf = glm::translate(curTransf, this->transformation.translation);
+    
+    curTransf = glm::translate(curTransf, originScalePosition);
+    curTransf = glm::scale(curTransf, this->transformation.scale);    
+
+    curTransf = glm::rotate(curTransf, this->transformation.rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
+    curTransf = glm::rotate(curTransf, this->transformation.rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+    curTransf = glm::rotate(curTransf, this->transformation.rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
+
+    curTransf = glm::translate(curTransf, -1.0f * originScalePosition);
+
+    auto newMin = glm::vec4{FLT_MAX, FLT_MAX, FLT_MAX, 1.0f};
+    auto newMax = glm::vec4{FLT_MIN, FLT_MIN, FLT_MIN, 1.0f};
+
+    for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < 2; j++) {
+        for (int k = 0; k < 2; k++) {
+          auto x = i * this->originalMax.x + (1 - i) * this->originalMin.x;
+          auto y = j * this->originalMax.y + (1 - j) * this->originalMin.y;
+          auto z = k * this->originalMax.z + (1 - k) * this->originalMin.z;
+
+          auto newTransf = curTransf * glm::vec4(x, y, z, 1.0f);
+
+          newMin = glm::min(newMin, newTransf);
+          newMax = glm::max(newMax, newTransf);
+        }
+      }
+    }
+
     return Aabb {
-      glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2)) - eps,
-      glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2)) + eps
+      glm::vec3(newMin) - eps,
+      glm::vec3(newMax) + eps
     };
   }
 
@@ -75,7 +112,7 @@ namespace NugieApp {
         return node;
       }
       
-      node.objIndex = objects[0]->index;
+      node.objIndex = objects[0]->getIndex();
     } else {
       node.leftNode = leftNodeIndex;
       node.rightNode = rightNodeIndex;

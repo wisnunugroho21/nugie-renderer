@@ -41,15 +41,15 @@ namespace NugieApp {
   };
 
   struct Object {
-    uint32_t firstBvhIndex;
-    uint32_t firstTriangleIndex;
-    uint32_t transformIndex;
+    alignas(4) uint32_t firstBvhIndex;
+    alignas(4) uint32_t firstTriangleIndex;
+    alignas(4) uint32_t transformIndex;
   };
 
   struct BvhNode {
-    uint32_t leftNode = 0u;
-    uint32_t rightNode = 0u;
-    uint32_t objIndex = 0u;
+    alignas(4) uint32_t leftNode = 0u;
+    alignas(4) uint32_t rightNode = 0u;
+    alignas(4) uint32_t objIndex = 0u;
 
     alignas(16) glm::vec3 maximum{0.0f};
     alignas(16) glm::vec3 minimum{0.0f};
@@ -62,7 +62,10 @@ namespace NugieApp {
   };
 
   struct Transformation {
-    glm::mat4 modelMatrix{1.0f};
+    glm::mat4 pointMatrix{1.0f};
+    glm::mat4 dirMatrix{1.0f};
+    glm::mat4 pointInverseMatrix{1.0f};
+    glm::mat4 dirInverseMatrix{1.0f};
     glm::mat4 normalMatrix{1.0f};
   };
 

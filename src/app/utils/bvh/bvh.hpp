@@ -29,36 +29,51 @@ namespace NugieApp {
     uint32_t randomAxis();
   };
 
-  struct BoundBox {
-    uint32_t index;
+  class BoundBox {
+    public:
+      BoundBox(uint32_t i) : index{i} {}
 
-    BoundBox(uint32_t i) : index{i} {}
+      uint32_t getIndex() { return this->index; }
 
-    virtual Aabb boundingBox() = 0;
+      virtual Aabb boundingBox() = 0;
 
-    virtual glm::vec3 getOriginalMin() { return glm::vec3(0.0f); }
-    virtual glm::vec3 getOriginalMax() { return glm::vec3(0.0f); }
+      virtual glm::vec3 getOriginalMin() { return glm::vec3(0.0f); }
+      virtual glm::vec3 getOriginalMax() { return glm::vec3(0.0f); }
+
+    protected:
+      uint32_t index;
   };
 
-  struct TriangleBoundBox : BoundBox {
-    Triangle triangle;
-    std::vector<Vertex> vertices;
+  class TriangleBoundBox : public BoundBox {   
+    public:
+      TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {}
 
-    TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {}
-
-    Aabb boundingBox();
-  };
-
-  struct ObjectBoundBox : BoundBox {
-    Object object;
-    std::vector<Triangle> triangles;
-    std::vector<Vertex> vertices;
-
-    ObjectBoundBox(uint32_t i, const Object &o, const std::vector<Triangle> &t, const std::vector<Vertex> &v) : BoundBox(i), object{o}, triangles{t}, vertices{v} {}
-    
-    Aabb boundingBox();
+      Aabb boundingBox();
 
     private:
+      Triangle triangle;
+      std::vector<Vertex> vertices;
+  };
+
+  class ObjectBoundBox : public BoundBox {
+    public:
+      ObjectBoundBox(uint32_t i, const Object &o, const TransformComponent &tc, const std::vector<Triangle> &t, const std::vector<Vertex> &v);
+      
+      glm::vec3 getOriginalMin() { return this->originalMin; }
+      glm::vec3 getOriginalMax() { return this->originalMax; }
+      
+      Aabb boundingBox();
+
+    private:
+      Object object;
+      TransformComponent transformation;
+
+      std::vector<Triangle> triangles;
+      std::vector<Vertex> vertices;
+
+      glm::vec3 originalMin{0.0f};
+      glm::vec3 originalMax{0.0f};
+
       float findMax(uint32_t index);
       float findMin(uint32_t index);
   };

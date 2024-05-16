@@ -51,7 +51,10 @@ struct Material {
 };
 
 struct Transformation {
-  mat4 modelMatrix;
+  mat4 pointMatrix;
+  mat4 dirMatrix;
+  mat4 pointInverseMatrix;
+  mat4 dirInverseMatrix;
   mat4 normalMatrix;
 };
 
