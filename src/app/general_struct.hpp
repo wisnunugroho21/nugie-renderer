@@ -93,6 +93,7 @@ namespace NugieApp {
 
   struct Hit {
     alignas(4) bool isHit;
+    alignas(4) uint32_t hitIndex;
     alignas(16) glm::vec2 uv;
   };
 

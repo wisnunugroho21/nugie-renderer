@@ -82,6 +82,7 @@ struct Ray {
 
 struct HitRecord {
   bool isHit;
+  uint hitIndex;
   vec2 uv;
 };
 
