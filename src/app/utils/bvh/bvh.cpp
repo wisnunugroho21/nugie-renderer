@@ -170,13 +170,17 @@ namespace NugieApp {
     float splitPos = 0.0f;
 
     BvhBinSAH bvhBins[SPLIT_NUMBER];
-    float scale = SPLIT_NUMBER / (node.box.max[axis] - node.box.min[axis]);
+    float scale = (node.box.max[axis] - node.box.min[axis]) / SPLIT_NUMBER;
+
+    if (scale == 0.0f) {
+      return (node.box.max[axis] - node.box.min[axis]) / 2.0f + node.box.min[axis];
+    }
 
     for (auto &&item : node.objects) {
       Aabb boundBox = item->boundingBox();
       float pos = (boundBox.max[axis] - boundBox.min[axis]) / 2.0f + boundBox.min[axis];
 
-      int binIdx = glm::min(SPLIT_NUMBER - 1, (int) std::floor((pos - boundBox.min[axis]) * scale));
+      int binIdx = glm::min(SPLIT_NUMBER - 1, (int) std::floor((pos - boundBox.min[axis]) / scale));
       BvhBinSAH binSah = bvhBins[binIdx];
 
       binSah.box.max = glm::max(binSah.box.max, boundBox.max);
@@ -207,7 +211,6 @@ namespace NugieApp {
       rightArea[i] = rightBox.area();
     }
 
-    scale = (node.box.max[axis] - node.box.min[axis]) / SPLIT_NUMBER;
     for (int i = 0; i < SPLIT_NUMBER - 1; i++) {
       float curCost = leftCount[i] * leftArea[i] + rightCount[i] * rightArea[i];
       if (curCost < bestCost) {

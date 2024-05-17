@@ -205,20 +205,16 @@ namespace NugieApp {
 		std::vector<TransformComponent> transformComponents;
 
 		// ----------------------------------------------------------------------------		
+		// kanan
 
-		materials.emplace_back(Material{ glm::vec4(0.0f, 1.0f, 0.0f, 1.0f) });
-		
-		vertices.emplace_back(Vertex{ glm::vec3{ -3.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ -2.0f, 1.0f, 10.0f } });
-
-		vertices.emplace_back(Vertex{ glm::vec3{ -3.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ -2.0f, -1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 555.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 555.0f } });
 
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 }, 0u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 }, 0u });		
+		curTris.emplace_back(Triangle{ glm::uvec3{ 0u, 1u, 2u }, 1u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 2u, 3u, 0u }, 1u });		
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		uint32_t transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -246,20 +242,16 @@ namespace NugieApp {
 		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
 
 		// ----------------------------------------------------------------------------
-
-		materials.emplace_back(Material{ glm::vec4(0.0f, 0.0f, 1.0f, 1.0f) });
+		// kiri
 		
-		vertices.emplace_back(Vertex{ glm::vec3{ 3.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 2.0f, 1.0f, 10.0f } });
-
-		vertices.emplace_back(Vertex{ glm::vec3{ 3.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 10.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 2.0f, -1.0f, 10.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 0.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 555.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 555.0f, 555.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 0.0f, 555.0f } });
 
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 6, 7, 8 }, 1u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 9, 10, 11 }, 1u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 4u, 5u, 6u }, 2u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 6u, 7u, 4u }, 2u });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -287,6 +279,106 @@ namespace NugieApp {
 		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
 
 		// ----------------------------------------------------------------------------
+		// bawah
+		
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 4u, 0u, 3u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 3u, 7u, 4u }, 0u });
+
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
+
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), transformIndex });
+		objSize = static_cast<uint32_t>(objects.size());
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangles.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
+
+		// ----------------------------------------------------------------------------
+		// atas
+		
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 5u, 1u, 2u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 2u, 6u, 5u }, 0u });
+
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
+
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), transformIndex });
+		objSize = static_cast<uint32_t>(objects.size());
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangles.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
+
+		// ----------------------------------------------------------------------------
+		// depan
+		
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 7u, 6u, 2u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 2u, 3u, 7u }, 0u });
+
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
+
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()), transformIndex });
+		objSize = static_cast<uint32_t>(objects.size());
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangles.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
+
+		// ----------------------------------------------------------------------------
+
+		materials.emplace_back(Material{ glm::vec4(0.73f, 0.73f, 0.73f, 1.0f) });
+		materials.emplace_back(Material{ glm::vec4(0.12f, 0.45f, 0.15f, 1.0f) });
+		materials.emplace_back(Material{ glm::vec4(0.65f, 0.05f, 0.05f, 1.0f) });		
 
 		transforms = ConvertComponentToTransform(transformComponents);
 		bvhObjects = createBvh(objectBoundBoxes);
@@ -323,7 +415,7 @@ namespace NugieApp {
 	void App::initCamera(uint32_t width, uint32_t height) {
 		RayTraceUbo ubo{};
 
-		this->camera->setViewDirection(glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 0.0f, 10.0f}, 40.0f);
+		this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
 		CameraRay cameraRay = this->camera->getCameraRay();
 		
 		this->rayTraceUbo.origin = cameraRay.origin;
