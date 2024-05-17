@@ -22,6 +22,7 @@ struct NormText {
 
 struct Triangle {
   uvec3 vertexIndexes;
+  uint materialIndex;
 };
 
 struct Reference {
@@ -46,8 +47,6 @@ struct BvhNode {
 
 struct Material {
   vec4 baseColor;
-  vec4 params;
-  uint colorTextureIndex;
 };
 
 struct Transformation {

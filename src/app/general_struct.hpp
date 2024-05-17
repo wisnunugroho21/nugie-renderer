@@ -33,6 +33,7 @@ namespace NugieApp {
 
   struct Triangle {
     alignas(16) glm::uvec3 vertexIndexes;
+    alignas(4) uint32_t materialIndex;
   };  
   
   struct Reference {
@@ -57,8 +58,6 @@ namespace NugieApp {
 
   struct Material {
     alignas(16) glm::vec4 baseColor;
-    alignas(16) glm::vec4 params;
-    uint32_t colorTextureIndex;
   };
 
   struct Transformation {

@@ -61,6 +61,7 @@ namespace NugieApp {
 			ArrayBuffer<BvhNode>* triangleBvhBuffer = nullptr;
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformBuffer = nullptr;
+			ArrayBuffer<Material>* materialBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
 			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;

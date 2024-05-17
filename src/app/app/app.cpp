@@ -47,7 +47,8 @@ namespace NugieApp {
 		if (this->triangleBvhBuffer != nullptr) delete this->triangleBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
-		if (this->transformBuffer != nullptr) delete this->transformBuffer;		
+		if (this->transformBuffer != nullptr) delete this->transformBuffer;
+		if (this->materialBuffer != nullptr) delete this->materialBuffer;		
 
 		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
 		if (this->rayIntersectBuffer != nullptr) delete this->rayIntersectBuffer;
@@ -195,7 +196,8 @@ namespace NugieApp {
 		std::vector<Triangle> triangles;
 		std::vector<BvhNode> bvhTriangles;
 		std::vector<Vertex> vertices;
-		std::vector<Transformation> transforms;		
+		std::vector<Transformation> transforms;
+		std::vector<Material> materials;		
 
 		std::vector<BoundBox*> objectBoundBoxes;
 		std::vector<BoundBox*> triangleBoundBoxes;
@@ -204,6 +206,8 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------		
 
+		materials.emplace_back(Material{ glm::vec4(0.0f, 1.0f, 0.0f, 1.0f) });
+		
 		vertices.emplace_back(Vertex{ glm::vec3{ -3.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ -1.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ -2.0f, 1.0f, 10.0f } });
@@ -213,8 +217,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ -2.0f, -1.0f, 10.0f } });
 
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 } });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 } });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 0, 1, 2 }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 3, 4, 5 }, 0u });		
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		uint32_t transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -243,6 +247,8 @@ namespace NugieApp {
 
 		// ----------------------------------------------------------------------------
 
+		materials.emplace_back(Material{ glm::vec4(0.0f, 0.0f, 1.0f, 1.0f) });
+		
 		vertices.emplace_back(Vertex{ glm::vec3{ 3.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 1.0f, 0.0f, 10.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 2.0f, 1.0f, 10.0f } });
@@ -252,8 +258,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 2.0f, -1.0f, 10.0f } });
 
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 6, 7, 8 } });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 9, 10, 11 } });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 6, 7, 8 }, 1u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 9, 10, 11 }, 1u });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -306,6 +312,9 @@ namespace NugieApp {
 
 		this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
 		this->transformBuffer->replace(commandBuffer, transforms);
+
+		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(materials.size()));
+		this->materialBuffer->replace(commandBuffer, materials);
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -366,7 +375,9 @@ namespace NugieApp {
 
 		this->rayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayHitBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())			
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())			
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			

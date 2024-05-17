@@ -12,6 +12,22 @@ layout(set = 0, binding = 1) buffer readonly IntersectBuffer {
   HitRecord hits[];
 } intersectBuffer;
 
+layout(set = 0, binding = 2) buffer readonly TriangleBuffer {
+  Triangle triangles[];
+} triangleBuffer;
+
+layout(set = 0, binding = 3) buffer readonly MaterialBuffer {
+  Material materials[];
+} materialBuffer;
+
 void main() {
-  rayHitBuffer.results[gl_GlobalInvocationID.x].finalColor = intersectBuffer.hits[gl_GlobalInvocationID.x].isHit ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
+  vec4 finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
+
+  if (hitRecord.isHit) {
+    uint materialIndex = triangleBuffer.triangles[hitRecord.hitIndex].materialIndex;
+    finalColor = materialBuffer.materials[materialIndex].baseColor;
+  }  
+
+  rayHitBuffer.results[gl_GlobalInvocationID.x].finalColor = finalColor;
 }
