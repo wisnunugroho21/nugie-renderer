@@ -20,9 +20,11 @@ namespace NugieApp {
 
   struct Vertex {
     alignas(16) glm::vec3 position;
+    alignas(16) glm::vec3 normal;
+    alignas(16) glm::vec2 textCoord;
 
     bool operator == (const Vertex &other) const {
-			return this->position == other.position;
+			return this->position == other.position && this->normal == other.normal && this->textCoord == other.textCoord;
 		}
   };
 

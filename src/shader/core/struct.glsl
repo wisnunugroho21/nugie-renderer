@@ -13,6 +13,8 @@ struct Sphere {
 
 struct Vertex {
   vec3 position;
+  vec3 normal;
+  vec2 textCoord;
 };
 
 struct NormText {    
