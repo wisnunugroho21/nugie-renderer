@@ -45,14 +45,16 @@ namespace NugieApp {
 
   struct Object {
     alignas(4) uint32_t firstBvhIndex;
-    alignas(4) uint32_t firstTriangleIndex;
+    alignas(4) uint32_t firstGeometryIndex;
     alignas(4) uint32_t transformIndex;
   };
 
   struct BvhNode {
     alignas(4) uint32_t leftNode = 0u;
     alignas(4) uint32_t rightNode = 0u;
+
     alignas(4) uint32_t objIndex = 0u;
+    alignas(4) uint32_t typeIndex = 0u;
 
     alignas(16) glm::vec3 maximum{0.0f};
     alignas(16) glm::vec3 minimum{0.0f};
@@ -94,7 +96,11 @@ namespace NugieApp {
 
   struct Hit {
     alignas(4) bool isHit;
+    alignas(4) float t;
+
     alignas(4) uint32_t hitIndex;
+    alignas(4) uint32_t hitTypeIndex;
+    
     alignas(16) glm::vec2 uv;
   };
 

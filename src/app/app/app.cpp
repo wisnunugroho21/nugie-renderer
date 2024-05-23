@@ -44,7 +44,7 @@ namespace NugieApp {
 
 		if (this->objectBvhBuffer != nullptr) delete this->objectBvhBuffer;
 		if (this->objectBuffer != nullptr) delete this->objectBuffer;
-		if (this->triangleBvhBuffer != nullptr) delete this->triangleBvhBuffer;
+		if (this->geometryBvhBuffer != nullptr) delete this->geometryBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->transformBuffer != nullptr) delete this->transformBuffer;
@@ -411,8 +411,8 @@ namespace NugieApp {
 		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(triangles.size()));
 		this->triangleBuffer->replace(commandBuffer, triangles);
 
-		this->triangleBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
-		this->triangleBvhBuffer->replace(commandBuffer, bvhTriangles);		
+		this->geometryBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
+		this->geometryBvhBuffer->replace(commandBuffer, bvhTriangles);		
 
 		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
 		this->vertexBuffer->replace(commandBuffer, vertices);
@@ -474,7 +474,7 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBvhBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBuffer->getInfo())
-			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBvhBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->geometryBvhBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
 			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
 			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformBuffer->getInfo())

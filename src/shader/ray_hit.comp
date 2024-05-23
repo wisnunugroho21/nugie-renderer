@@ -78,18 +78,17 @@ float lambertBrdfValue() {
 
 void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
-  vec4 finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
 
   Result finalResult;
-  finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);  
 
-  vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
-
-  if (hitRecord.isHit) {
+  if (hitRecord.isHit && hitRecord.hitTypeIndex == 1) {
     Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
 
     vec3 hittedTrianglePosition = getPosition(hittedTriangle, hitRecord.uv);
     vec3 hittedTriangleNormal = getNormal(hittedTriangle, hitRecord.uv);
+
+    vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
     float NoL = dot(hittedTriangleNormal, normalize(lightPosition - hittedTrianglePosition));
     float brdf = lambertBrdfValue();

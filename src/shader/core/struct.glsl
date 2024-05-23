@@ -34,14 +34,16 @@ struct Reference {
 
 struct Object {
   uint firstBvhIndex;
-  uint firstTriangleIndex;
+  uint firstGeometryIndex;
   uint transformIndex;
 };
 
 struct BvhNode {
   uint leftNode;
   uint rightNode;
+
   uint objIndex;
+  uint typeIndex;
 
   vec3 maximum;
   vec3 minimum;
@@ -83,7 +85,11 @@ struct Ray {
 
 struct HitRecord {
   bool isHit;
+  float t;
+
   uint hitIndex;
+  uint hitTypeIndex;
+  
   vec2 uv;
 };
 
