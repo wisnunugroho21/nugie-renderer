@@ -40,7 +40,7 @@ vec3 rayAt(Ray r, float t) {
   return r.origin + t * r.direction;
 }
 
-HitRecord hitTriangle(Triangle triangle, Ray r) {
+HitRecord hitTriangle(Triangle triangle, Ray r, Transformation transform) {
   HitRecord hit;
   hit.isHit = false;
 
@@ -70,10 +70,14 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
 
   if (v < 0 || u + v > 1) {
     return hit;
-  }    
+  }  
 
   // At this stage we can compute t to find out where the intersection point is on the line.
   float t = inv_det * dot(edge2, s_cross_e1);
+
+  if (t > 1.0f) {
+    return hit;
+  }   
 
   hit.isHit = true;
   hit.uv = vec2(u, v);
@@ -119,7 +123,7 @@ HitRecord hitTriangleBvh(Ray r, uint firstBvhIndex, uint firstTriangleIndex, uin
       
       if (primIndex > 0u) {
         Triangle triangle = triangleBuffer.triangles[primIndex - 1u + firstTriangleIndex]; 
-        HitRecord hit = hitTriangle(triangle, r);
+        HitRecord hit = hitTriangle(triangle, r, curTransf);
 
         if (hit.isHit) {
           hit.hitIndex = primIndex - 1u + firstTriangleIndex;

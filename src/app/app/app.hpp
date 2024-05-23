@@ -13,6 +13,7 @@
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
+#include "../renderer_system/forward_pass_render_system.hpp"
 #include "../renderer_system/compute_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
@@ -48,28 +49,37 @@ namespace NugieApp {
 			NugieVulkan::Device* device = nullptr;
 
 			Camera* camera = nullptr;
+
 			Renderer* renderer = nullptr;
+			SubRenderer* forwardSubRenderer = nullptr;
+
+			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
 
 			ComputeRenderSystem* rayGenRenderer = nullptr;
 			ComputeRenderSystem* rayIntersectRenderer = nullptr;
 			ComputeRenderSystem* rayHitRenderer = nullptr;
 			ComputeRenderSystem* samplingRenderer = nullptr;
 
+			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
+			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
+			ArrayBuffer<Reference>* referenceBuffer = nullptr;
 			ArrayBuffer<Object>* objectBuffer = nullptr;
 			ArrayBuffer<BvhNode>* objectBvhBuffer = nullptr;
 			ArrayBuffer<Triangle>* triangleBuffer = nullptr;
-			ArrayBuffer<BvhNode>* triangleBvhBuffer = nullptr;
-			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
+			ArrayBuffer<BvhNode>* triangleBvhBuffer = nullptr;			
 			ArrayBuffer<Transformation>* transformBuffer = nullptr;
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 
+			ObjectBuffer<CameraTransformation>* cameraTransformationBuffer = nullptr;
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
+
 			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
 			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;
 			ManyArrayBuffer<Result>* rayHitBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 
+			DescriptorSet* forwardDescSet = nullptr;
 			DescriptorSet* rayGenDescSet = nullptr;
 			DescriptorSet* rayIntersectDescSet = nullptr;
 			DescriptorSet* rayHitDescSet = nullptr;
@@ -78,6 +88,7 @@ namespace NugieApp {
 			uint32_t frameCount = 0u, randomSeed = 0u;
 			bool isRendering = true;
 
+			CameraTransformation cameraTransformation;
 			RayTraceUbo rayTraceUbo;
 	};
 }

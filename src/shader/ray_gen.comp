@@ -4,23 +4,26 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0) uniform readonly GlobalUniform {
-  vec3 origin;
-  vec3 horizontal;
-  vec3 vertical;
-  vec3 lowerLeftCorner;
+layout(set = 0, binding = 0, rgba32f) readonly uniform image2D positionImage;
+layout(set = 0, binding = 1, rgba32f) readonly uniform image2D normalImage;
+
+layout(set = 0, binding = 2) uniform readonly GlobalUniform {
   uvec2 imgSize;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
+layout(set = 0, binding = 3) buffer writeonly RayGenBuffer {
   Ray rays[];
 } rayGenBuffer;
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+  vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
-  vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSize);
-  vec3 rayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
+  vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;
+  vec3 surfaceNormal = imageLoad(normalImage, pixelCoord).xyz;
+
+  vec3 origin = length(lightPosition - surfacePosition) * 0.5f * surfaceNormal + surfacePosition;
+  vec3 direction = lightPosition - origin;
   
-  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(ubo.origin, rayDirection);
+  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(origin, direction);
 }

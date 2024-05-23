@@ -21,10 +21,9 @@ namespace NugieApp {
   struct Vertex {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec3 normal;
-    alignas(16) glm::vec2 textCoord;
 
     bool operator == (const Vertex &other) const {
-			return this->position == other.position && this->normal == other.normal && this->textCoord == other.textCoord;
+			return this->position == other.position && this->normal == other.normal;
 		}
   };
 
@@ -70,6 +69,11 @@ namespace NugieApp {
     glm::mat4 normalMatrix{1.0f};
   };
 
+  struct CameraTransformation {
+    glm::mat4 view;
+	  glm::mat4 projection;
+  };
+
   struct PointLight {
     glm::vec4 position;
     glm::vec4 color;
@@ -103,10 +107,6 @@ namespace NugieApp {
   };
 
   struct RayTraceUbo {
-    alignas(16) glm::vec3 origin{0.0f};
-    alignas(16) glm::vec3 horizontal{0.0f};
-    alignas(16) glm::vec3 vertical{0.0f};
-    alignas(16) glm::vec3 lowerLeftCorner{0.0f};
     alignas(16) glm::uvec2 imgSize{0u};
   };
 }

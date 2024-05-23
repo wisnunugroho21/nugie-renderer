@@ -22,7 +22,7 @@ namespace NugieApp {
 		this->device = new NugieVulkan::Device(this->window);
 		this->renderer = new Renderer(this->window, this->device);
 
-		this->camera = new Camera(WIDTH, HEIGHT);
+		this->camera = new Camera();
 
 		this->loadObjects();
 		this->init();
@@ -30,13 +30,16 @@ namespace NugieApp {
 	}
 
 	App::~App() {
+		if (this->forwardPassRenderer != nullptr) delete this->forwardPassRenderer;
 		if (this->rayGenRenderer != nullptr) delete this->rayGenRenderer;
 		if (this->rayIntersectRenderer != nullptr) delete this->rayIntersectRenderer;
 		if (this->rayHitRenderer != nullptr) delete this->rayHitRenderer;
 		if (this->samplingRenderer != nullptr) delete this->samplingRenderer;
 
 		if (this->renderer != nullptr) delete this->renderer;
+		if (this->forwardSubRenderer != nullptr) delete this->forwardSubRenderer;
 
+		if (this->forwardDescSet != nullptr) delete this->forwardDescSet;
 		if (this->rayGenDescSet != nullptr) delete this->rayGenDescSet;
 		if (this->rayIntersectDescSet != nullptr) delete this->rayIntersectDescSet;
 		if (this->rayHitDescSet != nullptr) delete this->rayHitDescSet;
@@ -47,13 +50,16 @@ namespace NugieApp {
 		if (this->triangleBvhBuffer != nullptr) delete this->triangleBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
+		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
+		if (this->indexBuffer != nullptr) delete this->indexBuffer;
 		if (this->transformBuffer != nullptr) delete this->transformBuffer;
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;		
 
-		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
+		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;		
 		if (this->rayIntersectBuffer != nullptr) delete this->rayIntersectBuffer;
 		if (this->rayHitBuffer != nullptr) delete this->rayHitBuffer;
 		if (this->rayTraceUniformBuffer != nullptr) delete this->rayTraceUniformBuffer;
+		if (this->cameraTransformationBuffer != nullptr) delete this->cameraTransformationBuffer;
 
 		for (auto &&resultImage : this->resultImages) {
 			if (resultImage != nullptr) delete resultImage;
@@ -82,10 +88,18 @@ namespace NugieApp {
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 		uint32_t width = this->renderer->getSwapChain()->getWidth();
 
+		std::vector<NugieVulkan::Buffer*> forwardBuffers;
+		forwardBuffers.emplace_back(this->vertexBuffer->getBuffer());
+		forwardBuffers.emplace_back(this->referenceBuffer->getBuffer());
+
 		for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
 			for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
 				auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 				auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
+
+				this->forwardSubRenderer->beginRenderPass(commandBuffer, imageIndex);
+				this->forwardPassRenderer->render(commandBuffer, { this->forwardDescSet->getDescriptorSets(frameIndex) }, forwardBuffers, this->indexBuffer->getBuffer(), this->indexBuffer->size());
+				this->forwardSubRenderer->endRenderPass(commandBuffer);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
@@ -99,7 +113,7 @@ namespace NugieApp {
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayIntersectBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-				this->rayHitRenderer->render(commandBuffer, { this->rayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->rayHitRenderer->render(commandBuffer, { this->rayHitDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
@@ -133,6 +147,8 @@ namespace NugieApp {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
 				this->rayTraceUniformBuffer->writeGlobalData(frameIndex, this->rayTraceUbo);
+				this->cameraTransformationBuffer->writeGlobalData(frameIndex, this->cameraTransformation);
+
 				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
@@ -191,11 +207,14 @@ namespace NugieApp {
 	}	
 
 	void App::loadObjects() {
+		std::vector<uint32_t> indices;
+		std::vector<Vertex> vertices;
+		std::vector<Reference> references;
 		std::vector<Object> objects;
 		std::vector<BvhNode> bvhObjects;
 		std::vector<Triangle> triangles;
 		std::vector<BvhNode> bvhTriangles;
-		std::vector<Vertex> vertices;
+		
 		std::vector<Transformation> transforms;
 		std::vector<Material> materials;		
 
@@ -211,6 +230,19 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 0.0f }, glm::vec3{ -1.0f, 0.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 555.0f }, glm::vec3{ -1.0f, 0.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 555.0f }, glm::vec3{ -1.0f, 0.0f, 0.0f } });
+
+		references.emplace_back(Reference{ 1u, 0u });
+		references.emplace_back(Reference{ 1u, 0u });
+		references.emplace_back(Reference{ 1u, 0u });
+		references.emplace_back(Reference{ 1u, 0u });
+
+		indices.emplace_back(0u);
+		indices.emplace_back(1u);
+		indices.emplace_back(2u);
+
+		indices.emplace_back(2u);
+		indices.emplace_back(3u);
+		indices.emplace_back(0u);
 
 		curTris.clear();
 		curTris.emplace_back(Triangle{ glm::uvec3{ 0u, 1u, 2u }, 1u });
@@ -249,6 +281,19 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 555.0f, 555.0f }, glm::vec3{ 1.0f, 0.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 0.0f, 555.0f }, glm::vec3{ 1.0f, 0.0f, 0.0f } });
 
+		references.emplace_back(Reference{ 2u, 1u });
+		references.emplace_back(Reference{ 2u, 1u });
+		references.emplace_back(Reference{ 2u, 1u });
+		references.emplace_back(Reference{ 2u, 1u });
+
+		indices.emplace_back(4u);
+		indices.emplace_back(5u);
+		indices.emplace_back(6u);
+
+		indices.emplace_back(6u);
+		indices.emplace_back(7u);
+		indices.emplace_back(4u);
+
 		curTris.clear();
 		curTris.emplace_back(Triangle{ glm::uvec3{ 4u, 5u, 6u }, 2u });
 		curTris.emplace_back(Triangle{ glm::uvec3{ 6u, 7u, 4u }, 2u });
@@ -285,6 +330,19 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 0.0f }, glm::vec3{ 0.0f, 1.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 555.0f }, glm::vec3{ 0.0f, 1.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 0.0f, 555.0f }, glm::vec3{ 0.0f, 1.0f, 0.0f } });
+
+		references.emplace_back(Reference{ 0u, 2u });
+		references.emplace_back(Reference{ 0u, 2u });
+		references.emplace_back(Reference{ 0u, 2u });
+		references.emplace_back(Reference{ 0u, 2u });
+
+		indices.emplace_back(8u);
+		indices.emplace_back(9u);
+		indices.emplace_back(10u);
+
+		indices.emplace_back(10u);
+		indices.emplace_back(11u);
+		indices.emplace_back(8u);
 		
 		curTris.clear();
 		curTris.emplace_back(Triangle{ glm::uvec3{ 8u, 9u, 10u }, 0u });
@@ -322,6 +380,19 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 0.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 555.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 555.0f, 555.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+
+		references.emplace_back(Reference{ 0u, 3u });
+		references.emplace_back(Reference{ 0u, 3u });
+		references.emplace_back(Reference{ 0u, 3u });
+		references.emplace_back(Reference{ 0u, 3u });
+
+		indices.emplace_back(12u);
+		indices.emplace_back(13u);
+		indices.emplace_back(14u);
+
+		indices.emplace_back(14u);
+		indices.emplace_back(15u);
+		indices.emplace_back(12u);
 		
 		curTris.clear();
 		curTris.emplace_back(Triangle{ glm::uvec3{ 12u, 13u, 14u }, 0u });
@@ -359,6 +430,19 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 555.0f, 555.0f }, glm::vec3{ 0.0f, 0.0f, -1.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 555.0f, 555.0f }, glm::vec3{ 0.0f, 0.0f, -1.0f } });
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 555.0f }, glm::vec3{ 0.0f, 0.0f, -1.0f } });
+
+		references.emplace_back(Reference{ 0u, 4u });
+		references.emplace_back(Reference{ 0u, 4u });
+		references.emplace_back(Reference{ 0u, 4u });
+		references.emplace_back(Reference{ 0u, 4u });
+
+		indices.emplace_back(16u);
+		indices.emplace_back(17u);
+		indices.emplace_back(18u);
+
+		indices.emplace_back(18u);
+		indices.emplace_back(19u);
+		indices.emplace_back(16u);
 		
 		curTris.clear();
 		curTris.emplace_back(Triangle{ glm::uvec3{ 16u, 17u, 18u }, 0u });
@@ -402,6 +486,15 @@ namespace NugieApp {
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
+		this->indexBuffer = new ArrayBuffer<uint32_t>(this->device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, static_cast<uint32_t>(indices.size()));
+		this->indexBuffer->replace(commandBuffer, indices);
+
+		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
+		this->vertexBuffer->replace(commandBuffer, vertices);
+
+		this->referenceBuffer = new ArrayBuffer<Reference>(this->device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, static_cast<uint32_t>(references.size()));
+		this->referenceBuffer->replace(commandBuffer, references);
+		
 		this->objectBuffer = new ArrayBuffer<Object>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(objects.size()));
 		this->objectBuffer->replace(commandBuffer, objects);
 
@@ -412,10 +505,7 @@ namespace NugieApp {
 		this->triangleBuffer->replace(commandBuffer, triangles);
 
 		this->triangleBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
-		this->triangleBvhBuffer->replace(commandBuffer, bvhTriangles);		
-
-		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
-		this->vertexBuffer->replace(commandBuffer, vertices);
+		this->triangleBvhBuffer->replace(commandBuffer, bvhTriangles);
 
 		this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
 		this->transformBuffer->replace(commandBuffer, transforms);
@@ -428,15 +518,21 @@ namespace NugieApp {
 	}
 
 	void App::initCamera(uint32_t width, uint32_t height) {
-		RayTraceUbo ubo{};
+		glm::vec3 position = glm::vec3(278.0f, 278.0f, -800.0f);
+		glm::vec3 target = glm::vec3(0.0f, 0.0f, 1.0f);
+		glm::vec3 vup = glm::vec3(0.0f, 1.0f, 0.0f);
 
-		this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
-		CameraRay cameraRay = this->camera->getCameraRay();
-		
-		this->rayTraceUbo.origin = cameraRay.origin;
-		this->rayTraceUbo.horizontal = cameraRay.horizontal;
-		this->rayTraceUbo.vertical = cameraRay.vertical;
-		this->rayTraceUbo.lowerLeftCorner = cameraRay.lowerLeftCorner;
+		float near = 0.1f;
+		float far = 2000.0f;
+
+		float theta = glm::radians(40.0f);
+		float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+		this->camera->setViewDirection(position, target, vup);
+
+		this->cameraTransformation.view = this->camera->getViewMatrix();
+		this->cameraTransformation.projection = this->camera->getProjectionMatrix();
 		this->rayTraceUbo.imgSize = glm::uvec2{width, height};
 	}
 
@@ -449,6 +545,8 @@ namespace NugieApp {
 		this->initCamera(width, height);
 
 		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		this->cameraTransformationBuffer = new ObjectBuffer<CameraTransformation>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
 		this->rayGenBuffer = new ManyArrayBuffer<Ray>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->rayIntersectBuffer = new ManyArrayBuffer<Hit>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->rayHitBuffer = new ManyArrayBuffer<Result>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
@@ -464,9 +562,27 @@ namespace NugieApp {
 			resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
 		}
 
+		this->forwardSubRenderer = SubRenderer::Builder(this->device, width, height, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R32G32B32A32_SFLOAT, 
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
+			.addAttachment(AttachmentType::OUTPUT_SHADER, VK_FORMAT_R8_UINT,
+				VK_IMAGE_LAYOUT_GENERAL, VK_SAMPLE_COUNT_1_BIT)
+			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
+			.build();
+
+		this->forwardDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->cameraTransformationBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, this->transformBuffer->getInfo())
+			.build();
+
 		this->rayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
+			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[0])
+			.addImage(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[1])
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
 			.build();
 
 		this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -481,23 +597,28 @@ namespace NugieApp {
 			.build();
 
 		this->rayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayHitBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
-			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
-			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())			
+			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[0])
+			.addImage(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[1])
+			.addImage(2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[2])
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayHitBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			
 			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, resultImageInfos)
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayHitBuffer->getInfo())
 			.build();
-		
+
+		this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, { this->forwardDescSet->getDescSetLayout() }, this->forwardSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv");
 		this->rayGenRenderer = new ComputeRenderSystem(this->device, { this->rayGenDescSet->getDescSetLayout() }, "shader/ray_gen.comp.spv");
 		this->rayIntersectRenderer = new ComputeRenderSystem(this->device, { this->rayIntersectDescSet->getDescSetLayout() }, "shader/ray_intersect.comp.spv");
 		this->rayHitRenderer = new ComputeRenderSystem(this->device, { this->rayHitDescSet->getDescSetLayout() }, "shader/ray_hit.comp.spv");
 		this->samplingRenderer = new ComputeRenderSystem(this->device, { this->samplingDescSet->getDescSetLayout() }, "shader/sampling.comp.spv");
 
+		this->forwardPassRenderer->initialize();
 		this->rayGenRenderer->initialize();
 		this->rayIntersectRenderer->initialize();
 		this->rayHitRenderer->initialize();

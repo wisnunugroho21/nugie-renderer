@@ -2,25 +2,29 @@
 
 #include "core/struct.glsl"
 
-layout(local_size_x = 64) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0) buffer writeonly RayHitBuffer {
+layout(set = 0, binding = 0, rgba32f) readonly uniform image2D positionImage;
+layout(set = 0, binding = 1, rgba32f) readonly uniform image2D normalImage;
+layout(set = 0, binding = 2, r8ui) readonly uniform uimage2D materialIndexImage;
+
+layout(set = 0, binding = 3) buffer writeonly RayHitBuffer {
   Result results[];
 } rayHitBuffer;
 
-layout(set = 0, binding = 1) buffer readonly IntersectBuffer {
+layout(set = 0, binding = 4) buffer readonly IntersectBuffer {
   HitRecord hits[];
 } intersectBuffer;
 
-layout(set = 0, binding = 2) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 3) buffer readonly VertexBuffer {
+layout(set = 0, binding = 6) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 4) buffer readonly MaterialBuffer {
+layout(set = 0, binding = 7) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
@@ -78,25 +82,24 @@ float lambertBrdfValue() {
 
 void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
-  vec4 finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
 
   Result finalResult;
-  finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
+  finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);  
 
-  vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
+  if (!hitRecord.isHit) {    
+    vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
-  if (hitRecord.isHit) {
-    Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
+    vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;
+    vec3 surfaceNormal = imageLoad(normalImage, pixelCoord).xyz;
+    uint materialIndex = imageLoad(materialIndexImage, pixelCoord).x;
 
-    vec3 hittedTrianglePosition = getPosition(hittedTriangle, hitRecord.uv);
-    vec3 hittedTriangleNormal = getNormal(hittedTriangle, hitRecord.uv);
-
-    float NoL = dot(hittedTriangleNormal, normalize(lightPosition - hittedTrianglePosition));
+    float NoL = dot(surfaceNormal, normalize(lightPosition - surfacePosition));
     float brdf = lambertBrdfValue();
     float pdf = lambertPdfValue(NoL);
 
-    finalResult.finalColor = materialBuffer.materials[hittedTriangle.materialIndex].baseColor * brdf * NoL / pdf;
+    finalResult.finalColor = materialBuffer.materials[materialIndex].baseColor * brdf * NoL / pdf;
   }  
 
-  rayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+  rayHitBuffer.results[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y] = finalResult;
 }
