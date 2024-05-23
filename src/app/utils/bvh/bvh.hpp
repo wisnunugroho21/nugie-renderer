@@ -34,6 +34,7 @@ namespace NugieApp {
       BoundBox(uint32_t i) : index{i} {}
 
       uint32_t getIndex() { return this->index; }
+      uint32_t getTypeIndex() { return this->typeIndex; }
 
       virtual Aabb boundingBox() = 0;
 
@@ -42,11 +43,14 @@ namespace NugieApp {
 
     protected:
       uint32_t index;
+      uint32_t typeIndex;
   };
 
   class TriangleBoundBox : public BoundBox {   
     public:
-      TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {}
+      TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {
+        this->typeIndex = 1u;
+      }
 
       Aabb boundingBox();
 

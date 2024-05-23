@@ -35,6 +35,7 @@ namespace NugieApp {
   }
 
   ObjectBoundBox::ObjectBoundBox(uint32_t i, const Object &o, const TransformComponent &tc, const std::vector<Triangle> &t, const std::vector<Vertex> &v) : BoundBox(i), object{o}, transformation{tc}, triangles{t}, vertices{v} {
+    this->typeIndex = 0u;
     this->originalMin = glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2));
     this->originalMax = glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2));
   }
@@ -113,6 +114,7 @@ namespace NugieApp {
       }
       
       node.objIndex = objects[0]->getIndex();
+      node.typeIndex = objects[0]->getTypeIndex();
     } else {
       node.leftNode = leftNodeIndex;
       node.rightNode = rightNodeIndex;
