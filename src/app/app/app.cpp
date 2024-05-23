@@ -49,6 +49,7 @@ namespace NugieApp {
 		if (this->objectBuffer != nullptr) delete this->objectBuffer;
 		if (this->geometryBvhBuffer != nullptr) delete this->geometryBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
+		if (this->triangleLightBuffer != nullptr) delete this->triangleLightBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->referenceBuffer != nullptr) delete this->referenceBuffer;
 		if (this->indexBuffer != nullptr) delete this->indexBuffer;
@@ -146,6 +147,8 @@ namespace NugieApp {
 			if (this->renderer->acquireFrame()) {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
+				this->rayTraceUbo.randomSeed = this->randomSeed;
+
 				this->rayTraceUniformBuffer->writeGlobalData(frameIndex, this->rayTraceUbo);
 				this->cameraTransformationBuffer->writeGlobalData(frameIndex, this->cameraTransformation);
 
@@ -213,6 +216,7 @@ namespace NugieApp {
 		std::vector<Object> objects;
 		std::vector<BvhNode> bvhObjects;
 		std::vector<Triangle> triangles;
+		std::vector<Triangle> triangleLights;
 		std::vector<BvhNode> bvhTriangles;
 		
 		std::vector<Transformation> transforms;
@@ -474,6 +478,43 @@ namespace NugieApp {
 		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
 
 		// ----------------------------------------------------------------------------
+		// light
+
+		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 554.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 554.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 554.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 554.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+			
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 20u, 21u, 22u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 22u, 23u, 20u }, 0u });
+
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
+
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangleLights.size()), transformIndex });
+		objSize = static_cast<uint32_t>(objects.size());
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleLightBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangleLights.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
+
+		// ----------------------------------------------------------------------------
 
 		materials.emplace_back(Material{ glm::vec4(0.73f, 0.73f, 0.73f, 1.0f) });
 		materials.emplace_back(Material{ glm::vec4(0.12f, 0.45f, 0.15f, 1.0f) });
@@ -481,6 +522,8 @@ namespace NugieApp {
 
 		transforms = ConvertComponentToTransform(transformComponents);
 		bvhObjects = createBvh(objectBoundBoxes);
+
+		this->rayTraceUbo.numLight = static_cast<uint32_t>(triangleLights.size());
 
 		// ----------------------------------------------------------------------------		
 
@@ -504,11 +547,11 @@ namespace NugieApp {
 		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(triangles.size()));
 		this->triangleBuffer->replace(commandBuffer, triangles);
 
-		this->geometryBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
-		this->geometryBvhBuffer->replace(commandBuffer, bvhTriangles);		
+		this->triangleLightBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(triangleLights.size()));
+		this->triangleLightBuffer->replace(commandBuffer, triangleLights);
 
-		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
-		this->vertexBuffer->replace(commandBuffer, vertices);
+		this->geometryBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
+		this->geometryBvhBuffer->replace(commandBuffer, bvhTriangles);
 
 		this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
 		this->transformBuffer->replace(commandBuffer, transforms);
@@ -586,6 +629,8 @@ namespace NugieApp {
 			.addImage(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, this->forwardSubRenderer->getAttachmentInfos(0)[1])
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleLightBuffer->getInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
 			.build();
 
 		this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -595,8 +640,9 @@ namespace NugieApp {
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBuffer->getInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->geometryBvhBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
-			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
-			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformBuffer->getInfo())
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleLightBuffer->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
+			.addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformBuffer->getInfo())
 			.build();
 
 		this->rayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)

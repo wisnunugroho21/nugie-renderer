@@ -66,8 +66,8 @@ namespace NugieApp {
 			ArrayBuffer<Object>* objectBuffer = nullptr;
 			ArrayBuffer<BvhNode>* objectBvhBuffer = nullptr;
 			ArrayBuffer<Triangle>* triangleBuffer = nullptr;
+			ArrayBuffer<Triangle>* triangleLightBuffer = nullptr;
 			ArrayBuffer<BvhNode>* geometryBvhBuffer = nullptr;
-			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformBuffer = nullptr;
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 

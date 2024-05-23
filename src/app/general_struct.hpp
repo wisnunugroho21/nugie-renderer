@@ -114,5 +114,7 @@ namespace NugieApp {
 
   struct RayTraceUbo {
     alignas(16) glm::uvec2 imgSize{0u};
+    alignas(4) uint32_t randomSeed;
+    alignas(4) uint32_t numLight;
   };
 }

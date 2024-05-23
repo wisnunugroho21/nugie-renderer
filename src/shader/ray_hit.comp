@@ -87,18 +87,18 @@ void main() {
   Result finalResult;
   finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);  
 
-  if (!hitRecord.isHit) {    
-    vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
+  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {    
+    // vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
     vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;
     vec3 surfaceNormal = imageLoad(normalImage, pixelCoord).xyz;
     uint materialIndex = imageLoad(materialIndexImage, pixelCoord).x;
 
-    float NoL = dot(surfaceNormal, normalize(lightPosition - surfacePosition));
-    float brdf = lambertBrdfValue();
-    float pdf = lambertPdfValue(NoL);
+    // float NoL = dot(surfaceNormal, normalize(lightPosition - surfacePosition));
+    // float brdf = lambertBrdfValue();
+    // float pdf = lambertPdfValue(NoL);
 
-    finalResult.finalColor = materialBuffer.materials[materialIndex].baseColor * brdf * NoL / pdf;
+    finalResult.finalColor = materialBuffer.materials[materialIndex].baseColor; // * brdf * NoL / pdf;
   }  
 
   rayHitBuffer.results[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y] = finalResult;
