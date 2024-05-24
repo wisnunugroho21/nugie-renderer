@@ -87,7 +87,7 @@ void main() {
   Result finalResult;
   finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);  
 
-  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {    
+  if (hitRecord.isHit) {    
     // vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
     vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;

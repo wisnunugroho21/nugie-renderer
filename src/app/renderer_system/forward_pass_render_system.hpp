@@ -20,10 +20,6 @@ namespace NugieApp {
 			ForwardPassRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
 				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath);
 
-			void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount,
-				const std::vector<VkDeviceSize> &vertexOffsets = {}, VkDeviceSize indexOffset = 0) override; 
-
 		private:
 			void createPipeline() override;
 	};
