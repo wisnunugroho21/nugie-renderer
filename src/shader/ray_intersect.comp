@@ -79,6 +79,10 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
   // At this stage we can compute t to find out where the intersection point is on the line.
   float t = inv_det * dot(edge2, s_cross_e1);
 
+  if (t < 0.001f) {
+    return hit;
+  }
+
   hit.isHit = true;
   hit.uv = vec2(u, v);
   

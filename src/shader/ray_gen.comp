@@ -42,7 +42,7 @@ float stepAndOutputRNGFloat(inout uint rngState) {
 }
 
 float randomFloat(uint additionalRandomSeed) {
-  uint rngState =  (gl_GlobalInvocationID.y * ubo.imgSize.x + gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
+  uint rngState =  (gl_GlobalInvocationID.y * imageSize(positionImage).x + gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
   return stepAndOutputRNGFloat(rngState);
 }
 
@@ -85,8 +85,8 @@ void main() {
 
   vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
-  vec3 origin = surfacePosition;
-  vec3 direction = target - origin;
+  vec3 origin = 0.01f * surfaceNormal + surfacePosition;
+  vec3 direction = normalize(target - origin);
   
   rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(origin, direction);
 }

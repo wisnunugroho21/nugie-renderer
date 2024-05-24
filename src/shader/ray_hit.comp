@@ -81,13 +81,13 @@ float lambertBrdfValue() {
 }
 
 void main() {
-  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+  HitRecord hitRecord = intersectBuffer.hits[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y];
 
   Result finalResult;
   finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);  
 
-  if (hitRecord.isHit) {    
+  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {    
     // vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
     vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;
