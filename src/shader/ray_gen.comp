@@ -76,6 +76,27 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
   return randomTriangle;
 }
 
+float origin() { return 1.0f / 32.0f; }
+float floatScale() { return 1.0f / 65536.0f; }
+float intScale() { return 512.0f; }
+
+// Normal points outward for rays exiting the surface, else is flipped.
+vec3 offsetRay(const vec3 p, const vec3 n) {
+  ivec3 of_i = ivec3(intScale() * n);
+
+  vec3 p_i = vec3(
+    int(p.x) + ((p.x < 0.0f) ? -of_i.x : of_i.x),
+    int(p.y) + ((p.y < 0.0f) ? -of_i.y : of_i.y),
+    int(p.z) + ((p.z < 0.0f) ? -of_i.z : of_i.z)
+  );
+
+  return vec3(
+    (abs(p.x) > origin() ? p.x + floatScale() * n.x : p_i.x),
+    (abs(p.y) > origin() ? p.y + floatScale() * n.y : p_i.y),
+    (abs(p.z) > origin() ? p.z + floatScale() * n.z : p_i.z)
+  );
+}
+
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint lightIndex = randomUint(0u, ubo.numLight - 1u, 0u);
@@ -88,7 +109,7 @@ void main() {
 
   vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
-  vec3 origin = surfacePosition.xyz + 0.1f * surfaceNormal.xyz;
+  vec3 origin = offsetRay(surfacePosition.xyz, surfaceNormal.xyz);
   vec3 direction = normalize(target - origin);
   
   rayGenBuffer.rays[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y] = Ray(origin, direction);
