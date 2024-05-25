@@ -72,8 +72,7 @@ namespace NugieApp {
   };
 
   struct CameraTransformation {
-    glm::mat4 view;
-	  glm::mat4 projection;
+    glm::mat4 cameraTransf;
   };
 
   struct PointLight {

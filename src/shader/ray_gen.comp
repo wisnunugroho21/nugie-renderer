@@ -80,13 +80,16 @@ void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint lightIndex = randomUint(0u, ubo.numLight - 1u, 0u);
 
-  vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;
-  vec3 surfaceNormal = imageLoad(normalImage, pixelCoord).xyz;
+  vec4 surfacePosition = imageLoad(positionImage, pixelCoord);
+  vec4 surfaceNormal = imageLoad(normalImage, pixelCoord);
+
+  surfacePosition.xyz = surfacePosition.xyz / surfacePosition.w;
+  surfaceNormal.xyz = surfaceNormal.xyz / surfaceNormal.w;
 
   vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
-  vec3 origin = 0.01f * surfaceNormal + surfacePosition;
+  vec3 origin = surfacePosition.xyz + 0.1f * surfaceNormal.xyz;
   vec3 direction = normalize(target - origin);
   
-  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(origin, direction);
+  rayGenBuffer.rays[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y] = Ray(origin, direction);
 }

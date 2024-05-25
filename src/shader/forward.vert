@@ -12,8 +12,7 @@ layout(location = 1) out vec4 fragNormal;
 layout(location = 2) out flat uint fragMaterialIndex;
 
 layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
-	mat4 view;
-	mat4 projection;
+	mat4 cameraTransf;
 };
 
 layout(set = 0, binding = 1) buffer readonly TransformationBuffer {
@@ -22,7 +21,7 @@ layout(set = 0, binding = 1) buffer readonly TransformationBuffer {
 
 void main() {
 	fragPosition = transformations[transformIndex].pointMatrix * vec4(position, 1.0f);
-	gl_Position = (projection * view) * fragPosition;
+	gl_Position = cameraTransf * fragPosition;
 	
 	fragNormal = normalize(transformations[transformIndex].normalMatrix * vec4(normal, 1.0f));
 	fragMaterialIndex = materialIndex;

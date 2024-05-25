@@ -577,8 +577,7 @@ namespace NugieApp {
 		this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
 		this->camera->setViewDirection(position, target, vup);
 
-		this->cameraTransformation.view = this->camera->getViewMatrix();
-		this->cameraTransformation.projection = this->camera->getProjectionMatrix();
+		this->cameraTransformation.cameraTransf = this->camera->getProjectionMatrix() * this->camera->getViewMatrix();
 		this->rayTraceUbo.imgSize = glm::uvec2{width, height};
 	}
 
