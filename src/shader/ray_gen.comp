@@ -4,8 +4,8 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0, rgba32f) readonly uniform image2D positionImage;
-layout(set = 0, binding = 1, rgba32f) readonly uniform image2D normalImage;
+layout(set = 0, binding = 0) uniform sampler2D positionTexture;
+layout(set = 0, binding = 1) uniform sampler2D normalTexture;
 
 layout(set = 0, binding = 2) uniform readonly GlobalUniform {
   uvec2 imgSize;
@@ -42,7 +42,7 @@ float stepAndOutputRNGFloat(inout uint rngState) {
 }
 
 float randomFloat(uint additionalRandomSeed) {
-  uint rngState =  (gl_GlobalInvocationID.y * imageSize(positionImage).x + gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
+  uint rngState =  (gl_GlobalInvocationID.y * ubo.imgSize.x + gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
   return stepAndOutputRNGFloat(rngState);
 }
 
@@ -101,16 +101,16 @@ void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint lightIndex = randomUint(0u, ubo.numLight - 1u, 0u);
 
-  vec4 surfacePosition = imageLoad(positionImage, pixelCoord);
-  vec4 surfaceNormal = imageLoad(normalImage, pixelCoord);
+  vec4 surfacePosition = texture(positionTexture, vec2(pixelCoord) / vec2(ubo.imgSize));
+  vec4 surfaceNormal = texture(normalTexture, vec2(pixelCoord) / vec2(ubo.imgSize));
 
-  surfacePosition.xyz = surfacePosition.xyz / surfacePosition.w;
-  surfaceNormal.xyz = surfaceNormal.xyz / surfaceNormal.w;
+  /* surfacePosition.xyz = surfacePosition.xyz / surfacePosition.w;
+  surfaceNormal.xyz = surfaceNormal.xyz / surfaceNormal.w; */
 
   vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
-  vec3 origin = offsetRay(surfacePosition.xyz, surfaceNormal.xyz);
+  vec3 origin = surfacePosition.xyz;
   vec3 direction = normalize(target - origin);
   
-  rayGenBuffer.rays[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y] = Ray(origin, direction);
+  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(origin, direction);
 }

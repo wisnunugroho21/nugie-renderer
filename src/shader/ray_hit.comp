@@ -4,27 +4,33 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0, rgba32f) readonly uniform image2D positionImage;
-layout(set = 0, binding = 1, rgba32f) readonly uniform image2D normalImage;
-layout(set = 0, binding = 2, r8ui) readonly uniform uimage2D materialIndexImage;
+layout(set = 0, binding = 0) uniform sampler2D positionImage;
+layout(set = 0, binding = 1) uniform sampler2D normalImage;
+layout(set = 0, binding = 2) uniform usampler2D materialIndexImage;
 
-layout(set = 0, binding = 3) buffer writeonly RayHitBuffer {
+layout(set = 0, binding = 3) uniform readonly GlobalUniform {
+  uvec2 imgSize;
+  uint randomSeed;
+  uint numLight;
+} ubo;
+
+layout(set = 0, binding = 4) buffer writeonly RayHitBuffer {
   Result results[];
 } rayHitBuffer;
 
-layout(set = 0, binding = 4) buffer readonly IntersectBuffer {
+layout(set = 0, binding = 5) buffer readonly IntersectBuffer {
   HitRecord hits[];
 } intersectBuffer;
 
-layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 6) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 6) buffer readonly VertexBuffer {
+layout(set = 0, binding = 7) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 7) buffer readonly MaterialBuffer {
+layout(set = 0, binding = 8) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
@@ -82,24 +88,24 @@ float lambertBrdfValue() {
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
-  HitRecord hitRecord = intersectBuffer.hits[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y];
+  HitRecord hitRecord = intersectBuffer.hits[pixelCoord.x + ubo.imgSize.x * pixelCoord.y];
 
   Result finalResult;
-  finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);  
+  finalResult.finalColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
 
   if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {    
     // vec3 lightPosition = vec3(277.5f, 277.5f, 277.5f);
 
-    vec3 surfacePosition = imageLoad(positionImage, pixelCoord).xyz;
-    vec3 surfaceNormal = imageLoad(normalImage, pixelCoord).xyz;
-    uint materialIndex = imageLoad(materialIndexImage, pixelCoord).x;
+    vec3 surfacePosition = texture(positionImage, vec2(pixelCoord) / vec2(ubo.imgSize)).xyz;
+    vec3 surfaceNormal = texture(normalImage, vec2(pixelCoord) / vec2(ubo.imgSize)).xyz;
+    uint materialIndex = texture(materialIndexImage, vec2(pixelCoord) / vec2(ubo.imgSize)).x;
 
     // float NoL = dot(surfaceNormal, normalize(lightPosition - surfacePosition));
     // float brdf = lambertBrdfValue();
     // float pdf = lambertPdfValue(NoL);
 
     finalResult.finalColor = materialBuffer.materials[materialIndex].baseColor; // * brdf * NoL / pdf;
-  }  
+  }
 
-  rayHitBuffer.results[pixelCoord.x + imageSize(positionImage).x * pixelCoord.y] = finalResult;
+  rayHitBuffer.results[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = finalResult;
 }
