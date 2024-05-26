@@ -1,0 +1,89 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform readonly GlobalUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 imgSize;
+  uint randomSeed;
+  uint numLight;
+} ubo;
+
+layout(set = 0, binding = 1) buffer writeonly LightHitBuffer {
+  LightResult results[];
+} lightHitBuffer;
+
+layout(set = 0, binding = 2) buffer readonly RayGenBuffer {
+  Ray rays[];
+} rayGenBuffer;
+
+layout(set = 0, binding = 3) buffer readonly IntersectBuffer {
+  HitRecord hits[];
+} intersectBuffer;
+
+layout(set = 0, binding = 4) buffer readonly TriangleLightBuffer {
+  Triangle triangles[];
+} triangleLightBuffer;
+
+layout(set = 0, binding = 5) buffer readonly VertexBuffer {
+  Vertex vertices[];
+} vertexBuffer;
+
+// ------------- Basic -------------
+
+vec3 getPosition(Triangle triangle, vec2 uv) {
+  return (1.0f - uv.x - uv.y) * vertexBuffer.vertices[triangle.vertexIndexes.x].position + 
+    uv.x * vertexBuffer.vertices[triangle.vertexIndexes.y].position + 
+    uv.y * vertexBuffer.vertices[triangle.vertexIndexes.z].position;
+}
+
+// ------------- Triangle -------------
+
+float triangleArea(Triangle triangle) {
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+
+  vec3 v0v1 = vertex1.position - vertex0.position;
+  vec3 v0v2 = vertex2.position - vertex0.position;
+
+  vec3 pvec = cross(v0v1, v0v2);
+  return 0.5 * sqrt(dot(pvec, pvec)); 
+}
+
+vec3 triangleNormal(Triangle triangle, Ray r) {
+  vec3 v0v1 = vertexBuffer.vertices[triangle.vertexIndexes.y].position - vertexBuffer.vertices[triangle.vertexIndexes.x].position;
+  vec3 v0v2 = vertexBuffer.vertices[triangle.vertexIndexes.z].position - vertexBuffer.vertices[triangle.vertexIndexes.x].position;
+  
+  vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+  return dot(normalize(r.direction), outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+}
+
+void main() {
+  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
+
+  LightResult finalResult;
+  finalResult.isIlluminate = false;
+
+  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2) {
+    Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
+    Ray ray = rayGenBuffer.rays[hitRecord.hitIndex];
+
+    vec3 hittedNormal = triangleNormal(hittedLight, ray);
+    vec3 dst = ray.direction * hitRecord.t;
+
+    float squareDistance = dot(dst, dst);
+    float NloL = max(dot(hittedNormal, -1.0f * normalize(dst)), 0.01f);
+    float area = triangleArea(hittedLight);
+
+    finalResult.isIlluminate = true;
+    finalResult.radiance =  NloL * area / squareDistance * vec3(2.0f);
+  }  
+
+  lightHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+}

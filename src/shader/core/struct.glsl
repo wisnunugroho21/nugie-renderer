@@ -93,6 +93,21 @@ struct HitRecord {
   vec2 uv;
 };
 
-struct Result {
-  vec4 finalColor;
+struct IndirectResult {
+  bool isScattered;
+
+  vec3 radiance;
+  float pdf;
+
+  Ray nextRay;
+};
+
+struct LightResult {
+  bool isIlluminate;
+  vec3 radiance;
+};
+
+struct IntegratorResult {
+  vec3 totalRadiance;
+  float pdf;
 };

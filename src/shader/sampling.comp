@@ -6,13 +6,13 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 0, binding = 0, rgba16f) writeonly uniform image2D resultImage;
 
-layout(set = 0, binding = 1) buffer readonly RayHitBuffer {
-  Result results[];
-} rayHitBuffer;
+layout(set = 0, binding = 1) buffer readonly IntegratorBuffer {
+  IntegratorResult results[];
+} integratorBuffer;
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
   
-  imageStore(resultImage, pixelCoord, rayHitBuffer.results[bufferIndex].finalColor);
+  imageStore(resultImage, pixelCoord, vec4(integratorBuffer.results[bufferIndex].totalRadiance, 1.0f));
 }

@@ -1,0 +1,154 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform readonly GlobalUniform {
+  vec3 origin;
+  vec3 horizontal;
+  vec3 vertical;
+  vec3 lowerLeftCorner;
+  uvec2 imgSize;
+  uint randomSeed;
+  uint numLight;
+} ubo;
+
+layout(set = 0, binding = 1) buffer writeonly IndirectHitBuffer {
+  IndirectResult results[];
+} indirectHitBuffer;
+
+layout(set = 0, binding = 2) buffer readonly RayGenBuffer {
+  Ray rays[];
+} rayGenBuffer;
+
+layout(set = 0, binding = 3) buffer readonly IntersectBuffer {
+  HitRecord hits[];
+} intersectBuffer;
+
+layout(set = 0, binding = 4) buffer readonly TriangleBuffer {
+  Triangle triangles[];
+} triangleBuffer;
+
+layout(set = 0, binding = 5) buffer readonly TriangleLightBuffer {
+  Triangle triangles[];
+} triangleLightBuffer;
+
+layout(set = 0, binding = 6) buffer readonly VertexBuffer {
+  Vertex vertices[];
+} vertexBuffer;
+
+layout(set = 0, binding = 7) buffer readonly MaterialBuffer {
+  Material materials[];
+} materialBuffer;
+
+// ------------- Basic -------------
+
+vec3[3] buildOnb(vec3 normal) {
+  vec3 a = abs(normalize(normal).x) > 0.9 ? vec3(0.0f, 1.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
+
+  vec3 z = normalize(normal);
+  vec3 y = normalize(cross(z, a));
+  vec3 x = cross(z, y);
+
+  return vec3[3](x, y, z);
+}
+
+// ------------- Lambert ------------- 
+
+float lambertPdfValue(float NoL) {
+  return NoL / PI;
+}
+
+float lambertBrdfValue() {
+  return 1.0f / PI;
+}
+
+// ------------- Random ------------- 
+
+// Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
+uint stepRNG(uint rngState) {
+  return rngState * 747796405 + 1;
+}
+
+// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
+float stepAndOutputRNGFloat(inout uint rngState) {
+  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
+  rngState  = stepRNG(rngState);
+  uint word = ((rngState >> ((rngState >> 28u) + 4u)) ^ rngState) * 277803737u;
+  word      = (word >> 22u) ^ word;
+  return float(word) / 4294967295.0f;
+}
+
+float randomFloat(uint additionalRandomSeed) {
+  uint rngState =  (gl_GlobalInvocationID.y * ubo.imgSize.x + gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
+  return stepAndOutputRNGFloat(rngState);
+}
+
+float randomFloatAt(float min, float max, uint additionalRandomSeed) {
+  return min + (max - min) * randomFloat(additionalRandomSeed);
+}
+
+uint randomUint(uint min, uint max, uint additionalRandomSeed) {
+  return uint(randomFloatAt(min, max + 1, additionalRandomSeed));
+}
+
+// ------------- Triangle -------------
+
+vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+
+  vec3 a = vectex2.position - vectex1.position;
+  vec3 b = vectex3.position - vectex1.position;
+
+  float u1 = randomFloat(additionalRandomSeed);
+  float u2 = randomFloat(additionalRandomSeed + 1);
+
+  if (u1 + u2 > 1) {
+    u1 = 1 - u1;
+    u2 = 1 - u2;
+  }
+
+  vec3 randomTriangle = u1 * a + u2 * b + vectex1.position;
+  return randomTriangle;
+}
+
+vec3 triangleNormal(Triangle triangle, Ray r) {
+  vec3 v0v1 = vertexBuffer.vertices[triangle.vertexIndexes.y].position - vertexBuffer.vertices[triangle.vertexIndexes.x].position;
+  vec3 v0v2 = vertexBuffer.vertices[triangle.vertexIndexes.z].position - vertexBuffer.vertices[triangle.vertexIndexes.x].position;
+  
+  vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+  return dot(normalize(r.direction), outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+}
+
+void main() {
+  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
+
+  IndirectResult finalResult;
+  finalResult.isScattered = false;  
+
+  if (hitRecord.isHit && hitRecord.hitTypeIndex == 1u) {
+    Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
+    Ray ray = rayGenBuffer.rays[hitRecord.hitIndex];
+
+    vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
+    vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
+
+    vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[randomUint(0u, ubo.numLight - 1u, 0u)], 0u);
+
+    finalResult.nextRay.origin = hittedPosition;
+    finalResult.nextRay.direction = normalize(target - hittedPosition);
+
+    float NoL = dot(hittedNormal, finalResult.nextRay.direction);
+    float brdf = lambertBrdfValue();
+    float pdf = lambertPdfValue(NoL);
+
+    finalResult.isScattered = true;
+    finalResult.radiance = materialBuffer.materials[hittedTriangle.materialIndex].baseColor.xyz * brdf * NoL;
+    finalResult.pdf = pdf;
+  }  
+
+  indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+}

@@ -1,0 +1,38 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) buffer IntegratorBuffer {
+  IntegratorResult results[];
+} integratorBuffer;
+
+layout(set = 0, binding = 1) buffer readonly IndirectHitBuffer {
+  IndirectResult results[];
+} indirectHitBuffer;
+
+layout(set = 0, binding = 2) buffer readonly LightHitBuffer {
+  LightResult results[];
+} lightHitBuffer;
+
+void main() {
+  IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
+  IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
+  LightResult lightResult = lightHitBuffer.results[gl_GlobalInvocationID.x];
+
+  if (lightResult.isIlluminate && !indirectResult.isScattered) {
+    integratorResult.totalRadiance *= lightResult.radiance;
+  }
+
+  else if (!lightResult.isIlluminate && indirectResult.isScattered) {
+    integratorResult.totalRadiance *= indirectResult.radiance / integratorResult.pdf;
+    integratorResult.pdf = indirectResult.pdf;
+  }
+
+  else {
+    integratorResult.totalRadiance *= vec3(0.5f);
+  }
+
+  integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
+}
