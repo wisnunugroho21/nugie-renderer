@@ -95,12 +95,12 @@ namespace NugieApp {
   };
 
   struct Hit {
-    alignas(4) bool isHit;
-    alignas(4) float t;
+    alignas(4) bool isHit;  
 
     alignas(4) uint32_t hitIndex;
     alignas(4) uint32_t hitTypeIndex;
     
+    alignas(4) float t;
     alignas(16) glm::vec2 uv;
   };
 

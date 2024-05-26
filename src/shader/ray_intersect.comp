@@ -75,7 +75,12 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
   // At this stage we can compute t to find out where the intersection point is on the line.
   float t = inv_det * dot(edge2, s_cross_e1);
 
+  if (t < 0.001f) {
+    return hit;
+  }
+
   hit.isHit = true;
+  hit.t = t;
   hit.uv = vec2(u, v);
   
   return hit;
@@ -102,7 +107,7 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
   r.direction = mat3(curTransf.dirInverseMatrix) * r.direction;
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
-    return HitRecord(false, 0.0f, 0u, 0u, vec2(0.0f));
+    return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
   }
 
   uint stack[30];
@@ -169,14 +174,14 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
     }    
   }
 
-  return HitRecord(false, 0.0f, 0u, 0u, vec2(0.0f));
+  return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
 }
 
 HitRecord hitObjectBvh(Ray r) {
   BvhNode curNode = objectBvhBuffer.objectBvhNodes[0u];
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
-    return HitRecord(false, 0.0f, 0u, 0u, vec2(0.0f));
+    return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
   }
 
   uint stack[30];
@@ -234,7 +239,7 @@ HitRecord hitObjectBvh(Ray r) {
     }    
   }
 
-  return HitRecord(false, 0.0f, 0u, 0u, vec2(0.0f));
+  return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
 }
 
 void main() {

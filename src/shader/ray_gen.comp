@@ -22,5 +22,5 @@ void main() {
   vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSize);
   vec3 rayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
   
-  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(ubo.origin, rayDirection);
+  rayGenBuffer.rays[pixelCoord.x + ubo.imgSize.x * pixelCoord.y] = Ray(ubo.origin, normalize(rayDirection));
 }
