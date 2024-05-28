@@ -14,5 +14,9 @@ void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
   
-  imageStore(resultImage, pixelCoord, vec4(integratorBuffer.results[bufferIndex].totalRadiance, 1.0f));
+  IntegratorResult result = integratorBuffer.results[bufferIndex];
+
+  if (result.rayBounce == 0) {
+    imageStore(resultImage, pixelCoord, vec4(result.totalRadiance, 1.0f));
+  }
 }

@@ -93,7 +93,7 @@ namespace NugieApp {
 		this->count = static_cast<uint32_t>(objects.size());
 		auto bufferSize = static_cast<VkDeviceSize>(sizeof(T)) * static_cast<VkDeviceSize>(this->count);
 
-		for (uint32_t i = 0; i < this->buffers.size(); i++) {
+		for (size_t i = 0; i < this->buffers.size(); i++) {
 			this->stagingBuffers[i]->writeToBuffer((void *) objects.data(), bufferSize);
 			this->buffers[i]->copyFromAnotherBuffer(commandBuffer, this->stagingBuffers[i], bufferSize);
 		}

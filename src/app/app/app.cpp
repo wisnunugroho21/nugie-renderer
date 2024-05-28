@@ -24,35 +24,42 @@ namespace NugieApp {
 
 		this->camera = new Camera(WIDTH, HEIGHT);
 
-		this->loadObjects();
 		this->init();
+		this->loadObjects();		
 		this->recordCommand();
 	}
 
 	App::~App() {
-		if (this->rayGenRenderer != nullptr) delete this->rayGenRenderer;
+		if (this->indirectRayGenRenderer != nullptr) delete this->indirectRayGenRenderer;
 		if (this->rayIntersectRenderer != nullptr) delete this->rayIntersectRenderer;
-		if (this->rayHitRenderer != nullptr) delete this->rayHitRenderer;
+		if (this->indirectRayHitRenderer != nullptr) delete this->indirectRayHitRenderer;
+		if (this->lightRayHitRenderer != nullptr) delete this->lightRayHitRenderer;
+		if (this->integratorRenderer != nullptr) delete this->integratorRenderer;
 		if (this->samplingRenderer != nullptr) delete this->samplingRenderer;
 
 		if (this->renderer != nullptr) delete this->renderer;
 
-		if (this->rayGenDescSet != nullptr) delete this->rayGenDescSet;
+		if (this->indirectRayGenDescSet != nullptr) delete this->indirectRayGenDescSet;
 		if (this->rayIntersectDescSet != nullptr) delete this->rayIntersectDescSet;
-		if (this->rayHitDescSet != nullptr) delete this->rayHitDescSet;
+		if (this->indirectRayHitDescSet != nullptr) delete this->indirectRayHitDescSet;
+		if (this->lightRayHitDescSet != nullptr) delete this->lightRayHitDescSet;
+		if (this->integratorDescSet != nullptr) delete this->integratorDescSet;
 		if (this->samplingDescSet != nullptr) delete this->samplingDescSet;
 
 		if (this->objectBvhBuffer != nullptr) delete this->objectBvhBuffer;
 		if (this->objectBuffer != nullptr) delete this->objectBuffer;
 		if (this->geometryBvhBuffer != nullptr) delete this->geometryBvhBuffer;
 		if (this->triangleBuffer != nullptr) delete this->triangleBuffer;
+		if (this->triangleLightBuffer != nullptr) delete this->triangleLightBuffer;
 		if (this->vertexBuffer != nullptr) delete this->vertexBuffer;
 		if (this->transformBuffer != nullptr) delete this->transformBuffer;
 		if (this->materialBuffer != nullptr) delete this->materialBuffer;		
 
-		if (this->rayGenBuffer != nullptr) delete this->rayGenBuffer;
+		if (this->indirectRayGenBuffer != nullptr) delete this->indirectRayGenBuffer;
 		if (this->rayIntersectBuffer != nullptr) delete this->rayIntersectBuffer;
-		if (this->rayHitBuffer != nullptr) delete this->rayHitBuffer;
+		if (this->indirectRayHitBuffer != nullptr) delete this->indirectRayHitBuffer;
+		if (this->lightHitBuffer != nullptr) delete this->lightHitBuffer;
+		if (this->integratorBuffer != nullptr) delete this->integratorBuffer;
 		if (this->rayTraceUniformBuffer != nullptr) delete this->rayTraceUniformBuffer;
 
 		for (auto &&resultImage : this->resultImages) {
@@ -89,21 +96,29 @@ namespace NugieApp {
 
 				// -------------------------------------------------------------------------------------------------------------------
 
-				this->rayGenRenderer->render(commandBuffer, { this->rayGenDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
+				this->indirectRayGenRenderer->render(commandBuffer, { this->indirectRayGenDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
+				this->indirectRayHitBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
-				this->rayGenBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+				this->indirectRayGenBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 				this->rayIntersectRenderer->render(commandBuffer, { this->rayIntersectDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayIntersectBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-				this->rayHitRenderer->render(commandBuffer, { this->rayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->indirectRayHitRenderer->render(commandBuffer, { this->indirectRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->lightRayHitRenderer->render(commandBuffer, { this->lightRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
-				this->rayHitBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+				this->indirectRayHitBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+				this->lightHitBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+				this->integratorRenderer->render(commandBuffer, { this->integratorDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+
+				// -------------------------------------------------------------------------------------------------------------------
+
+				this->integratorBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 				this->samplingRenderer->render(commandBuffer, { this->samplingDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
 
 				// -------------------------------------------------------------------------------------------------------------------
@@ -132,7 +147,9 @@ namespace NugieApp {
 			if (this->renderer->acquireFrame()) {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
+				this->rayTraceUbo.randomSeed = this->randomSeed;
 				this->rayTraceUniformBuffer->writeGlobalData(frameIndex, this->rayTraceUbo);
+				
 				this->renderer->submitRenderCommand();
 
 				if (!this->renderer->presentFrame()) {
@@ -194,6 +211,7 @@ namespace NugieApp {
 		std::vector<Object> objects;
 		std::vector<BvhNode> bvhObjects;
 		std::vector<Triangle> triangles;
+		std::vector<Triangle> triangleLights;
 		std::vector<BvhNode> bvhTriangles;
 		std::vector<Vertex> vertices;
 		std::vector<Transformation> transforms;
@@ -390,6 +408,43 @@ namespace NugieApp {
 		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
 
 		// ----------------------------------------------------------------------------
+		// light
+
+		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 554.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 554.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 554.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 554.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+			
+		curTris.clear();
+		curTris.emplace_back(Triangle{ glm::uvec3{ 20u, 21u, 22u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec3{ 22u, 23u, 20u }, 0u });
+
+		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
+		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
+
+		objects.emplace_back(Object{ static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangleLights.size()), transformIndex });
+		objSize = static_cast<uint32_t>(objects.size());
+
+		objectBoundBoxes.emplace_back(new ObjectBoundBox{ objSize, objects[objSize - 1u], transformComponents[transformIndex], curTris, vertices });
+		boundBoxIndex = static_cast<uint32_t>(objectBoundBoxes.size() - 1);
+
+		triangleBoundBoxes.clear();
+		for (uint32_t i = 0; i < static_cast<uint32_t>(curTris.size()); i++) {
+			triangleBoundBoxes.emplace_back(new TriangleLightBoundBox{ i + 1, curTris[i], vertices });
+		}		
+
+		for (auto &&curTri : curTris) {
+			triangleLights.emplace_back(curTri);
+		}
+
+		for (auto &&bvhTri : createBvh(triangleBoundBoxes)) {
+			bvhTriangles.emplace_back(bvhTri);
+		}
+
+		transformComponents[transformIndex].objectMaximum = objectBoundBoxes[boundBoxIndex]->getOriginalMax();
+		transformComponents[transformIndex].objectMinimum = objectBoundBoxes[boundBoxIndex]->getOriginalMin();
+
+		// ----------------------------------------------------------------------------
 
 		materials.emplace_back(Material{ glm::vec4(0.73f, 0.73f, 0.73f, 1.0f) });
 		materials.emplace_back(Material{ glm::vec4(0.12f, 0.45f, 0.15f, 1.0f) });
@@ -398,30 +453,29 @@ namespace NugieApp {
 		transforms = ConvertComponentToTransform(transformComponents);
 		bvhObjects = createBvh(objectBoundBoxes);
 
+		this->rayTraceUbo.numLight = static_cast<uint32_t>(triangleLights.size());
+
 		// ----------------------------------------------------------------------------		
 
 		auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-		this->objectBuffer = new ArrayBuffer<Object>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(objects.size()));
 		this->objectBuffer->replace(commandBuffer, objects);
-
-		this->objectBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhObjects.size()));
 		this->objectBvhBuffer->replace(commandBuffer, bvhObjects);
-
-		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(triangles.size()));
 		this->triangleBuffer->replace(commandBuffer, triangles);
-
-		this->geometryBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(bvhTriangles.size()));
+		this->triangleLightBuffer->replace(commandBuffer, triangleLights);
 		this->geometryBvhBuffer->replace(commandBuffer, bvhTriangles);		
-
-		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
 		this->vertexBuffer->replace(commandBuffer, vertices);
-
-		this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
 		this->transformBuffer->replace(commandBuffer, transforms);
-
-		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(materials.size()));
 		this->materialBuffer->replace(commandBuffer, materials);
+
+		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		uint32_t height = this->renderer->getSwapChain()->getHeight();
+
+		this->indirectRayGenBuffer->replace(commandBuffer, std::vector<Ray>(width * height, Ray{}));
+		this->rayIntersectBuffer->replace(commandBuffer, std::vector<Hit>(width * height, Hit{}));
+		this->indirectRayHitBuffer->replace(commandBuffer, std::vector<IndirectResult>(width * height, IndirectResult{}));
+		this->lightHitBuffer->replace(commandBuffer, std::vector<LightResult>(width * height, LightResult{}));
+		this->integratorBuffer->replace(commandBuffer, std::vector<IntegratorResult>(width * height, IntegratorResult{}));
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -449,9 +503,20 @@ namespace NugieApp {
 		this->initCamera(width, height);
 
 		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		this->rayGenBuffer = new ManyArrayBuffer<Ray>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+		this->indirectRayGenBuffer = new ManyArrayBuffer<Ray>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->rayIntersectBuffer = new ManyArrayBuffer<Hit>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
-		this->rayHitBuffer = new ManyArrayBuffer<Result>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+		this->indirectRayHitBuffer = new ManyArrayBuffer<IndirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+		this->lightHitBuffer = new ManyArrayBuffer<LightResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+		this->integratorBuffer = new ManyArrayBuffer<IntegratorResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+
+		this->objectBuffer = new ArrayBuffer<Object>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(100));
+		this->objectBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(1000));
+		this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(100));
+		this->triangleLightBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(100));
+		this->geometryBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(1000));
+		this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(1000));
+		this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(100));
+		this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(100));
 
 		std::vector<VkDescriptorImageInfo> resultImageInfos { NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT };
 		this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
@@ -464,43 +529,67 @@ namespace NugieApp {
 			resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
 		}
 
-		this->rayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+		this->indirectRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayGenBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayHitBuffer->getInfo())
 			.build();
 
 		this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayGenBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBvhBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->objectBuffer->getInfo())
 			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->geometryBvhBuffer->getInfo())
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
-			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
-			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformBuffer->getInfo())
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleLightBuffer->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
+			.addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->transformBuffer->getInfo())
 			.build();
 
-		this->rayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayHitBuffer->getInfo())
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
-			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
-			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
-			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())			
+		this->indirectRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayHitBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayGenBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleBuffer->getInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleLightBuffer->getInfo())
+			.addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())
+			.addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->materialBuffer->getInfo())			
+			.build();
+
+		this->lightRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->lightHitBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayGenBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->triangleLightBuffer->getInfo())
+			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())			
+			.build();
+
+		this->integratorDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->integratorBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayHitBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->lightHitBuffer->getInfo())
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			
 			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, resultImageInfos)
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayHitBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->integratorBuffer->getInfo())
 			.build();
 		
-		this->rayGenRenderer = new ComputeRenderSystem(this->device, { this->rayGenDescSet->getDescSetLayout() }, "shader/ray_gen.comp.spv");
+		this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, { this->indirectRayGenDescSet->getDescSetLayout() }, "shader/indirect_ray_gen.comp.spv");
 		this->rayIntersectRenderer = new ComputeRenderSystem(this->device, { this->rayIntersectDescSet->getDescSetLayout() }, "shader/ray_intersect.comp.spv");
-		this->rayHitRenderer = new ComputeRenderSystem(this->device, { this->rayHitDescSet->getDescSetLayout() }, "shader/ray_hit.comp.spv");
+		this->indirectRayHitRenderer = new ComputeRenderSystem(this->device, { this->indirectRayHitDescSet->getDescSetLayout() }, "shader/indirect_ray_hit.comp.spv");
+		this->lightRayHitRenderer = new ComputeRenderSystem(this->device, { this->lightRayHitDescSet->getDescSetLayout() }, "shader/light_ray_hit.comp.spv");
+		this->integratorRenderer = new ComputeRenderSystem(this->device, { this->integratorDescSet->getDescSetLayout() }, "shader/integrator.comp.spv");
 		this->samplingRenderer = new ComputeRenderSystem(this->device, { this->samplingDescSet->getDescSetLayout() }, "shader/sampling.comp.spv");
 
-		this->rayGenRenderer->initialize();
+		this->indirectRayGenRenderer->initialize();
 		this->rayIntersectRenderer->initialize();
-		this->rayHitRenderer->initialize();
+		this->indirectRayHitRenderer->initialize();
+		this->lightRayHitRenderer->initialize();
+		this->integratorRenderer->initialize();
 		this->samplingRenderer->initialize();
 	}
 

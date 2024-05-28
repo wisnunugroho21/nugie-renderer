@@ -21,17 +21,22 @@ void main() {
   IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
   LightResult lightResult = lightHitBuffer.results[gl_GlobalInvocationID.x];
 
-  if (lightResult.isIlluminate && !indirectResult.isScattered) {
-    integratorResult.totalRadiance *= lightResult.radiance;
+  if (lightResult.isIlluminate && !indirectResult.isScattered) {    
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0) ? integratorResult.totalRadiance * lightResult.radiance : vec3(10.0f);
+    integratorResult.rayBounce = 0;
+    integratorResult.pdf = 1.0f;
   }
 
-  else if (!lightResult.isIlluminate && indirectResult.isScattered) {
-    integratorResult.totalRadiance *= indirectResult.radiance / integratorResult.pdf;
+  else if (!lightResult.isIlluminate && indirectResult.isScattered) {    
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0) ? integratorResult.totalRadiance * indirectResult.radiance / integratorResult.pdf : indirectResult.radiance;
+    integratorResult.rayBounce++;
     integratorResult.pdf = indirectResult.pdf;
   }
 
-  else {
-    integratorResult.totalRadiance *= vec3(0.5f);
+  else {    
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0) ? integratorResult.totalRadiance * vec3(0.5f) : vec3(0.5f);
+    integratorResult.rayBounce = 0;
+    integratorResult.pdf = 1.0f;
   }
 
   integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;

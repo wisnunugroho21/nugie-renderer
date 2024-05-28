@@ -97,39 +97,40 @@ namespace NugieApp {
   struct Hit {
     alignas(4) bool isHit = false;
 
-    alignas(4) uint32_t hitIndex;
-    alignas(4) uint32_t hitTypeIndex;
+    alignas(4) uint32_t hitIndex = 0u;
+    alignas(4) uint32_t hitTypeIndex = 0u;
     
-    alignas(4) float t;
-    alignas(16) glm::vec2 uv;
+    alignas(4) float t = 0.0f;
+    alignas(16) glm::vec2 uv{ 0.0f };
   };
 
   struct IndirectResult {
-    alignas(4) bool isHit = false;
+    alignas(4) bool isScattered = false;
 
-    alignas(16) glm::vec4 radiance;
-    alignas(4) float pdf;
+    alignas(16) glm::vec3 radiance{ 0.0f };
+    alignas(4) float pdf = 0.0f;
 
-    Ray nextRay;
+    Ray nextRay{};
   };
 
   struct LightResult {
     alignas(4) bool isIlluminate = false;
-    alignas(16) glm::vec4 radiance;
+    alignas(16) glm::vec4 radiance{ 0.0f };
   };
 
   struct IntegratorResult {
+    alignas(4) uint32_t rayBounce = 0u;
     alignas(16) glm::vec3 totalRadiance{ 1.0f };
     alignas(4) float pdf = 1.0f;
   };
 
   struct RayTraceUbo {
-    alignas(16) glm::vec3 origin;
-    alignas(16) glm::vec3 horizontal;
-    alignas(16) glm::vec3 vertical;
-    alignas(16) glm::vec3 lowerLeftCorner;
-    alignas(16) glm::uvec2 imgSize;
-    alignas(4) uint32_t randomSeed;
-    alignas(4) uint32_t numLight;
+    alignas(16) glm::vec3 origin{ 0.0f };
+    alignas(16) glm::vec3 horizontal{ 0.0f };
+    alignas(16) glm::vec3 vertical{ 0.0f };
+    alignas(16) glm::vec3 lowerLeftCorner{ 0.0f };
+    alignas(16) glm::uvec2 imgSize{ 0u };
+    alignas(4) uint32_t randomSeed = 0u;
+    alignas(4) uint32_t numLight = 0u;
   };
 }

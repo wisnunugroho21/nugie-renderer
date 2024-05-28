@@ -108,6 +108,7 @@ struct LightResult {
 };
 
 struct IntegratorResult {
+  uint rayBounce;
   vec3 totalRadiance;
   float pdf;
 };

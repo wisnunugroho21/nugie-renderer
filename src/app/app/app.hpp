@@ -50,29 +50,36 @@ namespace NugieApp {
 			Camera* camera = nullptr;
 			Renderer* renderer = nullptr;
 
-			ComputeRenderSystem* rayGenRenderer = nullptr;
+			ComputeRenderSystem* indirectRayGenRenderer = nullptr;
 			ComputeRenderSystem* rayIntersectRenderer = nullptr;
-			ComputeRenderSystem* rayHitRenderer = nullptr;
+			ComputeRenderSystem* indirectRayHitRenderer = nullptr;
+			ComputeRenderSystem* lightRayHitRenderer = nullptr;
+			ComputeRenderSystem* integratorRenderer = nullptr;
 			ComputeRenderSystem* samplingRenderer = nullptr;
 
 			ArrayBuffer<Object>* objectBuffer = nullptr;
 			ArrayBuffer<BvhNode>* objectBvhBuffer = nullptr;
 			ArrayBuffer<Triangle>* triangleBuffer = nullptr;
+			ArrayBuffer<Triangle>* triangleLightBuffer = nullptr;
 			ArrayBuffer<BvhNode>* geometryBvhBuffer = nullptr;
 			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
 			ArrayBuffer<Transformation>* transformBuffer = nullptr;
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
-			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
-			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;
-			ManyArrayBuffer<Result>* rayHitBuffer = nullptr;
+			ManyArrayBuffer<Ray>* indirectRayGenBuffer = nullptr;
+			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;			
+			ManyArrayBuffer<IndirectResult>* indirectRayHitBuffer = nullptr;
+			ManyArrayBuffer<LightResult>* lightHitBuffer = nullptr;
+			ManyArrayBuffer<IntegratorResult>* integratorBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 
-			DescriptorSet* rayGenDescSet = nullptr;
+			DescriptorSet* indirectRayGenDescSet = nullptr;
 			DescriptorSet* rayIntersectDescSet = nullptr;
-			DescriptorSet* rayHitDescSet = nullptr;
+			DescriptorSet* indirectRayHitDescSet = nullptr;
+			DescriptorSet* lightRayHitDescSet = nullptr;
+			DescriptorSet* integratorDescSet = nullptr;
 			DescriptorSet* samplingDescSet = nullptr;
 
 			uint32_t frameCount = 0u, randomSeed = 0u;

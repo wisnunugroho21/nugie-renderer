@@ -28,11 +28,15 @@ layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 6) buffer readonly VertexBuffer {
+layout(set = 0, binding = 6) buffer readonly TriangleLightBuffer {
+  Triangle triangles[];
+} triangleLightBuffer;
+
+layout(set = 0, binding = 7) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 7) buffer readonly TransformationBuffer {
+layout(set = 0, binding = 8) buffer readonly TransformationBuffer {
   Transformation transformations[];
 } transformationBuffer;
 
@@ -124,7 +128,7 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
       
       if (primIndex > 0u) {
         switch(curNode.typeIndex) {
-          case 1u:
+          case 1u: {
             Triangle triangle = triangleBuffer.triangles[primIndex - 1u + firstGeometryIndex]; 
             HitRecord hit = hitTriangle(triangle, r);
 
@@ -136,6 +140,22 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
             }
 
             break;
+          }
+
+          case 2u: {
+            Triangle triangle = triangleLightBuffer.triangles[primIndex - 1u + firstGeometryIndex]; 
+            HitRecord hit = hitTriangle(triangle, r);
+
+            if (hit.isHit) {
+              hit.hitIndex = primIndex - 1u + firstGeometryIndex;
+              hit.hitTypeIndex = curNode.typeIndex;
+              
+              return hit;
+            }
+
+            break;
+          }
+            
         }        
       }
 

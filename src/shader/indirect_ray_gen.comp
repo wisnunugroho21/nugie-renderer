@@ -14,9 +14,9 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   uint numLight;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
+layout(set = 0, binding = 1) buffer writeonly IndirectRayGenBuffer {
   Ray rays[];
-} rayGenBuffer;
+} indirectRayGenBuffer;
 
 layout(set = 0, binding = 2) buffer readonly IndirectHitBuffer {
   IndirectResult results[];
@@ -30,5 +30,5 @@ void main() {
   vec3 initialRayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
   IndirectResult indirectResult = indirectHitBuffer.results[bufferIndex];
   
-  rayGenBuffer.rays[bufferIndex] = indirectResult.isScattered ? indirectResult.nextRay : Ray(ubo.origin, normalize(initialRayDirection));
+  indirectRayGenBuffer.rays[bufferIndex] = indirectResult.isScattered ? indirectResult.nextRay : Ray(ubo.origin, normalize(initialRayDirection));
 }
