@@ -156,7 +156,7 @@ void main() {
 
   if (hitRecord.isHit && hitRecord.hitTypeIndex == 1u) {
     Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
-    Ray ray = indirectRayGenBuffer.rays[hitRecord.hitIndex];
+    Ray ray = indirectRayGenBuffer.rays[gl_GlobalInvocationID.x];
 
     vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
     vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
