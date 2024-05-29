@@ -130,3 +130,7 @@ struct IntegratorResult {
   float pdf;
   uint rayBounce;
 };
+
+struct SamplingResult {
+  vec3 finalColor;
+};

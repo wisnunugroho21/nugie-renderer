@@ -22,13 +22,18 @@ layout(set = 0, binding = 2) buffer readonly IndirectHitBuffer {
   IndirectResult results[];
 } indirectHitBuffer;
 
+layout(set = 0, binding = 3) buffer readonly IntegratorBuffer {
+  IntegratorResult results[];
+} integratorBuffer;
+
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint bufferIndex = pixelCoord.x + ubo.imgSize.x * pixelCoord.y;
   vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSize);
   
   vec3 initialRayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
-  IndirectResult indirectResult = indirectHitBuffer.results[bufferIndex];
-  
-  rayGenBuffer.rays[bufferIndex] = indirectResult.isScattered ? indirectResult.nextRay : Ray(ubo.origin, normalize(initialRayDirection));
+
+  rayGenBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].rayBounce > 0u 
+    ? indirectHitBuffer.results[bufferIndex].nextRay 
+    : Ray(ubo.origin, normalize(initialRayDirection));
 }

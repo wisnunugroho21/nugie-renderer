@@ -76,9 +76,9 @@ namespace NugieApp {
 			ManyArrayBuffer<IndirectResult>* indirectRayHitBuffer = nullptr;
 			ManyArrayBuffer<LightResult>* lightRayHitBuffer = nullptr;
 			ManyArrayBuffer<IntegratorResult>* integratorBuffer = nullptr;
+			ManyArrayBuffer<SamplingResult>* samplingBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
-
 			
 			DescriptorSet* rayIntersectDescSet = nullptr;
 			DescriptorSet* indirectRayGenDescSet = nullptr;

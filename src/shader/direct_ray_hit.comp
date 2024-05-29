@@ -160,12 +160,12 @@ void main() {
     float NoL = max(dot(directData.normal, ray.direction), 0.001f);
 
     float brdf = lambertBrdfValue();
-    float squareDistance = hitRecord.t * hitRecord.t;
+    float squareDistance = max(hitRecord.t * hitRecord.t, 0.001f);
     float area = triangleArea(hittedLight);
     float pdf = lambertPdfValue(NoL);
 
     finalResult.isIlluminate = true;
-    finalResult.radiance = vec3(10.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / max(squareDistance, 0.001f);
+    finalResult.radiance = vec3(1.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
     finalResult.pdf = pdf;
   }  
 

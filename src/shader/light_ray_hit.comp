@@ -80,12 +80,12 @@ void main() {
 
     vec3 hittedNormal = triangleNormal(hittedLight, ray);
 
-    float squareDistance = hitRecord.t * hitRecord.t;
+    float squareDistance = max(hitRecord.t * hitRecord.t, 0.001f);
     float NloL = max(dot(hittedNormal, -1.0f * ray.direction), 0.001f);
     float area = triangleArea(hittedLight);
 
     finalResult.isIlluminate = true;
-    finalResult.radiance =  vec3(10.0f) * NloL * area / max(squareDistance, 0.001f);
+    finalResult.radiance =  vec3(1.0f) * NloL * area / squareDistance;
   }  
 
   lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

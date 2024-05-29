@@ -164,7 +164,6 @@ void main() {
     vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
     vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
 
-    uint randomNumber = randomUint(0u, ubo.numLight, 0u);
     vec3 target = lambertRandomDirection(buildOnb(triangleNormal(hittedTriangle, ray)), 0u);
 
     finalResult.nextRay.origin = hittedPosition;

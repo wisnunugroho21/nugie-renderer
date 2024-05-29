@@ -29,7 +29,7 @@ void main() {
 
   if (!lightResult.isIlluminate && !indirectResult.isScattered) {
     integratorResult.totalRadiance = (integratorResult.rayBounce > 0) 
-      ? integratorResult.totalIndirect * vec3(0.5f) 
+      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * vec3(1.0f) 
       : vec3(0.5f);
 
     integratorResult.totalIndirect = vec3(1.0f);
@@ -37,28 +37,32 @@ void main() {
     integratorResult.pdf = 1.0f;
   }
 
-  else if (lightResult.isIlluminate) {    
+  else if (lightResult.isIlluminate && !indirectResult.isScattered) {    
     integratorResult.totalRadiance = (integratorResult.rayBounce > 0) 
-      ? integratorResult.totalIndirect * lightResult.radiance
-      : vec3(10.0f);
+      ? integratorResult.totalRadiance + integratorResult.totalIndirect * lightResult.radiance
+      : vec3(1.0f);
 
     integratorResult.totalIndirect = vec3(1.0f);
     integratorResult.rayBounce = 0;
     integratorResult.pdf = 1.0f;
   }
   
-  else {
+  else if (!lightResult.isIlluminate && indirectResult.isScattered) {    
+    vec3 prevIndirect = integratorResult.totalIndirect / integratorResult.pdf;
     float totalPdf = indirectResult.pdf + directResult.pdf;
-    vec3 curRadiance = directResult.radiance * directResult.pdf / totalPdf * integratorResult.totalIndirect;
 
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0) 
-      ? integratorResult.totalRadiance + curRadiance
-      : curRadiance;
+    vec3 curRadiance = (integratorResult.rayBounce > 0) 
+      ? integratorResult.totalRadiance + directResult.radiance * (directResult.pdf / totalPdf) * prevIndirect
+      : directResult.radiance;
 
-    integratorResult.totalIndirect = indirectResult.radiance * indirectResult.pdf / totalPdf;
-    
+    vec3 curIndirect = (integratorResult.rayBounce > 0)
+      ? indirectResult.radiance * (indirectResult.pdf / totalPdf) * prevIndirect
+      : indirectResult.radiance;
+
+    integratorResult.totalRadiance = curRadiance;
+    integratorResult.totalIndirect = curIndirect;      
     integratorResult.rayBounce++;
-    integratorResult.pdf = indirectResult.pdf;
+    integratorResult.pdf = indirectResult.pdf;    
   }
 
   integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;

@@ -66,6 +66,7 @@ namespace NugieApp {
 		if (this->indirectRayHitBuffer != nullptr) delete this->indirectRayHitBuffer;
 		if (this->lightRayHitBuffer != nullptr) delete this->lightRayHitBuffer;
 		if (this->integratorBuffer != nullptr) delete this->integratorBuffer;
+		if (this->samplingBuffer != nullptr) delete this->samplingBuffer;		
 		if (this->rayTraceUniformBuffer != nullptr) delete this->rayTraceUniformBuffer;
 
 		for (auto &&resultImage : this->resultImages) {
@@ -104,6 +105,7 @@ namespace NugieApp {
 
 				this->indirectRayGenRenderer->render(commandBuffer, { this->indirectRayGenDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
 				this->indirectRayHitBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+				this->integratorBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
@@ -502,6 +504,7 @@ namespace NugieApp {
 		this->directDataBuffer->replace(commandBuffer, std::vector<DirectData>(width * height, DirectData{}));
 		this->directRayHitBuffer->replace(commandBuffer, std::vector<DirectResult>(width * height, DirectResult{}));
 		this->integratorBuffer->replace(commandBuffer, std::vector<IntegratorResult>(width * height, IntegratorResult{}));
+		this->samplingBuffer->replace(commandBuffer, std::vector<SamplingResult>(width * height, SamplingResult{}));
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
@@ -536,6 +539,7 @@ namespace NugieApp {
 		this->directDataBuffer = new ManyArrayBuffer<DirectData>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->directRayHitBuffer = new ManyArrayBuffer<DirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->integratorBuffer = new ManyArrayBuffer<IntegratorResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+		this->samplingBuffer = new ManyArrayBuffer<SamplingResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 
 		this->objectBuffer = new ArrayBuffer<Object>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(100));
 		this->objectBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(1000));
@@ -561,6 +565,7 @@ namespace NugieApp {
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayHitBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->integratorBuffer->getInfo())
 			.build();
 
 		this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -623,7 +628,9 @@ namespace NugieApp {
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			
 			.addImage(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, resultImageInfos)
-			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->integratorBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->samplingBuffer->getInfo())
+			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->integratorBuffer->getInfo())
 			.build();
 		
 		this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, { this->indirectRayGenDescSet->getDescSetLayout() }, "shader/indirect_ray_gen.comp.spv");

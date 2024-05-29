@@ -131,7 +131,7 @@ namespace NugieApp {
 
   struct LightResult {
     alignas(4) bool isIlluminate = false;
-    alignas(16) glm::vec4 radiance{ 0.0f };
+    alignas(16) glm::vec3 radiance{ 0.0f };
   };
 
   struct IntegratorResult {
@@ -140,6 +140,10 @@ namespace NugieApp {
 
     alignas(4) float pdf = 1.0f;
     alignas(4) uint32_t rayBounce = 0u;
+  };
+
+  struct SamplingResult {
+    alignas(4) glm::vec3 finalColor{0.0f};
   };
 
   struct RayTraceUbo {
