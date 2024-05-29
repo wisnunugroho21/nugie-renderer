@@ -107,8 +107,26 @@ struct LightResult {
   vec3 radiance;
 };
 
-struct IntegratorResult {
-  uint rayBounce;
-  vec3 totalRadiance;
+struct DirectData {
+  bool isIlluminate;
+
+  vec3 normal;
+  vec3 origin;
+
+  uint materialIndex;
+};
+
+struct DirectResult {
+  bool isIlluminate;
+
+  vec3 radiance;
   float pdf;
+};
+
+struct IntegratorResult {  
+  vec3 totalRadiance;
+  vec3 totalIndirect;
+
+  float pdf;
+  uint rayBounce;
 };

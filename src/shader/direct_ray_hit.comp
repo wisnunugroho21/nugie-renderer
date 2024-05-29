@@ -14,11 +14,11 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   uint numLight;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly IndirectHitBuffer {
-  IndirectResult results[];
-} indirectHitBuffer;
+layout(set = 0, binding = 1) buffer writeonly DirectHitBuffer {
+  DirectResult results[];
+} directHitBuffer;
 
-layout(set = 0, binding = 2) buffer writeonly DirectDataBuffer {
+layout(set = 0, binding = 2) buffer readonly DirectDataBuffer {
   DirectData datas[];
 } directDataBuffer;
 
@@ -30,9 +30,9 @@ layout(set = 0, binding = 4) buffer readonly IntersectBuffer {
   HitRecord hits[];
 } intersectBuffer;
 
-layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 5) buffer readonly TriangleLightBuffer {
   Triangle triangles[];
-} triangleBuffer;
+} triangleLightBuffer;
 
 layout(set = 0, binding = 6) buffer readonly VertexBuffer {
   Vertex vertices[];
@@ -116,33 +116,25 @@ vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
 
 // ------------- Triangle -------------
 
-vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+float triangleArea(Triangle triangle) {
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
 
-  vec3 v0v1 = vectex2.position - vectex1.position;
-  vec3 v0v2 = vectex3.position - vectex1.position;
+  vec3 v0v1 = vertex1.position - vertex0.position;
+  vec3 v0v2 = vertex2.position - vertex0.position;
 
-  float u1 = randomFloat(additionalRandomSeed);
-  float u2 = randomFloat(additionalRandomSeed + 1);
-
-  if (u1 + u2 > 1) {
-    u1 = 1 - u1;
-    u2 = 1 - u2;
-  }
-
-  vec3 randomTriangle = u1 * v0v1 + u2 * v0v2 + vectex1.position;
-  return randomTriangle;
+  vec3 pvec = cross(v0v1, v0v2);
+  return 0.5 * sqrt(dot(pvec, pvec)); 
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
 
-  vec3 v0v1 = vectex2.position - vectex1.position;
-  vec3 v0v2 = vectex3.position - vectex1.position;
+  vec3 v0v1 = vertex1.position - vertex0.position;
+  vec3 v0v2 = vertex2.position - vertex0.position;
   
   vec3 outwardNormal = normalize(cross(v0v1, v0v2));
   return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
@@ -151,39 +143,31 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
 void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
-  IndirectResult finalResult;
-  finalResult.isScattered = false;
-
-  DirectData data;
-  data.isIlluminate = false;  
+  DirectResult finalResult;
+  finalResult.isIlluminate = false;
+  finalResult.radiance = vec3(0.0f);
+  finalResult.pdf = 0.0f;  
 
   if (hitRecord.isHit && hitRecord.hitTypeIndex == 1u) {
-    Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
+    Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
+    
+    DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
     Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
-    vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
-    vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
+    vec3 hittedLightNormal = triangleNormal(hittedLight, ray);
 
-    uint randomNumber = randomUint(0u, ubo.numLight, 0u);
-    vec3 target = lambertRandomDirection(buildOnb(triangleNormal(hittedTriangle, ray)), 0u);
+    float NloL = max(dot(hittedLightNormal, -1.0f * ray.direction), 0.001f);
+    float NoL = max(dot(directData.normal, ray.direction), 0.001f);
 
-    finalResult.nextRay.origin = hittedPosition;
-    finalResult.nextRay.direction = normalize(target - hittedPosition);
-
-    float NoL = max(dot(hittedNormal, finalResult.nextRay.direction), 0.001f);
     float brdf = lambertBrdfValue();
+    float squareDistance = hitRecord.t * hitRecord.t;
+    float area = triangleArea(hittedLight);
     float pdf = lambertPdfValue(NoL);
 
-    finalResult.isScattered = true;
-    finalResult.radiance = materialBuffer.materials[hittedTriangle.materialIndex].baseColor.xyz * brdf * NoL;
+    finalResult.isIlluminate = true;
+    finalResult.radiance = vec3(10.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / max(squareDistance, 0.001f);
     finalResult.pdf = pdf;
-
-    data.isIlluminate = true;
-    data.normal = hittedNormal;
-    data.origin = hittedPosition;
-    data.materialIndex = hittedTriangle.materialIndex;
   }  
 
-  indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
-  directDataBuffer.datas[gl_GlobalInvocationID.x] = data;
+  directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
 }

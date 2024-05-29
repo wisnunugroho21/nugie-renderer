@@ -50,10 +50,12 @@ namespace NugieApp {
 			Camera* camera = nullptr;
 			Renderer* renderer = nullptr;
 
-			ComputeRenderSystem* indirectRayGenRenderer = nullptr;
 			ComputeRenderSystem* rayIntersectRenderer = nullptr;
+			ComputeRenderSystem* indirectRayGenRenderer = nullptr;
 			ComputeRenderSystem* indirectRayHitRenderer = nullptr;
 			ComputeRenderSystem* lightRayHitRenderer = nullptr;
+			ComputeRenderSystem* directRayGenRenderer = nullptr;
+			ComputeRenderSystem* directRayHitRenderer = nullptr;
 			ComputeRenderSystem* integratorRenderer = nullptr;
 			ComputeRenderSystem* samplingRenderer = nullptr;
 
@@ -67,18 +69,23 @@ namespace NugieApp {
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
-			ManyArrayBuffer<Ray>* indirectRayGenBuffer = nullptr;
-			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;			
+			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
+			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;
+			ManyArrayBuffer<DirectData>* directDataBuffer = nullptr;
+			ManyArrayBuffer<DirectResult>* directRayHitBuffer = nullptr;			
 			ManyArrayBuffer<IndirectResult>* indirectRayHitBuffer = nullptr;
-			ManyArrayBuffer<LightResult>* lightHitBuffer = nullptr;
+			ManyArrayBuffer<LightResult>* lightRayHitBuffer = nullptr;
 			ManyArrayBuffer<IntegratorResult>* integratorBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 
-			DescriptorSet* indirectRayGenDescSet = nullptr;
+			
 			DescriptorSet* rayIntersectDescSet = nullptr;
+			DescriptorSet* indirectRayGenDescSet = nullptr;
 			DescriptorSet* indirectRayHitDescSet = nullptr;
 			DescriptorSet* lightRayHitDescSet = nullptr;
+			DescriptorSet* directRayGenDescSet = nullptr;
+			DescriptorSet* directRayHitDescSet = nullptr;
 			DescriptorSet* integratorDescSet = nullptr;
 			DescriptorSet* samplingDescSet = nullptr;
 

@@ -263,5 +263,12 @@ HitRecord hitObjectBvh(Ray r) {
 }
 
 void main() {
-  intersectBuffer.hits[gl_GlobalInvocationID.x] = hitObjectBvh(rayGenBuffer.rays[gl_GlobalInvocationID.x]);
+  HitRecord hit = HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
+  Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
+
+  if (length(ray.direction) > 0.001f) {
+    hit = hitObjectBvh(rayGenBuffer.rays[gl_GlobalInvocationID.x]);
+  }
+
+  intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;
 }

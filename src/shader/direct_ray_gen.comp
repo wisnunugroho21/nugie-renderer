@@ -1,0 +1,95 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform readonly GlobalUniform {
+  uvec2 imgSize;
+  uint randomSeed;
+  uint numLight;
+} ubo;
+
+layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
+  Ray rays[];
+} rayGenBuffer;
+
+layout(set = 0, binding = 2) buffer readonly DirectDataBuffer {
+  DirectData datas[];
+} directDataBuffer;
+
+layout(set = 0, binding = 3) buffer readonly TriangleLightBuffer {
+  Triangle triangles[];
+} triangleLightBuffer;
+
+layout(set = 0, binding = 4) buffer readonly VertexBuffer {
+  Vertex vertices[];
+} vertexBuffer;
+
+// ------------- Random ------------- 
+
+// Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
+uint stepRNG(uint rngState) {
+  return rngState * 747796405 + 1;
+}
+
+// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
+float stepAndOutputRNGFloat(inout uint rngState) {
+  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
+  rngState  = stepRNG(rngState);
+  uint word = ((rngState >> ((rngState >> 28u) + 4u)) ^ rngState) * 277803737u;
+  word      = (word >> 22u) ^ word;
+  return float(word) / 4294967295.0f;
+}
+
+float randomFloat(uint additionalRandomSeed) {
+  uint rngState =  (gl_GlobalInvocationID.y * ubo.imgSize.x + gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
+  return stepAndOutputRNGFloat(rngState);
+}
+
+float randomFloatAt(float min, float max, uint additionalRandomSeed) {
+  return min + (max - min) * randomFloat(additionalRandomSeed);
+}
+
+uint randomUint(uint min, uint max, uint additionalRandomSeed) {
+  return uint(randomFloatAt(min, max + 1, additionalRandomSeed));
+}
+
+// ------------- Triangle -------------
+
+vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+
+  vec3 v0v1 = vectex2.position - vectex1.position;
+  vec3 v0v2 = vectex3.position - vectex1.position;
+
+  float u1 = randomFloat(additionalRandomSeed);
+  float u2 = randomFloat(additionalRandomSeed + 1);
+
+  if (u1 + u2 > 1) {
+    u1 = 1 - u1;
+    u2 = 1 - u2;
+  }
+
+  vec3 randomTriangle = u1 * v0v1 + u2 * v0v2 + vectex1.position;
+  return randomTriangle;
+}
+
+void main() {
+  DirectData data = directDataBuffer.datas[gl_GlobalInvocationID.x];
+
+  Ray newRay;
+  newRay.direction = vec3(0.0f);  
+
+  if (data.isIlluminate) {
+    uint lightIndex = randomUint(0u, ubo.numLight - 1u, 0u);
+    vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
+
+    newRay.origin = data.origin;
+    newRay.direction = normalize(target - data.origin);
+  }  
+  
+  rayGenBuffer.rays[gl_GlobalInvocationID.x] = newRay;
+}

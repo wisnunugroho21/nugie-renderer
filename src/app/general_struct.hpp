@@ -104,6 +104,22 @@ namespace NugieApp {
     alignas(16) glm::vec2 uv{ 0.0f };
   };
 
+  struct DirectData {
+    alignas(4) bool isIlluminate = false;
+
+    alignas(16) glm::vec3 normal{ 0.0f };
+    alignas(16) glm::vec3 origin{ 0.0f };
+    
+    alignas(4) uint32_t materialIndex = 0u;
+  };
+
+  struct DirectResult {
+    alignas(4) bool isIlluminate = false;
+
+    alignas(16) glm::vec3 radiance{ 0.0f };
+    alignas(4) float pdf = 0.0f;
+  };
+
   struct IndirectResult {
     alignas(4) bool isScattered = false;
 
@@ -119,9 +135,11 @@ namespace NugieApp {
   };
 
   struct IntegratorResult {
-    alignas(4) uint32_t rayBounce = 0u;
-    alignas(16) glm::vec3 totalRadiance{ 1.0f };
+    alignas(16) glm::vec3 totalRadiance{ 0.0f };
+    alignas(16) glm::vec3 totalIndirect{ 1.0f };
+
     alignas(4) float pdf = 1.0f;
+    alignas(4) uint32_t rayBounce = 0u;
   };
 
   struct RayTraceUbo {
