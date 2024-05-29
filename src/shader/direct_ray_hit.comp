@@ -148,7 +148,7 @@ void main() {
   finalResult.radiance = vec3(0.0f);
   finalResult.pdf = 0.0f;  
 
-  if (hitRecord.isHit && hitRecord.hitTypeIndex == 1u) {
+  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {
     Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
     
     DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
