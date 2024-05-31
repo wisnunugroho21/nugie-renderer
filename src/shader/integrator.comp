@@ -29,7 +29,7 @@ void main() {
   
   if (!lightResult.isIlluminate && !indirectResult.isScattered) {
     integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
-      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * vec3(1.0f) 
+      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * vec3(0.0f) 
       : vec3(100.0f);
 
     integratorResult.totalIndirect = vec3(1.0f);
@@ -63,6 +63,10 @@ void main() {
     integratorResult.totalIndirect = curIndirect;      
     integratorResult.rayBounce++;
     integratorResult.pdf = indirectResult.pdf;    
+  }
+
+  if (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) <= 0.0001f) {
+    integratorResult.rayBounce = 0u;
   }
 
   integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
