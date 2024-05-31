@@ -4,23 +4,13 @@
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(set = 0, binding = 0, rgba16f) writeonly uniform image2D resultImage;
+layout(set = 0, binding = 0, rgba32f) writeonly uniform image2D resultImage;
 
-layout(set = 0, binding = 1) uniform readonly GlobalUniform {
-  vec3 origin;
-  vec3 horizontal;
-  vec3 vertical;
-  vec3 lowerLeftCorner;
-  uvec2 imgSize;
-  uint randomSeed;
-  uint numLight;
-} ubo;
-
-layout(set = 0, binding = 2) buffer SamplingBuffer {
+layout(set = 0, binding = 1) buffer SamplingBuffer {
   SamplingResult results[];
 } samplingBuffer;
 
-layout(set = 0, binding = 3) buffer readonly IntegratorBuffer {
+layout(set = 0, binding = 2) buffer readonly IntegratorBuffer {
   IntegratorResult results[];
 } integratorBuffer;
 
@@ -30,10 +20,14 @@ void main() {
   
   IntegratorResult result = integratorBuffer.results[bufferIndex];
 
-  if (result.rayBounce == 0) {
-    vec3 totalColor = (clamp(samplingBuffer.results[bufferIndex].finalColor, 0.0f, 1.0f) + result.totalRadiance * ubo.randomSeed) / (ubo.randomSeed + 1.0f);
+  if (result.rayBounce == 0u) {
+    SamplingResult samplingResult = samplingBuffer.results[bufferIndex];    
+    vec3 totalColor = (clamp(result.totalRadiance, 0.0f, 1.0f) + samplingResult.finalColor * samplingResult.countSample) / (samplingResult.countSample + 1.0f);
 
-    samplingBuffer.results[bufferIndex].finalColor = totalColor;
+    samplingResult.finalColor = totalColor;
+    samplingResult.countSample++;
+
+    samplingBuffer.results[bufferIndex] = samplingResult;
     imageStore(resultImage, pixelCoord, vec4(totalColor, 1.0f));
-  }
+  }  
 }

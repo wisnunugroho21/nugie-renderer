@@ -85,7 +85,7 @@ void main() {
     float area = triangleArea(hittedLight);
 
     finalResult.isIlluminate = true;
-    finalResult.radiance =  vec3(1.0f) * NloL * area / squareDistance;
+    finalResult.radiance =  vec3(100.0f) * NloL * area / squareDistance;
   }  
 
   lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

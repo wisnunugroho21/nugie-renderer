@@ -165,7 +165,7 @@ void main() {
     float pdf = lambertPdfValue(NoL);
 
     finalResult.isIlluminate = true;
-    finalResult.radiance = vec3(1.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
+    finalResult.radiance = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
     finalResult.pdf = pdf;
   }  
 

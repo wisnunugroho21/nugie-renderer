@@ -143,7 +143,8 @@ namespace NugieApp {
   };
 
   struct SamplingResult {
-    alignas(4) glm::vec3 finalColor{0.0f};
+    alignas(16) glm::vec3 finalColor{0.0f};
+    alignas(4) uint32_t countSample = 0u;
   };
 
   struct RayTraceUbo {
