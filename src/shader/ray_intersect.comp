@@ -4,45 +4,57 @@
 
 layout(local_size_x = 64) in;
 
-layout(set = 0, binding = 0) buffer writeonly IntersectBuffer {
-  HitRecord hits[];
-} intersectBuffer;
+layout(set = 0, binding = 0) buffer writeonly IsHitBuffer {
+  bool values[];
+} isHitBuffer;
 
-layout(set = 0, binding = 1) buffer readonly RayGenBuffer {
-  Ray rays[];
-} rayGenBuffer;
+layout(set = 0, binding = 1) buffer writeonly HitLengthBuffer {
+  float values[];
+} hitLengthBuffer;
 
-layout(set = 0, binding = 2) buffer readonly ObjectBvhBuffer {
+layout(set = 0, binding = 2) buffer writeonly HitUVBuffer {
+  vec2 values[];
+} hitUVBuffer;
+
+layout(set = 0, binding = 3) buffer writeonly HitIndexBuffer {
+  uint values[];
+} hitIndexBuffer;
+
+layout(set = 0, binding = 4) buffer writeonly HitTypeIndexBuffer {
+  uint values[];
+} hitTypeIndexBuffer;
+
+layout(set = 0, binding = 5) buffer readonly CurrentRayBuffer {
+  Ray values[];
+} currentRayBuffer;
+
+layout(set = 0, binding = 6) buffer readonly ObjectBvhBuffer {
   BvhNode objectBvhNodes[];
 } objectBvhBuffer;
 
-layout(set = 0, binding = 3) buffer readonly ObjectBuffer {
+layout(set = 0, binding = 7) buffer readonly ObjectBuffer {
   Object objects[];
 } objectBuffer;
 
-layout(set = 0, binding = 4) buffer readonly GeometryBvhBuffer {
+layout(set = 0, binding = 8) buffer readonly GeometryBvhBuffer {
   BvhNode geometryBvhNodes[];
 } geometryBvhBuffer;
 
-layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 9) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 6) buffer readonly TriangleLightBuffer {
+layout(set = 0, binding = 10) buffer readonly TriangleLightBuffer {
   Triangle triangles[];
 } triangleLightBuffer;
 
-layout(set = 0, binding = 7) buffer readonly VertexBuffer {
+layout(set = 0, binding = 11) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 8) buffer readonly TransformationBuffer {
+layout(set = 0, binding = 12) buffer readonly TransformationBuffer {
   Transformation transformations[];
 } transformationBuffer;
-
-vec3 rayAt(Ray r, float t) {
-  return r.origin + t * r.direction;
-}
 
 bool hitTriangle(Triangle triangle, Ray r, out float t, out vec2 uv) {
   vec3 v0 = vertexBuffer.vertices[triangle.vertexIndexes.x].position;
@@ -256,12 +268,21 @@ bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitIndex, out uint h
 }
 
 void main() {
-  HitRecord hit = HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
-  Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
+  bool isHit = false;
+  float t = 0.0f;
+  vec2 uv = vec2(0.0f);
+  uint hitIndex = 0u;
+  uint hitTypeIndex = 0u;
+
+  Ray ray = currentRayBuffer.values[gl_GlobalInvocationID.x];
 
   if (length(ray.direction) > 0.001f) {
-    hit.isHit = hitObjectBvh(ray, hit.t, hit.uv, hit.hitIndex, hit.hitTypeIndex);
+    isHit = hitObjectBvh(ray, t, uv, hitIndex, hitTypeIndex);
   }
 
-  intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;
+  isHitBuffer.values[gl_GlobalInvocationID.x] = isHit;
+  hitLengthBuffer.values[gl_GlobalInvocationID.x] = t;
+  hitUVBuffer.values[gl_GlobalInvocationID.x] = uv;
+  hitIndexBuffer.values[gl_GlobalInvocationID.x] = hitIndex;
+  hitTypeIndexBuffer.values[gl_GlobalInvocationID.x] = hitTypeIndex;
 }

@@ -4,66 +4,98 @@
 
 layout(local_size_x = 64) in;
 
-layout(set = 0, binding = 0) buffer IntegratorBuffer {
-  IntegratorResult results[];
-} integratorBuffer;
+layout(set = 0, binding = 0) buffer IntegratorTotalRadianceBuffer {
+  vec3 values[];
+} integratorTotalRadianceBuffer;
 
-layout(set = 0, binding = 1) buffer readonly IndirectHitBuffer {
-  IndirectResult results[];
-} indirectHitBuffer;
+layout(set = 0, binding = 1) buffer IntegratorTotalIndirectBuffer {
+  vec3 values[];
+} integratorTotalIndirectBuffer;
 
-layout(set = 0, binding = 2) buffer readonly LightRayHitBuffer {
-  LightResult results[];
-} lightRayHitBuffer;
+layout(set = 0, binding = 2) buffer IntegratorPdfBuffer {
+  float values[];
+} integratorPdfBuffer;
 
-layout(set = 0, binding = 3) buffer readonly DirectHitBuffer {
-  DirectResult results[];
-} directHitBuffer;
+layout(set = 0, binding = 3) buffer RayBounceBuffer {
+  uint values[];
+} rayBounceBuffer;
+
+layout(set = 0, binding = 4) buffer readonly IndirectIsScatteredBuffer {
+  bool values[];
+} indirectIsScatteredBuffer;
+
+layout(set = 0, binding = 5) buffer readonly IndirectRadianceBuffer {
+  vec3 values[];
+} indirectRadianceBuffer;
+
+layout(set = 0, binding = 6) buffer readonly IndirectPdfBuffer {
+  float values[];
+} indirectPdfBuffer;
+
+layout(set = 0, binding = 7) buffer readonly LightIsIlluminateBuffer {
+  bool values[];
+} lightIsIlluminateBuffer;
+
+layout(set = 0, binding = 8) buffer readonly LightRadianceBuffer {
+  vec3 values[];
+} lightRadianceBuffer;
+
+layout(set = 0, binding = 9) buffer readonly DirectIsIlluminateBuffer {
+  bool values[];
+} directIsIlluminateBuffer;
+
+layout(set = 0, binding = 10) buffer readonly DirectRadianceBuffer {
+  vec3 values[];
+} directRadianceBuffer;
+
+layout(set = 0, binding = 11) buffer readonly DirectPdfBuffer {
+  float values[];
+} directPdfBuffer;
 
 void main() {
-  IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
+  bool lightIsIlluminate = lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x];
+  uint rayBounce = rayBounceBuffer.values[gl_GlobalInvocationID.x];
 
-  IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
-  LightResult lightResult = lightRayHitBuffer.results[gl_GlobalInvocationID.x];
-  DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
-
-  if (!lightResult.isIlluminate && !indirectResult.isScattered) {
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0) 
-      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * vec3(1.0f) 
+  if (!lightIsIlluminate && !indirectIsScatteredBuffer.values[gl_GlobalInvocationID.x]) {
+    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = (rayBounce > 0) 
+      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] / integratorPdfBuffer.values[gl_GlobalInvocationID.x] * vec3(1.0f) 
       : vec3(0.5f);
 
-    integratorResult.totalIndirect = vec3(1.0f);
-    integratorResult.rayBounce = 0;
-    integratorResult.pdf = 1.0f;
+    integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f);
+    integratorPdfBuffer.values[gl_GlobalInvocationID.x] = 1.0f;
+    rayBounce = 0;
   }
 
-  else if (lightResult.isIlluminate && !indirectResult.isScattered) {    
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0) 
-      ? integratorResult.totalRadiance + integratorResult.totalIndirect * lightResult.radiance
+  else if (lightIsIlluminate) {
+    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = (rayBounce > 0) 
+      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] * lightRadianceBuffer.values[gl_GlobalInvocationID.x]
       : vec3(1.0f);
 
-    integratorResult.totalIndirect = vec3(1.0f);
-    integratorResult.rayBounce = 0;
-    integratorResult.pdf = 1.0f;
+    integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f);
+    integratorPdfBuffer.values[gl_GlobalInvocationID.x] = 1.0f;
+    rayBounce = 0;
   }
   
-  else if (!lightResult.isIlluminate && indirectResult.isScattered) {    
-    vec3 prevIndirect = integratorResult.totalIndirect / integratorResult.pdf;
-    float totalPdf = indirectResult.pdf + directResult.pdf;
+  else {
+    float indirectPdf = indirectPdfBuffer.values[gl_GlobalInvocationID.x];
+    float directPdf = directPdfBuffer.values[gl_GlobalInvocationID.x];
 
-    vec3 curRadiance = (integratorResult.rayBounce > 0) 
-      ? integratorResult.totalRadiance + directResult.radiance * (directResult.pdf / totalPdf) * prevIndirect
-      : directResult.radiance;
+    vec3 prevIndirect = integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] / integratorPdfBuffer.values[gl_GlobalInvocationID.x];
+    float totalPdf = indirectPdf + directPdf;
 
-    vec3 curIndirect = (integratorResult.rayBounce > 0)
-      ? indirectResult.radiance * (indirectResult.pdf / totalPdf) * prevIndirect
-      : indirectResult.radiance;
+    vec3 curRadiance = (rayBounce > 0) 
+      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + directRadianceBuffer.values[gl_GlobalInvocationID.x] * (directPdf / totalPdf) * prevIndirect
+      : directRadianceBuffer.values[gl_GlobalInvocationID.x];
 
-    integratorResult.totalRadiance = curRadiance;
-    integratorResult.totalIndirect = curIndirect;      
-    integratorResult.rayBounce++;
-    integratorResult.pdf = indirectResult.pdf;    
+    vec3 curIndirect = (rayBounce > 0)
+      ? indirectRadianceBuffer.values[gl_GlobalInvocationID.x] * (indirectPdf / totalPdf) * prevIndirect
+      : indirectRadianceBuffer.values[gl_GlobalInvocationID.x];
+
+    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = curRadiance;
+    integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = curIndirect;
+    integratorPdfBuffer.values[gl_GlobalInvocationID.x] = indirectPdf;
+    rayBounce++;    
   }
 
-  integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
+  rayBounceBuffer.values[gl_GlobalInvocationID.x] = rayBounce;
 }

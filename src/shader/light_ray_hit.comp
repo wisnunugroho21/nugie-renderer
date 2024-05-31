@@ -14,23 +14,43 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   uint numLight;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly LightRayHitBuffer {
-  LightResult results[];
-} lightRayHitBuffer;
+layout(set = 0, binding = 1) buffer writeonly LightIsIlluminateBuffer {
+  bool values[];
+} lightIsIlluminateBuffer;
 
-layout(set = 0, binding = 2) buffer readonly RayGenBuffer {
-  Ray rays[];
-} rayGenBuffer;
+layout(set = 0, binding = 2) buffer writeonly LightRadianceBuffer {
+  vec3 values[];
+} lightRadianceBuffer;
 
-layout(set = 0, binding = 3) buffer readonly IntersectBuffer {
-  HitRecord hits[];
-} intersectBuffer;
+layout(set = 0, binding = 3) buffer readonly CurrentRayBuffer {
+  Ray values[];
+} currentRayBuffer;
 
-layout(set = 0, binding = 4) buffer readonly TriangleLightBuffer {
+layout(set = 0, binding = 4) buffer readonly IsHitBuffer {
+  bool values[];
+} isHitBuffer;
+
+layout(set = 0, binding = 5) buffer readonly HitLengthBuffer {
+  float values[];
+} hitLengthBuffer;
+
+layout(set = 0, binding = 6) buffer readonly HitUVBuffer {
+  vec2 values[];
+} hitUVBuffer;
+
+layout(set = 0, binding = 7) buffer readonly HitIndexBuffer {
+  uint values[];
+} hitIndexBuffer;
+
+layout(set = 0, binding = 8) buffer readonly HitTypeIndexBuffer {
+  uint values[];
+} hitTypeIndexBuffer;
+
+layout(set = 0, binding = 9) buffer readonly TriangleLightBuffer {
   Triangle triangles[];
 } triangleLightBuffer;
 
-layout(set = 0, binding = 5) buffer readonly VertexBuffer {
+layout(set = 0, binding = 10) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
@@ -69,24 +89,21 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
 }
 
 void main() {
-  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
+  bool isIlluminate = false;
 
-  LightResult finalResult;
-  finalResult.isIlluminate = false;
+  if (isHitBuffer.values[gl_GlobalInvocationID.x] && hitTypeIndexBuffer.values[gl_GlobalInvocationID.x] == 2u) {
+    Triangle hittedLight = triangleLightBuffer.triangles[hitIndexBuffer.values[gl_GlobalInvocationID.x]];
+    Ray ray = currentRayBuffer.values[gl_GlobalInvocationID.x];
 
-  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {
-    Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
-    Ray ray = rayGenBuffer.rays[hitRecord.hitIndex];
+    float dst = hitLengthBuffer.values[gl_GlobalInvocationID.x];
 
-    vec3 hittedNormal = triangleNormal(hittedLight, ray);
-
-    float squareDistance = max(hitRecord.t * hitRecord.t, 0.001f);
-    float NloL = max(dot(hittedNormal, -1.0f * ray.direction), 0.001f);
+    float squareDistance = max(dst * dst, 0.001f);
+    float NloL = max(dot(triangleNormal(hittedLight, ray), -1.0f * ray.direction), 0.001f);
     float area = triangleArea(hittedLight);
 
-    finalResult.isIlluminate = true;
-    finalResult.radiance =  vec3(1.0f) * NloL * area / squareDistance;
+    isIlluminate = true;
+    lightRadianceBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f) * NloL * area / squareDistance;
   }  
 
-  lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+  lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x] = isIlluminate;
 }

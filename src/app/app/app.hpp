@@ -9,6 +9,7 @@
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
 #include "../data/buffer/many_array_buffer.hpp"
+#include "../data/buffer/staging_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"

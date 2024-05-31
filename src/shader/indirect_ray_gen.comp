@@ -14,17 +14,17 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   uint numLight;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
-  Ray rays[];
-} rayGenBuffer;
+layout(set = 0, binding = 1) buffer writeonly CurrentRayBuffer {
+  Ray values[];
+} currentRayBuffer;
 
-layout(set = 0, binding = 2) buffer readonly IndirectHitBuffer {
-  IndirectResult results[];
-} indirectHitBuffer;
+layout(set = 0, binding = 2) buffer readonly ScatteredRayBuffer {
+  Ray values[];
+} scatteredRayBuffer;
 
-layout(set = 0, binding = 3) buffer readonly IntegratorBuffer {
-  IntegratorResult results[];
-} integratorBuffer;
+layout(set = 0, binding = 3) buffer readonly RayBounceBuffer {
+  uint values[];
+} rayBounce;
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -33,7 +33,7 @@ void main() {
   
   vec3 initialRayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
 
-  rayGenBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].rayBounce > 0u 
-    ? indirectHitBuffer.results[bufferIndex].nextRay 
+  currentRayBuffer.values[bufferIndex] = rayBounce.values[bufferIndex] > 0u 
+    ? scatteredRayBuffer.values[bufferIndex]
     : Ray(ubo.origin, normalize(initialRayDirection));
 }

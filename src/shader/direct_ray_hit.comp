@@ -14,31 +14,63 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   uint numLight;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly DirectHitBuffer {
-  DirectResult results[];
-} directHitBuffer;
+layout(set = 0, binding = 1) buffer writeonly DirectIsIlluminateBuffer {
+  bool values[];
+} directIsIlluminateBuffer;
 
-layout(set = 0, binding = 2) buffer readonly DirectDataBuffer {
-  DirectData datas[];
-} directDataBuffer;
+layout(set = 0, binding = 2) buffer writeonly DirectRadianceBuffer {
+  vec3 values[];
+} directRadianceBuffer;
 
-layout(set = 0, binding = 3) buffer readonly RayGenBuffer {
-  Ray rays[];
-} rayGenBuffer;
+layout(set = 0, binding = 3) buffer writeonly DirectPdfBuffer {
+  float values[];
+} directPdfBuffer;
 
-layout(set = 0, binding = 4) buffer readonly IntersectBuffer {
-  HitRecord hits[];
-} intersectBuffer;
+layout(set = 0, binding = 4) buffer readonly IndirectNormalBuffer {
+  vec3 values[];
+} indirectNormalBuffer;
 
-layout(set = 0, binding = 5) buffer readonly TriangleLightBuffer {
+layout(set = 0, binding = 5) buffer readonly IndirectHitPositionBuffer {
+  vec3 values[];
+} indirectHitPositionBuffer;
+
+layout(set = 0, binding = 6) buffer readonly IndirectMaterialIndexBuffer {
+  uint values[];
+} indirectMaterialIndexBuffer;
+
+layout(set = 0, binding = 7) buffer readonly CurrentRayBuffer {
+  Ray values[];
+} currentRayBuffer;
+
+layout(set = 0, binding = 8) buffer readonly IsHitBuffer {
+  bool values[];
+} isHitBuffer;
+
+layout(set = 0, binding = 9) buffer readonly HitLengthBuffer {
+  float values[];
+} hitLengthBuffer;
+
+layout(set = 0, binding = 10) buffer readonly HitUVBuffer {
+  vec2 values[];
+} hitUVBuffer;
+
+layout(set = 0, binding = 11) buffer readonly HitIndexBuffer {
+  uint values[];
+} hitIndexBuffer;
+
+layout(set = 0, binding = 12) buffer readonly HitTypeIndexBuffer {
+  uint values[];
+} hitTypeIndexBuffer;
+
+layout(set = 0, binding = 13) buffer readonly TriangleLightBuffer {
   Triangle triangles[];
 } triangleLightBuffer;
 
-layout(set = 0, binding = 6) buffer readonly VertexBuffer {
+layout(set = 0, binding = 14) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 7) buffer readonly MaterialBuffer {
+layout(set = 0, binding = 15) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
@@ -141,33 +173,26 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
 }
 
 void main() {
-  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
+  bool isIlluminate = false;  
 
-  DirectResult finalResult;
-  finalResult.isIlluminate = false;
-  finalResult.radiance = vec3(0.0f);
-  finalResult.pdf = 0.0f;  
+  if (isHitBuffer.values[gl_GlobalInvocationID.x] && hitTypeIndexBuffer.values[gl_GlobalInvocationID.x] == 2u) {
+    Triangle hittedLight = triangleLightBuffer.triangles[hitIndexBuffer.values[gl_GlobalInvocationID.x]];
+    Ray ray = currentRayBuffer.values[gl_GlobalInvocationID.x];
 
-  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {
-    Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
-    
-    DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
-    Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
-
-    vec3 hittedLightNormal = triangleNormal(hittedLight, ray);
-
-    float NloL = max(dot(hittedLightNormal, -1.0f * ray.direction), 0.001f);
-    float NoL = max(dot(directData.normal, ray.direction), 0.001f);
+    float NloL = max(dot(triangleNormal(hittedLight, ray), -1.0f * ray.direction), 0.001f);
+    float NoL = max(dot(indirectNormalBuffer.values[gl_GlobalInvocationID.x], ray.direction), 0.001f);
+    float dst = hitLengthBuffer.values[gl_GlobalInvocationID.x];
 
     float brdf = lambertBrdfValue();
-    float squareDistance = max(hitRecord.t * hitRecord.t, 0.001f);
+    float squareDistance = max(dst * dst, 0.001f);
     float area = triangleArea(hittedLight);
     float pdf = lambertPdfValue(NoL);
 
-    finalResult.isIlluminate = true;
-    finalResult.radiance = vec3(1.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
-    finalResult.pdf = pdf;
+    isIlluminate = true;
+
+    directRadianceBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f) * materialBuffer.materials[indirectMaterialIndexBuffer.values[gl_GlobalInvocationID.x]].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
+    directPdfBuffer.values[gl_GlobalInvocationID.x] = pdf;
   }  
 
-  directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+  directIsIlluminateBuffer.values[gl_GlobalInvocationID.x] = isIlluminate;
 }

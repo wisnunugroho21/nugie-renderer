@@ -94,58 +94,6 @@ namespace NugieApp {
     alignas(16) glm::vec3 direction{0.0f};
   };
 
-  struct Hit {
-    alignas(4) bool isHit = false;
-
-    alignas(4) uint32_t hitIndex = 0u;
-    alignas(4) uint32_t hitTypeIndex = 0u;
-    
-    alignas(4) float t = 0.0f;
-    alignas(16) glm::vec2 uv{ 0.0f };
-  };
-
-  struct DirectData {
-    alignas(4) bool isIlluminate = false;
-
-    alignas(16) glm::vec3 normal{ 0.0f };
-    alignas(16) glm::vec3 origin{ 0.0f };
-    
-    alignas(4) uint32_t materialIndex = 0u;
-  };
-
-  struct DirectResult {
-    alignas(4) bool isIlluminate = false;
-
-    alignas(16) glm::vec3 radiance{ 0.0f };
-    alignas(4) float pdf = 0.0f;
-  };
-
-  struct IndirectResult {
-    alignas(4) bool isScattered = false;
-
-    alignas(16) glm::vec3 radiance{ 0.0f };
-    alignas(4) float pdf = 0.0f;
-
-    Ray nextRay{};
-  };
-
-  struct LightResult {
-    alignas(4) bool isIlluminate = false;
-    alignas(16) glm::vec3 radiance{ 0.0f };
-  };
-
-  struct IntegratorResult {
-    alignas(16) glm::vec3 totalRadiance{ 0.0f };
-    alignas(16) glm::vec3 totalIndirect{ 1.0f };
-
-    alignas(4) float pdf = 1.0f;
-    alignas(4) uint32_t rayBounce = 0u;
-  };
-
-  struct SamplingResult {
-    alignas(4) glm::vec3 finalColor{0.0f};
-  };
-
   struct RayTraceUbo {
     alignas(16) glm::vec3 origin{ 0.0f };
     alignas(16) glm::vec3 horizontal{ 0.0f };
