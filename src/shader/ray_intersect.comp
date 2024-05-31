@@ -44,10 +44,7 @@ vec3 rayAt(Ray r, float t) {
   return r.origin + t * r.direction;
 }
 
-HitRecord hitTriangle(Triangle triangle, Ray r) {
-  HitRecord hit;
-  hit.isHit = false;
-
+bool hitTriangle(Triangle triangle, Ray r, out float t, out vec2 uv) {
   vec3 v0 = vertexBuffer.vertices[triangle.vertexIndexes.x].position;
   vec3 v1 = vertexBuffer.vertices[triangle.vertexIndexes.y].position;
   vec3 v2 = vertexBuffer.vertices[triangle.vertexIndexes.z].position;
@@ -58,7 +55,7 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
   float det = dot(edge1, ray_cross_e2);
 
   if (abs(det) < K_EPSILON) {
-    return hit;    // This ray is parallel to this triangle.
+    return false;    // This ray is parallel to this triangle.
   }    
 
   float inv_det = 1.0 / det;
@@ -66,28 +63,27 @@ HitRecord hitTriangle(Triangle triangle, Ray r) {
   float u = inv_det * dot(s, ray_cross_e2);
 
   if (u < 0 || u > 1) {
-    return hit;
+    return false;
   }    
 
   vec3 s_cross_e1 = cross(s, edge1);
   float v = inv_det * dot(r.direction, s_cross_e1);
 
   if (v < 0 || u + v > 1) {
-    return hit;
+    return false;
   }    
 
   // At this stage we can compute t to find out where the intersection point is on the line.
-  float t = inv_det * dot(edge2, s_cross_e1);
+  float curT = inv_det * dot(edge2, s_cross_e1);
 
-  if (t < 0.001f) {
-    return hit;
+  if (curT < 0.001f) {
+    return false;
   }
 
-  hit.isHit = true;
-  hit.t = t;
-  hit.uv = vec2(u, v);
+  t = curT;
+  uv = vec2(u, v);
   
-  return hit;
+  return true;
 }
 
 // ------------- Bvh -------------
@@ -103,7 +99,7 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
   return tNear <= tFar ? tNear : FLT_MAX;
 }
 
-HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex) {
+bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex, out float t, out vec2 uv, out uint hitIndex, out uint hitTypeIndex) {
   Transformation curTransf = transformationBuffer.transformations[transformIndex];
   BvhNode curNode = geometryBvhBuffer.geometryBvhNodes[firstBvhIndex];
 
@@ -111,7 +107,7 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
   r.direction = mat3(curTransf.dirInverseMatrix) * r.direction;
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
-    return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
+    return false;
   }
 
   uint stack[30];
@@ -129,28 +125,26 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
       if (primIndex > 0u) {
         switch(curNode.typeIndex) {
           case 1u: {
-            Triangle triangle = triangleBuffer.triangles[primIndex - 1u + firstGeometryIndex]; 
-            HitRecord hit = hitTriangle(triangle, r);
+            Triangle triangle = triangleBuffer.triangles[primIndex - 1u + firstGeometryIndex];
 
-            if (hit.isHit) {
-              hit.hitIndex = primIndex - 1u + firstGeometryIndex;
-              hit.hitTypeIndex = curNode.typeIndex;
+            if (hitTriangle(triangle, r, t, uv)) {
+              hitIndex = primIndex - 1u + firstGeometryIndex;
+              hitTypeIndex = curNode.typeIndex;
               
-              return hit;
+              return true;
             }
 
             break;
           }
 
           case 2u: {
-            Triangle triangle = triangleLightBuffer.triangles[primIndex - 1u + firstGeometryIndex]; 
-            HitRecord hit = hitTriangle(triangle, r);
+            Triangle triangle = triangleLightBuffer.triangles[primIndex - 1u + firstGeometryIndex];
 
-            if (hit.isHit) {
-              hit.hitIndex = primIndex - 1u + firstGeometryIndex;
-              hit.hitTypeIndex = curNode.typeIndex;
+            if (hitTriangle(triangle, r, t, uv)) {
+              hitIndex = primIndex - 1u + firstGeometryIndex;
+              hitTypeIndex = curNode.typeIndex;
               
-              return hit;
+              return true;
             }
 
             break;
@@ -194,14 +188,14 @@ HitRecord hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uin
     }    
   }
 
-  return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
+  return false;
 }
 
-HitRecord hitObjectBvh(Ray r) {
+bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitIndex, out uint hitTypeIndex) {
   BvhNode curNode = objectBvhBuffer.objectBvhNodes[0u];
 
   if (intersectAABB(r, curNode.minimum, curNode.maximum) >= FLT_MAX) {
-    return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
+    return false;
   }
 
   uint stack[30];
@@ -217,10 +211,9 @@ HitRecord hitObjectBvh(Ray r) {
 
       if (objIndex > 0u) {
         Object object = objectBuffer.objects[objIndex - 1u];
-        HitRecord hit = hitGeometryBvh(r, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex);
 
-        if (hit.isHit) {
-          return hit;
+        if (hitGeometryBvh(r, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex, t, uv, hitIndex, hitTypeIndex)) {
+          return true;
         }
       }
 
@@ -259,7 +252,7 @@ HitRecord hitObjectBvh(Ray r) {
     }    
   }
 
-  return HitRecord(false, 0u, 0u, 0.0f, vec2(0.0f));
+  return false;
 }
 
 void main() {
@@ -267,7 +260,7 @@ void main() {
   Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
   if (length(ray.direction) > 0.001f) {
-    hit = hitObjectBvh(rayGenBuffer.rays[gl_GlobalInvocationID.x]);
+    hit.isHit = hitObjectBvh(ray, hit.t, hit.uv, hit.hitIndex, hit.hitTypeIndex);
   }
 
   intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;
