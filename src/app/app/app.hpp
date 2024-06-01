@@ -54,6 +54,7 @@ namespace NugieApp {
 			ComputeRenderSystem* indirectRayGenRenderer = nullptr;
 			ComputeRenderSystem* indirectRayHitRenderer = nullptr;
 			ComputeRenderSystem* lightRayHitRenderer = nullptr;
+			ComputeRenderSystem* missRayRenderer = nullptr;
 			ComputeRenderSystem* directRayGenRenderer = nullptr;
 			ComputeRenderSystem* directRayHitRenderer = nullptr;
 			ComputeRenderSystem* integratorRenderer = nullptr;
@@ -75,6 +76,7 @@ namespace NugieApp {
 			ManyArrayBuffer<DirectResult>* directRayHitBuffer = nullptr;			
 			ManyArrayBuffer<IndirectResult>* indirectRayHitBuffer = nullptr;
 			ManyArrayBuffer<LightResult>* lightRayHitBuffer = nullptr;
+			ManyArrayBuffer<MissResult>* missRayBuffer = nullptr;
 			ManyArrayBuffer<IntegratorResult>* integratorBuffer = nullptr;
 			ManyArrayBuffer<SamplingResult>* samplingBuffer = nullptr;
 
@@ -84,6 +86,7 @@ namespace NugieApp {
 			DescriptorSet* indirectRayGenDescSet = nullptr;
 			DescriptorSet* indirectRayHitDescSet = nullptr;
 			DescriptorSet* lightRayHitDescSet = nullptr;
+			DescriptorSet* missRayDescSet = nullptr;
 			DescriptorSet* directRayGenDescSet = nullptr;
 			DescriptorSet* directRayHitDescSet = nullptr;
 			DescriptorSet* integratorDescSet = nullptr;

@@ -34,6 +34,7 @@ namespace NugieApp {
 		if (this->indirectRayGenRenderer != nullptr) delete this->indirectRayGenRenderer;		
 		if (this->indirectRayHitRenderer != nullptr) delete this->indirectRayHitRenderer;
 		if (this->lightRayHitRenderer != nullptr) delete this->lightRayHitRenderer;
+		if (this->missRayRenderer != nullptr) delete this->missRayRenderer;
 		if (this->directRayGenRenderer != nullptr) delete this->directRayGenRenderer;
 		if (this->directRayHitRenderer != nullptr) delete this->directRayHitRenderer;
 		if (this->integratorRenderer != nullptr) delete this->integratorRenderer;
@@ -42,11 +43,12 @@ namespace NugieApp {
 		if (this->renderer != nullptr) delete this->renderer;
 
 		if (this->rayIntersectDescSet != nullptr) delete this->rayIntersectDescSet;
-		if (this->indirectRayGenDescSet != nullptr) delete this->indirectRayGenDescSet;		
-		if (this->directRayGenDescSet != nullptr) delete this->directRayGenDescSet;
-		if (this->directRayHitDescSet != nullptr) delete this->directRayHitDescSet;
+		if (this->indirectRayGenDescSet != nullptr) delete this->indirectRayGenDescSet;	
 		if (this->indirectRayHitDescSet != nullptr) delete this->indirectRayHitDescSet;
 		if (this->lightRayHitDescSet != nullptr) delete this->lightRayHitDescSet;
+		if (this->missRayDescSet != nullptr) delete this->missRayDescSet;	
+		if (this->directRayGenDescSet != nullptr) delete this->directRayGenDescSet;
+		if (this->directRayHitDescSet != nullptr) delete this->directRayHitDescSet;		
 		if (this->integratorDescSet != nullptr) delete this->integratorDescSet;
 		if (this->samplingDescSet != nullptr) delete this->samplingDescSet;
 
@@ -65,6 +67,7 @@ namespace NugieApp {
 		if (this->directRayHitBuffer != nullptr) delete this->directRayHitBuffer;
 		if (this->indirectRayHitBuffer != nullptr) delete this->indirectRayHitBuffer;
 		if (this->lightRayHitBuffer != nullptr) delete this->lightRayHitBuffer;
+		if (this->missRayBuffer != nullptr) delete this->missRayBuffer;
 		if (this->integratorBuffer != nullptr) delete this->integratorBuffer;
 		if (this->samplingBuffer != nullptr) delete this->samplingBuffer;		
 		if (this->rayTraceUniformBuffer != nullptr) delete this->rayTraceUniformBuffer;
@@ -123,6 +126,11 @@ namespace NugieApp {
 
 				this->lightRayHitRenderer->render(commandBuffer, { this->lightRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
 				this->lightRayHitBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+				// -------------------------------------------------------------------------------------------------------------------
+
+				this->missRayRenderer->render(commandBuffer, { this->missRayDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->missRayBuffer->getBuffer(frameIndex)->transitionBuffer(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
@@ -505,6 +513,7 @@ namespace NugieApp {
 		this->rayIntersectBuffer->replace(commandBuffer, std::vector<Hit>(width * height, Hit{}));
 		this->indirectRayHitBuffer->replace(commandBuffer, std::vector<IndirectResult>(width * height, IndirectResult{}));
 		this->lightRayHitBuffer->replace(commandBuffer, std::vector<LightResult>(width * height, LightResult{}));
+		this->missRayBuffer->replace(commandBuffer, std::vector<MissResult>(width * height, MissResult{}));
 		this->directDataBuffer->replace(commandBuffer, std::vector<DirectData>(width * height, DirectData{}));
 		this->directRayHitBuffer->replace(commandBuffer, std::vector<DirectResult>(width * height, DirectResult{}));
 		this->integratorBuffer->replace(commandBuffer, std::vector<IntegratorResult>(width * height, IntegratorResult{}));
@@ -540,6 +549,7 @@ namespace NugieApp {
 		this->rayIntersectBuffer = new ManyArrayBuffer<Hit>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->indirectRayHitBuffer = new ManyArrayBuffer<IndirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->lightRayHitBuffer = new ManyArrayBuffer<LightResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
+		this->missRayBuffer = new ManyArrayBuffer<MissResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->directDataBuffer = new ManyArrayBuffer<DirectData>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->directRayHitBuffer = new ManyArrayBuffer<DirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
 		this->integratorBuffer = new ManyArrayBuffer<IntegratorResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height);
@@ -604,6 +614,12 @@ namespace NugieApp {
 			.addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->vertexBuffer->getInfo())			
 			.build();
 
+		this->missRayDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
+			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->missRayBuffer->getInfo())
+			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayIntersectBuffer->getInfo())		
+			.build();
+
 		this->directRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceUniformBuffer->getInfo())
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayGenBuffer->getInfo())
@@ -628,6 +644,7 @@ namespace NugieApp {
 			.addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->indirectRayHitBuffer->getInfo())
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->lightRayHitBuffer->getInfo())
 			.addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->directRayHitBuffer->getInfo())
+			.addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->missRayBuffer->getInfo())
 			.build();
 		
 		this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)			
@@ -640,6 +657,7 @@ namespace NugieApp {
 		this->rayIntersectRenderer = new ComputeRenderSystem(this->device, { this->rayIntersectDescSet->getDescSetLayout() }, "shader/ray_intersect.comp.spv");
 		this->indirectRayHitRenderer = new ComputeRenderSystem(this->device, { this->indirectRayHitDescSet->getDescSetLayout() }, "shader/indirect_ray_hit.comp.spv");
 		this->lightRayHitRenderer = new ComputeRenderSystem(this->device, { this->lightRayHitDescSet->getDescSetLayout() }, "shader/light_ray_hit.comp.spv");
+		this->missRayRenderer = new ComputeRenderSystem(this->device, { this->missRayDescSet->getDescSetLayout() }, "shader/ray_miss.comp.spv");
 		this->directRayGenRenderer = new ComputeRenderSystem(this->device, { this->directRayGenDescSet->getDescSetLayout() }, "shader/direct_ray_gen.comp.spv");
 		this->directRayHitRenderer = new ComputeRenderSystem(this->device, { this->directRayHitDescSet->getDescSetLayout() }, "shader/direct_ray_hit.comp.spv");
 		this->integratorRenderer = new ComputeRenderSystem(this->device, { this->integratorDescSet->getDescSetLayout() }, "shader/integrator.comp.spv");
@@ -649,6 +667,7 @@ namespace NugieApp {
 		this->rayIntersectRenderer->initialize();
 		this->indirectRayHitRenderer->initialize();
 		this->lightRayHitRenderer->initialize();
+		this->missRayRenderer->initialize();
 		this->directRayGenRenderer->initialize();
 		this->directRayHitRenderer->initialize();
 		this->integratorRenderer->initialize();

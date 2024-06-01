@@ -134,6 +134,11 @@ namespace NugieApp {
     alignas(16) glm::vec3 radiance{ 0.0f };
   };
 
+  struct MissResult {
+    alignas(4) bool isMiss = false;
+    alignas(16) glm::vec3 radiance{0.0f};
+  };
+
   struct IntegratorResult {
     alignas(16) glm::vec3 totalRadiance{ 0.0f };
     alignas(16) glm::vec3 totalIndirect{ 1.0f };

@@ -20,16 +20,21 @@ layout(set = 0, binding = 3) buffer readonly DirectHitBuffer {
   DirectResult results[];
 } directHitBuffer;
 
+layout(set = 0, binding = 4) buffer readonly MissBuffer {
+  MissResult results[];
+} missBuffer;
+
 void main() {
   IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
 
   IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
   LightResult lightResult = lightRayHitBuffer.results[gl_GlobalInvocationID.x];
   DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
+  MissResult missResult = missBuffer.results[gl_GlobalInvocationID.x];
   
-  if (!lightResult.isIlluminate && !indirectResult.isScattered) {
+  if (missResult.isMiss) {
     integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
-      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * vec3(0.0f) 
+      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * missResult.radiance 
       : vec3(100.0f);
 
     integratorResult.totalIndirect = vec3(1.0f);

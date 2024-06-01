@@ -123,6 +123,11 @@ struct DirectResult {
   float pdf;
 };
 
+struct MissResult {
+  bool isMiss;
+  vec3 radiance;
+};
+
 struct IntegratorResult {
   vec3 totalRadiance;
   vec3 totalIndirect;
