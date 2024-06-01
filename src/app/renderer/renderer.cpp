@@ -182,18 +182,18 @@ namespace NugieApp {
 
 		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
-		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_TRANSFER_BIT };
 
 		if (this->isTransferStarted) {
 			waitSemaphores.emplace_back(this->transferFinishedSemaphores[0]);
-			waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+			waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
 			this->isTransferStarted = false;
 		}
 
 		if (this->isPrepareStarted) {
 			waitSemaphores.emplace_back(this->prepareFinishedSemaphores[0]);
-			waitStages.emplace_back(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+			waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
 			this->isPrepareStarted = false;
 		}

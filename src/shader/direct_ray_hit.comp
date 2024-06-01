@@ -188,10 +188,9 @@ void main() {
     float area = triangleArea(hittedLight);
     float pdf = lambertPdfValue(NoL);
 
-    isIlluminate = true;
-
-    directRadianceBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f) * materialBuffer.materials[indirectMaterialIndexBuffer.values[gl_GlobalInvocationID.x]].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
-    directPdfBuffer.values[gl_GlobalInvocationID.x] = pdf;
+    finalResult.isIlluminate = true;
+    finalResult.radiance = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
+    finalResult.pdf = pdf;
   }  
 
   directIsIlluminateBuffer.values[gl_GlobalInvocationID.x] = isIlluminate;

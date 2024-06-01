@@ -101,8 +101,8 @@ void main() {
     float NloL = max(dot(triangleNormal(hittedLight, ray), -1.0f * ray.direction), 0.001f);
     float area = triangleArea(hittedLight);
 
-    isIlluminate = true;
-    lightRadianceBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f) * NloL * area / squareDistance;
+    finalResult.isIlluminate = true;
+    finalResult.radiance =  vec3(100.0f) * NloL * area / squareDistance;
   }  
 
   lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x] = isIlluminate;

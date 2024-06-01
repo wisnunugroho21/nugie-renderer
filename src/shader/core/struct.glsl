@@ -123,7 +123,12 @@ struct DirectResult {
   float pdf;
 };
 
-struct IntegratorResult {  
+struct MissResult {
+  bool isMiss;
+  vec3 radiance;
+};
+
+struct IntegratorResult {
   vec3 totalRadiance;
   vec3 totalIndirect;
 
@@ -133,4 +138,5 @@ struct IntegratorResult {
 
 struct SamplingResult {
   vec3 finalColor;
+  uint countSample;
 };

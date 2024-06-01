@@ -52,23 +52,32 @@ layout(set = 0, binding = 11) buffer readonly DirectPdfBuffer {
   float values[];
 } directPdfBuffer;
 
+layout(set = 0, binding = 4) buffer readonly MissBuffer {
+  MissResult results[];
+} missBuffer;
+
 void main() {
   bool lightIsIlluminate = lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x];
   uint rayBounce = rayBounceBuffer.values[gl_GlobalInvocationID.x];
 
-  if (!lightIsIlluminate && !indirectIsScatteredBuffer.values[gl_GlobalInvocationID.x]) {
-    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = (rayBounce > 0) 
-      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] / integratorPdfBuffer.values[gl_GlobalInvocationID.x] * vec3(1.0f) 
-      : vec3(0.5f);
+  IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
+  LightResult lightResult = lightRayHitBuffer.results[gl_GlobalInvocationID.x];
+  DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
+  MissResult missResult = missBuffer.results[gl_GlobalInvocationID.x];
+  
+  if (missResult.isMiss) {
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
+      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * missResult.radiance 
+      : vec3(100.0f);
 
     integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f);
     integratorPdfBuffer.values[gl_GlobalInvocationID.x] = 1.0f;
     rayBounce = 0;
   }
 
-  else if (lightIsIlluminate) {
-    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = (rayBounce > 0) 
-      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] * lightRadianceBuffer.values[gl_GlobalInvocationID.x]
+  else if (lightResult.isIlluminate) {    
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
+      ? integratorResult.totalRadiance + integratorResult.totalIndirect * lightResult.radiance
       : vec3(1.0f);
 
     integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f);
@@ -76,26 +85,24 @@ void main() {
     rayBounce = 0;
   }
   
-  else {
-    float indirectPdf = indirectPdfBuffer.values[gl_GlobalInvocationID.x];
-    float directPdf = directPdfBuffer.values[gl_GlobalInvocationID.x];
+  else {    
+    vec3 prevIndirect = integratorResult.totalIndirect / integratorResult.pdf;
+    float totalPdf = indirectResult.pdf + directResult.pdf;
 
-    vec3 prevIndirect = integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] / integratorPdfBuffer.values[gl_GlobalInvocationID.x];
-    float totalPdf = indirectPdf + directPdf;
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
+      ? integratorResult.totalRadiance + directResult.radiance * (directResult.pdf / totalPdf) * prevIndirect
+      : directResult.radiance;
 
-    vec3 curRadiance = (rayBounce > 0) 
-      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + directRadianceBuffer.values[gl_GlobalInvocationID.x] * (directPdf / totalPdf) * prevIndirect
-      : directRadianceBuffer.values[gl_GlobalInvocationID.x];
+    integratorResult.totalIndirect = (integratorResult.rayBounce > 0u)
+      ? indirectResult.radiance * (indirectResult.pdf / totalPdf) * prevIndirect
+      : indirectResult.radiance;    
 
-    vec3 curIndirect = (rayBounce > 0)
-      ? indirectRadianceBuffer.values[gl_GlobalInvocationID.x] * (indirectPdf / totalPdf) * prevIndirect
-      : indirectRadianceBuffer.values[gl_GlobalInvocationID.x];
+    integratorResult.rayBounce = (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) > 0.01f) 
+      ? integratorResult.rayBounce + 1u
+      : 0u;
 
-    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = curRadiance;
-    integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = curIndirect;
-    integratorPdfBuffer.values[gl_GlobalInvocationID.x] = indirectPdf;
-    rayBounce++;    
-  }
+    integratorResult.pdf = indirectResult.pdf;   
+  }  
 
   rayBounceBuffer.values[gl_GlobalInvocationID.x] = rayBounce;
 }
