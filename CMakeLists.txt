@@ -92,7 +92,7 @@ if (WIN32)
     ${STB_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
-    ${VMA_PATH}
+    ${VMA_PATH}/include
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC
@@ -108,7 +108,7 @@ elseif (UNIX)
       ${Vulkan_INCLUDE_DIRS}
       ${TINYOBJ_PATH}
       ${STB_PATH}
-      ${VMA_PATH}
+      ${VMA_PATH}/include
     )
     target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
 endif()

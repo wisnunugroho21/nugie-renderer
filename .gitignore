@@ -4,3 +4,4 @@
 /libraries
 /.vscode
 .DS_Store
+.env.cmake

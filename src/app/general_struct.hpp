@@ -143,7 +143,7 @@ namespace NugieApp {
     alignas(16) glm::vec3 totalRadiance{ 0.0f };
     alignas(16) glm::vec3 totalIndirect{ 1.0f };
 
-    alignas(4) float pdf = 1.0f;
+    alignas(4) float pdf = 0.0f;
     alignas(4) uint32_t rayBounce = 0u;
   };
 

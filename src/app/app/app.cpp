@@ -506,7 +506,7 @@ namespace NugieApp {
 		this->transformBuffer->replace(commandBuffer, transforms);
 		this->materialBuffer->replace(commandBuffer, materials);
 
-		uint32_t width = this->renderer->getSwapChain()->getWidth();
+		/* uint32_t width = this->renderer->getSwapChain()->getWidth();
 		uint32_t height = this->renderer->getSwapChain()->getHeight();
 
 		this->rayGenBuffer->replace(commandBuffer, std::vector<Ray>(width * height, Ray{}));
@@ -517,7 +517,7 @@ namespace NugieApp {
 		this->directDataBuffer->replace(commandBuffer, std::vector<DirectData>(width * height, DirectData{}));
 		this->directRayHitBuffer->replace(commandBuffer, std::vector<DirectResult>(width * height, DirectResult{}));
 		this->integratorBuffer->replace(commandBuffer, std::vector<IntegratorResult>(width * height, IntegratorResult{}));
-		this->samplingBuffer->replace(commandBuffer, std::vector<SamplingResult>(width * height, SamplingResult{}));
+		this->samplingBuffer->replace(commandBuffer, std::vector<SamplingResult>(width * height, SamplingResult{})); */
 
 		commandBuffer->endCommand();
 		this->renderer->submitTransferCommand();
