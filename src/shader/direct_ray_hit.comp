@@ -30,47 +30,43 @@ layout(set = 0, binding = 4) buffer readonly IndirectNormalBuffer {
   vec3 values[];
 } indirectNormalBuffer;
 
-layout(set = 0, binding = 5) buffer readonly IndirectHitPositionBuffer {
-  vec3 values[];
-} indirectHitPositionBuffer;
-
-layout(set = 0, binding = 6) buffer readonly IndirectMaterialIndexBuffer {
+layout(set = 0, binding = 5) buffer readonly IndirectMaterialIndexBuffer {
   uint values[];
 } indirectMaterialIndexBuffer;
 
-layout(set = 0, binding = 7) buffer readonly CurrentRayBuffer {
+layout(set = 0, binding = 6) buffer readonly CurrentRayBuffer {
   Ray values[];
 } currentRayBuffer;
 
-layout(set = 0, binding = 8) buffer readonly IsHitBuffer {
+layout(set = 0, binding = 7) buffer readonly IsHitBuffer {
   bool values[];
 } isHitBuffer;
 
-layout(set = 0, binding = 9) buffer readonly HitLengthBuffer {
+layout(set = 0, binding = 8) buffer readonly HitLengthBuffer {
   float values[];
 } hitLengthBuffer;
 
-layout(set = 0, binding = 10) buffer readonly HitUVBuffer {
+layout(set = 0, binding = 9) buffer readonly HitUVBuffer {
   vec2 values[];
 } hitUVBuffer;
 
-layout(set = 0, binding = 11) buffer readonly HitIndexBuffer {
+layout(set = 0, binding = 10) buffer readonly HitIndexBuffer {
   uint values[];
 } hitIndexBuffer;
 
-layout(set = 0, binding = 12) buffer readonly HitTypeIndexBuffer {
+layout(set = 0, binding = 11) buffer readonly HitTypeIndexBuffer {
   uint values[];
 } hitTypeIndexBuffer;
 
-layout(set = 0, binding = 13) buffer readonly TriangleLightBuffer {
+layout(set = 0, binding = 12) buffer readonly TriangleLightBuffer {
   Triangle triangles[];
 } triangleLightBuffer;
 
-layout(set = 0, binding = 14) buffer readonly VertexBuffer {
+layout(set = 0, binding = 13) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 15) buffer readonly MaterialBuffer {
+layout(set = 0, binding = 14) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
