@@ -51,23 +51,20 @@ void main() {
     vec3 prevIndirect = integratorResult.totalIndirect / integratorResult.pdf;
     float totalPdf = indirectResult.pdf + directResult.pdf;
 
-    vec3 curRadiance = (integratorResult.rayBounce > 0u) 
+    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
       ? integratorResult.totalRadiance + directResult.radiance * (directResult.pdf / totalPdf) * prevIndirect
       : directResult.radiance;
 
-    vec3 curIndirect = (integratorResult.rayBounce > 0u)
+    integratorResult.totalIndirect = (integratorResult.rayBounce > 0u)
       ? indirectResult.radiance * (indirectResult.pdf / totalPdf) * prevIndirect
-      : indirectResult.radiance;
+      : indirectResult.radiance;    
 
-    integratorResult.totalRadiance = curRadiance;
-    integratorResult.totalIndirect = curIndirect;      
-    integratorResult.rayBounce++;
-    integratorResult.pdf = indirectResult.pdf;    
-  }
+    integratorResult.rayBounce = (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) > 0.01f) 
+      ? integratorResult.rayBounce + 1u
+      : 0u;
 
-  if (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) <= 0.0001f) {
-    integratorResult.rayBounce = 0u;
-  }
+    integratorResult.pdf = indirectResult.pdf;   
+  }  
 
   integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
 }
