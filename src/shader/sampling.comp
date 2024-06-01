@@ -6,26 +6,33 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 0, binding = 0, rgba32f) writeonly uniform image2D resultImage;
 
-layout(set = 0, binding = 1) buffer SamplingBuffer {
-  SamplingResult results[];
-} samplingBuffer;
+layout(set = 0, binding = 1) buffer SamplingFinalColorBuffer {
+  vec3 values[];
+} samplingFinalColorBuffer;
 
-layout(set = 0, binding = 2) buffer readonly IntegratorBuffer {
-  IntegratorResult results[];
-} integratorBuffer;
+layout(set = 0, binding = 2) buffer SamplingCountSampleBuffer {
+  uint values[];
+} samplingCountSampleBuffer;
+
+layout(set = 0, binding = 3) readonly buffer IntegratorTotalRadianceBuffer {
+  vec3 values[];
+} integratorTotalRadianceBuffer;
+
+layout(set = 0, binding = 4) readonly buffer RayBounceBuffer {
+  uint values[];
+} rayBounceBuffer;
 
 void main() {
   ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
   uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
 
-  if (result.rayBounce == 0u) {
-    SamplingResult samplingResult = samplingBuffer.results[bufferIndex];    
-    vec3 totalColor = (clamp(result.totalRadiance, 0.0f, 1.0f) + samplingResult.finalColor * samplingResult.countSample) / (samplingResult.countSample + 1.0f);
+  if (rayBounceBuffer.values[gl_GlobalInvocationID.x] == 0u) {
+    uint countSample = samplingCountSampleBuffer.values[gl_GlobalInvocationID.x];    
+    vec3 totalColor = (clamp(integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x], 0.0f, 1.0f) + samplingFinalColorBuffer.values[gl_GlobalInvocationID.x] * countSample) / (countSample + 1.0f);
 
-    samplingResult.finalColor = totalColor;
-    samplingResult.countSample++;
+    samplingFinalColorBuffer.values[gl_GlobalInvocationID.x] = totalColor;
+    samplingCountSampleBuffer.values[gl_GlobalInvocationID.x] = countSample + 1u;
 
-    samplingBuffer.results[bufferIndex] = samplingResult;
     imageStore(resultImage, pixelCoord, vec4(totalColor, 1.0f));
   }  
 }

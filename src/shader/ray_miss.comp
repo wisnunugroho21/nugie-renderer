@@ -14,24 +14,25 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
   uint numLight;
 } ubo;
 
-layout(set = 0, binding = 1) buffer writeonly MissBuffer {
-  MissResult results[];
-} missBuffer;
+layout(set = 0, binding = 1) buffer writeonly MissIsMissBuffer {
+  bool values[];
+} missIsMissBuffer;
 
-layout(set = 0, binding = 2) buffer readonly IntersectBuffer {
-  HitRecord hits[];
-} intersectBuffer;
+layout(set = 0, binding = 2) buffer writeonly MissRadianceBuffer {
+  vec3 values[];
+} missRadianceBuffer;
+
+layout(set = 0, binding = 3) buffer readonly IsHitBuffer {
+  bool values[];
+} isHitBuffer;
 
 void main() {
-  HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
+  bool isMiss = false;
 
-  MissResult missRecord;
-  missRecord.isMiss = false;
-
-  if (!hitRecord.isHit) {
-    missRecord.isMiss = true;
-    missRecord.radiance = vec3(0.0f);
+  if (!isHitBuffer.values[gl_GlobalInvocationID.x]) {
+    isMiss = true;
+    missRadianceBuffer.values[gl_GlobalInvocationID.x] = vec3(0.0f);
   }
 
-  missBuffer.results[gl_GlobalInvocationID.x] = missRecord;
+  missIsMissBuffer.values[gl_GlobalInvocationID.x] = isMiss;
 }

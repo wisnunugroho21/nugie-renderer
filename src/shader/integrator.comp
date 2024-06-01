@@ -52,22 +52,21 @@ layout(set = 0, binding = 11) buffer readonly DirectPdfBuffer {
   float values[];
 } directPdfBuffer;
 
-layout(set = 0, binding = 4) buffer readonly MissBuffer {
-  MissResult results[];
-} missBuffer;
+layout(set = 0, binding = 12) buffer readonly MissIsMissBuffer {
+  bool values[];
+} missIsMissBuffer;
+
+layout(set = 0, binding = 13) buffer readonly MissRadianceBuffer {
+  vec3 values[];
+} missRadianceBuffer;
 
 void main() {
   bool lightIsIlluminate = lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x];
   uint rayBounce = rayBounceBuffer.values[gl_GlobalInvocationID.x];
-
-  IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
-  LightResult lightResult = lightRayHitBuffer.results[gl_GlobalInvocationID.x];
-  DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
-  MissResult missResult = missBuffer.results[gl_GlobalInvocationID.x];
   
-  if (missResult.isMiss) {
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
-      ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * missResult.radiance 
+  if (missIsMissBuffer.values[gl_GlobalInvocationID.x]) {
+    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = (rayBounceBuffer.values[gl_GlobalInvocationID.x] > 0u) 
+      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] / integratorPdfBuffer.values[gl_GlobalInvocationID.x] * missRadianceBuffer.values[gl_GlobalInvocationID.x] 
       : vec3(100.0f);
 
     integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f);
@@ -75,9 +74,9 @@ void main() {
     rayBounce = 0;
   }
 
-  else if (lightResult.isIlluminate) {    
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
-      ? integratorResult.totalRadiance + integratorResult.totalIndirect * lightResult.radiance
+  else if (lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x]) {    
+    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = (rayBounceBuffer.values[gl_GlobalInvocationID.x] > 0u) 
+      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] * lightRadianceBuffer.values[gl_GlobalInvocationID.x]
       : vec3(1.0f);
 
     integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = vec3(1.0f);
@@ -85,23 +84,28 @@ void main() {
     rayBounce = 0;
   }
   
-  else {    
-    vec3 prevIndirect = integratorResult.totalIndirect / integratorResult.pdf;
-    float totalPdf = indirectResult.pdf + directResult.pdf;
+  else {
+    float indirectPdf = indirectPdfBuffer.values[gl_GlobalInvocationID.x];
+    float directPdf = directPdfBuffer.values[gl_GlobalInvocationID.x];
 
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
-      ? integratorResult.totalRadiance + directResult.radiance * (directResult.pdf / totalPdf) * prevIndirect
-      : directResult.radiance;
+    vec3 prevIndirect = integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] / integratorPdfBuffer.values[gl_GlobalInvocationID.x];
+    float totalPdf = indirectPdf + directPdf;
 
-    integratorResult.totalIndirect = (integratorResult.rayBounce > 0u)
-      ? indirectResult.radiance * (indirectResult.pdf / totalPdf) * prevIndirect
-      : indirectResult.radiance;    
+    vec3 curRadiance = (rayBounceBuffer.values[gl_GlobalInvocationID.x] > 0u) 
+      ? integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] + directRadianceBuffer.values[gl_GlobalInvocationID.x] * (directPdf / totalPdf) * prevIndirect
+      : directRadianceBuffer.values[gl_GlobalInvocationID.x];
 
-    integratorResult.rayBounce = (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) > 0.01f) 
-      ? integratorResult.rayBounce + 1u
+    vec3 curIndirect = (rayBounceBuffer.values[gl_GlobalInvocationID.x] > 0u)
+      ? indirectRadianceBuffer.values[gl_GlobalInvocationID.x] * (indirectPdf / totalPdf) * prevIndirect
+      : indirectRadianceBuffer.values[gl_GlobalInvocationID.x];    
+
+    rayBounceBuffer.values[gl_GlobalInvocationID.x] = (max(curIndirect.x, max(curIndirect.y, curIndirect.z)) > 0.01f) 
+      ? rayBounceBuffer.values[gl_GlobalInvocationID.x] + 1u
       : 0u;
-
-    integratorResult.pdf = indirectResult.pdf;   
+    
+    integratorTotalRadianceBuffer.values[gl_GlobalInvocationID.x] = curRadiance;
+    integratorTotalIndirectBuffer.values[gl_GlobalInvocationID.x] = curIndirect;
+    integratorPdfBuffer.values[gl_GlobalInvocationID.x] = indirectPdf;   
   }  
 
   rayBounceBuffer.values[gl_GlobalInvocationID.x] = rayBounce;
