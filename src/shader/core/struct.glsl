@@ -138,5 +138,5 @@ struct IntegratorResult {
 
 struct SamplingResult {
   vec3 finalColor;
-  uint countSample;
+  float countSample;
 };

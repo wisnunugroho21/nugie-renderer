@@ -93,8 +93,15 @@ namespace NugieApp {
 				VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0);
 		}
 
+		this->rayGenBuffer->initializeValue(prepareCommandBuffer);
+		this->rayIntersectBuffer->initializeValue(prepareCommandBuffer);
+		this->indirectRayHitBuffer->initializeValue(prepareCommandBuffer);
+		this->lightRayHitBuffer->initializeValue(prepareCommandBuffer);
+		this->missRayBuffer->initializeValue(prepareCommandBuffer);
+		this->directDataBuffer->initializeValue(prepareCommandBuffer);
+		this->directRayHitBuffer->initializeValue(prepareCommandBuffer);
 		this->integratorBuffer->initializeValue(prepareCommandBuffer);
-		this->samplingBuffer->initializeValue(prepareCommandBuffer);		
+		this->samplingBuffer->initializeValue(prepareCommandBuffer);	
 
 		prepareCommandBuffer->endCommand();
 
@@ -543,14 +550,14 @@ namespace NugieApp {
 
 		this->initCamera(width, height);
 
-		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		this->rayGenBuffer = new ManyArrayBuffer<Ray>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->rayIntersectBuffer = new ManyArrayBuffer<Hit>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->indirectRayHitBuffer = new ManyArrayBuffer<IndirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->lightRayHitBuffer = new ManyArrayBuffer<LightResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->missRayBuffer = new ManyArrayBuffer<MissResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->directDataBuffer = new ManyArrayBuffer<DirectData>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->directRayHitBuffer = new ManyArrayBuffer<DirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
+		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		this->rayGenBuffer = new ManyArrayBuffer<Ray>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->rayIntersectBuffer = new ManyArrayBuffer<Hit>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->indirectRayHitBuffer = new ManyArrayBuffer<IndirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->lightRayHitBuffer = new ManyArrayBuffer<LightResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->missRayBuffer = new ManyArrayBuffer<MissResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->directDataBuffer = new ManyArrayBuffer<DirectData>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->directRayHitBuffer = new ManyArrayBuffer<DirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
 		this->integratorBuffer = new ManyArrayBuffer<IntegratorResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
 		this->samplingBuffer = new ManyArrayBuffer<SamplingResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
 

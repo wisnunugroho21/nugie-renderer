@@ -25,7 +25,7 @@ void main() {
     vec3 totalColor = (clamp(result.totalRadiance, 0.0f, 1.0f) + samplingResult.finalColor * samplingResult.countSample) / (samplingResult.countSample + 1.0f);
 
     samplingResult.finalColor = totalColor;
-    samplingResult.countSample++;
+    samplingResult.countSample = (samplingResult.countSample + 1.0f < 0.0f) ? 0.0f : samplingResult.countSample + 1.0f;
 
     samplingBuffer.results[bufferIndex] = samplingResult;
     imageStore(resultImage, pixelCoord, vec4(totalColor, 1.0f));
