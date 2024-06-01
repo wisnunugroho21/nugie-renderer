@@ -11,7 +11,7 @@ namespace NugieApp {
 	template <typename T>
 	class ManyArrayBuffer {
 		public:
-			ManyArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u);
+			ManyArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u, bool isAlsoCreateStaging = true);
 			~ManyArrayBuffer();
 			
 			NugieVulkan::Buffer* getBuffer(uint32_t index) const { return this->buffers[index]; }
@@ -22,7 +22,9 @@ namespace NugieApp {
 			
 		private:
 			NugieVulkan::Device* device = nullptr;
+
 			uint32_t count;
+			bool isAlsoCreateStaging;
 
 			std::vector<NugieVulkan::Buffer*> stagingBuffers;
 			std::vector<NugieVulkan::Buffer*> buffers;
@@ -31,7 +33,7 @@ namespace NugieApp {
 	};
 
 	template <typename T>
-	ManyArrayBuffer<T>::ManyArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount) : device{device} {
+	ManyArrayBuffer<T>::ManyArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount, bool isAlsoCreateStaging) : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} {
 		this->createBuffers(usageFlags, instanceCount);
 	}
 
@@ -66,15 +68,6 @@ namespace NugieApp {
 		}
 
 		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			this->stagingBuffers.emplace_back(new NugieVulkan::Buffer(
-				this->device,
-				instanceSize,
-				instanceCount,
-				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VMA_MEMORY_USAGE_AUTO,
-				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
-			));
-
 			this->buffers.emplace_back(new NugieVulkan::Buffer(
 				this->device,
 				instanceSize,
@@ -84,12 +77,25 @@ namespace NugieApp {
 				VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
 			));
 
-			this->stagingBuffers[i]->map();
+			if (this->isAlsoCreateStaging) {
+				this->stagingBuffers.emplace_back(new NugieVulkan::Buffer(
+					this->device,
+					instanceSize,
+					instanceCount,
+					VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					VMA_MEMORY_USAGE_AUTO,
+					VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
+				));
+
+				this->stagingBuffers[i]->map();
+			}
 		}
 	}
 
 	template <typename T>
 	void ManyArrayBuffer<T>::replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects) {
+		assert(this->isAlsoCreateStaging && "staging buffer has not created yet!");
+		
 		this->count = static_cast<uint32_t>(objects.size());
 		auto bufferSize = static_cast<VkDeviceSize>(sizeof(T)) * static_cast<VkDeviceSize>(this->count);
 
