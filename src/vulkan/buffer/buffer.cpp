@@ -370,5 +370,7 @@ namespace NugieVulkan {
     );
   }
   
- 
+  void Buffer::fillBuffer(CommandBuffer* commandBuffer, uint32_t data, VkDeviceSize size, VkDeviceSize offset) {
+    vkCmdFillBuffer(commandBuffer->getCommandBuffer(), this->buffer, offset, size, data);
+  }
 }  // namespace lve

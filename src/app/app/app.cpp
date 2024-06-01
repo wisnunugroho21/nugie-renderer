@@ -93,6 +93,9 @@ namespace NugieApp {
 				VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0);
 		}
 
+		this->integratorBuffer->initializeValue(prepareCommandBuffer);
+		this->samplingBuffer->initializeValue(prepareCommandBuffer);		
+
 		prepareCommandBuffer->endCommand();
 
 		uint32_t imageCount = this->renderer->getSwapChain()->getImageCount();
@@ -548,8 +551,8 @@ namespace NugieApp {
 		this->missRayBuffer = new ManyArrayBuffer<MissResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
 		this->directDataBuffer = new ManyArrayBuffer<DirectData>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
 		this->directRayHitBuffer = new ManyArrayBuffer<DirectResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->integratorBuffer = new ManyArrayBuffer<IntegratorResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
-		this->samplingBuffer = new ManyArrayBuffer<SamplingResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, width * height, false);
+		this->integratorBuffer = new ManyArrayBuffer<IntegratorResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
+		this->samplingBuffer = new ManyArrayBuffer<SamplingResult>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, width * height, false);
 
 		std::vector<VkDescriptorImageInfo> resultImageInfos { NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT };
 		this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);

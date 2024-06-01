@@ -19,6 +19,7 @@ namespace NugieApp {
 			uint32_t size() const { return this->count; }
 
 			void replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects);
+			void initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value = 0u);
 			
 		private:
 			NugieVulkan::Device* device = nullptr;
@@ -47,7 +48,7 @@ namespace NugieApp {
 	void ArrayBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
-		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT))) {
+		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT)) && this->isAlsoCreateStaging) {
 			usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		}
 
@@ -83,5 +84,10 @@ namespace NugieApp {
 		
 		this->stagingBuffer->writeToBuffer((void *) objects.data(), bufferSize);
 		this->buffer->copyFromAnotherBuffer(commandBuffer, this->stagingBuffer, bufferSize);
+	}
+
+	template <typename T>
+	void ArrayBuffer<T>::initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value) {
+		this->buffers->fillBuffer(commandBuffer, value);
 	}
 } // namespace NugieApp

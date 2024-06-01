@@ -19,6 +19,7 @@ namespace NugieApp {
 			uint32_t size() const { return this->count; }
 
 			void replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects);
+			void initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value = 0u);
 			
 		private:
 			NugieVulkan::Device* device = nullptr;
@@ -29,7 +30,7 @@ namespace NugieApp {
 			std::vector<NugieVulkan::Buffer*> stagingBuffers;
 			std::vector<NugieVulkan::Buffer*> buffers;
 
-			void createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount);
+			void createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount);			
 	};
 
 	template <typename T>
@@ -63,7 +64,7 @@ namespace NugieApp {
 	void ManyArrayBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
-		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT))) {
+		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT)) && this->isAlsoCreateStaging) {
 			usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		}
 
@@ -102,6 +103,13 @@ namespace NugieApp {
 		for (size_t i = 0; i < this->buffers.size(); i++) {
 			this->stagingBuffers[i]->writeToBuffer((void *) objects.data(), bufferSize);
 			this->buffers[i]->copyFromAnotherBuffer(commandBuffer, this->stagingBuffers[i], bufferSize);
+		}
+	}
+
+	template <typename T>
+	void ManyArrayBuffer<T>::initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value) {
+		for (size_t i = 0; i < this->buffers.size(); i++) {
+			this->buffers[i]->fillBuffer(commandBuffer, value);
 		}
 	}
 } // namespace NugieApp
