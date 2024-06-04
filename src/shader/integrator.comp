@@ -32,23 +32,23 @@ void main() {
   DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
   MissResult missResult = missBuffer.results[gl_GlobalInvocationID.x];
   
-  if (missResult.isMiss) {
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
+  if (missResult.isMiss > 0.5f) {
+    integratorResult.totalRadiance = (integratorResult.isRayBounce > 0.5f) 
       ? integratorResult.totalRadiance + integratorResult.totalIndirect / integratorResult.pdf * missResult.radiance 
       : vec3(100.0f);
 
     integratorResult.totalIndirect = vec3(1.0f);
-    integratorResult.rayBounce = 0;
+    integratorResult.isRayBounce = 0.0f;
     integratorResult.pdf = 1.0f;
   }
 
-  else if (lightResult.isIlluminate) {    
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
+  else if (lightResult.isIlluminate > 0.5f) {    
+    integratorResult.totalRadiance = (integratorResult.isRayBounce > 0.5f) 
       ? integratorResult.totalRadiance + integratorResult.totalIndirect * lightResult.radiance
       : vec3(1.0f);
 
     integratorResult.totalIndirect = vec3(1.0f);
-    integratorResult.rayBounce = 0;
+    integratorResult.isRayBounce = 0.0f;
     integratorResult.pdf = 1.0f;
   }
   
@@ -56,20 +56,20 @@ void main() {
     vec3 prevIndirect = integratorResult.totalIndirect / integratorResult.pdf;
     float totalPdf = indirectResult.pdf + directResult.pdf;
 
-    integratorResult.totalRadiance = (integratorResult.rayBounce > 0u) 
+    integratorResult.totalRadiance = (integratorResult.isRayBounce > 0.5f) 
       ? integratorResult.totalRadiance + directResult.radiance * (directResult.pdf / totalPdf) * prevIndirect
       : directResult.radiance;
 
-    integratorResult.totalIndirect = (integratorResult.rayBounce > 0u)
+    integratorResult.totalIndirect = (integratorResult.isRayBounce > 0.5f)
       ? indirectResult.radiance * (indirectResult.pdf / totalPdf) * prevIndirect
       : indirectResult.radiance;    
 
-    integratorResult.rayBounce = (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) > 0.01f) 
-      ? integratorResult.rayBounce + 1u
-      : 0u;
+    integratorResult.isRayBounce = (max(integratorResult.totalIndirect.x, max(integratorResult.totalIndirect.y, integratorResult.totalIndirect.z)) > 0.1f) 
+      ? 1.0f
+      : 0.0f;
 
     integratorResult.pdf = indirectResult.pdf;   
-  }  
+  }
 
   integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
 }

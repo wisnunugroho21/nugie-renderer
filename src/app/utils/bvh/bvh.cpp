@@ -23,11 +23,14 @@ namespace NugieApp {
     return longest;
   }
 
-  uint32_t Aabb::randomAxis() {
-    return rand() % 3;
+  Aabb TriangleBoundBox::boundingBox() {
+    return Aabb { 
+      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexIndexes.x].position, this->vertices[this->triangle.vertexIndexes.y].position), this->vertices[this->triangle.vertexIndexes.z].position)) - eps,
+      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexIndexes.x].position, this->vertices[this->triangle.vertexIndexes.y].position), this->vertices[this->triangle.vertexIndexes.z].position)) + eps
+    };
   }
 
-  Aabb TriangleBoundBox::boundingBox() {
+  Aabb TriangleLightBoundBox::boundingBox() {
     return Aabb { 
       glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexIndexes.x].position, this->vertices[this->triangle.vertexIndexes.y].position), this->vertices[this->triangle.vertexIndexes.z].position)) - eps,
       glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexIndexes.x].position, this->vertices[this->triangle.vertexIndexes.y].position), this->vertices[this->triangle.vertexIndexes.z].position)) + eps

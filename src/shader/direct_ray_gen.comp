@@ -87,12 +87,12 @@ void main() {
   Ray newRay;
   newRay.direction = vec3(0.0f);  
 
-  if (data.isIlluminate) {
+  if (data.isIlluminate > 0.5f) {
     uint lightIndex = randomUint(0u, ubo.numLight - 1u, 0u);
     vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
     newRay.origin = data.origin;
-    newRay.direction = normalize(target - data.origin);
+    newRay.direction = normalize(target - newRay.origin);
   }  
   
   rayGenBuffer.rays[gl_GlobalInvocationID.x] = newRay;

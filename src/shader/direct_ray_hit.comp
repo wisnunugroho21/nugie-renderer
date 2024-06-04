@@ -42,47 +42,6 @@ layout(set = 0, binding = 7) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
-// ------------- Basic -------------
-
-vec3[3] buildOnb(vec3 normal) {
-  vec3 a = abs(normalize(normal).x) > 0.9 ? vec3(0.0f, 1.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
-
-  vec3 z = normalize(normal);
-  vec3 y = normalize(cross(z, a));
-  vec3 x = cross(z, y);
-
-  return vec3[3](x, y, z);
-}
-
-// ------------- Random ------------- 
-
-// Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
-uint stepRNG(uint rngState) {
-  return rngState * 747796405 + 1;
-}
-
-// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
-float stepAndOutputRNGFloat(inout uint rngState) {
-  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
-  rngState  = stepRNG(rngState);
-  uint word = ((rngState >> ((rngState >> 28u) + 4u)) ^ rngState) * 277803737u;
-  word      = (word >> 22u) ^ word;
-  return float(word) / 4294967295.0f;
-}
-
-float randomFloat(uint additionalRandomSeed) {
-  uint rngState =  (gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
-  return stepAndOutputRNGFloat(rngState);
-}
-
-float randomFloatAt(float min, float max, uint additionalRandomSeed) {
-  return min + (max - min) * randomFloat(additionalRandomSeed);
-}
-
-uint randomUint(uint min, uint max, uint additionalRandomSeed) {
-  return uint(randomFloatAt(min, max + 1, additionalRandomSeed));
-}
-
 // ------------- Lambert -------------
 
 float lambertPdfValue(float NoL) {
@@ -91,27 +50,6 @@ float lambertPdfValue(float NoL) {
 
 float lambertBrdfValue() {
   return 1.0f / PI;
-}
-
-vec3 randomCosineDirection(uint additionalRandomSeed) {
-  float r1 = randomFloat(additionalRandomSeed);
-  float r2 = randomFloat(additionalRandomSeed + 1);
-
-  float cosTheta = sqrt(r1);
-  float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
-  
-  float phi = 2 * PI * r2;
-
-  float x = cos(phi) * sinTheta;
-  float y = sin(phi) * sinTheta;
-  float z = cosTheta;
-
-  return vec3(x, y, z);
-}
-
-vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
-  vec3 source = randomCosineDirection(additionalRandomSeed);
-  return source.x * globalOnb[0] + source.y * globalOnb[1] + source.z * globalOnb[2];
 }
 
 // ------------- Triangle -------------
@@ -144,14 +82,14 @@ void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
   DirectResult finalResult;
-  finalResult.isIlluminate = false;
+  finalResult.isIlluminate = 0.0f;
   finalResult.radiance = vec3(0.0f);
   finalResult.pdf = 0.0f;  
 
-  if (hitRecord.isHit && hitRecord.hitTypeIndex == 2u) {
+  DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
+
+  if (directData.isIlluminate > 0.5f && hitRecord.isHit > 0.5f && hitRecord.hitTypeIndex == 1u) {
     Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
-    
-    DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
     Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
     vec3 hittedLightNormal = triangleNormal(hittedLight, ray);
@@ -164,7 +102,7 @@ void main() {
     float area = triangleArea(hittedLight);
     float pdf = lambertPdfValue(NoL);
 
-    finalResult.isIlluminate = true;
+    finalResult.isIlluminate = 1.0f;
     finalResult.radiance = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
     finalResult.pdf = pdf;
   }  

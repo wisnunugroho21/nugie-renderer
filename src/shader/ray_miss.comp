@@ -26,10 +26,10 @@ void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
   MissResult missRecord;
-  missRecord.isMiss = false;
+  missRecord.isMiss = 0.0f;
 
-  if (!hitRecord.isHit) {
-    missRecord.isMiss = true;
+  if (hitRecord.isHit < 0.5f) {
+    missRecord.isMiss = 1.0f;
     missRecord.radiance = vec3(0.0f);
   }
 

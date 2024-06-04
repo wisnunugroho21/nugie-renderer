@@ -20,7 +20,7 @@ void main() {
   
   IntegratorResult result = integratorBuffer.results[bufferIndex];
 
-  if (result.rayBounce == 0u) {
+  if (result.isRayBounce < 0.5f) {
     SamplingResult samplingResult = samplingBuffer.results[bufferIndex];    
     vec3 totalColor = (clamp(result.totalRadiance, 0.0f, 1.0f) + samplingResult.finalColor * samplingResult.countSample) / (samplingResult.countSample + 1.0f);
 

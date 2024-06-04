@@ -33,7 +33,7 @@ void main() {
   
   vec3 initialRayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
 
-  rayGenBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].rayBounce > 0u 
+  rayGenBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].isRayBounce > 0.5f
     ? indirectHitBuffer.results[bufferIndex].nextRay 
     : Ray(ubo.origin, normalize(initialRayDirection));
 }

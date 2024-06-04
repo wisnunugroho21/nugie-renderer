@@ -84,17 +84,15 @@ struct Ray {
 };
 
 struct HitRecord {
-  bool isHit;  
+  float isHit;
+  float t;  
 
   uint hitIndex;
   uint hitTypeIndex;
-  
-  float t;
-  vec2 uv;
 };
 
 struct IndirectResult {
-  bool isScattered;
+  float isScattered;
 
   vec3 radiance;
   float pdf;
@@ -103,12 +101,12 @@ struct IndirectResult {
 };
 
 struct LightResult {
-  bool isIlluminate;
+  float isIlluminate;
   vec3 radiance;
 };
 
 struct DirectData {
-  bool isIlluminate;
+  float isIlluminate;
 
   vec3 normal;
   vec3 origin;
@@ -117,14 +115,14 @@ struct DirectData {
 };
 
 struct DirectResult {
-  bool isIlluminate;
+  float isIlluminate;
 
   vec3 radiance;
   float pdf;
 };
 
 struct MissResult {
-  bool isMiss;
+  float isMiss;
   vec3 radiance;
 };
 
@@ -133,7 +131,7 @@ struct IntegratorResult {
   vec3 totalIndirect;
 
   float pdf;
-  uint rayBounce;
+  float isRayBounce;
 };
 
 struct SamplingResult {

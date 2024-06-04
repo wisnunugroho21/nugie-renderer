@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <stack>
 
-#define SPLIT_NUMBER 12
+#define SPLIT_NUMBER 4
 
 namespace NugieApp {
   const glm::vec3 eps(0.00001f);
@@ -49,7 +49,7 @@ namespace NugieApp {
   class TriangleBoundBox : public BoundBox {   
     public:
       TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {
-        this->typeIndex = 1u;
+        this->typeIndex = 8u;
       }
 
       Aabb boundingBox();
@@ -59,11 +59,17 @@ namespace NugieApp {
       std::vector<Vertex> vertices;
   };
 
-  class TriangleLightBoundBox : public TriangleBoundBox {
+  class TriangleLightBoundBox : public BoundBox {   
     public:
-      TriangleLightBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : TriangleBoundBox(i, t, v) {
-        this->typeIndex = 2u;
+      TriangleLightBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t}, vertices{v} {
+        this->typeIndex = 1u;
       }
+
+      Aabb boundingBox();
+
+    private:
+      Triangle triangle;
+      std::vector<Vertex> vertices;
   };
 
   class ObjectBoundBox : public BoundBox {
