@@ -3,8 +3,8 @@
 #define RECIPROCAL_PI 0.3183098861837907
 #define RECIPROCAL_2PI 0.15915494309189535
 #define PI 3.14159265359
-#define FLT_MAX 3.402823e+38
-#define FLT_MIN 1.175494e-38
+#define FLT_MAX 3.0e+38
+#define FLT_MIN 1.0-38
 #define K_EPSILON 1e-8
 
 struct Sphere {
