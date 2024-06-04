@@ -82,6 +82,11 @@ namespace NugieApp {
 		if (this->lightRadianceBuffer != nullptr) delete this->lightRadianceBuffer;
 		if (this->missIsMissBuffer != nullptr) delete this->missIsMissBuffer;
 		if (this->missRadianceBuffer != nullptr) delete this->missRadianceBuffer;
+		if (this->integratorTotalRadianceBuffer != nullptr) delete this->integratorTotalRadianceBuffer;
+		if (this->integratorTotalIndirectBuffer != nullptr) delete this->integratorTotalIndirectBuffer;
+		if (this->integratorPdfBuffer != nullptr) delete this->integratorPdfBuffer;
+		if (this->samplingFinalColorBuffer != nullptr) delete this->samplingFinalColorBuffer;
+		if (this->samplingCountSampleBuffer != nullptr) delete this->samplingCountSampleBuffer;
 
 		if (this->rayTraceUniformBuffer != nullptr) delete this->rayTraceUniformBuffer;
 
