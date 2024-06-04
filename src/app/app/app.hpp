@@ -71,15 +71,32 @@ namespace NugieApp {
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
-			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
-			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;
-			ManyArrayBuffer<DirectData>* directDataBuffer = nullptr;
-			ManyArrayBuffer<DirectResult>* directRayHitBuffer = nullptr;			
-			ManyArrayBuffer<IndirectResult>* indirectRayHitBuffer = nullptr;
-			ManyArrayBuffer<LightResult>* lightRayHitBuffer = nullptr;
-			ManyArrayBuffer<MissResult>* missRayBuffer = nullptr;
-			ManyArrayBuffer<IntegratorResult>* integratorBuffer = nullptr;
-			ManyArrayBuffer<SamplingResult>* samplingBuffer = nullptr;
+
+			ManyArrayBuffer<Ray>* currentRayBuffer = nullptr;
+			ManyArrayBuffer<uint32_t>* rayBounceBuffer = nullptr;
+			ManyArrayBuffer<bool>* isHitBuffer = nullptr;
+			ManyArrayBuffer<float>* hitLengthBuffer = nullptr;
+			ManyArrayBuffer<uint32_t>* hitIndexBuffer = nullptr;
+			ManyArrayBuffer<uint32_t>* hitTypeIndexBuffer = nullptr;
+			ManyArrayBuffer<bool>* indirectIsScatteredBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* indirectRadianceBuffer = nullptr;
+			ManyArrayBuffer<float>* indirectPdfBuffer = nullptr;
+			ManyArrayBuffer<Ray>* scatteredRayBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* indirectNormalBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* indirectHitPositionBuffer = nullptr;
+			ManyArrayBuffer<uint32_t>* indirectMaterialIndexBuffer = nullptr;
+			ManyArrayBuffer<bool>* directIsIlluminateBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* directRadianceBuffer = nullptr;
+			ManyArrayBuffer<float>* directPdfBuffer = nullptr;
+			ManyArrayBuffer<bool>* lightIsIlluminateBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* lightRadianceBuffer = nullptr;
+			ManyArrayBuffer<bool>* missIsMissBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* missRadianceBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* integratorTotalRadianceBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* integratorTotalIndirectBuffer = nullptr;
+			ManyArrayBuffer<float>* integratorPdfBuffer = nullptr;
+			ManyArrayBuffer<glm::vec4>* samplingFinalColorBuffer = nullptr;
+			ManyArrayBuffer<uint32_t>* samplingCountSampleBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 			

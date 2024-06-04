@@ -29,8 +29,8 @@ namespace NugieApp {
 
   Aabb TriangleBoundBox::boundingBox() {
     return Aabb { 
-      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexIndexes.x].position, this->vertices[this->triangle.vertexIndexes.y].position), this->vertices[this->triangle.vertexIndexes.z].position)) - eps,
-      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexIndexes.x].position, this->vertices[this->triangle.vertexIndexes.y].position), this->vertices[this->triangle.vertexIndexes.z].position)) + eps
+      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)) - eps,
+      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)) + eps
     };
   }
 
@@ -82,9 +82,9 @@ namespace NugieApp {
   float ObjectBoundBox::findMax(uint32_t index) {
     float max = FLT_MIN;
     for (auto &&triangle : this->triangles) {
-      if (this->vertices[triangle.vertexIndexes.x].position[index] > max) max = this->vertices[triangle.vertexIndexes.x].position[index];
-      if (this->vertices[triangle.vertexIndexes.y].position[index] > max) max = this->vertices[triangle.vertexIndexes.y].position[index];
-      if (this->vertices[triangle.vertexIndexes.z].position[index] > max) max = this->vertices[triangle.vertexIndexes.z].position[index];
+      if (this->vertices[triangle.vertexMaterialIndexes.x].position[index] > max) max = this->vertices[triangle.vertexMaterialIndexes.x].position[index];
+      if (this->vertices[triangle.vertexMaterialIndexes.y].position[index] > max) max = this->vertices[triangle.vertexMaterialIndexes.y].position[index];
+      if (this->vertices[triangle.vertexMaterialIndexes.z].position[index] > max) max = this->vertices[triangle.vertexMaterialIndexes.z].position[index];
     }
 
     return max;
@@ -93,9 +93,9 @@ namespace NugieApp {
   float ObjectBoundBox::findMin(uint32_t index) {
     float min = FLT_MAX;
     for (auto &&triangle : this->triangles) {
-      if (this->vertices[triangle.vertexIndexes.x].position[index] < min) min = this->vertices[triangle.vertexIndexes.x].position[index];
-      if (this->vertices[triangle.vertexIndexes.y].position[index] < min) min = this->vertices[triangle.vertexIndexes.y].position[index];
-      if (this->vertices[triangle.vertexIndexes.z].position[index] < min) min = this->vertices[triangle.vertexIndexes.z].position[index];
+      if (this->vertices[triangle.vertexMaterialIndexes.x].position[index] < min) min = this->vertices[triangle.vertexMaterialIndexes.x].position[index];
+      if (this->vertices[triangle.vertexMaterialIndexes.y].position[index] < min) min = this->vertices[triangle.vertexMaterialIndexes.y].position[index];
+      if (this->vertices[triangle.vertexMaterialIndexes.z].position[index] < min) min = this->vertices[triangle.vertexMaterialIndexes.z].position[index];
     }
 
     return min;
@@ -105,19 +105,19 @@ namespace NugieApp {
     bool leaf = leftNodeIndex == 0 && rightNodeIndex == 0;
 
     BvhNode node{};
-    node.minimum = box.min;
-    node.maximum = box.max;      
+    node.minimum = glm::vec4{ box.min, 1.0f};
+    node.maximum = glm::vec4{ box.max, 1.0f};      
 
     if (leaf) {
       if (objects.empty()) {
         return node;
       }
-      
-      node.objIndex = objects[0]->getIndex();
-      node.typeIndex = objects[0]->getTypeIndex();
+
+      node.leftRightNodeObjTypeIndex.z = objects[0]->getIndex();
+      node.leftRightNodeObjTypeIndex.w = objects[0]->getTypeIndex();
     } else {
-      node.leftNode = leftNodeIndex;
-      node.rightNode = rightNodeIndex;
+      node.leftRightNodeObjTypeIndex.x = leftNodeIndex;
+      node.leftRightNodeObjTypeIndex.y = rightNodeIndex;
     }
 
     return node;

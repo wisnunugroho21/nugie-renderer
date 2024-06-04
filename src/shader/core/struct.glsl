@@ -7,46 +7,23 @@
 #define FLT_MIN 1.175494e-38
 #define K_EPSILON 1e-8
 
-struct Sphere {
-  vec4 centerRadius;
-};
-
 struct Vertex {
-  vec3 position;
-  vec3 normal;
-  vec2 textCoord;
-};
-
-struct NormText {    
+  vec4 position;
   vec4 normal;
-  vec2 textCoord;
 };
 
 struct Triangle {
-  uvec3 vertexIndexes;
-  uint materialIndex;
-};
-
-struct Reference {
-  uint materialIndex;
-  uint transformIndex;
+  uvec4 vertexMaterialIndexes;
 };
 
 struct Object {
-  uint firstBvhIndex;
-  uint firstGeometryIndex;
-  uint transformIndex;
+  uvec4 firstBvhGeometryTransformIndex;
 };
 
 struct BvhNode {
-  uint leftNode;
-  uint rightNode;
-
-  uint objIndex;
-  uint typeIndex;
-
-  vec3 maximum;
-  vec3 minimum;
+  uvec4 leftRightNodeObjTypeIndex;
+  vec4 maximum;
+  vec4 minimum;
 };
 
 struct Material {
@@ -61,82 +38,7 @@ struct Transformation {
   mat4 normalMatrix;
 };
 
-struct PointLight {
-  vec4 position;
-  vec4 color;
-};
-
-struct SpotLight {
-  vec4 position;
-  vec4 color;
-  vec4 direction;
-  float angle;
-};
-
-struct SunLight {
-  vec4 color;
-  vec4 direction;
-};
-
 struct Ray {
-  vec3 origin;
-  vec3 direction;
-};
-
-struct HitRecord {
-  bool isHit;  
-
-  uint hitIndex;
-  uint hitTypeIndex;
-  
-  float t;
-  vec2 uv;
-};
-
-struct IndirectResult {
-  bool isScattered;
-
-  vec3 radiance;
-  float pdf;
-
-  Ray nextRay;
-};
-
-struct LightResult {
-  bool isIlluminate;
-  vec3 radiance;
-};
-
-struct DirectData {
-  bool isIlluminate;
-
-  vec3 normal;
-  vec3 origin;
-
-  uint materialIndex;
-};
-
-struct DirectResult {
-  bool isIlluminate;
-
-  vec3 radiance;
-  float pdf;
-};
-
-struct MissResult {
-  bool isMiss;
-  vec3 radiance;
-};
-
-struct IntegratorResult {
-  vec3 totalRadiance;
-  vec3 totalIndirect;
-
-  float pdf;
-  uint rayBounce;
-};
-
-struct SamplingResult {
-  vec3 finalColor;
-  uint countSample;
+  vec4 origin;
+  vec4 direction;
 };

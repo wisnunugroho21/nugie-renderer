@@ -5,13 +5,11 @@
 layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0) uniform readonly GlobalUniform {
-  vec3 origin;
-  vec3 horizontal;
-  vec3 vertical;
-  vec3 lowerLeftCorner;
-  uvec2 imgSize;
-  uint randomSeed;
-  uint numLight;
+  vec4 origin;
+  vec4 horizontal;
+  vec4 vertical;
+  vec4 lowerLeftCorner;
+  uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
 layout(set = 0, binding = 1) buffer writeonly LightIsIlluminateBuffer {
@@ -19,7 +17,7 @@ layout(set = 0, binding = 1) buffer writeonly LightIsIlluminateBuffer {
 } lightIsIlluminateBuffer;
 
 layout(set = 0, binding = 2) buffer writeonly LightRadianceBuffer {
-  vec3 values[];
+  vec4 values[];
 } lightRadianceBuffer;
 
 layout(set = 0, binding = 3) buffer readonly CurrentRayBuffer {
@@ -34,58 +32,46 @@ layout(set = 0, binding = 5) buffer readonly HitLengthBuffer {
   float values[];
 } hitLengthBuffer;
 
-layout(set = 0, binding = 6) buffer readonly HitUVBuffer {
-  vec2 values[];
-} hitUVBuffer;
-
-layout(set = 0, binding = 7) buffer readonly HitIndexBuffer {
+layout(set = 0, binding = 6) buffer readonly HitIndexBuffer {
   uint values[];
 } hitIndexBuffer;
 
-layout(set = 0, binding = 8) buffer readonly HitTypeIndexBuffer {
+layout(set = 0, binding = 7) buffer readonly HitTypeIndexBuffer {
   uint values[];
 } hitTypeIndexBuffer;
 
-layout(set = 0, binding = 9) buffer readonly TriangleLightBuffer {
+layout(set = 0, binding = 8) buffer readonly TriangleLightBuffer {
   Triangle triangles[];
 } triangleLightBuffer;
 
-layout(set = 0, binding = 10) buffer readonly VertexBuffer {
+layout(set = 0, binding = 9) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
-
-// ------------- Basic -------------
-
-vec3 getPosition(Triangle triangle, vec2 uv) {
-  return (1.0f - uv.x - uv.y) * vertexBuffer.vertices[triangle.vertexIndexes.x].position + 
-    uv.x * vertexBuffer.vertices[triangle.vertexIndexes.y].position + 
-    uv.y * vertexBuffer.vertices[triangle.vertexIndexes.z].position;
-}
 
 // ------------- Triangle -------------
 
 float triangleArea(Triangle triangle) {
-  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-  vec3 v0v1 = vertex1.position - vertex0.position;
-  vec3 v0v2 = vertex2.position - vertex0.position;
+  vec3 v0v1 = vertex1.position.xyz - vertex0.position.xyz;
+  vec3 v0v2 = vertex2.position.xyz - vertex0.position.xyz;
 
   vec3 pvec = cross(v0v1, v0v2);
   return 0.5 * sqrt(dot(pvec, pvec)); 
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
-  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-  vec3 v0v1 = vertex1.position - vertex0.position;
-  vec3 v0v2 = vertex2.position - vertex0.position;
+  vec3 v0v1 = vertex1.position.xyz - vertex0.position.xyz;
+  vec3 v0v2 = vertex2.position.xyz - vertex0.position.xyz;
   
   vec3 outwardNormal = normalize(cross(v0v1, v0v2));
-  return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+  return dot(r.direction.xyz, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
 void main() {
@@ -98,10 +84,10 @@ void main() {
     float dst = hitLengthBuffer.values[gl_GlobalInvocationID.x];
 
     float squareDistance = max(dst * dst, 0.001f);
-    float NloL = max(dot(triangleNormal(hittedLight, ray), -1.0f * ray.direction), 0.001f);
+    float NloL = max(dot(triangleNormal(hittedLight, ray), -1.0f * ray.direction.xyz), 0.001f);
     float area = triangleArea(hittedLight);
 
-    lightRadianceBuffer.values[gl_GlobalInvocationID.x] =  vec3(100.0f) * NloL * area / squareDistance;
+    lightRadianceBuffer.values[gl_GlobalInvocationID.x] = vec4(vec3(100.0f) * NloL * area / squareDistance, 1.0f);
   }  
 
   lightIsIlluminateBuffer.values[gl_GlobalInvocationID.x] = isIlluminate;

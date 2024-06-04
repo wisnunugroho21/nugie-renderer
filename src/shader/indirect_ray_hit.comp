@@ -5,13 +5,11 @@
 layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0) uniform readonly GlobalUniform {
-  vec3 origin;
-  vec3 horizontal;
-  vec3 vertical;
-  vec3 lowerLeftCorner;
-  uvec2 imgSize;
-  uint randomSeed;
-  uint numLight;
+  vec4 origin;
+  vec4 horizontal;
+  vec4 vertical;
+  vec4 lowerLeftCorner;
+  uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
 layout(set = 0, binding = 1) buffer writeonly IndirectIsScatteredBuffer {
@@ -19,7 +17,7 @@ layout(set = 0, binding = 1) buffer writeonly IndirectIsScatteredBuffer {
 } indirectIsScatteredBuffer;
 
 layout(set = 0, binding = 2) buffer writeonly IndirectRadianceBuffer {
-  vec3 values[];
+  vec4 values[];
 } indirectRadianceBuffer;
 
 layout(set = 0, binding = 3) buffer writeonly IndirectPdfBuffer {
@@ -31,11 +29,11 @@ layout(set = 0, binding = 4) buffer writeonly ScatteredRayBuffer {
 } scatteredRayBuffer;
 
 layout(set = 0, binding = 5) buffer writeonly IndirectNormalBuffer {
-  vec3 values[];
+  vec4 values[];
 } indirectNormalBuffer;
 
 layout(set = 0, binding = 6) buffer writeonly IndirectHitPositionBuffer {
-  vec3 values[];
+  vec4 values[];
 } indirectHitPositionBuffer;
 
 layout(set = 0, binding = 7) buffer writeonly IndirectMaterialIndexBuffer {
@@ -54,27 +52,23 @@ layout(set = 0, binding = 10) buffer readonly HitLengthBuffer {
   float values[];
 } hitLengthBuffer;
 
-layout(set = 0, binding = 11) buffer readonly HitUVBuffer {
-  vec2 values[];
-} hitUVBuffer;
-
-layout(set = 0, binding = 12) buffer readonly HitIndexBuffer {
+layout(set = 0, binding = 11) buffer readonly HitIndexBuffer {
   uint values[];
 } hitIndexBuffer;
 
-layout(set = 0, binding = 13) buffer readonly HitTypeIndexBuffer {
+layout(set = 0, binding = 12) buffer readonly HitTypeIndexBuffer {
   uint values[];
 } hitTypeIndexBuffer;
 
-layout(set = 0, binding = 14) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 13) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 15) buffer readonly VertexBuffer {
+layout(set = 0, binding = 14) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 16) buffer readonly MaterialBuffer {
+layout(set = 0, binding = 15) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
@@ -107,7 +101,7 @@ float stepAndOutputRNGFloat(inout uint rngState) {
 }
 
 float randomFloat(uint additionalRandomSeed) {
-  uint rngState =  (gl_GlobalInvocationID.x) * (ubo.randomSeed + 1 + additionalRandomSeed);
+  uint rngState =  (gl_GlobalInvocationID.x) * (ubo.imgSizeRandomSeedNumLight.z + 1 + additionalRandomSeed);
   return stepAndOutputRNGFloat(rngState);
 }
 
@@ -153,12 +147,12 @@ vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
 // ------------- Triangle -------------
 
 vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-  vec3 v0v1 = vectex2.position - vectex1.position;
-  vec3 v0v2 = vectex3.position - vectex1.position;
+  vec3 v0v1 = vectex2.position.xyz - vectex1.position.xyz;
+  vec3 v0v2 = vectex3.position.xyz - vectex1.position.xyz;
 
   float u1 = randomFloat(additionalRandomSeed);
   float u2 = randomFloat(additionalRandomSeed + 1);
@@ -168,20 +162,20 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
     u2 = 1 - u2;
   }
 
-  vec3 randomTriangle = u1 * v0v1 + u2 * v0v2 + vectex1.position;
+  vec3 randomTriangle = u1 * v0v1 + u2 * v0v2 + vectex1.position.xyz;
   return randomTriangle;
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-  vec3 v0v1 = vectex2.position - vectex1.position;
-  vec3 v0v2 = vectex3.position - vectex1.position;
+  vec3 v0v1 = vectex2.position.xyz - vectex1.position.xyz;
+  vec3 v0v2 = vectex3.position.xyz - vectex1.position.xyz;
   
   vec3 outwardNormal = normalize(cross(v0v1, v0v2));
-  return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+  return dot(r.direction.xyz, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
 void main() {
@@ -191,25 +185,25 @@ void main() {
     Triangle hittedTriangle = triangleBuffer.triangles[hitIndexBuffer.values[gl_GlobalInvocationID.x]];
     Ray ray = currentRayBuffer.values[gl_GlobalInvocationID.x];
 
-    vec3 hittedPosition = ray.origin + ray.direction * hitLengthBuffer.values[gl_GlobalInvocationID.x];
+    vec3 hittedPosition = ray.origin.xyz + ray.direction.xyz * hitLengthBuffer.values[gl_GlobalInvocationID.x];
     vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
 
-    vec3 target = lambertRandomDirection(buildOnb(triangleNormal(hittedTriangle, ray)), 0u);
-    Ray nextRay = Ray(hittedPosition, normalize(target - hittedPosition));
+    vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
+    Ray nextRay = Ray(vec4(hittedPosition, 1.0f), vec4(normalize(target - hittedPosition), 1.0f));
 
-    float NoL = max(dot(hittedNormal, nextRay.direction), 0.001f);
+    float NoL = max(dot(hittedNormal, nextRay.direction.xyz), 0.001f);
     float brdf = lambertBrdfValue();
     float pdf = lambertPdfValue(NoL);
 
     isScattered = true;
 
-    indirectRadianceBuffer.values[gl_GlobalInvocationID.x] = materialBuffer.materials[hittedTriangle.materialIndex].baseColor.xyz * brdf * NoL;
+    indirectRadianceBuffer.values[gl_GlobalInvocationID.x] = vec4(materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz * brdf * NoL, 1.0f);
     indirectPdfBuffer.values[gl_GlobalInvocationID.x] = pdf;
     scatteredRayBuffer.values[gl_GlobalInvocationID.x] = nextRay;
     
-    indirectNormalBuffer.values[gl_GlobalInvocationID.x] = hittedNormal;
-    indirectHitPositionBuffer.values[gl_GlobalInvocationID.x] = hittedPosition;
-    indirectMaterialIndexBuffer.values[gl_GlobalInvocationID.x] = hittedTriangle.materialIndex;
+    indirectNormalBuffer.values[gl_GlobalInvocationID.x] = vec4(hittedNormal, 1.0f);
+    indirectHitPositionBuffer.values[gl_GlobalInvocationID.x] = vec4(hittedPosition, 1.0f);
+    indirectMaterialIndexBuffer.values[gl_GlobalInvocationID.x] = hittedTriangle.vertexMaterialIndexes.w;
   }
 
   indirectIsScatteredBuffer.values[gl_GlobalInvocationID.x] = isScattered;

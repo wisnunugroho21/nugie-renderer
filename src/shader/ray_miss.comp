@@ -5,13 +5,11 @@
 layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0) uniform readonly GlobalUniform {
-  vec3 origin;
-  vec3 horizontal;
-  vec3 vertical;
-  vec3 lowerLeftCorner;
-  uvec2 imgSize;
-  uint randomSeed;
-  uint numLight;
+  vec4 origin;
+  vec4 horizontal;
+  vec4 vertical;
+  vec4 lowerLeftCorner;
+  uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
 layout(set = 0, binding = 1) buffer writeonly MissIsMissBuffer {
@@ -19,7 +17,7 @@ layout(set = 0, binding = 1) buffer writeonly MissIsMissBuffer {
 } missIsMissBuffer;
 
 layout(set = 0, binding = 2) buffer writeonly MissRadianceBuffer {
-  vec3 values[];
+  vec4 values[];
 } missRadianceBuffer;
 
 layout(set = 0, binding = 3) buffer readonly IsHitBuffer {
@@ -31,7 +29,7 @@ void main() {
 
   if (!isHitBuffer.values[gl_GlobalInvocationID.x]) {
     isMiss = true;
-    missRadianceBuffer.values[gl_GlobalInvocationID.x] = vec3(0.0f);
+    missRadianceBuffer.values[gl_GlobalInvocationID.x] = vec4(0.0f, 0.0f, 0.0f, 1.0f);
   }
 
   missIsMissBuffer.values[gl_GlobalInvocationID.x] = isMiss;
