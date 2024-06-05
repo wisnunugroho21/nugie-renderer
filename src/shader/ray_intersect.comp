@@ -40,6 +40,76 @@ layout(set = 0, binding = 8) buffer readonly TransformationBuffer {
   Transformation transformations[];
 } transformationBuffer;
 
+// ------------- Transformation -------------
+
+vec3 positionTransform(mat4 mat, vec3 vec) {
+  precise vec3 res;
+
+  res.x = mat[3][0] +
+    fma( 
+      mat[0][0], vec.x,
+      fma( 
+        mat[1][0], vec.y,
+        ( mat[2][0] * vec.z ) 
+      ) 
+    );
+
+  res.y = mat[3][1] +
+    fma( 
+      mat[0][1], vec.x,
+      fma( 
+        mat[1][1], vec.y,
+        ( mat[2][1] * vec.z ) 
+      ) 
+    );
+
+  res.z = mat[3][2] +
+    fma( 
+      mat[0][2], vec.x,
+      fma( 
+        mat[1][2], vec.y,
+        ( mat[2][2] * vec.z ) 
+      ) 
+    );
+  
+  return res;
+}
+
+vec3 directionTransform(mat4 mat, vec3 vec) {
+  precise vec3 res;
+
+  res.x = 
+    fma( 
+      mat[0][0], vec.x,
+      fma( 
+        mat[1][0], vec.y,
+        ( mat[2][0] * vec.z ) 
+      ) 
+    );
+
+  res.y = 
+    fma( 
+      mat[0][1], vec.x,
+      fma( 
+        mat[1][1], vec.y,
+        ( mat[2][1] * vec.z ) 
+      ) 
+    );
+
+  res.z = 
+    fma( 
+      mat[0][2], vec.x,
+      fma( 
+        mat[1][2], vec.y,
+        ( mat[2][2] * vec.z ) 
+      ) 
+    );
+  
+  return res;
+}
+
+// ------------- Triangle -------------
+
 bool hitTriangle(Triangle triangle, Ray r, out float t) {
   vec3 v0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position;
   vec3 v1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position;
@@ -95,8 +165,8 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
 bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex, out float t, out uint hitIndex, out uint hitTypeIndex) {
   Transformation curTransf = transformationBuffer.transformations[transformIndex];
 
-  r.origin = (curTransf.pointInverseMatrix * vec4(r.origin, 1.0f)).xyz;
-  r.direction = mat3(curTransf.dirInverseMatrix) * r.direction;
+  r.origin = positionTransform(curTransf.worldToObjectMatrix, r.origin);
+  r.direction = directionTransform(curTransf.worldToObjectMatrix, r.direction);
 
   uint stack[30];
   stack[0] = 1u;
@@ -235,7 +305,7 @@ void main() {
   Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
   if (length(ray.direction) > 0.001f) {
-    hitObjectBvh(ray, hit.t, hit.hitIndex, hit.hitTypeIndex) ? 1.0f : 0.0f;
+    hitObjectBvh(ray, hit.t, hit.hitIndex, hit.hitTypeIndex);
   }
 
   intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;

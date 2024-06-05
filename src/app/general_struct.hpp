@@ -45,11 +45,8 @@ namespace NugieApp {
   };
 
   struct Transformation {
-    glm::mat4 pointMatrix{1.0f};
-    glm::mat4 dirMatrix{1.0f};
-    glm::mat4 pointInverseMatrix{1.0f};
-    glm::mat4 dirInverseMatrix{1.0f};
-    glm::mat4 normalMatrix{1.0f};
+    glm::mat4 worldToObjectMatrix{1.0f};
+    glm::mat4 objectToWorldMatrix{1.0f};
   };
 
   struct Ray {

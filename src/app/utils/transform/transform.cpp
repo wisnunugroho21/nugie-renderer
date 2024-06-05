@@ -1,7 +1,7 @@
 #include "transform.hpp"
 
 namespace NugieApp {
-  glm::mat4 TransformComponent::getPointMatrix() const {
+  glm::mat4 TransformComponent::getObjectToWorldMatrix() const {
     auto curTransf = glm::mat4{1.0f};
     auto originScalePosition = (this->objectMaximum - this->objectMinimum) / 2.0f + this->objectMinimum;
 
@@ -19,36 +19,8 @@ namespace NugieApp {
     return curTransf;
   }
 
-  glm::mat4 TransformComponent::getPointInverseMatrix() const {
-    return glm::inverse(this->getPointMatrix());
-  }
-
-  glm::mat4 TransformComponent::getDirMatrix() const {
-    auto curTransf = glm::mat4{1.0f};
-
-    curTransf = glm::scale(curTransf, this->scale);
-
-    curTransf = glm::rotate(curTransf, this->rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
-    curTransf = glm::rotate(curTransf, this->rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-    curTransf = glm::rotate(curTransf, this->rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
-
-    return curTransf;
-  }
-
-  glm::mat4 TransformComponent::getDirInverseMatrix() const {
-    return glm::mat4(glm::inverse(glm::mat3(this->getDirMatrix())));
-  }
-
-  glm::mat4 TransformComponent::getNormalMatrix() const {
-    auto curTransf = glm::mat4{1.0f};
-
-    curTransf = glm::scale(curTransf, this->scale);
-
-    curTransf = glm::rotate(curTransf, this->rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
-    curTransf = glm::rotate(curTransf, this->rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-    curTransf = glm::rotate(curTransf, this->rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
-
-    return glm::mat4(glm::inverseTranspose(glm::mat3(curTransf)));
+  glm::mat4 TransformComponent::getWorldToObjectMatrix() const {
+    return glm::inverse(this->getObjectToWorldMatrix());
   }
 
   std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations) {
@@ -56,11 +28,8 @@ namespace NugieApp {
     
     for (auto &&transform : transformations) {
       newTransforms.emplace_back(Transformation{ 
-        transform.getPointMatrix(),
-        transform.getDirMatrix(),
-        transform.getPointInverseMatrix(),
-        transform.getDirInverseMatrix(),
-        transform.getNormalMatrix()
+        transform.getWorldToObjectMatrix(),
+        transform.getObjectToWorldMatrix()
       });
     }
 

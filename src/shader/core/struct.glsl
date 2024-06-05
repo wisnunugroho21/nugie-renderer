@@ -42,11 +42,8 @@ struct Material {
 };
 
 struct Transformation {
-  mat4 pointMatrix;
-  mat4 dirMatrix;
-  mat4 pointInverseMatrix;
-  mat4 dirInverseMatrix;
-  mat4 normalMatrix;
+  mat4 worldToObjectMatrix;
+  mat4 objectToWorldMatrix;
 };
 
 struct Ray {
