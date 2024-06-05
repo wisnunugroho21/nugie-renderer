@@ -53,46 +53,45 @@ namespace NugieApp {
   };
 
   struct Ray {
-    alignas(16) glm::vec3 origin{0.0f};
-    alignas(16) glm::vec3 direction{0.0f};
+    glm::vec4 origin{0.0f};
+    glm::vec4 direction{0.0f};
   };
 
   struct Hit {
-    alignas(4) float t = 0.0f;
-
-    alignas(4) uint32_t hitIndex = 0u;
-    alignas(4) uint32_t hitTypeIndex = 0u;
+    float t = 0.0f;
+    uint32_t hitIndex = 0u;
+    uint32_t hitTypeIndex = 0u;
   };
 
   struct DirectData {
-    alignas(16) glm::vec4 normalIsIlluminate{ 0.0f };
-    alignas(16) glm::vec4 originMaterialIndex{ 0.0f };
+    glm::vec4 normalIsIlluminate{ 0.0f };
+    glm::vec4 originMaterialIndex{ 0.0f };
   };
 
   struct DirectResult {
-    alignas(16) glm::vec4 radiancePdf{ 0.0f };
+    glm::vec4 radiancePdf{ 0.0f };
   };
 
   struct IndirectResult {
-    alignas(16) glm::vec4 radiancePdf{ 0.0f };
+    glm::vec4 radiancePdf{ 0.0f };
     Ray nextRay{};
   };
 
   struct LightResult {
-    alignas(16) glm::vec4 radianceIsIlluminate{ 0.0f };
+    glm::vec4 radianceIsIlluminate{ 0.0f };
   };
 
   struct MissResult {
-    alignas(16) glm::vec4 radianceIsMiss{0.0f};
+    glm::vec4 radianceIsMiss{0.0f};
   };
 
   struct IntegratorResult {
-    alignas(16) glm::vec3 totalRadianceIsRayBounce{ 0.0f };
-    alignas(16) glm::vec3 totalIndirectPdf{ 1.0f };
+    glm::vec4 totalRadianceIsRayBounce{ 0.0f };
+    glm::vec4 totalIndirectPdf{ 1.0f };
   };
 
   struct SamplingResult {
-    alignas(16) glm::vec4 finalColorCountSample{0.0f};
+    glm::vec4 finalColorCountSample{0.0f};
   };
 
   struct RayTraceUbo {
