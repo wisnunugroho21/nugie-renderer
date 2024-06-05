@@ -62,9 +62,9 @@ uint randomUint(uint min, uint max, uint additionalRandomSeed) {
 // ------------- Triangle -------------
 
 vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
   vec3 v0v1 = vectex2.position - vectex1.position;
   vec3 v0v2 = vectex3.position - vectex1.position;

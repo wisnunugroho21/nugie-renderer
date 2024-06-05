@@ -14,22 +14,10 @@ struct Sphere {
 struct Vertex {
   vec3 position;
   vec3 normal;
-  vec2 textCoord;
-};
-
-struct NormText {    
-  vec4 normal;
-  vec2 textCoord;
 };
 
 struct Triangle {
-  uvec3 vertexIndexes;
-  uint materialIndex;
-};
-
-struct Reference {
-  uint materialIndex;
-  uint transformIndex;
+  uvec4 vertexMaterialIndexes;
 };
 
 struct Object {
@@ -59,23 +47,6 @@ struct Transformation {
   mat4 pointInverseMatrix;
   mat4 dirInverseMatrix;
   mat4 normalMatrix;
-};
-
-struct PointLight {
-  vec4 position;
-  vec4 color;
-};
-
-struct SpotLight {
-  vec4 position;
-  vec4 color;
-  vec4 direction;
-  float angle;
-};
-
-struct SunLight {
-  vec4 color;
-  vec4 direction;
 };
 
 struct Ray {

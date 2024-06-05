@@ -279,8 +279,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 555.0f }, glm::vec3{ -1.0f, 0.0f, 0.0f } });
 
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 0u, 1u, 2u }, 1u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 2u, 3u, 0u }, 1u });		
+		curTris.emplace_back(Triangle{ glm::uvec4{ 0u, 1u, 2u, 1u } });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 2u, 3u, 0u, 1u } });		
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		uint32_t transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -316,8 +316,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 0.0f, 555.0f }, glm::vec3{ 1.0f, 0.0f, 0.0f } });
 
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 4u, 5u, 6u }, 2u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 6u, 7u, 4u }, 2u });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 4u, 5u, 6u, 2u } });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 6u, 7u, 4u, 2u } });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -353,8 +353,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 0.0f, 555.0f }, glm::vec3{ 0.0f, 1.0f, 0.0f } });
 		
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 8u, 9u, 10u }, 0u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 10u, 11u, 8u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 8u, 9u, 10u, 0u } });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 10u, 11u, 8u, 0u } });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -390,8 +390,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 0.0f, 555.0f, 555.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
 		
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 12u, 13u, 14u }, 0u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 14u, 15u, 12u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 12u, 13u, 14u, 0u } });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 14u, 15u, 12u, 0u } });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -427,8 +427,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 555.0f, 0.0f, 555.0f }, glm::vec3{ 0.0f, 0.0f, -1.0f } });
 		
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 16u, 17u, 18u }, 0u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 18u, 19u, 16u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 16u, 17u, 18u, 0u } });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 18u, 19u, 16u, 0u } });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -464,8 +464,8 @@ namespace NugieApp {
 		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 550.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
 			
 		curTris.clear();
-		curTris.emplace_back(Triangle{ glm::uvec3{ 20u, 21u, 22u }, 0u });
-		curTris.emplace_back(Triangle{ glm::uvec3{ 22u, 23u, 20u }, 0u });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 20u, 21u, 22u, 0u } });
+		curTris.emplace_back(Triangle{ glm::uvec4{ 22u, 23u, 20u, 0u } });
 
 		transformComponents.emplace_back(TransformComponent{ glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f) });
 		transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);

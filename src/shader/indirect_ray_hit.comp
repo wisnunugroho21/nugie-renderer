@@ -117,9 +117,9 @@ vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
 // ------------- Triangle -------------
 
 vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
   vec3 v0v1 = vectex2.position - vectex1.position;
   vec3 v0v2 = vectex3.position - vectex1.position;
@@ -137,9 +137,9 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
-  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
   vec3 v0v1 = vectex2.position - vectex1.position;
   vec3 v0v2 = vectex3.position - vectex1.position;
@@ -172,14 +172,14 @@ void main() {
     float NoL = max(dot(hittedNormal, finalResult.nextRay.direction), 0.001f);
     float brdf = lambertBrdfValue();
 
-    vec3 radiance = materialBuffer.materials[hittedTriangle.materialIndex].baseColor.xyz * brdf * NoL;
+    vec3 radiance = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz * brdf * NoL;
     float pdf = lambertPdfValue(NoL);
 
     finalResult.radiancePdf = vec4(radiance, pdf);
 
     data.normalIsIlluminate = vec4(hittedNormal, 1.0f);
     data.origin = hittedPosition;
-    data.materialIndex = hittedTriangle.materialIndex;
+    data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
   }  
 
   indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

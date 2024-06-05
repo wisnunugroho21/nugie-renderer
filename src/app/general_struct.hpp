@@ -10,37 +10,17 @@
 #include <vector>
 
 namespace NugieApp {
-  struct Sphere {
-    glm::vec4 centerRadius;
-
-    bool operator == (const Sphere &other) const {
-			return this->centerRadius == other.centerRadius;
-		}
-  };
-
   struct Vertex {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec3 normal;
-    alignas(16) glm::vec2 textCoord;
 
     bool operator == (const Vertex &other) const {
-			return this->position == other.position && this->normal == other.normal && this->textCoord == other.textCoord;
+			return this->position == other.position && this->normal == other.normal;
 		}
   };
 
-  struct NormText {    
-    glm::vec4 normal;
-    glm::vec2 textCoord;
-  };
-
   struct Triangle {
-    alignas(16) glm::uvec3 vertexIndexes;
-    alignas(4) uint32_t materialIndex;
-  };  
-  
-  struct Reference {
-    uint32_t materialIndex;
-    uint32_t transformIndex;
+    alignas(16) glm::uvec4 vertexMaterialIndexes;
   };
 
   struct Object {
@@ -70,23 +50,6 @@ namespace NugieApp {
     glm::mat4 pointInverseMatrix{1.0f};
     glm::mat4 dirInverseMatrix{1.0f};
     glm::mat4 normalMatrix{1.0f};
-  };
-
-  struct PointLight {
-    glm::vec4 position;
-    glm::vec4 color;
-  };
-
-  struct SpotLight {
-    alignas(16) glm::vec4 position;
-    alignas(16) glm::vec4 color;
-    alignas(16) glm::vec4 direction;
-    alignas(4) float angle;
-  };
-
-  struct SunLight {
-    alignas(16) glm::vec4 color;
-    alignas(16) glm::vec4 direction;
   };
 
   struct Ray {

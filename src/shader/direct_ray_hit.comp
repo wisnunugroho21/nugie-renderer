@@ -55,9 +55,9 @@ float lambertBrdfValue() {
 // ------------- Triangle -------------
 
 float triangleArea(Triangle triangle) {
-  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
   vec3 v0v1 = vertex1.position - vertex0.position;
   vec3 v0v2 = vertex2.position - vertex0.position;
@@ -67,9 +67,9 @@ float triangleArea(Triangle triangle) {
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
-  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexIndexes.x];
-  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexIndexes.y];
-  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexIndexes.z];
+  Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+  Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+  Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
   vec3 v0v1 = vertex1.position - vertex0.position;
   vec3 v0v2 = vertex2.position - vertex0.position;
