@@ -458,10 +458,10 @@ namespace NugieApp {
 		// ----------------------------------------------------------------------------
 		// light
 
-		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 554.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 554.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 554.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
-		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 554.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 550.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 550.0f, 227.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 343.0f, 550.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
+		vertices.emplace_back(Vertex{ glm::vec3{ 213.0f, 550.0f, 332.0f }, glm::vec3{ 0.0f, -1.0f, 0.0f } });
 			
 		curTris.clear();
 		curTris.emplace_back(Triangle{ glm::uvec3{ 20u, 21u, 22u }, 0u });

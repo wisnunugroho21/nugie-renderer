@@ -31,9 +31,9 @@ void main() {
   uint bufferIndex = pixelCoord.x + ubo.imgSize.x * pixelCoord.y;
   vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSize);
   
-  vec3 initialRayDirection = ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin;
+  vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
 
   rayGenBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].isRayBounce > 0.5f
     ? indirectHitBuffer.results[bufferIndex].nextRay 
-    : Ray(ubo.origin, normalize(initialRayDirection));
+    : Ray(ubo.origin, initialRayDirection);
 }

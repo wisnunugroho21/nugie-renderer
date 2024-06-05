@@ -157,7 +157,7 @@ void main() {
   DirectData data;
   data.isIlluminate = 0.0f;  
 
-  if (hitRecord.isHit > 0.5f) {
+  if (hitRecord.isHit > 0.5f && hitRecord.hitTypeIndex == 8u) {
     Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
     Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
