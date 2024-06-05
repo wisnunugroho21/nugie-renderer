@@ -84,57 +84,39 @@ struct Ray {
 };
 
 struct HitRecord {
-  float isHit;
-  float t;  
-
+  float t;
   uint hitIndex;
   uint hitTypeIndex;
 };
 
-struct IndirectResult {
-  float isScattered;
-
-  vec3 radiance;
-  float pdf;
-
-  Ray nextRay;
-};
-
-struct LightResult {
-  float isIlluminate;
-  vec3 radiance;
-};
-
 struct DirectData {
-  float isIlluminate;
-
-  vec3 normal;
+  vec4 normalIsIlluminate;
   vec3 origin;
-
   uint materialIndex;
 };
 
 struct DirectResult {
-  float isIlluminate;
+  vec4 radiancePdf;
+};
 
-  vec3 radiance;
-  float pdf;
+struct IndirectResult {
+  vec4 radiancePdf;
+  Ray nextRay;
+};
+
+struct LightResult {
+  vec4 radianceIsIlluminate;
 };
 
 struct MissResult {
-  float isMiss;
-  vec3 radiance;
+  vec4 radianceIsMiss;
 };
 
 struct IntegratorResult {
-  vec3 totalRadiance;
-  vec3 totalIndirect;
-
-  float pdf;
-  float isRayBounce;
+  vec4 totalRadianceIsRayBounce;
+  vec4 totalIndirectPdf;
 };
 
 struct SamplingResult {
-  vec3 finalColor;
-  float countSample;
+  vec4 finalColorCountSample;
 };

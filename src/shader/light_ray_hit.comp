@@ -72,9 +72,9 @@ void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
   LightResult finalResult;
-  finalResult.isIlluminate = 0.0f;
+  finalResult.radianceIsIlluminate = vec4(0.0f);
 
-  if (hitRecord.isHit > 0.5f && hitRecord.hitTypeIndex == 1u) {
+  if (hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 1u) {
     Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
     Ray ray = rayGenBuffer.rays[hitRecord.hitIndex];
 
@@ -84,8 +84,9 @@ void main() {
     float NloL = max(dot(hittedNormal, -1.0f * ray.direction), 0.001f);
     float area = triangleArea(hittedLight);
 
-    finalResult.isIlluminate = 1.0f;
-    finalResult.radiance =  vec3(100.0f) * NloL * area / squareDistance;
+    vec3 radiance =  vec3(100.0f) * NloL * area / squareDistance;
+
+    finalResult.radianceIsIlluminate = vec4(radiance, 1.0f);
   }  
 
   lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

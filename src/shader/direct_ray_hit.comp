@@ -82,29 +82,27 @@ void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
   DirectResult finalResult;
-  finalResult.isIlluminate = 0.0f;
-  finalResult.radiance = vec3(0.0f);
-  finalResult.pdf = 0.0f;  
+  finalResult.radiancePdf = vec4(0.0f);
 
   DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
 
-  if (directData.isIlluminate > 0.5f && hitRecord.isHit > 0.5f && hitRecord.hitTypeIndex == 1u) {
+  if (directData.normalIsIlluminate.w > 0.5f && hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 1u) {
     Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
     Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
     vec3 hittedLightNormal = triangleNormal(hittedLight, ray);
 
     float NloL = max(dot(hittedLightNormal, -1.0f * ray.direction), 0.001f);
-    float NoL = max(dot(directData.normal, ray.direction), 0.001f);
+    float NoL = max(dot(directData.normalIsIlluminate.xyz, ray.direction), 0.001f);
 
     float brdf = lambertBrdfValue();
     float squareDistance = max(hitRecord.t * hitRecord.t, 0.001f);
     float area = triangleArea(hittedLight);
-    float pdf = lambertPdfValue(NoL);
 
-    finalResult.isIlluminate = 1.0f;
-    finalResult.radiance = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
-    finalResult.pdf = pdf;
+    vec3 radiance = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
+    float pdf = max(lambertPdfValue(NoL), 0.001f);
+
+    finalResult.radiancePdf = vec4(radiance, pdf);
   }  
 
   directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

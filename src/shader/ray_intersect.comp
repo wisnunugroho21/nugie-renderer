@@ -70,13 +70,11 @@ bool hitTriangle(Triangle triangle, Ray r, out float t) {
   }    
 
   // At this stage we can compute t to find out where the intersection point is on the line.
-  float curT = inv_det * dot(edge2, s_cross_e1);
+  t = inv_det * dot(edge2, s_cross_e1);
 
-  if (curT < 0.001f) {
+  if (t < 0.001f) {
     return false;
   }
-
-  t = curT;
   
   return true;
 }
@@ -233,11 +231,11 @@ bool hitObjectBvh(Ray r, out float t, out uint hitIndex, out uint hitTypeIndex) 
 }
 
 void main() {
-  HitRecord hit = HitRecord(0.0f, 0.0f, 0u, 0u);
+  HitRecord hit = HitRecord(0.0f, 0u, 0u);
   Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
   if (length(ray.direction) > 0.001f) {
-    hit.isHit = hitObjectBvh(ray, hit.t, hit.hitIndex, hit.hitTypeIndex) ? 1.0f : 0.0f;
+    hitObjectBvh(ray, hit.t, hit.hitIndex, hit.hitTypeIndex) ? 1.0f : 0.0f;
   }
 
   intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;

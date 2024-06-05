@@ -152,12 +152,12 @@ void main() {
   HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
   IndirectResult finalResult;
-  finalResult.isScattered = 0.0f;
+  finalResult.radiancePdf = vec4(0.0f);
 
   DirectData data;
-  data.isIlluminate = 0.0f;  
+  data.normalIsIlluminate = vec4(0.0f);
 
-  if (hitRecord.isHit > 0.5f && hitRecord.hitTypeIndex == 8u) {
+  if (hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 8u) {
     Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
     Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
@@ -171,14 +171,13 @@ void main() {
 
     float NoL = max(dot(hittedNormal, finalResult.nextRay.direction), 0.001f);
     float brdf = lambertBrdfValue();
+
+    vec3 radiance = materialBuffer.materials[hittedTriangle.materialIndex].baseColor.xyz * brdf * NoL;
     float pdf = lambertPdfValue(NoL);
 
-    finalResult.isScattered = 1.0f;
-    finalResult.radiance = materialBuffer.materials[hittedTriangle.materialIndex].baseColor.xyz * brdf * NoL;
-    finalResult.pdf = pdf;
+    finalResult.radiancePdf = vec4(radiance, pdf);
 
-    data.isIlluminate = 1.0f;
-    data.normal = hittedNormal;
+    data.normalIsIlluminate = vec4(hittedNormal, 1.0f);
     data.origin = hittedPosition;
     data.materialIndex = hittedTriangle.materialIndex;
   }  
