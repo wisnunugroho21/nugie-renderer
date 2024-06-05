@@ -195,7 +195,7 @@ namespace NugieApp {
 			if (this->renderer->acquireFrame()) {
 				uint32_t frameIndex = this->renderer->getFrameIndex();
 
-				this->rayTraceUbo.randomSeed = this->randomSeed;
+				this->rayTraceUbo.imgSizeRandomSeedNumLight.z = this->randomSeed;
 				this->rayTraceUniformBuffer->writeGlobalData(frameIndex, this->rayTraceUbo);
 				
 				this->renderer->submitRenderCommand();
@@ -501,7 +501,7 @@ namespace NugieApp {
 		transforms = ConvertComponentToTransform(transformComponents);
 		bvhObjects = createBvh(objectBoundBoxes);
 
-		this->rayTraceUbo.numLight = static_cast<uint32_t>(triangleLights.size());
+		this->rayTraceUbo.imgSizeRandomSeedNumLight.w = static_cast<uint32_t>(triangleLights.size());
 
 		// ----------------------------------------------------------------------------
 
@@ -539,7 +539,7 @@ namespace NugieApp {
 		this->rayTraceUbo.horizontal = cameraRay.horizontal;
 		this->rayTraceUbo.vertical = cameraRay.vertical;
 		this->rayTraceUbo.lowerLeftCorner = cameraRay.lowerLeftCorner;
-		this->rayTraceUbo.imgSize = glm::uvec2{width, height};
+		this->rayTraceUbo.imgSizeRandomSeedNumLight = glm::uvec4{width, height, 0u, 0u};
 	}
 
 	void App::init() {

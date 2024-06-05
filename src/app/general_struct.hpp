@@ -41,7 +41,7 @@ namespace NugieApp {
   };
 
   struct Material {
-    alignas(16) glm::vec4 baseColor;
+    glm::vec4 baseColor;
   };
 
   struct Transformation {
@@ -96,8 +96,6 @@ namespace NugieApp {
     alignas(16) glm::vec3 horizontal{ 0.0f };
     alignas(16) glm::vec3 vertical{ 0.0f };
     alignas(16) glm::vec3 lowerLeftCorner{ 0.0f };
-    alignas(16) glm::uvec2 imgSize{ 0u };
-    alignas(4) uint32_t randomSeed = 0u;
-    alignas(4) uint32_t numLight = 0u;
+    alignas(16) glm::uvec4 imgSizeRandomSeedNumLight{ 0u };
   };
 }
