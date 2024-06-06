@@ -9,6 +9,7 @@
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
 #include "../data/buffer/many_array_buffer.hpp"
+#include "../data/buffer/stacked_array_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
@@ -70,7 +71,9 @@ namespace NugieApp {
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
-			ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
+			StackedArrayBuffer* rayTraceStorageBuffer = nullptr;
+
+			/* ManyArrayBuffer<Ray>* rayGenBuffer = nullptr;
 			ManyArrayBuffer<Hit>* rayIntersectBuffer = nullptr;
 			ManyArrayBuffer<DirectData>* directDataBuffer = nullptr;
 			ManyArrayBuffer<DirectResult>* directRayHitBuffer = nullptr;			
@@ -78,7 +81,7 @@ namespace NugieApp {
 			ManyArrayBuffer<LightResult>* lightRayHitBuffer = nullptr;
 			ManyArrayBuffer<MissResult>* missRayBuffer = nullptr;
 			ManyArrayBuffer<IntegratorResult>* integratorBuffer = nullptr;
-			ManyArrayBuffer<SamplingResult>* samplingBuffer = nullptr;
+			ManyArrayBuffer<SamplingResult>* samplingBuffer = nullptr; */
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 			

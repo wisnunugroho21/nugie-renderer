@@ -21,6 +21,14 @@ namespace NugieVulkan {
       VmaAllocationCreateFlags memoryAllocFlag,
       VkDeviceSize minOffsetAlignment = 1);
 
+    Buffer(
+      Device* device,
+      VkDeviceSize size,
+      VkBufferUsageFlags usageFlags,
+      VmaMemoryUsage memoryUsage, 
+      VmaAllocationCreateFlags memoryAllocFlag,
+      VkDeviceSize minOffsetAlignment = 1);
+
     ~Buffer();
 
     VkBuffer getBuffer() const { return this->buffer; }
@@ -58,6 +66,11 @@ namespace NugieVulkan {
 
     void transitionBuffer(CommandBuffer* commandBuffer, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
       VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, 
+      uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
+
+    void transitionBuffer(CommandBuffer* commandBuffer, VkDeviceSize size, VkDeviceSize offset, 
+      VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
+      VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, 
       uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 
     static void transitionBuffer(CommandBuffer* commandBuffer, const std::vector<Buffer*> &buffers, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 

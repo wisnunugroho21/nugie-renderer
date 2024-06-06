@@ -42,10 +42,25 @@ namespace NugieVulkan {
       instanceCount{instanceCount},
       usageFlags{usageFlags} 
   {
-    this->alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
+    this->alignmentSize = this->getAlignment(instanceSize, minOffsetAlignment);
     this->bufferSize = alignmentSize * instanceCount;
 
-    this->createBuffer(bufferSize, usageFlags, memoryUsage, memoryAllocFlag);
+    this->createBuffer(this->bufferSize, usageFlags, memoryUsage, memoryAllocFlag);
+  }
+
+  Buffer::Buffer(
+    Device* device,
+    VkDeviceSize size,
+    VkBufferUsageFlags usageFlags,
+    VmaMemoryUsage memoryUsage, 
+    VmaAllocationCreateFlags memoryAllocFlag,
+    VkDeviceSize minOffsetAlignment
+  )
+    : device{device},
+      usageFlags{usageFlags}
+  {
+    this->bufferSize = size;
+    this->createBuffer(size, usageFlags, memoryUsage, memoryAllocFlag);
   }
   
   Buffer::~Buffer() {
@@ -252,6 +267,35 @@ namespace NugieVulkan {
     );
   }
 
+  void Buffer::transitionBuffer(CommandBuffer* commandBuffer, VkDeviceSize size, VkDeviceSize offset, VkPipelineStageFlags srcStage, 
+    VkPipelineStageFlags dstStage, VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
+  {
+    VkBufferMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+
+    barrier.srcQueueFamilyIndex = srcQueueFamilyIndex;
+    barrier.dstQueueFamilyIndex = dstQueueFamilyIndex;
+
+    barrier.buffer = this->buffer;
+    barrier.size = size;
+    barrier.offset = offset;
+    barrier.srcAccessMask = srcAccess;
+    barrier.dstAccessMask = dstAccess;
+
+    vkCmdPipelineBarrier(
+      commandBuffer->getCommandBuffer(), 
+      srcStage, 
+      dstStage,
+      0,
+      0, 
+      nullptr,
+      1, 
+      &barrier,
+      0, 
+      nullptr
+    );
+  }
+
   void Buffer::transitionBuffer(CommandBuffer* commandBuffer, const std::vector<Buffer*> &buffers, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
     VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
   {
@@ -272,7 +316,6 @@ namespace NugieVulkan {
 
       barriers.emplace_back(barrier);
     }
-    
 
     vkCmdPipelineBarrier(
       commandBuffer->getCommandBuffer(), 
