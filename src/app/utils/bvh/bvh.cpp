@@ -23,17 +23,21 @@ namespace NugieApp {
     return longest;
   }
 
+  uint32_t Aabb::randomAxis() {
+    return rand() % 3;
+  }
+
   Aabb TriangleBoundBox::boundingBox() {
     return Aabb { 
-      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)) - eps,
-      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)) + eps
+      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)),
+      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position))
     };
   }
 
   Aabb TriangleLightBoundBox::boundingBox() {
     return Aabb { 
-      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)) - eps,
-      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)) + eps
+      glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position)),
+      glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position, this->vertices[this->triangle.vertexMaterialIndexes.y].position), this->vertices[this->triangle.vertexMaterialIndexes.z].position))
     };
   }
 
@@ -77,8 +81,8 @@ namespace NugieApp {
     }
 
     return Aabb {
-      glm::vec3(newMin) - eps,
-      glm::vec3(newMax) + eps
+      glm::vec3(newMin),
+      glm::vec3(newMax)
     };
   }
 

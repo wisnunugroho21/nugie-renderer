@@ -16,8 +16,6 @@
 #define SPLIT_NUMBER 4
 
 namespace NugieApp {
-  const glm::vec3 eps(0.00001f);
-
   // Axis-aligned bounding box.
   struct Aabb {
     glm::vec3 min = glm::vec3{FLT_MAX};
