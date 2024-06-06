@@ -21,8 +21,11 @@ void main() {
   IntegratorResult result = integratorBuffer.results[bufferIndex];
 
   if (result.totalRadianceIsRayBounce.w < 0.5f) {
-    SamplingResult samplingResult = samplingBuffer.results[bufferIndex];    
-    vec3 totalColor = (clamp(result.totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.finalColorCountSample.xyz * samplingResult.finalColorCountSample.w) / (samplingResult.finalColorCountSample.w + 1.0f);
+    SamplingResult samplingResult = samplingBuffer.results[bufferIndex];
+        
+    vec3 totalColor = 
+      (clamp(result.totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.finalColorCountSample.xyz * samplingResult.finalColorCountSample.w) 
+      / (samplingResult.finalColorCountSample.w + 1.0f);
 
     samplingResult.finalColorCountSample.xyz = totalColor;
     samplingResult.finalColorCountSample.w = (samplingResult.finalColorCountSample.w + 1.0f < 0.0f) ? 0.0f : samplingResult.finalColorCountSample.w + 1.0f;

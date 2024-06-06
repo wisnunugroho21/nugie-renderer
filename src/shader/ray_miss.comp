@@ -27,7 +27,7 @@ void main() {
   missRecord.radianceIsMiss = vec4(0.0f);
 
   if (hitRecord.t < 0.001f) {
-    missRecord.radianceIsMiss = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    missRecord.radianceIsMiss.w = 1.0f;
   }
 
   missBuffer.results[gl_GlobalInvocationID.x] = missRecord;

@@ -170,12 +170,12 @@ void main() {
     float NoL = max(dot(hittedNormal, finalResult.nextRay.direction), 0.001f);
     float brdf = lambertBrdfValue();
 
-    vec3 radiance = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz * brdf * NoL;
-    float pdf = lambertPdfValue(NoL);
+    finalResult.radiancePdf.xyz = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz * brdf * NoL;
+    finalResult.radiancePdf.w = max(lambertPdfValue(NoL), 0.001f);
 
-    finalResult.radiancePdf = vec4(radiance, pdf);
+    data.normalIsIlluminate.xyz = hittedNormal;
+    data.normalIsIlluminate.w = 1.0f;
 
-    data.normalIsIlluminate = vec4(hittedNormal, 1.0f);
     data.origin = hittedPosition;
     data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
   }  
