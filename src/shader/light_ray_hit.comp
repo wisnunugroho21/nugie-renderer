@@ -18,7 +18,7 @@ layout(set = 0, binding = 1) buffer writeonly LightRayHitBuffer {
 
 layout(set = 0, binding = 2) buffer readonly RayGenBuffer {
   Ray rays[];
-} rayGenBuffer;
+} tracedRayBuffer;
 
 layout(set = 0, binding = 3) buffer readonly IntersectBuffer {
   HitRecord hits[];
@@ -74,7 +74,7 @@ void main() {
 
   if (hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 1u) {
     Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
-    Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
+    Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
     vec3 hittedNormal = triangleNormal(hittedLight, ray);
 

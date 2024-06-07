@@ -14,11 +14,11 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
 
 layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
   Ray rays[];
-} rayGenBuffer;
+} tracedRayBuffer;
 
-layout(set = 0, binding = 2) buffer readonly IndirectHitBuffer {
-  IndirectResult results[];
-} indirectHitBuffer;
+layout(set = 0, binding = 2) buffer readonly ScatteredRayBuffer {
+  Ray rays[];
+} scatteredRayBuffer;
 
 layout(set = 0, binding = 3) buffer readonly IntegratorBuffer {
   IntegratorResult results[];
@@ -31,7 +31,7 @@ void main() {
   
   vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
 
-  rayGenBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].totalRadianceIsRayBounce.w > 0.5f
-    ? indirectHitBuffer.results[bufferIndex].nextRay 
+  tracedRayBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].totalRadianceIsRayBounce.w > 0.5f
+    ? scatteredRayBuffer.rays[bufferIndex] 
     : Ray(ubo.origin, initialRayDirection);
 }

@@ -20,23 +20,27 @@ layout(set = 0, binding = 2) buffer writeonly DirectDataBuffer {
   DirectData datas[];
 } directDataBuffer;
 
-layout(set = 0, binding = 3) buffer readonly RayGenBuffer {
+layout(set = 0, binding = 3) buffer writeonly ScatteredRayBuffer {
   Ray rays[];
-} rayGenBuffer;
+} scatteredRayBuffer;
 
-layout(set = 0, binding = 4) buffer readonly IntersectBuffer {
+layout(set = 0, binding = 4) buffer readonly RayGenBuffer {
+  Ray rays[];
+} tracedRayBuffer;
+
+layout(set = 0, binding = 5) buffer readonly IntersectBuffer {
   HitRecord hits[];
 } intersectBuffer;
 
-layout(set = 0, binding = 5) buffer readonly TriangleBuffer {
+layout(set = 0, binding = 6) buffer readonly TriangleBuffer {
   Triangle triangles[];
 } triangleBuffer;
 
-layout(set = 0, binding = 6) buffer readonly VertexBuffer {
+layout(set = 0, binding = 7) buffer readonly VertexBuffer {
   Vertex vertices[];
 } vertexBuffer;
 
-layout(set = 0, binding = 7) buffer readonly MaterialBuffer {
+layout(set = 0, binding = 8) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
@@ -157,17 +161,18 @@ void main() {
 
   if (hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 8u) {
     Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
-    Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
+    Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
     vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
     vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
 
     vec3 target = lambertRandomDirection(buildOnb(triangleNormal(hittedTriangle, ray)), 0u);
+    
+    Ray nextRay;
+    nextRay.origin = hittedPosition;
+    nextRay.direction = normalize(target - hittedPosition);
 
-    finalResult.nextRay.origin = hittedPosition;
-    finalResult.nextRay.direction = normalize(target - hittedPosition);
-
-    float NoL = max(dot(hittedNormal, finalResult.nextRay.direction), 0.001f);
+    float NoL = max(dot(hittedNormal, nextRay.direction), 0.001f);
     float brdf = lambertBrdfValue();
 
     finalResult.radiancePdf.xyz = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz * brdf * NoL;
@@ -178,6 +183,8 @@ void main() {
 
     data.origin = hittedPosition;
     data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
+
+    scatteredRayBuffer.rays[gl_GlobalInvocationID.x] = nextRay;
   }  
 
   indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

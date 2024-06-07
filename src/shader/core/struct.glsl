@@ -69,7 +69,6 @@ struct DirectResult {
 
 struct IndirectResult {
   vec4 radiancePdf;
-  Ray nextRay;
 };
 
 struct LightResult {
