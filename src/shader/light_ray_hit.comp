@@ -74,7 +74,7 @@ void main() {
 
   if (hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 1u) {
     Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
-    Ray ray = rayGenBuffer.rays[hitRecord.hitIndex];
+    Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
 
     vec3 hittedNormal = triangleNormal(hittedLight, ray);
 
