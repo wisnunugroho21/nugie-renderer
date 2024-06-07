@@ -113,11 +113,13 @@ namespace NugieApp {
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, 2, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, 5, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, 9, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
 				this->indirectRayHitRenderer->render(commandBuffer, { this->indirectRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, 2, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, 5, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, 9, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
@@ -545,7 +547,7 @@ namespace NugieApp {
 		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 		this->rayTraceStorageBuffer = StackedArrayBuffer::Builder(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-			.addArrayItem(static_cast<VkDeviceSize>(sizeof(Ray)), width * height)
+			.addArrayItem(static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Traced Ray
 			.addArrayItem(static_cast<VkDeviceSize>(sizeof(Hit)), width * height)
 			.addArrayItem(static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
 			.addArrayItem(static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
@@ -554,7 +556,7 @@ namespace NugieApp {
 			.addArrayItem(static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
 			.addArrayItem(static_cast<VkDeviceSize>(sizeof(IntegratorResult)), width * height)
 			.addArrayItem(static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
-			.addArrayItem(static_cast<VkDeviceSize>(sizeof(Ray)), width * height)
+			.addArrayItem(static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Scatteres Ray
 			.build();
 
 		std::vector<VkDescriptorImageInfo> resultImageInfos { NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT };
