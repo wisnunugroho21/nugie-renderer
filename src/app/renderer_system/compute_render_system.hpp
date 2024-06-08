@@ -13,12 +13,13 @@
 namespace NugieApp {
 	class ComputeRenderSystem {
 		public:
-			ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, std::string compFilePath);
+			ComputeRenderSystem(NugieVulkan::Device* device, std::string compFilePath, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
+				const std::vector<VkPushConstantRange> &pushConstantRanges = {});
 			~ComputeRenderSystem();
 			
 			void initialize();
-			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-				uint32_t xInvocations, uint32_t yInvocations, uint32_t zInvocations);
+			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t xInvocations, uint32_t yInvocations, uint32_t zInvocations, 
+				const std::vector<VkDescriptorSet> &descriptorSets, const std::vector<void*> pushConstants = {});
 		
 		private:
 			virtual void createPipelineLayout();
@@ -29,7 +30,9 @@ namespace NugieApp {
 			VkPipelineLayout pipelineLayout;
 			NugieVulkan::ComputePipeline* pipeline = nullptr;
 
-			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
+			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts;
+			std::vector<VkPushConstantRange> pushConstantRanges;
+
 			std::string compFilePath;
 	};
 }
