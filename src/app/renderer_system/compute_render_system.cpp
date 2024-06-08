@@ -32,8 +32,8 @@ namespace NugieApp {
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts = (setLayouts.size() > 0) ? setLayouts.data() : nullptr;
-		pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
-		pipelineLayoutInfo.pPushConstantRanges = (pushConstantRanges.size() > 0) ? pushConstantRanges.data() : nullptr;
+		pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(this->pushConstantRanges.size());
+		pipelineLayoutInfo.pPushConstantRanges = (this->pushConstantRanges.size() > 0) ? this->pushConstantRanges.data() : nullptr;
 
 		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");

@@ -44,6 +44,10 @@ layout(set = 0, binding = 8) buffer readonly MaterialBuffer {
   Material materials[];
 } materialBuffer;
 
+layout(push_constant) uniform Push {
+  uvec2 initialPixelCoord;
+};
+
 // ------------- Basic -------------
 
 vec3[3] buildOnb(vec3 normal) {
@@ -184,7 +188,7 @@ void main() {
     data.origin = hittedPosition;
     data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
 
-    scatteredRayBuffer.rays[gl_GlobalInvocationID.x] = nextRay;
+    scatteredRayBuffer.rays[gl_GlobalInvocationID.x + (initialPixelCoord.x * initialPixelCoord.y)] = nextRay;
   }  
 
   indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
