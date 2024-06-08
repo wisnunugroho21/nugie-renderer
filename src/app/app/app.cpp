@@ -100,13 +100,13 @@ namespace NugieApp {
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->indirectRayGenRenderer->render(commandBuffer, { this->indirectRayGenDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
+				this->indirectRayGenRenderer->render(commandBuffer, height / 8, width / 8, 1, { this->indirectRayGenDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->rayIntersectRenderer->render(commandBuffer, { this->rayIntersectDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->rayIntersectRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->rayIntersectDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ namespace NugieApp {
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_data", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-				this->indirectRayHitRenderer->render(commandBuffer, { this->indirectRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->indirectRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->indirectRayHitDescSet->getDescriptorSets(frameIndex) });
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_data", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -124,43 +124,43 @@ namespace NugieApp {
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->lightRayHitRenderer->render(commandBuffer, { this->lightRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->lightRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->lightRayHitDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->missRayRenderer->render(commandBuffer, { this->missRayDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->missRayRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->missRayDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->directRayGenRenderer->render(commandBuffer, { this->directRayGenDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->directRayGenRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->directRayGenDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->rayIntersectRenderer->render(commandBuffer, { this->rayIntersectDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->rayIntersectRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->rayIntersectDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-				this->directRayHitRenderer->render(commandBuffer, { this->directRayHitDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->directRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->directRayHitDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-				this->integratorRenderer->render(commandBuffer, { this->integratorDescSet->getDescriptorSets(frameIndex) }, height * width / 64, 1, 1);
+				this->integratorRenderer->render(commandBuffer, height * width / 64, 1, 1, { this->integratorDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
 
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "sampling_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-				this->samplingRenderer->render(commandBuffer, { this->samplingDescSet->getDescriptorSets(frameIndex) }, height / 8, width / 8, 1);
+				this->samplingRenderer->render(commandBuffer, height / 8, width / 8, 1, { this->samplingDescSet->getDescriptorSets(frameIndex) });
 				this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "sampling_result", VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 
 				// -------------------------------------------------------------------------------------------------------------------
@@ -649,15 +649,15 @@ namespace NugieApp {
 			.addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, this->rayTraceStorageBuffer->getInfo("integrator_result"))
 			.build();
 		
-		this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, { this->indirectRayGenDescSet->getDescSetLayout() }, "shader/indirect_ray_gen.comp.spv");
-		this->rayIntersectRenderer = new ComputeRenderSystem(this->device, { this->rayIntersectDescSet->getDescSetLayout() }, "shader/ray_intersect.comp.spv");
-		this->indirectRayHitRenderer = new ComputeRenderSystem(this->device, { this->indirectRayHitDescSet->getDescSetLayout() }, "shader/indirect_ray_hit.comp.spv");
-		this->lightRayHitRenderer = new ComputeRenderSystem(this->device, { this->lightRayHitDescSet->getDescSetLayout() }, "shader/light_ray_hit.comp.spv");
-		this->missRayRenderer = new ComputeRenderSystem(this->device, { this->missRayDescSet->getDescSetLayout() }, "shader/ray_miss.comp.spv");
-		this->directRayGenRenderer = new ComputeRenderSystem(this->device, { this->directRayGenDescSet->getDescSetLayout() }, "shader/direct_ray_gen.comp.spv");
-		this->directRayHitRenderer = new ComputeRenderSystem(this->device, { this->directRayHitDescSet->getDescSetLayout() }, "shader/direct_ray_hit.comp.spv");
-		this->integratorRenderer = new ComputeRenderSystem(this->device, { this->integratorDescSet->getDescSetLayout() }, "shader/integrator.comp.spv");
-		this->samplingRenderer = new ComputeRenderSystem(this->device, { this->samplingDescSet->getDescSetLayout() }, "shader/sampling.comp.spv");
+		this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, "shader/indirect_ray_gen.comp.spv", { this->indirectRayGenDescSet->getDescSetLayout() });
+		this->rayIntersectRenderer = new ComputeRenderSystem(this->device, "shader/ray_intersect.comp.spv", { this->rayIntersectDescSet->getDescSetLayout() });
+		this->indirectRayHitRenderer = new ComputeRenderSystem(this->device, "shader/indirect_ray_hit.comp.spv", { this->indirectRayHitDescSet->getDescSetLayout() });
+		this->lightRayHitRenderer = new ComputeRenderSystem(this->device, "shader/light_ray_hit.comp.spv", { this->lightRayHitDescSet->getDescSetLayout() });
+		this->missRayRenderer = new ComputeRenderSystem(this->device, "shader/ray_miss.comp.spv", { this->missRayDescSet->getDescSetLayout() });
+		this->directRayGenRenderer = new ComputeRenderSystem(this->device, "shader/direct_ray_gen.comp.spv", { this->directRayGenDescSet->getDescSetLayout() });
+		this->directRayHitRenderer = new ComputeRenderSystem(this->device, "shader/direct_ray_hit.comp.spv", { this->directRayHitDescSet->getDescSetLayout() });
+		this->integratorRenderer = new ComputeRenderSystem(this->device, "shader/integrator.comp.spv", { this->integratorDescSet->getDescSetLayout() });
+		this->samplingRenderer = new ComputeRenderSystem(this->device, "shader/sampling.comp.spv", { this->samplingDescSet->getDescSetLayout() });
 
 		this->indirectRayGenRenderer->initialize();
 		this->rayIntersectRenderer->initialize();
