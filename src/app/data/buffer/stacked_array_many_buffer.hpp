@@ -18,14 +18,14 @@ namespace NugieApp {
 		VkDeviceSize offset = 0u;
 	};
 	
-	class StackedArrayBuffer {
+	class StackedArrayManyBuffer {
 		public:
 			class Builder {
 				public:
-					Builder(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags);
+					Builder(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t bufferCount);
 					Builder& addArrayItem(VkDeviceSize instanceSize, uint32_t count);
 
-					StackedArrayBuffer* build();
+					StackedArrayManyBuffer* build();
 
 				private:
 					NugieVulkan::Device* device = nullptr;
@@ -35,13 +35,13 @@ namespace NugieApp {
 					uint32_t bufferCount;
 			};
 
-			StackedArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, std::vector<ArrayItemInfo> arrayItemInfos);
-			~StackedArrayBuffer();
+			StackedArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, std::vector<ArrayItemInfo> arrayItemInfos, uint32_t bufferCount);
+			~StackedArrayManyBuffer();
 
-			NugieVulkan::Buffer* getBuffer() const { return this->buffer; }
+			NugieVulkan::Buffer* getBuffer(uint32_t bufferIndex) const { return this->buffers[bufferIndex]; }
 
-			VkDescriptorBufferInfo getInfo(uint32_t arrayIndex);
-			void transitionBuffer(NugieVulkan::CommandBuffer* commandBuffer, uint32_t arrayIndex, 
+			std::vector<VkDescriptorBufferInfo> getInfo(uint32_t arrayIndex);
+			void transitionBuffer(NugieVulkan::CommandBuffer* commandBuffer, uint32_t bufferIndex, uint32_t arrayIndex, 
 				VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess, VkAccessFlags dstAccess, 
 				uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 			
@@ -51,10 +51,10 @@ namespace NugieApp {
 		private:
 			NugieVulkan::Device* device = nullptr;
 
-			NugieVulkan::Buffer* buffer;
+			std::vector<NugieVulkan::Buffer*> buffers;
 			std::vector<ArrayItemBufferInfo> arrayItemBufferInfos;
 
-			void createBuffers(VkBufferUsageFlags usageFlags, std::vector<ArrayItemInfo> arrayItemInfos);
+			void createBuffers(VkBufferUsageFlags usageFlags, std::vector<ArrayItemInfo> arrayItemInfos, uint32_t bufferCount);
 	};
 
 	

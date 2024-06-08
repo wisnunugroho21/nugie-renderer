@@ -9,10 +9,10 @@
 
 namespace NugieApp {
 	template <typename T>
-	class ManyArrayBuffer {
+	class ArrayManyBuffer {
 		public:
-			ManyArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u, bool isAlsoCreateStaging = true);
-			~ManyArrayBuffer();
+			ArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u, bool isAlsoCreateStaging = true);
+			~ArrayManyBuffer();
 			
 			NugieVulkan::Buffer* getBuffer(uint32_t index) const { return this->buffers[index]; }
 			std::vector<VkDescriptorBufferInfo> getInfo() const;
@@ -34,12 +34,12 @@ namespace NugieApp {
 	};
 
 	template <typename T>
-	ManyArrayBuffer<T>::ManyArrayBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount, bool isAlsoCreateStaging) : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} {
+	ArrayManyBuffer<T>::ArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount, bool isAlsoCreateStaging) : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} {
 		this->createBuffers(usageFlags, instanceCount);
 	}
 
 	template <typename T>
-	ManyArrayBuffer<T>::~ManyArrayBuffer() {
+	ArrayManyBuffer<T>::~ArrayManyBuffer() {
 		for (auto &&buffer : this->stagingBuffers) {
 			if (buffer != nullptr) delete buffer;
 		}
@@ -50,7 +50,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	std::vector<VkDescriptorBufferInfo> ManyArrayBuffer<T>::getInfo() const {
+	std::vector<VkDescriptorBufferInfo> ArrayManyBuffer<T>::getInfo() const {
 		std::vector<VkDescriptorBufferInfo> buffersInfo{};
 		
 		for (int i = 0; i < this->buffers.size(); i++) {
@@ -61,7 +61,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ManyArrayBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount) {
+	void ArrayManyBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
 		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT)) && this->isAlsoCreateStaging) {
@@ -94,7 +94,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ManyArrayBuffer<T>::replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects) {
+	void ArrayManyBuffer<T>::replace(NugieVulkan::CommandBuffer* commandBuffer, std::vector<T> objects) {
 		assert(this->isAlsoCreateStaging && "staging buffer has not created yet!");
 		
 		this->count = static_cast<uint32_t>(objects.size());
@@ -107,7 +107,7 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ManyArrayBuffer<T>::initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value) {
+	void ArrayManyBuffer<T>::initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value) {
 		for (size_t i = 0; i < this->buffers.size(); i++) {
 			this->buffers[i]->fillBuffer(commandBuffer, value);
 		}

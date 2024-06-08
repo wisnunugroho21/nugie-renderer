@@ -8,8 +8,8 @@
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
-#include "../data/buffer/many_array_buffer.hpp"
-#include "../data/buffer/stacked_array_buffer.hpp"
+#include "../data/buffer/array_many_buffer.hpp"
+#include "../data/buffer/stacked_array_many_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
@@ -71,7 +71,7 @@ namespace NugieApp {
 			ArrayBuffer<Material>* materialBuffer = nullptr;
 
 			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
-			StackedArrayBuffer* rayTraceStorageBuffer = nullptr;
+			StackedArrayManyBuffer* rayTraceStorageBuffer = nullptr;
 
 			std::vector<NugieVulkan::Image*> resultImages{};
 			
