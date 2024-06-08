@@ -14,7 +14,7 @@ layout(set = 0, binding = 0) uniform readonly GlobalUniform {
 
 layout(set = 0, binding = 1) buffer writeonly RayGenBuffer {
   Ray rays[];
-} rayGenBuffer;
+} tracedRayBuffer;
 
 layout(set = 0, binding = 2) buffer readonly DirectDataBuffer {
   DirectData datas[];
@@ -93,5 +93,5 @@ void main() {
     newRay.direction = normalize(target - newRay.origin);
   }  
   
-  rayGenBuffer.rays[gl_GlobalInvocationID.x] = newRay;
+  tracedRayBuffer.rays[gl_GlobalInvocationID.x] = newRay;
 }

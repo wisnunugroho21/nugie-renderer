@@ -10,7 +10,7 @@ layout(set = 0, binding = 0) buffer writeonly IntersectBuffer {
 
 layout(set = 0, binding = 1) buffer readonly RayGenBuffer {
   Ray rays[];
-} rayGenBuffer;
+} tracedRayBuffer;
 
 layout(set = 0, binding = 2) buffer readonly ObjectBvhBuffer {
   BvhNode objectBvhNodes[];
@@ -302,7 +302,7 @@ bool hitObjectBvh(Ray r, out float t, out uint hitIndex, out uint hitTypeIndex) 
 
 void main() {
   HitRecord hit = HitRecord(0.0f, 0u, 0u);
-  Ray ray = rayGenBuffer.rays[gl_GlobalInvocationID.x];
+  Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
   if (length(ray.direction) > 0.001f) {
     hitObjectBvh(ray, hit.t, hit.hitIndex, hit.hitTypeIndex);
