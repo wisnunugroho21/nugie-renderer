@@ -5,8 +5,19 @@ namespace NugieApp {
     this->arrayItemInfos.clear();
   }
 
+  StackedArrayBuffer::Builder& StackedArrayBuffer::Builder::addArrayItem(std::string arrayId, VkDeviceSize instanceSize, uint32_t count) {
+    this->arrayItemInfos.emplace_back(ArrayItemInfo{
+      arrayId,
+      instanceSize,
+		  count
+    });
+
+    return *this;
+  }
+
   StackedArrayBuffer::Builder& StackedArrayBuffer::Builder::addArrayItem(VkDeviceSize instanceSize, uint32_t count) {
     this->arrayItemInfos.emplace_back(ArrayItemInfo{
+      "",
       instanceSize,
 		  count
     });
@@ -28,11 +39,12 @@ namespace NugieApp {
 
 	void StackedArrayBuffer::createBuffers(VkBufferUsageFlags usageFlags, std::vector<ArrayItemInfo> arrayItemInfos) {
     this->arrayItemBufferInfos.clear();
+    this->arrayIdMaps.clear();
 
     VkDeviceSize totalSize = 0u;
     
-    for (auto&& arrayItemInfo : arrayItemInfos) {
-      VkDeviceSize curSize = arrayItemInfo.instanceSize * arrayItemInfo.count;
+    for (size_t i = 0; i < arrayItemInfos.size(); i++) {
+      VkDeviceSize curSize = arrayItemInfos[i].instanceSize * arrayItemInfos[i].count;
 
       this->arrayItemBufferInfos.emplace_back(ArrayItemBufferInfo{
         curSize,
@@ -40,8 +52,11 @@ namespace NugieApp {
       });
 
       totalSize += curSize;
+
+      if (!arrayItemInfos[i].arrayId.empty()) {
+        this->arrayIdMaps[arrayItemInfos[i].arrayId] = i;
+      }
     }
-    
     
     this->buffer = new NugieVulkan::Buffer(
       this->device,
@@ -57,12 +72,24 @@ namespace NugieApp {
       this->arrayItemBufferInfos[arrayIndex].offset);
   }
 
+  VkDescriptorBufferInfo StackedArrayBuffer::getInfo(std::string arrayId) {
+    return this->getInfo(this->arrayIdMaps[arrayId]);
+  }
+
   void StackedArrayBuffer::transitionBuffer(NugieVulkan::CommandBuffer* commandBuffer, uint32_t arrayIndex, 
     VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess, VkAccessFlags dstAccess, 
     uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex)
   {
     this->buffer->transitionBuffer(commandBuffer, this->arrayItemBufferInfos[arrayIndex].size, this->arrayItemBufferInfos[arrayIndex].offset,
       srcStage, dstStage, srcAccess, dstAccess, srcQueueFamilyIndex, dstQueueFamilyIndex);
+  }
+
+  void StackedArrayBuffer::transitionBuffer(NugieVulkan::CommandBuffer* commandBuffer, std::string arrayId,
+    VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess, VkAccessFlags dstAccess, 
+    uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex)
+  {
+    this->transitionBuffer(commandBuffer, this->arrayIdMaps[arrayId], srcStage, dstStage, 
+      srcAccess, dstAccess, srcQueueFamilyIndex, dstQueueFamilyIndex);
   }
 
 	void StackedArrayBuffer::initializeValue(NugieVulkan::CommandBuffer* commandBuffer, uint32_t value) {
