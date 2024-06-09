@@ -16,7 +16,7 @@ namespace NugieApp {
 	class Renderer
 	{
 		public:
-			Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device);
+			Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device, uint32_t frameCount);
 			~Renderer();
 
 			NugieVulkan::SwapChain* getSwapChain() const { return this->swapChain; }
@@ -66,10 +66,12 @@ namespace NugieApp {
 			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
 
 			std::vector<VkFence> inFlightFences, imagesInFlights;
-			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
-				prepareFinishedSemaphores, transferFinishedSemaphores;
+			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores;
+			std::vector<VkSemaphore> prepareFinishedSemaphores, transferFinishedSemaphores;
 
-			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0;
-			bool isFrameStarted = false, isTransferStarted = false, isPrepareStarted = false;
+			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0, frameCount = 0;
+			bool isFrameStarted = false;
+
+			std::vector<bool> isTransferStarteds, isPrepareStarteds;
 	};
 }

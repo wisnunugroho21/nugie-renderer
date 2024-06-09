@@ -20,7 +20,7 @@ namespace NugieApp {
 	App::App() {
 		this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
 		this->device = new NugieVulkan::Device(this->window);
-		this->renderer = new Renderer(this->window, this->device);
+		this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
 		this->camera = new Camera(WIDTH, HEIGHT);
 		
@@ -554,7 +554,7 @@ namespace NugieApp {
 		uint32_t totalCount = 8 * 8;
 		this->initCamera(width, height);
 
-		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
 		this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
 			.addArrayItem("traced_ray", static_cast<VkDeviceSize>(sizeof(Ray)), totalCount) // Traced Ray

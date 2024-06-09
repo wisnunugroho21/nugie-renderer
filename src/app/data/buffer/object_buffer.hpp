@@ -12,7 +12,7 @@ namespace NugieApp {
 	template <typename T>
 	class ObjectBuffer {
 		public:
-			ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags);
+			ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t bufferCount);
 			~ObjectBuffer();
 
 			NugieVulkan::Buffer* getBuffer(uint32_t index) const { return this->buffers[index]; }
@@ -24,12 +24,12 @@ namespace NugieApp {
       NugieVulkan::Device* device = nullptr;
 			std::vector<NugieVulkan::Buffer*> buffers;
 
-			void createBuffer(VkBufferUsageFlags usageFlags);
+			void createBuffer(VkBufferUsageFlags usageFlags, uint32_t bufferCount);
 	};
 
 	template <typename T>
-	ObjectBuffer<T>::ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags) : device{device} {
-		this->createBuffer(usageFlags);
+	ObjectBuffer<T>::ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t bufferCount) : device{device} {
+		this->createBuffer(usageFlags, bufferCount);
 	}
 
 	template <typename T>
@@ -51,10 +51,10 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ObjectBuffer<T>::createBuffer(VkBufferUsageFlags usageFlags) {
+	void ObjectBuffer<T>::createBuffer(VkBufferUsageFlags usageFlags, uint32_t bufferCount) {
 		this->buffers.clear();
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < bufferCount; i++) {
 			auto buffer = new NugieVulkan::Buffer(
 				this->device,
 				sizeof(T),
