@@ -170,7 +170,7 @@ void main() {
     vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
     vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
 
-    vec3 target = lambertRandomDirection(buildOnb(triangleNormal(hittedTriangle, ray)), 0u);
+    vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
     
     Ray nextRay;
     nextRay.origin = hittedPosition;
