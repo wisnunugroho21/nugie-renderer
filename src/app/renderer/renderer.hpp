@@ -66,10 +66,12 @@ namespace NugieApp {
 			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
 
 			std::vector<VkFence> inFlightFences, imagesInFlights;
-			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
-				prepareFinishedSemaphores, transferFinishedSemaphores;
+			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores;
+			std::vector<VkSemaphore> prepareFinishedSemaphores, transferFinishedSemaphores;
 
 			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0;
-			bool isFrameStarted = false, isTransferStarted = false, isPrepareStarted = false;
+			bool isFrameStarted = false;
+
+			std::vector<bool> isTransferStarteds, isPrepareStarteds;
 	};
 }
