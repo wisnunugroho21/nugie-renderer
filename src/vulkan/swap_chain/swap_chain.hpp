@@ -32,7 +32,7 @@ namespace NugieVulkan {
         return swapChain->swapChainImageFormat == this->swapChainImageFormat;
       }
 
-      VkResult acquireNextImage(uint32_t* imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore);
+      VkResult acquireNextImage(uint32_t* imageIndex, VkSemaphore imageAvailableSemaphore);
       VkResult presentRenders(VkQueue queue, uint32_t* imageIndex, const std::vector<VkSemaphore> &waitSemaphores);
 
     private:

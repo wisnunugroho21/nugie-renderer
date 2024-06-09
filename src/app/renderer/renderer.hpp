@@ -65,7 +65,7 @@ namespace NugieApp {
 			std::vector<NugieVulkan::CommandBuffer*> graphicCommandBuffers;
 			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
 
-			std::vector<VkFence> inFlightFences;
+			std::vector<VkFence> inFlightFences, imagesInFlights;
 			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
 				prepareFinishedSemaphores, transferFinishedSemaphores;
 
