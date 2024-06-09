@@ -11,7 +11,7 @@ namespace NugieApp {
 	template <typename T>
 	class ArrayManyBuffer {
 		public:
-			ArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u, bool isAlsoCreateStaging = true);
+			ArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount = 1000000u, uint32_t bufferCount = 1u, bool isAlsoCreateStaging = true);
 			~ArrayManyBuffer();
 			
 			NugieVulkan::Buffer* getBuffer(uint32_t index) const { return this->buffers[index]; }
@@ -30,11 +30,11 @@ namespace NugieApp {
 			std::vector<NugieVulkan::Buffer*> stagingBuffers;
 			std::vector<NugieVulkan::Buffer*> buffers;
 
-			void createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount);			
+			void createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount, uint32_t bufferCount);			
 	};
 
 	template <typename T>
-	ArrayManyBuffer<T>::ArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount, bool isAlsoCreateStaging) : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} {
+	ArrayManyBuffer<T>::ArrayManyBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags, uint32_t instanceCount, uint32_t bufferCount, bool isAlsoCreateStaging) : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} {
 		this->createBuffers(usageFlags, instanceCount);
 	}
 
@@ -61,14 +61,14 @@ namespace NugieApp {
 	}
 
 	template <typename T>
-	void ArrayManyBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount) {
+	void ArrayManyBuffer<T>::createBuffers(VkBufferUsageFlags usageFlags, uint32_t instanceCount, uint32_t bufferCount) {
 		uint32_t instanceSize = static_cast<uint32_t>(sizeof(T));
 
 		if (!(usageFlags & (1 << VK_BUFFER_USAGE_TRANSFER_DST_BIT)) && this->isAlsoCreateStaging) {
 			usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		}
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+		for (uint32_t i = 0; i < bufferCount; i++) {
 			this->buffers.emplace_back(new NugieVulkan::Buffer(
 				this->device,
 				instanceSize,
