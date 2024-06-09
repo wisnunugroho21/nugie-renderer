@@ -83,12 +83,13 @@ namespace NugieApp {
 	}
 
 	void Renderer::createSyncObjects() {
-		imageAvailableSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
-		renderFinishedSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
-		inFlightFences.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+		this->imageAvailableSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+		this->renderFinishedSemaphores.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+		this->inFlightFences.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+		this->imagesInFlights.resize(this->imageCount, VK_NULL_HANDLE);
 
-		transferFinishedSemaphores.resize(1);
-		prepareFinishedSemaphores.resize(1);
+		this->transferFinishedSemaphores.resize(1);
+		this->prepareFinishedSemaphores.resize(1);
 
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -140,9 +141,16 @@ namespace NugieApp {
 
 	bool Renderer::acquireFrame() {
 		assert(!this->isFrameStarted && "can't acquire frame while frame still in progress");
+		
+		vkWaitForFences(
+      this->device->getLogicalDevice(),
+      1,
+      &this->inFlightFences[this->currentFrameIndex],
+      VK_TRUE,
+      std::numeric_limits<uint64_t>::max()
+    );
 
-		std::vector<VkFence> acquireFrameFences = { this->inFlightFences[this->currentFrameIndex] };
-		auto result = this->swapChain->acquireNextImage(&this->currentImageIndex, acquireFrameFences, this->imageAvailableSemaphores[this->currentFrameIndex]);
+		auto result = this->swapChain->acquireNextImage(&this->currentImageIndex, this->imageAvailableSemaphores[this->currentFrameIndex]);
 		
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 			this->recreateSwapChain();
@@ -176,9 +184,19 @@ namespace NugieApp {
 
 	void Renderer::submitRenderCommand() {
 		assert(this->isFrameStarted && "can't submit command if frame is not in progress");
-		uint32_t commandIndex = this->currentFrameIndex + NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->currentImageIndex;
+		
+		if (this->imagesInFlights[this->currentImageIndex] != VK_NULL_HANDLE) {
+			vkWaitForFences(
+				this->device->getLogicalDevice(), 
+				1, 
+				&this->imagesInFlights[this->currentImageIndex], 
+				VK_TRUE, 
+				std::numeric_limits<uint64_t>::max()
+			);
+		}
 
-		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
+		this->imagesInFlights[this->currentImageIndex] = this->inFlightFences[this->currentFrameIndex];
+		uint32_t commandIndex = this->currentFrameIndex + NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT * this->currentImageIndex;		
 
 		std::vector<VkSemaphore> waitSemaphores = { this->imageAvailableSemaphores[this->currentFrameIndex] };
 		std::vector<VkSemaphore> signalSemaphores = { this->renderFinishedSemaphores[this->currentFrameIndex] };
@@ -198,6 +216,7 @@ namespace NugieApp {
 			this->isPrepareStarted = false;
 		}
 
+		vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
 		this->graphicCommandBuffers[commandIndex]->submitCommand(this->device->getGraphicsQueue(), 
 			waitSemaphores, waitStages, signalSemaphores, this->inFlightFences[this->currentFrameIndex]);
 	}

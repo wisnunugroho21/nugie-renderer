@@ -42,15 +42,7 @@ namespace NugieVulkan {
     vkDestroySwapchainKHR(this->device->getLogicalDevice(), this->swapChain, nullptr);
   }
 
-  VkResult SwapChain::acquireNextImage(uint32_t *imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore) {
-    vkWaitForFences(
-      this->device->getLogicalDevice(),
-      static_cast<uint32_t>(inFlightFences.size()),
-      inFlightFences.data(),
-      VK_TRUE,
-      std::numeric_limits<uint64_t>::max()
-    );
-
+  VkResult SwapChain::acquireNextImage(uint32_t *imageIndex, VkSemaphore imageAvailableSemaphore) {
     VkResult result = vkAcquireNextImageKHR(
       this->device->getLogicalDevice(),
       this->swapChain,
