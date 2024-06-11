@@ -13,65 +13,76 @@
 
 
 namespace NugieApp {
-	class Renderer
-	{
-		public:
-			Renderer(NugieVulkan::Window* window, NugieVulkan::Device* device, uint32_t frameCount);
-			~Renderer();
+    class Renderer {
+    public:
+        Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount);
 
-			NugieVulkan::SwapChain* getSwapChain() const { return this->swapChain; }
-			NugieVulkan::DescriptorPool* getDescriptorPool() const { return this->descriptorPool; }
-			bool isFrameInProgress() const { return this->isFrameStarted; }
+        ~Renderer();
 
-			uint32_t getFrameIndex() const {
-				assert(this->isFrameStarted && "cannot get frame index when frame is not in progress");
-				return this->currentFrameIndex;
-			}
+        NugieVulkan::SwapChain *getSwapChain() const { return this->swapChain; }
 
-			uint32_t getImageIndex() const {
-				assert(this->isFrameStarted && "cannot get image index when frame is not in progress");
-				return this->currentImageIndex;
-			}
+        NugieVulkan::DescriptorPool *getDescriptorPool() const { return this->descriptorPool; }
 
-			void resetCommandPool();
+        bool isFrameInProgress() const { return this->isFrameStarted; }
 
-			NugieVulkan::CommandBuffer* beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
-			NugieVulkan::CommandBuffer* beginRecordPrepareCommand();
-			NugieVulkan::CommandBuffer* beginRecordTransferCommand();
+        uint32_t getFrameIndex() const {
+            assert(this->isFrameStarted && "cannot get frame index when frame is not in progress");
+            return this->currentFrameIndex;
+        }
 
-			void submitRenderCommand();
-			void submitPrepareCommand();
-			void submitTransferCommand();
+        uint32_t getImageIndex() const {
+            assert(this->isFrameStarted && "cannot get image index when frame is not in progress");
+            return this->currentImageIndex;
+        }
 
-			bool acquireFrame();
-			bool presentFrame();
+        void resetCommandPool();
 
-		private:
-			void recreateSwapChain();
-			void createSyncObjects();
-			void createDescriptorPool();
-			void createCommandPool();
-			void createCommandBuffers();
+        NugieVulkan::CommandBuffer *beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
 
-			NugieVulkan::Window* window;
-			NugieVulkan::Device* device;
-			
-			NugieVulkan::DescriptorPool* descriptorPool = nullptr;
-			NugieVulkan::SwapChain* swapChain = nullptr;
+        NugieVulkan::CommandBuffer *beginRecordPrepareCommand();
 
-			NugieVulkan::CommandPool* graphicCommandPool = nullptr;
-			NugieVulkan::CommandPool* transferCommandPool = nullptr;
+        NugieVulkan::CommandBuffer *beginRecordTransferCommand();
 
-			std::vector<NugieVulkan::CommandBuffer*> graphicCommandBuffers;
-			std::vector<NugieVulkan::CommandBuffer*> transferCommandBuffers;
+        void submitRenderCommand();
 
-			std::vector<VkFence> inFlightFences, imagesInFlights;
-			std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores;
-			std::vector<VkSemaphore> prepareFinishedSemaphores, transferFinishedSemaphores;
+        void submitPrepareCommand();
 
-			uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0, frameCount = 0;
-			bool isFrameStarted = false;
+        void submitTransferCommand();
 
-			std::vector<bool> isTransferStarteds, isPrepareStarteds;
-	};
+        bool acquireFrame();
+
+        bool presentFrame();
+
+    private:
+        void recreateSwapChain();
+
+        void createSyncObjects();
+
+        void createDescriptorPool();
+
+        void createCommandPool();
+
+        void createCommandBuffers();
+
+        NugieVulkan::Window *window;
+        NugieVulkan::Device *device;
+
+        NugieVulkan::DescriptorPool *descriptorPool = nullptr;
+        NugieVulkan::SwapChain *swapChain = nullptr;
+
+        NugieVulkan::CommandPool *graphicCommandPool = nullptr;
+        NugieVulkan::CommandPool *transferCommandPool = nullptr;
+
+        std::vector<NugieVulkan::CommandBuffer *> graphicCommandBuffers;
+        std::vector<NugieVulkan::CommandBuffer *> transferCommandBuffers;
+
+        std::vector<VkFence> inFlightFences, imagesInFlights;
+        std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores;
+        std::vector<VkSemaphore> prepareFinishedSemaphores, transferFinishedSemaphores;
+
+        uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0, frameCount = 0;
+        bool isFrameStarted = false;
+
+        std::vector<bool> isTransferStarteds, isPrepareStarteds;
+    };
 }

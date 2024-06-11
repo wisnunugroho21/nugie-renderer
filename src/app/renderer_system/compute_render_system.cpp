@@ -8,11 +8,12 @@
 #include <stdexcept>
 #include <array>
 #include <string>
+#include <utility>
 
 namespace NugieApp {
 	ComputeRenderSystem::ComputeRenderSystem(NugieVulkan::Device* device, std::string compFilePath, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
 		const std::vector<VkPushConstantRange> &pushConstantRanges)
-		: device{device}, compFilePath{compFilePath}, descriptorSetLayouts{descriptorSetLayouts}, pushConstantRanges{pushConstantRanges}
+		: device{device}, compFilePath{std::move(compFilePath)}, descriptorSetLayouts{descriptorSetLayouts}, pushConstantRanges{pushConstantRanges}
 	{
 		
 	}
@@ -24,14 +25,16 @@ namespace NugieApp {
 
 	void ComputeRenderSystem::createPipelineLayout() {
 		std::vector<VkDescriptorSetLayout> setLayouts;
-		for (auto &&descriptorSetLayout: this->descriptorSetLayouts) {
+		setLayouts.reserve(this->descriptorSetLayouts.size());
+
+        for (auto &&descriptorSetLayout: this->descriptorSetLayouts) {
 			setLayouts.emplace_back(descriptorSetLayout->getDescriptorSetLayout());
 		}
 
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = (setLayouts.size() > 0) ? setLayouts.data() : nullptr;
+		pipelineLayoutInfo.pSetLayouts = (!setLayouts.empty()) ? setLayouts.data() : nullptr;
 		pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
 		pipelineLayoutInfo.pPushConstantRanges = (pushConstantRanges.size() > 0) ? pushConstantRanges.data() : nullptr;
 
@@ -49,7 +52,7 @@ namespace NugieApp {
 	}
 
 	void ComputeRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t xInvocations, uint32_t yInvocations, 
-		uint32_t zInvocations, const std::vector<VkDescriptorSet> &descriptorSets, const std::vector<void*> pushConstants)
+		uint32_t zInvocations, const std::vector<VkDescriptorSet> &descriptorSets, const std::vector<void *> &pushConstants)
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 		
@@ -81,7 +84,7 @@ namespace NugieApp {
 			}
 		}
 
-		this->pipeline->dispatch(commandBuffer, xInvocations, yInvocations, zInvocations);
+		NugieVulkan::ComputePipeline::dispatch(commandBuffer, xInvocations, yInvocations, zInvocations);
 	}
 
 	void ComputeRenderSystem::initialize() {

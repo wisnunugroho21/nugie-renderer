@@ -10,116 +10,135 @@
 #include "../command/command_buffer.hpp"
 
 namespace NugieVulkan {
-	class GraphicPipeline {
-		public:
-			class Builder {
-				public:
-					Builder(Device* device, RenderPass* renderPass, VkPipelineLayout pipelineLayout);
+    class GraphicPipeline {
+    public:
+        class Builder {
+        public:
+            Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout);
 
-					std::vector<VkDynamicState> getDynamicStates() const { return this->dynamicStates; }
-					std::vector<VkPipelineShaderStageCreateInfo> getShaderStagesInfo() const { return this->shaderStagesInfo; }
+            std::vector<VkDynamicState> getDynamicStates() const { return this->dynamicStates; }
 
-					Builder& setDefault(
-						const std::string& vertFilePath, 
-						const std::string& fragFilePath,
-						const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments, 
-						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
-					);
+            std::vector<VkPipelineShaderStageCreateInfo> getShaderStagesInfo() const { return this->shaderStagesInfo; }
 
-					Builder& setDefault(
-						const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments, 
-						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
-					);
+            Builder &setDefault(
+                    const std::string &vertFilePath,
+                    const std::string &fragFilePath,
+                    const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
+                    const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
+                    const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
+            );
 
-					Builder& setDefault( 
-						const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-						const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
-					);
-					
-					Builder& setSubpass(uint32_t subpass);
-					Builder& setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo);
-					Builder& setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo);
-					Builder& setRasterizationInfo(VkPipelineRasterizationStateCreateInfo rasterizationInfo);
-					Builder& setMultisampleInfo(VkPipelineMultisampleStateCreateInfo multisampleInfo);
-					Builder& setColorBlendInfo(VkPipelineColorBlendStateCreateInfo colorBlendInfo);
-					Builder& setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo depthStencilInfo);
-					Builder& setDynamicStateInfo(VkPipelineDynamicStateCreateInfo dynamicStateInfo);
-					Builder& setShaderStagesInfo(const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo);
-					Builder& setTessellationInfo(VkPipelineTessellationStateCreateInfo tessellationInfo);
+            Builder &setDefault(
+                    const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
+                    const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
+                    const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
+            );
 
-					Builder& addShaderStage(VkShaderStageFlagBits shaderStage, const std::string& shaderFilePath);
+            Builder &setDefault(
+                    const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
+                    const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
+            );
 
-					GraphicPipeline* build();
+            Builder &setSubpass(uint32_t subpass);
 
-				private:
-					VkPipelineLayout pipelineLayout;
-					VkRenderPass renderPass;
-					uint32_t subpass = 0;
+            Builder &setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo);
 
-					VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-					VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
-					VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
-					VkPipelineMultisampleStateCreateInfo multisampleInfo{};
-					VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
-					VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
-					VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
-					VkPipelineTessellationStateCreateInfo tessellationInfo{};
+            Builder &setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo);
 
-					std::vector<VkDynamicState> dynamicStates{};
-					std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo{};
-					
-					Device* device = nullptr;
-			};
+            Builder &setRasterizationInfo(VkPipelineRasterizationStateCreateInfo rasterizationInfo);
 
-			GraphicPipeline(
-				Device* device, 
-				VkPipelineLayout pipelineLayout,
-				VkRenderPass renderPass,
-				uint32_t subpass,
-				VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-				VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-				VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-				VkPipelineMultisampleStateCreateInfo multisampleInfo,
-				VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-				VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-				VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-				VkPipelineTessellationStateCreateInfo tessellationInfo
-			);
-			~GraphicPipeline();
+            Builder &setMultisampleInfo(VkPipelineMultisampleStateCreateInfo multisampleInfo);
 
-			static std::vector<char> readFile(const std::string& filepath);
-			static void createShaderModule(Device* device, const std::vector<char>& code, VkShaderModule* shaderModule);
+            Builder &setColorBlendInfo(VkPipelineColorBlendStateCreateInfo colorBlendInfo);
 
-			void bindPipeline(CommandBuffer* commandBuffer);
-			void bindBuffers(CommandBuffer* commandBuffer, const std::vector<Buffer*> &vertexBuffers, const std::vector<VkDeviceSize>&vertexOffsets, 
-				Buffer* indexBuffer = nullptr, VkDeviceSize indexOffset = 0);
+            Builder &setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo depthStencilInfo);
 
-			void draw(CommandBuffer* commandBuffer, uint32_t vertextCount);
-			void drawIndirect(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t offset, uint32_t drawCount);
-			void drawIndexed(CommandBuffer* commandBuffer, uint32_t indexCount, uint32_t instanceCount);
-			void drawIndirectIndexed(CommandBuffer* commandBuffer, NugieVulkan::Buffer* drawCommandBuffer, uint32_t indexCount, uint32_t offset);
+            Builder &setDynamicStateInfo(VkPipelineDynamicStateCreateInfo dynamicStateInfo);
 
-		private:
-			Device* device = nullptr;
-			VkPipeline graphicPipeline;
-			std::vector<VkShaderModule> shaderModules{};
+            Builder &setShaderStagesInfo(const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo);
 
-			void createGraphicPipeline(
-				VkPipelineLayout pipelineLayout,
-				VkRenderPass renderPass,
-				uint32_t subpass,
-				VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-				VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-				VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-				VkPipelineMultisampleStateCreateInfo multisampleInfo,
-				VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-				VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-				VkPipelineDynamicStateCreateInfo dynamicStateInfo,
-				const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-				VkPipelineTessellationStateCreateInfo tessellationInfo
-			);
-	};
+            Builder &setTessellationInfo(VkPipelineTessellationStateCreateInfo tessellationInfo);
+
+            Builder &addShaderStage(VkShaderStageFlagBits shaderStage, const std::string &shaderFilePath);
+
+            GraphicPipeline *build();
+
+        private:
+            VkPipelineLayout pipelineLayout;
+            VkRenderPass renderPass;
+            uint32_t subpass = 0;
+
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+            VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
+            VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
+            VkPipelineMultisampleStateCreateInfo multisampleInfo{};
+            VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
+            VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
+            VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
+            VkPipelineTessellationStateCreateInfo tessellationInfo{};
+
+            std::vector<VkDynamicState> dynamicStates{};
+            std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo{};
+
+            Device *device = nullptr;
+        };
+
+        GraphicPipeline(
+                Device *device,
+                VkPipelineLayout pipelineLayout,
+                VkRenderPass renderPass,
+                uint32_t subpass,
+                VkPipelineVertexInputStateCreateInfo vertexInputInfo,
+                VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
+                VkPipelineRasterizationStateCreateInfo rasterizationInfo,
+                VkPipelineMultisampleStateCreateInfo multisampleInfo,
+                VkPipelineColorBlendStateCreateInfo colorBlendInfo,
+                VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
+                VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+                const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
+                VkPipelineTessellationStateCreateInfo tessellationInfo
+        );
+
+        ~GraphicPipeline();
+
+        static std::vector<char> readFile(const std::string &filepath);
+
+        static void createShaderModule(Device *device, const std::vector<char> &code, VkShaderModule *shaderModule);
+
+        void bindPipeline(CommandBuffer *commandBuffer);
+
+        static void bindBuffers(CommandBuffer *commandBuffer, const std::vector<Buffer *> &vertexBuffers,
+                         const std::vector<VkDeviceSize> &vertexOffsets,
+                         Buffer *indexBuffer = nullptr, VkDeviceSize indexOffset = 0);
+
+        static void draw(CommandBuffer *commandBuffer, uint32_t vertexCount);
+
+        static void drawIndirect(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer, uint32_t offset,
+                                 uint32_t drawCount);
+
+        static void drawIndexed(CommandBuffer *commandBuffer, uint32_t indexCount, uint32_t instanceCount);
+
+        static void drawIndirectIndexed(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer,
+                                        uint32_t indexCount, uint32_t offset);
+
+    private:
+        Device *device = nullptr;
+        VkPipeline graphicPipeline;
+        std::vector<VkShaderModule> shaderModules{};
+
+        void createGraphicPipeline(
+                VkPipelineLayout pipelineLayout,
+                VkRenderPass renderPass,
+                uint32_t subpass,
+                VkPipelineVertexInputStateCreateInfo vertexInputInfo,
+                VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
+                VkPipelineRasterizationStateCreateInfo rasterizationInfo,
+                VkPipelineMultisampleStateCreateInfo multisampleInfo,
+                VkPipelineColorBlendStateCreateInfo colorBlendInfo,
+                VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
+                VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+                const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
+                VkPipelineTessellationStateCreateInfo tessellationInfo
+        );
+    };
 }

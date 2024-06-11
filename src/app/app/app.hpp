@@ -27,67 +27,70 @@
 #define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {
-	class App
-	{
-		public:
-			App();
-			~App();
+    class App {
+    public:
+        App();
 
-			void recordCommand();
+        ~App();
 
-			void run();
-			void renderLoop();
+        void recordCommand();
 
-		private:
-			void loadObjects();
-			void initCamera(uint32_t width, uint32_t height);
-			
-			void init();
-			void resize();
+        void run();
 
-			NugieVulkan::Window* window = nullptr;
-			NugieVulkan::Device* device = nullptr;
+        void renderLoop();
 
-			Camera* camera = nullptr;
-			Renderer* renderer = nullptr;
+    private:
+        void loadObjects();
 
-			ComputeRenderSystem* rayIntersectRenderer = nullptr;
-			ComputeRenderSystem* indirectRayGenRenderer = nullptr;
-			ComputeRenderSystem* indirectRayHitRenderer = nullptr;
-			ComputeRenderSystem* lightRayHitRenderer = nullptr;
-			ComputeRenderSystem* missRayRenderer = nullptr;
-			ComputeRenderSystem* directRayGenRenderer = nullptr;
-			ComputeRenderSystem* directRayHitRenderer = nullptr;
-			ComputeRenderSystem* integratorRenderer = nullptr;
-			ComputeRenderSystem* samplingRenderer = nullptr;
+        void initCamera(uint32_t width, uint32_t height);
 
-			ArrayBuffer<Object>* objectBuffer = nullptr;
-			ArrayBuffer<BvhNode>* objectBvhBuffer = nullptr;
-			ArrayBuffer<Triangle>* triangleBuffer = nullptr;
-			ArrayBuffer<Triangle>* triangleLightBuffer = nullptr;
-			ArrayBuffer<BvhNode>* geometryBvhBuffer = nullptr;
-			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
-			ArrayBuffer<Transformation>* transformBuffer = nullptr;
-			ArrayBuffer<Material>* materialBuffer = nullptr;
+        void init();
 
-			ObjectBuffer<RayTraceUbo>* rayTraceUniformBuffer = nullptr;
-			StackedArrayManyBuffer* rayTraceStorageBuffer = nullptr;
+        void resize();
 
-			std::vector<NugieVulkan::Image*> resultImages{};
-			
-			DescriptorSet* rayIntersectDescSet = nullptr;
-			DescriptorSet* indirectRayGenDescSet = nullptr;
-			DescriptorSet* indirectRayHitDescSet = nullptr;
-			DescriptorSet* lightRayHitDescSet = nullptr;
-			DescriptorSet* missRayDescSet = nullptr;
-			DescriptorSet* directRayGenDescSet = nullptr;
-			DescriptorSet* directRayHitDescSet = nullptr;
-			DescriptorSet* integratorDescSet = nullptr;
-			DescriptorSet* samplingDescSet = nullptr;
+        NugieVulkan::Window *window = nullptr;
+        NugieVulkan::Device *device = nullptr;
 
-			uint32_t frameCount = 0u, randomSeed = 0u;
-			bool isRendering = true;
+        Camera *camera = nullptr;
+        Renderer *renderer = nullptr;
 
-			RayTraceUbo rayTraceUbo;
-	};
+        ComputeRenderSystem *rayIntersectRenderer = nullptr;
+        ComputeRenderSystem *indirectRayGenRenderer = nullptr;
+        ComputeRenderSystem *indirectRayHitRenderer = nullptr;
+        ComputeRenderSystem *lightRayHitRenderer = nullptr;
+        ComputeRenderSystem *missRayRenderer = nullptr;
+        ComputeRenderSystem *directRayGenRenderer = nullptr;
+        ComputeRenderSystem *directRayHitRenderer = nullptr;
+        ComputeRenderSystem *integratorRenderer = nullptr;
+        ComputeRenderSystem *samplingRenderer = nullptr;
+
+        ArrayBuffer<Object> *objectBuffer = nullptr;
+        ArrayBuffer<BvhNode> *objectBvhBuffer = nullptr;
+        ArrayBuffer<Triangle> *triangleBuffer = nullptr;
+        ArrayBuffer<Triangle> *triangleLightBuffer = nullptr;
+        ArrayBuffer<BvhNode> *geometryBvhBuffer = nullptr;
+        ArrayBuffer<Vertex> *vertexBuffer = nullptr;
+        ArrayBuffer<Transformation> *transformBuffer = nullptr;
+        ArrayBuffer<Material> *materialBuffer = nullptr;
+
+        ObjectBuffer<RayTraceUbo> *rayTraceUniformBuffer = nullptr;
+        StackedArrayManyBuffer *rayTraceStorageBuffer = nullptr;
+
+        std::vector<NugieVulkan::Image *> resultImages{};
+
+        DescriptorSet *rayIntersectDescSet = nullptr;
+        DescriptorSet *indirectRayGenDescSet = nullptr;
+        DescriptorSet *indirectRayHitDescSet = nullptr;
+        DescriptorSet *lightRayHitDescSet = nullptr;
+        DescriptorSet *missRayDescSet = nullptr;
+        DescriptorSet *directRayGenDescSet = nullptr;
+        DescriptorSet *directRayHitDescSet = nullptr;
+        DescriptorSet *integratorDescSet = nullptr;
+        DescriptorSet *samplingDescSet = nullptr;
+
+        uint32_t frameCount = 0u, randomSeed = 0u;
+        bool isRendering = true;
+
+        RayTraceUbo rayTraceUbo;
+    };
 }

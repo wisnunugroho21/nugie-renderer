@@ -6,30 +6,36 @@
 #include <vector>
 #include <memory>
 
-namespace NugieVulkan
-{
-  class CommandBuffer {
+namespace NugieVulkan {
+    class CommandBuffer {
     public:
-      CommandBuffer(Device* device, VkCommandBuffer commandBuffer);
+        CommandBuffer(Device *device, VkCommandBuffer commandBuffer);
 
-      VkCommandBuffer getCommandBuffer() const { return this->commandBuffer; }
+        VkCommandBuffer getCommandBuffer() const { return this->commandBuffer; }
 
-      void resetCommand();
-      void beginSingleTimeCommand();
-      void beginReccuringCommand();
-      void endCommand();
-      void submitCommand(VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores = {}, 
-        const std::vector<VkPipelineStageFlags> &waitStages = {}, const std::vector<VkSemaphore> &signalSemaphores = {}, 
-        VkFence fence = VK_NULL_HANDLE);
+        void resetCommand();
 
-      static void submitCommands(const std::vector<CommandBuffer*> &commandBuffers, VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores = {}, 
-        const std::vector<VkPipelineStageFlags> &waitStages = {}, const std::vector<VkSemaphore> &signalSemaphores = {}, 
-        VkFence fence = VK_NULL_HANDLE);
+        void beginSingleTimeCommand();
+
+        void beginReccuringCommand();
+
+        void endCommand();
+
+        void submitCommand(VkQueue queue, const std::vector<VkSemaphore> &waitSemaphores = {},
+                           const std::vector<VkPipelineStageFlags> &waitStages = {},
+                           const std::vector<VkSemaphore> &signalSemaphores = {},
+                           VkFence fence = VK_NULL_HANDLE);
+
+        static void submitCommands(const std::vector<CommandBuffer *> &commandBuffers, VkQueue queue,
+                                   const std::vector<VkSemaphore> &waitSemaphores = {},
+                                   const std::vector<VkPipelineStageFlags> &waitStages = {},
+                                   const std::vector<VkSemaphore> &signalSemaphores = {},
+                                   VkFence fence = VK_NULL_HANDLE);
 
     private:
-      Device* device = nullptr;
-      VkCommandBuffer commandBuffer;
-  };
-  
+        Device *device = nullptr;
+        VkCommandBuffer commandBuffer;
+    };
+
 } // namespace NugieVulkan
 

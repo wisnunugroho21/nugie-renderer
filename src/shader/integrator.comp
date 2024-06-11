@@ -2,74 +2,74 @@
 
 #include "core/struct.glsl"
 
-layout(local_size_x = 64) in;
+layout (local_size_x = 64) in;
 
-layout(set = 0, binding = 0) buffer IntegratorBuffer {
-  IntegratorResult results[];
+layout (set = 0, binding = 0) buffer IntegratorBuffer {
+    IntegratorResult results[];
 } integratorBuffer;
 
-layout(set = 0, binding = 1) buffer readonly IndirectHitBuffer {
-  IndirectResult results[];
+layout (set = 0, binding = 1) buffer readonly IndirectHitBuffer {
+    IndirectResult results[];
 } indirectHitBuffer;
 
-layout(set = 0, binding = 2) buffer readonly LightRayHitBuffer {
-  LightResult results[];
+layout (set = 0, binding = 2) buffer readonly LightRayHitBuffer {
+    LightResult results[];
 } lightRayHitBuffer;
 
-layout(set = 0, binding = 3) buffer readonly DirectHitBuffer {
-  DirectResult results[];
+layout (set = 0, binding = 3) buffer readonly DirectHitBuffer {
+    DirectResult results[];
 } directHitBuffer;
 
-layout(set = 0, binding = 4) buffer readonly MissBuffer {
-  MissResult results[];
+layout (set = 0, binding = 4) buffer readonly MissBuffer {
+    MissResult results[];
 } missBuffer;
 
 void main() {
-  IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
+    IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
 
-  IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
-  LightResult lightResult = lightRayHitBuffer.results[gl_GlobalInvocationID.x];
-  DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
-  MissResult missResult = missBuffer.results[gl_GlobalInvocationID.x];
-  
-  if (missResult.radianceIsMiss.w > 0.5f) {
-    integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f) 
-      ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w * missResult.radianceIsMiss.xyz 
-      : vec3(100.0f);
+    IndirectResult indirectResult = indirectHitBuffer.results[gl_GlobalInvocationID.x];
+    LightResult lightResult = lightRayHitBuffer.results[gl_GlobalInvocationID.x];
+    DirectResult directResult = directHitBuffer.results[gl_GlobalInvocationID.x];
+    MissResult missResult = missBuffer.results[gl_GlobalInvocationID.x];
 
-    integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
-    integratorResult.totalRadianceIsRayBounce.w = 0.0f;
-    integratorResult.totalIndirectPdf.w = 1.0f;
-  }
+    if (missResult.radianceIsMiss.w > 0.5f) {
+        integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
+        ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w * missResult.radianceIsMiss.xyz
+        : vec3(100.0f);
 
-  else if (lightResult.radianceIsIlluminate.w > 0.5f) {    
-    integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f) 
-      ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz * lightResult.radianceIsIlluminate.xyz
-      : vec3(1.0f);
+        integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
+        integratorResult.totalRadianceIsRayBounce.w = 0.0f;
+        integratorResult.totalIndirectPdf.w = 1.0f;
+    }
 
-    integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
-    integratorResult.totalRadianceIsRayBounce.w = 0.0f;
-    integratorResult.totalIndirectPdf.w = 1.0f;
-  }
-  
-  else {    
-    vec3 prevIndirect = integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w;
-    float totalPdf = indirectResult.radiancePdf.w + directResult.radiancePdf.w;
+    else if (lightResult.radianceIsIlluminate.w > 0.5f) {
+        integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
+        ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz * lightResult.radianceIsIlluminate.xyz
+        : vec3(1.0f);
 
-    integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f) 
-      ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz * (directResult.radiancePdf.w / totalPdf) * prevIndirect
-      : directResult.radiancePdf.xyz;
+        integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
+        integratorResult.totalRadianceIsRayBounce.w = 0.0f;
+        integratorResult.totalIndirectPdf.w = 1.0f;
+    }
 
-    integratorResult.totalIndirectPdf.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-      ? indirectResult.radiancePdf.xyz * (indirectResult.radiancePdf.w / totalPdf) * prevIndirect
-      : indirectResult.radiancePdf.xyz;    
+    else {
+        vec3 prevIndirect = integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w;
+        float totalPdf = indirectResult.radiancePdf.w + directResult.radiancePdf.w;
 
-    integratorResult.totalRadianceIsRayBounce.w = (max(integratorResult.totalIndirectPdf.x, max(integratorResult.totalIndirectPdf.y, integratorResult.totalIndirectPdf.z)) > 0.1f) 
-      ? 1.0f
-      : 0.0f;
+        integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
+        ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz * (directResult.radiancePdf.w / totalPdf) * prevIndirect
+        : directResult.radiancePdf.xyz;
 
-    integratorResult.totalIndirectPdf.w = indirectResult.radiancePdf.w;   
-  }
+        integratorResult.totalIndirectPdf.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
+        ? indirectResult.radiancePdf.xyz * (indirectResult.radiancePdf.w / totalPdf) * prevIndirect
+        : indirectResult.radiancePdf.xyz;
 
-  integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
+        integratorResult.totalRadianceIsRayBounce.w = (max(integratorResult.totalIndirectPdf.x, max(integratorResult.totalIndirectPdf.y, integratorResult.totalIndirectPdf.z)) > 0.1f)
+        ? 1.0f
+        : 0.0f;
+
+        integratorResult.totalIndirectPdf.w = indirectResult.radiancePdf.w;
+    }
+
+    integratorBuffer.results[gl_GlobalInvocationID.x] = integratorResult;
 }
