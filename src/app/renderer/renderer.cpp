@@ -30,7 +30,6 @@ namespace NugieApp {
 
         for (uint32_t i = 0; i < this->imageCount * this->frameCount; i++) {
             vkDestroySemaphore(this->device->getLogicalDevice(), this->transferFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(this->device->getLogicalDevice(), this->prepareFinishedSemaphores[i], nullptr);
         }
 
         delete this->transferCommandBuffers[0];
@@ -94,7 +93,6 @@ namespace NugieApp {
         this->imagesInFlights.resize(this->imageCount, VK_NULL_HANDLE);
 
         this->transferFinishedSemaphores.resize(this->frameCount * this->imageCount);
-        this->prepareFinishedSemaphores.resize(this->frameCount * this->imageCount);
 
         VkSemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -119,25 +117,19 @@ namespace NugieApp {
                                   &this->transferFinishedSemaphores[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create synchronization objects for transfer operation!");
             }
-
-            if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
-                                  &this->prepareFinishedSemaphores[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create synchronization objects for prepare operation!");
-            }
         }
 
         this->isTransferStarteds.resize(this->frameCount * this->imageCount, false);
-        this->isPrepareStarteds.resize(this->frameCount * this->imageCount, false);
     }
 
     void Renderer::createCommandBuffers() {
         std::vector<VkCommandBuffer> commandBuffers;
-        commandBuffers.resize(this->imageCount * this->frameCount + 1u);
+        commandBuffers.resize(this->imageCount * this->frameCount);
 
         this->graphicCommandPool->allocate(commandBuffers);
         this->graphicCommandBuffers.clear();
 
-        for (uint32_t i = 0; i < this->imageCount * this->frameCount + 1u; i++) {
+        for (uint32_t i = 0; i < this->imageCount * this->frameCount; i++) {
             this->graphicCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, commandBuffers[i]));
         }
 
@@ -192,11 +184,6 @@ namespace NugieApp {
         return this->transferCommandBuffers[0];
     }
 
-    NugieVulkan::CommandBuffer *Renderer::beginRecordPrepareCommand() {
-        this->graphicCommandBuffers[this->imageCount * this->frameCount]->beginReccuringCommand();
-        return this->graphicCommandBuffers[this->imageCount * this->frameCount];
-    }
-
     void Renderer::submitRenderCommand() {
         assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 
@@ -224,13 +211,6 @@ namespace NugieApp {
             this->isTransferStarteds[commandIndex] = false;
         }
 
-        if (this->isPrepareStarteds[commandIndex]) {
-            waitSemaphores.emplace_back(this->prepareFinishedSemaphores[commandIndex]);
-            waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-
-            this->isPrepareStarteds[commandIndex] = false;
-        }
-
         vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
         this->graphicCommandBuffers[commandIndex]->submitCommand(this->device->getGraphicsQueue(),
                                                                  waitSemaphores, waitStages, signalSemaphores,
@@ -247,20 +227,6 @@ namespace NugieApp {
 
         for (auto &&isTransferStarted: this->isTransferStarteds) {
             isTransferStarted = true;
-        }
-    }
-
-    void Renderer::submitPrepareCommand() {
-        std::vector<VkSemaphore> waitSemaphores = {};
-        std::vector<VkSemaphore> signalSemaphores = this->prepareFinishedSemaphores;
-        std::vector<VkPipelineStageFlags> waitStages = {};
-
-        this->graphicCommandBuffers[this->imageCount * this->frameCount]->submitCommand(
-                this->device->getGraphicsQueue(),
-                waitSemaphores, waitStages, signalSemaphores);
-
-        for (auto &&isPrepareStarted: this->isPrepareStarteds) {
-            isPrepareStarted = true;
         }
     }
 

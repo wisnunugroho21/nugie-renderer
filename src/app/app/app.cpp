@@ -74,24 +74,6 @@ namespace NugieApp {
     }
 
     void App::recordCommand() {
-        auto prepareCommandBuffer = this->renderer->beginRecordPrepareCommand();
-
-        for (auto &&swapChainImage: this->renderer->getSwapChain()->getswapChainImages()) {
-            swapChainImage->transitionImageLayout(prepareCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED,
-                                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                                  0, 0);
-        }
-
-        for (auto &&resultImage: this->resultImages) {
-            resultImage->transitionImageLayout(prepareCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                               0, 0);
-        }
-
-        this->rayTraceStorageBuffer->initializeValue(prepareCommandBuffer);
-        prepareCommandBuffer->endCommand();
-
         uint32_t imageCount = this->renderer->getSwapChain()->getImageCount();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t width = this->renderer->getSwapChain()->getWidth();
@@ -261,7 +243,7 @@ namespace NugieApp {
                                                                       VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                                       VK_ACCESS_SHADER_WRITE_BIT,
                                                                       VK_ACCESS_TRANSFER_READ_BIT);
-                swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED,
                                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       0, VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -288,8 +270,6 @@ namespace NugieApp {
     }
 
     void App::renderLoop() {
-        this->renderer->submitPrepareCommand();
-
         while (this->isRendering) {
             this->frameCount++;
 
@@ -358,6 +338,9 @@ namespace NugieApp {
     }
 
     void App::loadObjects() {
+        uint32_t width = this->renderer->getSwapChain()->getWidth();
+        uint32_t height = this->renderer->getSwapChain()->getHeight();
+
         std::vector<Object> objects;
         std::vector<BvhNode> bvhObjects;
         std::vector<Triangle> triangles;
@@ -644,6 +627,32 @@ namespace NugieApp {
         this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                                          static_cast<uint32_t>(materials.size()));
 
+        this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+        for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+            this->resultImages[i] = new NugieVulkan::Image(this->device, width, height, 1, VK_SAMPLE_COUNT_1_BIT,
+                                                           VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                           VK_IMAGE_TILING_OPTIMAL,
+                                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                                           VMA_MEMORY_USAGE_AUTO,
+                                                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+                                                           VK_IMAGE_ASPECT_COLOR_BIT);
+        }
+
+        this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                                      NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                .addArrayItem("traced_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Traced Ray
+                .addArrayItem("hit_record", static_cast<VkDeviceSize>(sizeof(Hit)), width * height)
+                .addArrayItem("indirect_result", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
+                .addArrayItem("light_result", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
+                .addArrayItem("miss_result", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
+                .addArrayItem("direct_data", static_cast<VkDeviceSize>(sizeof(DirectData)), width * height)
+                .addArrayItem("direct_result", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
+                .addArrayItem("integrator_result", static_cast<VkDeviceSize>(sizeof(IntegratorResult)), width * height)
+                .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
+                .addArrayItem("scattered_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Scatters Ray
+                .build();
+
         auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
         this->objectBuffer->replace(commandBuffer, objects);
@@ -654,6 +663,14 @@ namespace NugieApp {
         this->vertexBuffer->replace(commandBuffer, vertices);
         this->transformBuffer->replace(commandBuffer, transforms);
         this->materialBuffer->replace(commandBuffer, materials);
+
+        for (auto &&resultImage: this->resultImages) {
+            resultImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                               0, 0);
+        }
+
+        this->rayTraceStorageBuffer->initializeValue(commandBuffer);
 
         commandBuffer->endCommand();
         this->renderer->submitTransferCommand();
@@ -682,33 +699,9 @@ namespace NugieApp {
                                                                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                                                     NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-        this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                                                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                                                      NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                .addArrayItem("traced_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Traced Ray
-                .addArrayItem("hit_record", static_cast<VkDeviceSize>(sizeof(Hit)), width * height)
-                .addArrayItem("indirect_result", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
-                .addArrayItem("light_result", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
-                .addArrayItem("miss_result", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
-                .addArrayItem("direct_data", static_cast<VkDeviceSize>(sizeof(DirectData)), width * height)
-                .addArrayItem("direct_result", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
-                .addArrayItem("integrator_result", static_cast<VkDeviceSize>(sizeof(IntegratorResult)), width * height)
-                .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
-                .addArrayItem("scattered_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Scatters Ray
-                .build();
-
         std::vector<VkDescriptorImageInfo> resultImageInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
-        this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-            this->resultImages[i] = new NugieVulkan::Image(this->device, width, height, 1, VK_SAMPLE_COUNT_1_BIT,
-                                                           VK_FORMAT_R32G32B32A32_SFLOAT,
-                                                           VK_IMAGE_TILING_OPTIMAL,
-                                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                                           VMA_MEMORY_USAGE_AUTO,
-                                                           VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                                                           VK_IMAGE_ASPECT_COLOR_BIT);
-
             resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
         }
 
