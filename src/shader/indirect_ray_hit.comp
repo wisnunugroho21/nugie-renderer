@@ -158,12 +158,12 @@ vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
 // ------------- Triangle -------------
 
 vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-    Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+    Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-    vec3 v0v1 = vectex2.position - vectex1.position;
-    vec3 v0v2 = vectex3.position - vectex1.position;
+    precise vec3 v0v1 = vertex1.position - vertex0.position;
+    precise vec3 v0v2 = vertex2.position - vertex0.position;
 
     float u1 = randomFloat(additionalRandomSeed);
     float u2 = randomFloat(additionalRandomSeed + 1);
@@ -172,27 +172,45 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
         u1 = 1 - u1;
         u2 = 1 - u2;
     }
+	
+	precise vec3 randomTriangle = vertex0.position + 
+	fma(
+		vec3(u1), 
+		v0v1, 
+		vec3(u2) * v0v2 
+	);
 
-    vec3 randomTriangle = u1 * v0v1 + u2 * v0v2 + vectex1.position;
-    return randomTriangle;
+	return randomTriangle;
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
-    Vertex vectex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vectex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vectex3 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+   	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-    vec3 v0v1 = vectex2.position - vectex1.position;
-    vec3 v0v2 = vectex3.position - vectex1.position;
+    precise vec3 v0v1 = vertex1.position - vertex0.position;
+    precise vec3 v0v2 = vertex2.position - vertex0.position;
 
     vec3 outwardNormal = normalize(cross(v0v1, v0v2));
     return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
 vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
-  return (1.0f - uv.x - uv.y) * vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position 
-    + uv.x * vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position 
-    + uv.y * vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
+	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
+    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
+    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+
+	precise vec3 v0v1 = vertex1.position - vertex0.position;
+    precise vec3 v0v2 = vertex2.position - vertex0.position;
+
+	precise vec3 objPosition = vertex0.position + 
+	fma(
+		vec3(uv.x), 
+		v0v1, 
+		vec3(uv.y) * v0v2 
+	);
+
+	return objPosition;
 }
 
 void main() {
