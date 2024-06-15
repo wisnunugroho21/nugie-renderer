@@ -45,7 +45,7 @@ float stepAndOutputRNGFloat(inout uint rngState) {
 }
 
 float randomFloat(uint additionalRandomSeed) {
-    uint rngState = (gl_GlobalInvocationID.x) * (ubo.imgSizeRandomSeedNumLight.z + 1 + additionalRandomSeed);
+    uint rngState = gl_GlobalInvocationID.x * (ubo.imgSizeRandomSeedNumLight.z + 1 + additionalRandomSeed);
     return stepAndOutputRNGFloat(rngState);
 }
 
