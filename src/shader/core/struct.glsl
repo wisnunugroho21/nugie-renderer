@@ -53,8 +53,11 @@ struct Ray {
 
 struct HitRecord {
     float t;
-    uint hitIndex;
-    uint hitTypeIndex;
+    vec2 uv;
+
+    uint hitGeometryIndex;
+    uint hitGeometryTypeIndex;
+    uint hitTransformIndex;
 };
 
 struct DirectData {

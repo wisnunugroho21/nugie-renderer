@@ -110,7 +110,7 @@ vec3 directionTransform(mat4 mat, vec3 vec) {
 
 // ------------- Triangle -------------
 
-bool hitTriangle(Triangle triangle, Ray r, out float t) {
+bool hitTriangle(Triangle triangle, Ray r, out float t, out vec2 uv) {
     vec3 v0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position;
     vec3 v1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position;
     vec3 v2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
@@ -145,7 +145,8 @@ bool hitTriangle(Triangle triangle, Ray r, out float t) {
     if (t < 0.001f) {
         return false;
     }
-
+    
+    uv = vec2(u, v);
     return true;
 }
 
@@ -162,7 +163,7 @@ float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
     return tNear <= tFar ? tNear : FLT_MAX;
 }
 
-bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex, out float t, out uint hitIndex, out uint hitTypeIndex) {
+bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex, out float t, out vec2 uv, out uint hitGeometryIndex, out uint hitGeometryTypeIndex) {
     Transformation curTransf = transformationBuffer.transformations[transformIndex];
 
     r.origin = positionTransform(curTransf.worldToObjectMatrix, r.origin);
@@ -186,9 +187,9 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
                     case 1u:
                         triangle = triangleBuffer.triangles[curNode.objIndex - 1u + firstGeometryIndex];
 
-                        if (hitTriangle(triangle, r, t)) {
-                            hitIndex = curNode.objIndex - 1u + firstGeometryIndex;
-                            hitTypeIndex = 1u;
+                        if (hitTriangle(triangle, r, t, uv)) {
+                            hitGeometryIndex = curNode.objIndex - 1u + firstGeometryIndex;
+                            hitGeometryTypeIndex = 1u;
 
                             return true;
                         }
@@ -197,9 +198,9 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
                     case 2u:
                         triangle = triangleLightBuffer.triangles[curNode.objIndex - 1u + firstGeometryIndex];
 
-                        if (hitTriangle(triangle, r, t)) {
-                            hitIndex = curNode.objIndex - 1u + firstGeometryIndex;
-                            hitTypeIndex = 2u;
+                        if (hitTriangle(triangle, r, t, uv)) {
+                            hitGeometryIndex = curNode.objIndex - 1u + firstGeometryIndex;
+                            hitGeometryTypeIndex = 2u;
 
                             return true;
                         }
@@ -244,7 +245,7 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
     return false;
 }
 
-bool hitObjectBvh(Ray r, out float t, out uint hitIndex, out uint hitTypeIndex) {
+bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitGeometryIndex, out uint hitGeometryTypeIndex, out uint hitTransformIndex) {
     uint stack[30];
     stack[0] = 1u;
 
@@ -258,7 +259,8 @@ bool hitObjectBvh(Ray r, out float t, out uint hitIndex, out uint hitTypeIndex) 
             if (curNode.objIndex > 0u) {
                 Object object = objectBuffer.objects[curNode.objIndex - 1u];
 
-                if (hitGeometryBvh(r, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex, t, hitIndex, hitTypeIndex)) {
+                if (hitGeometryBvh(r, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex, t, uv, hitGeometryIndex, hitGeometryTypeIndex)) {
+                    hitTransformIndex = object.transformIndex;
                     return true;
                 }
             }
@@ -301,11 +303,11 @@ bool hitObjectBvh(Ray r, out float t, out uint hitIndex, out uint hitTypeIndex) 
 }
 
 void main() {
-    HitRecord hit = HitRecord(0.0f, 0u, 0u);
+    HitRecord hit = HitRecord(0.0f, vec2(0.0f), 0u, 0u, 0u);
     Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
     if (length(ray.direction) > 0.001f) {
-        hitObjectBvh(ray, hit.t, hit.hitIndex, hit.hitTypeIndex);
+        hitObjectBvh(ray, hit.t, hit.uv, hit.hitGeometryIndex, hit.hitGeometryTypeIndex, hit.hitTransformIndex);
     }
 
     intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;

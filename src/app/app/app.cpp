@@ -759,6 +759,8 @@ namespace NugieApp {
                            this->vertexBuffer->getInfo())
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->materialBuffer->getInfo())
+                .addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->transformBuffer->getInfo())
                 .build();
 
         this->lightRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
@@ -775,6 +777,8 @@ namespace NugieApp {
                            this->triangleLightBuffer->getInfo())
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->vertexBuffer->getInfo())
+                .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->transformBuffer->getInfo())
                 .build();
 
         this->missRayDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
@@ -819,6 +823,8 @@ namespace NugieApp {
                            this->vertexBuffer->getInfo())
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->materialBuffer->getInfo())
+                .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->transformBuffer->getInfo())
                 .build();
 
         this->integratorDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),

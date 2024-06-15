@@ -57,14 +57,16 @@ namespace NugieApp {
 
     struct Hit {
         float t = 0.0f;
-        uint32_t hitIndex = 0u;
-        uint32_t hitTypeIndex = 0u;
+        glm::vec4 uv{0.0f};
+
+        uint32_t hitGeometryIndex = 0u;
+        uint32_t hitGeometryTypeIndex = 0u;
+        uint32_t hitTransformIndex = 0u;
     };
 
     struct DirectData {
-        alignas(16) glm::vec4 normalIsIlluminate{0.0f};
-        alignas(16) glm::vec3 origin{0.0f};
-        alignas(4) uint32_t materialIndex = 0u;
+        glm::vec4 normalIsIlluminate{0.0f};
+        glm::vec4 originMaterialIndex{0.0f};
     };
 
     struct DirectResult {

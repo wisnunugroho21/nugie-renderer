@@ -40,6 +40,45 @@ layout (set = 0, binding = 7) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
+layout (set = 0, binding = 8) buffer readonly TransformationBuffer {
+    Transformation transformations[];
+} transformationBuffer;
+
+// ------------- Transform -------------
+
+vec3 positionTransform(mat4 mat, vec3 vec) {
+    precise vec3 res;
+
+    res.x = mat[3][0] +
+    fma(
+        mat[0][0], vec.x,
+        fma(
+            mat[1][0], vec.y,
+            (mat[2][0] * vec.z)
+        )
+    );
+
+    res.y = mat[3][1] +
+    fma(
+        mat[0][1], vec.x,
+        fma(
+            mat[1][1], vec.y,
+            (mat[2][1] * vec.z)
+        )
+    );
+
+    res.z = mat[3][2] +
+    fma(
+        mat[0][2], vec.x,
+        fma(
+            mat[1][2], vec.y,
+            (mat[2][2] * vec.z)
+        )
+    );
+
+    return res;
+}
+
 // ------------- Lambert -------------
 
 float lambertPdfValue(float NoL) {
@@ -76,6 +115,12 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
     return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
+vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
+  return (1.0f - uv.x - uv.y) * vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position 
+    + uv.x * vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position 
+    + uv.y * vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
+}
+
 void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
@@ -84,17 +129,22 @@ void main() {
 
     DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
 
-    if (directData.normalIsIlluminate.w > 0.5f && hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 2u) {
-        Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitIndex];
+    if (directData.normalIsIlluminate.w > 0.5f && hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
+        Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
         Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
         vec3 hittedLightNormal = triangleNormal(hittedLight, ray);
+        vec3 hittedPosition = positionTransform(
+            transformationBuffer.transformations[hitRecord.hitTransformIndex].objectToWorldMatrix, 
+            trianglePositionFromUV(hittedLight, hitRecord.uv)
+        );
 
         float NloL = max(dot(hittedLightNormal, -1.0f * ray.direction), 0.001f);
         float NoL = max(dot(directData.normalIsIlluminate.xyz, ray.direction), 0.001f);
+        vec3 dst = hittedPosition - ray.origin;
 
         float brdf = lambertBrdfValue();
-        float squareDistance = max(hitRecord.t * hitRecord.t, 0.001f);
+        float squareDistance = max(dot(dst, dst), 0.001f);
         float area = triangleArea(hittedLight);
 
         finalResult.radiancePdf.xyz = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;

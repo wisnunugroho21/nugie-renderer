@@ -44,6 +44,10 @@ layout (set = 0, binding = 8) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
+layout (set = 0, binding = 9) buffer readonly TransformationBuffer {
+    Transformation transformations[];
+} transformationBuffer;
+
 // ------------- Basic -------------
 
 vec3[3] buildOnb(vec3 normal) {
@@ -54,6 +58,41 @@ vec3[3] buildOnb(vec3 normal) {
     vec3 x = cross(z, y);
 
     return vec3[3](x, y, z);
+}
+
+// ------------- Transform -------------
+
+vec3 positionTransform(mat4 mat, vec3 vec) {
+    precise vec3 res;
+
+    res.x = mat[3][0] +
+    fma(
+        mat[0][0], vec.x,
+        fma(
+            mat[1][0], vec.y,
+            (mat[2][0] * vec.z)
+        )
+    );
+
+    res.y = mat[3][1] +
+    fma(
+        mat[0][1], vec.x,
+        fma(
+            mat[1][1], vec.y,
+            (mat[2][1] * vec.z)
+        )
+    );
+
+    res.z = mat[3][2] +
+    fma(
+        mat[0][2], vec.x,
+        fma(
+            mat[1][2], vec.y,
+            (mat[2][2] * vec.z)
+        )
+    );
+
+    return res;
 }
 
 // ------------- Random ------------- 
@@ -150,6 +189,12 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
     return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
+vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
+  return (1.0f - uv.x - uv.y) * vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position 
+    + uv.x * vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position 
+    + uv.y * vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
+}
+
 void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
@@ -159,12 +204,15 @@ void main() {
     DirectData data;
     data.normalIsIlluminate = vec4(0.0f);
 
-    if (hitRecord.t >= 0.001f && hitRecord.hitTypeIndex == 1u) {
-        Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitIndex];
+    if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 1u) {
+        Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitGeometryIndex];
         Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
-        vec3 hittedPosition = ray.origin + ray.direction * hitRecord.t;
         vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
+        vec3 hittedPosition = positionTransform(
+            transformationBuffer.transformations[hitRecord.hitTransformIndex].objectToWorldMatrix, 
+            trianglePositionFromUV(hittedTriangle, hitRecord.uv)
+        );
 
         vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
 
