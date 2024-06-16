@@ -159,8 +159,8 @@ void main() {
         float squareDistance = max(dot(dst, dst), 0.001f);
         float area = triangleArea(hittedLight);
 
-        finalResult.radiancePdf.xyz = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL * NloL * area / squareDistance;
-        finalResult.radiancePdf.w = lambertPdfValue(NoL);
+        finalResult.radiancePdf.w = squareDistance / (NloL * area);
+        finalResult.radiancePdf.xyz = vec3(200.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz * brdf * NoL / finalResult.radiancePdf.w;
     }
 
     directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

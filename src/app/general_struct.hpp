@@ -21,21 +21,20 @@ namespace NugieApp {
     };
 
     struct Triangle {
-        alignas(16) glm::uvec4 vertexMaterialIndexes;
+        glm::uvec4 vertexMaterialIndexes;
     };
 
     struct Object {
-        alignas(4) uint32_t firstBvhIndex;
-        alignas(4) uint32_t firstGeometryIndex;
-        alignas(4) uint32_t transformIndex;
+        uint32_t firstBvhIndex;
+        uint32_t firstGeometryIndex;
+        uint32_t transformIndex;
     };
 
     struct BvhNode {
-        alignas(4) uint32_t leftNode = 0u;
-        alignas(4) uint32_t rightNode = 0u;
-
-        alignas(4) uint32_t objIndex = 0u;
-        alignas(4) uint32_t typeIndex = 0u;
+        uint32_t leftNode = 0u;
+        uint32_t rightNode = 0u;
+        uint32_t objIndex = 0u;
+        uint32_t typeIndex = 0u;
 
         alignas(16) glm::vec3 maximum{0.0f};
         alignas(16) glm::vec3 minimum{0.0f};
@@ -57,7 +56,7 @@ namespace NugieApp {
 
     struct Hit {
         float t = 0.0f;
-        glm::vec4 uv{0.0f};
+        alignas(16) glm::vec2 uv{0.0f};
 
         uint32_t hitGeometryIndex = 0u;
         uint32_t hitGeometryTypeIndex = 0u;
