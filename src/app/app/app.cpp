@@ -85,10 +85,6 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
                 this->indirectRayGenRenderer->render(commandBuffer, height / 8, width / 8, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
@@ -98,10 +94,6 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
                 this->rayIntersectRenderer->render(commandBuffer, height * width / 64, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
@@ -111,14 +103,6 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_data",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -142,10 +126,6 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
                 this->lightRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1,
                                                   {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result",
@@ -155,10 +135,6 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
                 this->missRayRenderer->render(commandBuffer, height * width / 64, 1, 1,
                                               {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result",
@@ -194,10 +170,6 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
                 this->directRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1,
                                                    {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result",
@@ -222,22 +194,13 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "sampling_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
                 this->samplingRenderer->render(commandBuffer, height / 8, width / 8, 1,
-                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "sampling_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
 
                 // -------------------------------------------------------------------------------------------------------------------
-
-                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL,
+                
+                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
+                                                                      VK_IMAGE_LAYOUT_GENERAL,
                                                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                                       VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -245,11 +208,12 @@ namespace NugieApp {
                                                                       VK_ACCESS_TRANSFER_READ_BIT);
                 swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED,
                                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+                                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       0, VK_ACCESS_TRANSFER_WRITE_BIT);
 
-                this->resultImages[frameIndex]->copyImageToOther(commandBuffer, swapChainImage);
-
+                this->resultImages[frameIndex]->copyImageToOther(commandBuffer, swapChainImage);                
+                
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer,
                                                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                                                       VK_IMAGE_LAYOUT_GENERAL,
@@ -258,7 +222,8 @@ namespace NugieApp {
                                                                       VK_ACCESS_TRANSFER_READ_BIT,
                                                                       VK_ACCESS_SHADER_WRITE_BIT);
                 swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
+                                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                                       VK_ACCESS_TRANSFER_WRITE_BIT, 0);
 
@@ -666,8 +631,8 @@ namespace NugieApp {
 
         for (auto &&resultImage: this->resultImages) {
             resultImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                               0, 0);
+                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                               0, VK_ACCESS_SHADER_WRITE_BIT);
         }
 
         this->rayTraceStorageBuffer->initializeValue(commandBuffer);

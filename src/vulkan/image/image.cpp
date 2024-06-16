@@ -218,9 +218,17 @@ namespace NugieVulkan {
                               uint32_t dstMipLevel, uint32_t dstLayer) {
         VkImageBlit blitRegion{};
 
+        blitRegion.srcOffsets[0].x = 0;
+        blitRegion.srcOffsets[0].y = 0;
+        blitRegion.srcOffsets[0].z = 0;
+
         blitRegion.srcOffsets[1].x = static_cast<int32_t >(srcImage->getWidth());
         blitRegion.srcOffsets[1].y = static_cast<int32_t >(srcImage->getHeight());
         blitRegion.srcOffsets[1].z = 1;
+
+        blitRegion.dstOffsets[0].x = 0;
+        blitRegion.dstOffsets[0].y = 0;
+        blitRegion.dstOffsets[0].z = 0;
 
         blitRegion.dstOffsets[1].x = static_cast<int32_t >(this->width);
         blitRegion.dstOffsets[1].y = static_cast<int32_t >(this->height);
@@ -236,17 +244,25 @@ namespace NugieVulkan {
         blitRegion.dstSubresource.layerCount = 1;
         blitRegion.dstSubresource.mipLevel = 0;
 
-        vkCmdBlitImage(commandBuffer->getCommandBuffer(), srcImage->getImage(), srcImage->getLayout(), this->image,
-                       this->getLayout(), 1, &blitRegion, VK_FILTER_LINEAR);
+        vkCmdBlitImage(commandBuffer->getCommandBuffer(), srcImage->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, this->image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
     }
 
     void Image::copyImageToOther(CommandBuffer *commandBuffer, Image *dstImage, uint32_t srcMipLevel, uint32_t srcLayer,
                                  uint32_t dstMipLevel, uint32_t dstLayer) {
         VkImageBlit blitRegion{};
 
+        blitRegion.srcOffsets[0].x = 0;
+        blitRegion.srcOffsets[0].y = 0;
+        blitRegion.srcOffsets[0].z = 0;
+
         blitRegion.srcOffsets[1].y = static_cast<int32_t >(this->height);
         blitRegion.srcOffsets[1].x = static_cast<int32_t >(this->width);
         blitRegion.srcOffsets[1].z = 1;
+
+        blitRegion.dstOffsets[0].x = 0;
+        blitRegion.dstOffsets[0].y = 0;
+        blitRegion.dstOffsets[0].z = 0;
 
         blitRegion.dstOffsets[1].x = static_cast<int32_t >(dstImage->getWidth());
         blitRegion.dstOffsets[1].y = static_cast<int32_t >(dstImage->getHeight());
@@ -262,8 +278,8 @@ namespace NugieVulkan {
         blitRegion.dstSubresource.layerCount = 1;
         blitRegion.dstSubresource.mipLevel = 0;
 
-        vkCmdBlitImage(commandBuffer->getCommandBuffer(), this->image, this->getLayout(), dstImage->getImage(),
-                       dstImage->getLayout(), 1, &blitRegion, VK_FILTER_LINEAR);
+        vkCmdBlitImage(commandBuffer->getCommandBuffer(), this->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstImage->getImage(),
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
     }
 
     void Image::generateMipMap(CommandBuffer *commandBuffer) {

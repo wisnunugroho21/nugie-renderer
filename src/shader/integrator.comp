@@ -35,7 +35,7 @@ void main() {
     if (missResult.radianceIsMiss.w > 0.5f) {
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
         ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w * missResult.radianceIsMiss.xyz
-        : vec3(1.0f);
+        : vec3(0.0f);
 
         integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
         integratorResult.totalRadianceIsRayBounce.w = 0.0f;
