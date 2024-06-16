@@ -9,69 +9,72 @@
 #include <vector>
 
 namespace NugieApp {
-	template <typename T>
-	class ObjectBuffer {
-		public:
-			ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags);
-			~ObjectBuffer();
+    template<typename T>
+    class ObjectBuffer {
+    public:
+        ObjectBuffer(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags, uint32_t bufferCount);
 
-			NugieVulkan::Buffer* getBuffer(uint32_t index) const { return this->buffers[index]; }
-			std::vector<VkDescriptorBufferInfo> getInfo(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0) const;
+        ~ObjectBuffer();
 
-			void writeGlobalData(uint32_t frameIndex, T ubo, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
+        NugieVulkan::Buffer *getBuffer(uint32_t index) const { return this->buffers[index]; }
 
-		private:
-      NugieVulkan::Device* device = nullptr;
-			std::vector<NugieVulkan::Buffer*> buffers;
+        std::vector<VkDescriptorBufferInfo> getInfo(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0) const;
 
-			void createBuffer(VkBufferUsageFlags usageFlags);
-	};
+        void writeGlobalData(uint32_t frameIndex, T ubo, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 
-	template <typename T>
-	ObjectBuffer<T>::ObjectBuffer(NugieVulkan::Device* device, VkBufferUsageFlags usageFlags) : device{device} {
-		this->createBuffer(usageFlags);
-	}
+    private:
+        NugieVulkan::Device *device = nullptr;
+        std::vector<NugieVulkan::Buffer *> buffers;
 
-	template <typename T>
-	ObjectBuffer<T>::~ObjectBuffer() {
-		for (auto &&buffer : this->buffers) {
-			if (buffer != nullptr) delete buffer;
-		}
-	}
+        void createBuffer(VkBufferUsageFlags usageFlags, uint32_t bufferCount);
+    };
 
-	template <typename T>
-	std::vector<VkDescriptorBufferInfo> ObjectBuffer<T>::getInfo(VkDeviceSize size, VkDeviceSize offset) const {
-		std::vector<VkDescriptorBufferInfo> buffersInfo{};
-		
-		for (int i = 0; i < this->buffers.size(); i++) {
-			buffersInfo.emplace_back(this->buffers[i]->descriptorInfo(size, offset));
-		}
+    template<typename T>
+    ObjectBuffer<T>::ObjectBuffer(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags, uint32_t bufferCount)
+            : device{device} {
+        this->createBuffer(usageFlags, bufferCount);
+    }
 
-		return buffersInfo;
-	}
+    template<typename T>
+    ObjectBuffer<T>::~ObjectBuffer() {
+        for (auto &&buffer: this->buffers) {
+            if (buffer != nullptr) delete buffer;
+        }
+    }
 
-	template <typename T>
-	void ObjectBuffer<T>::createBuffer(VkBufferUsageFlags usageFlags) {
-		this->buffers.clear();
+    template<typename T>
+    std::vector<VkDescriptorBufferInfo> ObjectBuffer<T>::getInfo(VkDeviceSize size, VkDeviceSize offset) const {
+        std::vector<VkDescriptorBufferInfo> buffersInfo{};
 
-		for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-			auto buffer = new NugieVulkan::Buffer(
-				this->device,
-				sizeof(T),
-				1u,
-				usageFlags,
-				VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-			);
+        for (int i = 0; i < this->buffers.size(); i++) {
+            buffersInfo.emplace_back(this->buffers[i]->descriptorInfo(size, offset));
+        }
 
-			buffer->map();
-			this->buffers.emplace_back(buffer);
-		}
-	}
+        return buffersInfo;
+    }
 
-	template <typename T>
-	void ObjectBuffer<T>::writeGlobalData(uint32_t frameIndex, T ubo, VkDeviceSize size, VkDeviceSize offset) {
-		this->buffers[frameIndex]->writeToBuffer(&ubo, size, offset);
-		this->buffers[frameIndex]->flush();
-	}
+    template<typename T>
+    void ObjectBuffer<T>::createBuffer(VkBufferUsageFlags usageFlags, uint32_t bufferCount) {
+        this->buffers.clear();
+
+        for (uint32_t i = 0; i < bufferCount; i++) {
+            auto buffer = new NugieVulkan::Buffer(
+                    this->device,
+                    sizeof(T),
+                    1u,
+                    usageFlags,
+                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            );
+
+            buffer->map();
+            this->buffers.emplace_back(buffer);
+        }
+    }
+
+    template<typename T>
+    void ObjectBuffer<T>::writeGlobalData(uint32_t frameIndex, T ubo, VkDeviceSize size, VkDeviceSize offset) {
+        this->buffers[frameIndex]->writeToBuffer(&ubo, size, offset);
+        this->buffers[frameIndex]->flush();
+    }
 }

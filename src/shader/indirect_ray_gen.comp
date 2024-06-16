@@ -1,0 +1,37 @@
+#version 460
+
+#include "core/struct.glsl"
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+layout (set = 0, binding = 0) uniform readonly GlobalUniform {
+    vec3 origin;
+    vec3 horizontal;
+    vec3 vertical;
+    vec3 lowerLeftCorner;
+    uvec4 imgSizeRandomSeedNumLight;
+} ubo;
+
+layout (set = 0, binding = 1) buffer writeonly RayGenBuffer {
+    Ray rays[];
+} tracedRayBuffer;
+
+layout (set = 0, binding = 2) buffer readonly ScatteredRayBuffer {
+    Ray rays[];
+} scatteredRayBuffer;
+
+layout (set = 0, binding = 3) buffer readonly IntegratorBuffer {
+    IntegratorResult results[];
+} integratorBuffer;
+
+void main() {
+    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+    uint bufferIndex = pixelCoord.x + ubo.imgSizeRandomSeedNumLight.x * pixelCoord.y;
+    vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSizeRandomSeedNumLight.xy);
+
+    vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
+
+    tracedRayBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].totalRadianceIsRayBounce.w > 0.5f
+    ? scatteredRayBuffer.rays[bufferIndex]
+    : Ray(ubo.origin, initialRayDirection);
+}

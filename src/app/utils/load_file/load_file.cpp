@@ -4,86 +4,88 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
-#include <string.h>
+
+#include <cstring>
+
 #endif
 
 namespace NugieApp {
-	#ifdef _WIN32
-	char* ReadBinaryFile(const char* pFilename, int* size)
-	{
-		FILE* f = NULL;
+#ifdef _WIN32
 
-		errno_t err = fopen_s(&f, pFilename, "rb");
+    char *ReadBinaryFile(const char *pFilename, int *size) {
+        FILE *f = nullptr;
 
-		if (!f) {
-			char buf[256] = { 0 };
-			strerror_s(buf, sizeof(buf), err);
-			throw std::runtime_error("Error opening file");
-			exit(0);
-		}
+        errno_t err = fopen_s(&f, pFilename, "rb");
 
-		struct stat stat_buf;
-		int error = stat(pFilename, &stat_buf);
+        if (!f) {
+            char buf[256] = {0};
+            strerror_s(buf, sizeof(buf), err);
+            throw std::runtime_error("Error opening file");
+            exit(0);
+        }
 
-		if (error) {
-			char buf[256] = { 0 };
-			strerror_s(buf, sizeof(buf), err);
-			throw std::runtime_error("Error getting file");
-			return NULL;
-		}
+        struct stat stat_buf{};
+        int error = stat(pFilename, &stat_buf);
 
-		*size = stat_buf.st_size;
+        if (error) {
+            char buf[256] = {0};
+            strerror_s(buf, sizeof(buf), err);
+            throw std::runtime_error("Error getting file");
+            return nullptr;
+        }
 
-		char* p = (char*)malloc(*size);
-		assert(p);
+        *size = stat_buf.st_size;
 
-		size_t bytes_read = fread(p, 1, *size, f);
+        char *p = (char *) malloc(*size);
+        assert(p);
 
-		if (bytes_read != *size) {
-			char buf[256] = { 0 };
-			strerror_s(buf, sizeof(buf), err);
-			throw std::runtime_error("Read file error");
-			exit(0);
-		}
+        size_t bytes_read = fread(p, 1, *size, f);
 
-		fclose(f);
+        if (bytes_read != *size) {
+            char buf[256] = {0};
+            strerror_s(buf, sizeof(buf), err);
+            throw std::runtime_error("Read file error");
+            exit(0);
+        }
 
-		return p;
-	}
+        fclose(f);
 
-	#else
-	char* ReadBinaryFile(const char* pFilename, int* size)
-	{
-		FILE* f = fopen(pFilename, "rb");
+        return p;
+    }
 
-		if (!f) {
-			throw std::runtime_error("Error opening file");
-			exit(0);
-		}
+#else
+    char* ReadBinaryFile(const char* pFilename, int* size)
+    {
+        FILE* f = fopen(pFilename, "rb");
 
-		struct stat stat_buf;
-		int error = stat(pFilename, &stat_buf);
+        if (!f) {
+            throw std::runtime_error("Error opening file");
+            exit(0);
+        }
 
-		if (error) {
-			throw std::runtime_error("Error getting file");
-			return NULL;
-		}
+        struct stat stat_buf;
+        int error = stat(pFilename, &stat_buf);
 
-		*size = stat_buf.st_size;
+        if (error) {
+            throw std::runtime_error("Error getting file");
+            return NULL;
+        }
 
-		char* p = (char*)malloc(*size);
-		assert(p);
+        *size = stat_buf.st_size;
 
-		size_t bytes_read = fread(p, 1, *size, f);
+        char* p = (char*)malloc(*size);
+        assert(p);
 
-		if (bytes_read != *size) {
-			throw std::runtime_error("Read file error");
-			exit(0);
-		}
+        size_t bytes_read = fread(p, 1, *size, f);
 
-		fclose(f);
+        if (bytes_read != *size) {
+            throw std::runtime_error("Read file error");
+            exit(0);
+        }
 
-		return p;
-	}
-	#endif
+        fclose(f);
+
+        return p;
+    }
+#endif
 }

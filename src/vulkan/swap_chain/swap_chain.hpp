@@ -13,46 +13,60 @@
 #include <memory>
 
 namespace NugieVulkan {
-  class SwapChain {
+    class SwapChain {
     public:
-      SwapChain(Device* device, VkExtent2D windowExtent);
-      SwapChain(Device* device, VkExtent2D windowExtent, SwapChain* previous);
+        SwapChain(Device *device, VkExtent2D windowExtent);
 
-      ~SwapChain();
-      
-      VkFormat getSwapChainImageFormat() const { return this->swapChainImageFormat; }
-      VkExtent2D getSwapChainExtent() const { return this->swapChainExtent; }
-      uint32_t getImageCount() const { return static_cast<uint32_t>(this->swapChainImages.size()); }
-      uint32_t getWidth() const { return this->swapChainExtent.width; }
-      uint32_t getHeight() const { return this->swapChainExtent.height; }
-      std::vector<Image*> getswapChainImages() const { return this->swapChainImages; }
-      float getAspectRatio() const { return static_cast<float>(this->swapChainExtent.width) / static_cast<float>(this->swapChainExtent.height); }
+        SwapChain(Device *device, VkExtent2D windowExtent, SwapChain *previous);
 
-      bool compareSwapFormat(const SwapChain* swapChain) {
-        return swapChain->swapChainImageFormat == this->swapChainImageFormat;
-      }
+        ~SwapChain();
 
-      VkResult acquireNextImage(uint32_t* imageIndex, const std::vector<VkFence> &inFlightFences, VkSemaphore imageAvailableSemaphore);
-      VkResult presentRenders(VkQueue queue, uint32_t* imageIndex, const std::vector<VkSemaphore> &waitSemaphores);
+        VkFormat getSwapChainImageFormat() const { return this->swapChainImageFormat; }
+
+        VkExtent2D getSwapChainExtent() const { return this->swapChainExtent; }
+
+        uint32_t getImageCount() const { return static_cast<uint32_t>(this->swapChainImages.size()); }
+
+        uint32_t getWidth() const { return this->swapChainExtent.width; }
+
+        uint32_t getHeight() const { return this->swapChainExtent.height; }
+
+        std::vector<Image *> getswapChainImages() const { return this->swapChainImages; }
+
+        float getAspectRatio() const {
+            return static_cast<float>(this->swapChainExtent.width) / static_cast<float>(this->swapChainExtent.height);
+        }
+
+        bool compareSwapFormat(const SwapChain *swapChain) {
+            return swapChain->swapChainImageFormat == this->swapChainImageFormat;
+        }
+
+        VkResult acquireNextImage(uint32_t *imageIndex, VkSemaphore imageAvailableSemaphore);
+
+        VkResult
+        presentRenders(VkQueue queue, const uint32_t *imageIndex, const std::vector<VkSemaphore> &waitSemaphores);
 
     private:
-      void init();
-      void createSwapChain();
+        void init();
 
-      // Helper functions
-      VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
-      VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
-      VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
+        void createSwapChain();
 
-      Device* device = nullptr;
-      SwapChain* oldSwapChain = nullptr;
+        // Helper functions
+        VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 
-      VkSwapchainKHR swapChain;
-      VkFormat swapChainImageFormat;
-      VkExtent2D swapChainExtent;
+        static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
 
-      std::vector<Image*> swapChainImages;
-      VkExtent2D windowExtent;
-      size_t currentFrame = 0;
-  };
+        static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
+
+        Device *device = nullptr;
+        SwapChain *oldSwapChain = nullptr;
+
+        VkSwapchainKHR swapChain;
+        VkFormat swapChainImageFormat;
+        VkExtent2D swapChainExtent;
+
+        std::vector<Image *> swapChainImages;
+        VkExtent2D windowExtent;
+        size_t currentFrame = 0;
+    };
 }

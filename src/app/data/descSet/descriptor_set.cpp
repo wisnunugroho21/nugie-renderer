@@ -1,239 +1,248 @@
 #include "descriptor_set.hpp"
-#include "../../../vulkan/descriptor/descriptor_writer.hpp"
 
 namespace NugieApp {
-  DescriptorSet::Builder::Builder(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, uint32_t descSetCount) 
-		: device{device}, descriptorPool{descriptorPool}, descSetCount{descSetCount}
-	{
-		
-  }
+    DescriptorSet::Builder::Builder(NugieVulkan::Device *device, NugieVulkan::DescriptorPool *descriptorPool,
+                                    uint32_t descSetCount)
+            : device{device}, descriptorPool{descriptorPool}, descSetCount{descSetCount} {
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addBuffer(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, VkDescriptorBufferInfo bufferInfo) {
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorBufferInfos[binding].emplace_back(bufferInfo);
-		}
+    }
 
-		DescriptorSetBinding bind{};
-		bind.descSetType = descriptorType;
-		bind.shaderStage = shaderStage;
+    DescriptorSet::Builder &
+    DescriptorSet::Builder::addBuffer(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage,
+                                      VkDescriptorBufferInfo bufferInfo) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorBufferInfos[binding].emplace_back(bufferInfo);
+        }
 
-		this->descriptorSetBindings[binding] = bind;
-		
-		return *this;
-	}
+        DescriptorSetBinding bind{};
+        bind.descSetType = descriptorType;
+        bind.shaderStage = shaderStage;
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addBuffer(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
-		const std::vector<VkDescriptorBufferInfo> &bufferInfos) 
-	{
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorBufferInfos[binding].emplace_back(bufferInfos[i]);
-		}
+        this->descriptorSetBindings[binding] = bind;
 
-		DescriptorSetBinding bind{};
-		bind.descSetType = descriptorType;
-		bind.shaderStage = shaderStage;
+        return *this;
+    }
 
-		this->descriptorSetBindings[binding] = bind;
+    DescriptorSet::Builder &
+    DescriptorSet::Builder::addBuffer(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage,
+                                      const std::vector<VkDescriptorBufferInfo> &bufferInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorBufferInfos[binding].emplace_back(bufferInfos[i]);
+        }
 
-		return *this;
-	}
+        DescriptorSetBinding bind{};
+        bind.descSetType = descriptorType;
+        bind.shaderStage = shaderStage;
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, VkDescriptorImageInfo imageInfo) {
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfo });
-		}
+        this->descriptorSetBindings[binding] = bind;
 
-		DescriptorSetBinding bind{};
-		bind.descSetType = descriptorType;
-		bind.shaderStage = shaderStage;
-		bind.descCount = 1u;
+        return *this;
+    }
 
-		this->descriptorSetBindings[binding] = bind;
+    DescriptorSet::Builder &
+    DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage,
+                                     VkDescriptorImageInfo imageInfo) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{imageInfo});
+        }
 
-		return *this;
-	}
+        DescriptorSetBinding bind{};
+        bind.descSetType = descriptorType;
+        bind.shaderStage = shaderStage;
+        bind.descCount = 1u;
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
-		const std::vector<VkDescriptorImageInfo> &imageInfos) 
-	{
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfos[i] });
-		}
+        this->descriptorSetBindings[binding] = bind;
 
-		DescriptorSetBinding bind{};
-		bind.descSetType = descriptorType;
-		bind.shaderStage = shaderStage;
-		bind.descCount = 1u;
+        return *this;
+    }
 
-		this->descriptorSetBindings[binding] = bind;
+    DescriptorSet::Builder &
+    DescriptorSet::Builder::addImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage,
+                                     const std::vector<VkDescriptorImageInfo> &imageInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{imageInfos[i]});
+        }
 
-		return *this;
-	}
+        DescriptorSetBinding bind{};
+        bind.descSetType = descriptorType;
+        bind.shaderStage = shaderStage;
+        bind.descCount = 1u;
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addManyImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
-		const std::vector<VkDescriptorImageInfo> &imageInfos) 
-	{
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(imageInfos);
-		}
+        this->descriptorSetBindings[binding] = bind;
 
-		DescriptorSetBinding bind{};
-		bind.descSetType = descriptorType;
-		bind.shaderStage = shaderStage;
-		bind.descCount = static_cast<uint32_t>(imageInfos.size());
+        return *this;
+    }
 
-		this->descriptorSetBindings[binding] = bind;
+    DescriptorSet::Builder &DescriptorSet::Builder::addManyImage(uint32_t binding, VkDescriptorType descriptorType,
+                                                                 VkShaderStageFlags shaderStage,
+                                                                 const std::vector<VkDescriptorImageInfo> &imageInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(imageInfos);
+        }
 
-		return *this;
-	}
+        DescriptorSetBinding bind{};
+        bind.descSetType = descriptorType;
+        bind.shaderStage = shaderStage;
+        bind.descCount = static_cast<uint32_t>(imageInfos.size());
 
-	DescriptorSet::Builder& DescriptorSet::Builder::addManyImage(uint32_t binding, VkDescriptorType descriptorType, VkShaderStageFlags shaderStage, 
-		const std::vector<std::vector<VkDescriptorImageInfo>> &imageInfos) 
-	{
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(imageInfos[i]);
-		}
+        this->descriptorSetBindings[binding] = bind;
 
-		DescriptorSetBinding bind{};
-		bind.descSetType = descriptorType;
-		bind.shaderStage = shaderStage;
-		bind.descCount = static_cast<uint32_t>(imageInfos[0].size());
+        return *this;
+    }
 
-		this->descriptorSetBindings[binding] = bind;
+    DescriptorSet::Builder &DescriptorSet::Builder::addManyImage(uint32_t binding, VkDescriptorType descriptorType,
+                                                                 VkShaderStageFlags shaderStage,
+                                                                 const std::vector<std::vector<VkDescriptorImageInfo>> &imageInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(imageInfos[i]);
+        }
 
-		return *this;
-	}
+        DescriptorSetBinding bind{};
+        bind.descSetType = descriptorType;
+        bind.shaderStage = shaderStage;
+        bind.descCount = static_cast<uint32_t>(imageInfos[0].size());
 
-	DescriptorSet* DescriptorSet::Builder::build() {
-		return new DescriptorSet(this->device, this->descriptorPool, this->descSetCount, this->descriptorSetBindings, 
-			this->descriptorBufferInfos, this->descriptorImageInfos);
-	}
+        this->descriptorSetBindings[binding] = bind;
 
-	DescriptorSet::Overwriter::Overwriter(uint32_t descSetCount) 
-		: descSetCount{descSetCount}
-	{
+        return *this;
+    }
 
-  }
+    DescriptorSet *DescriptorSet::Builder::build() {
+        return new DescriptorSet(this->device, this->descriptorPool, this->descSetCount, this->descriptorSetBindings,
+                                 this->descriptorBufferInfos, this->descriptorImageInfos);
+    }
 
-	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addBuffer(uint32_t binding, VkDescriptorBufferInfo bufferInfo) {
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorBufferInfos[binding].emplace_back(bufferInfo);
-		}
+    DescriptorSet::Overwriter::Overwriter(uint32_t descSetCount)
+            : descSetCount{descSetCount} {
 
-		return *this;
-	}
+    }
 
-	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addBuffer(uint32_t binding, const std::vector<VkDescriptorBufferInfo> &bufferInfos) {
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorBufferInfos[binding].emplace_back(bufferInfos[i]);
-		}
+    DescriptorSet::Overwriter &
+    DescriptorSet::Overwriter::addBuffer(uint32_t binding, VkDescriptorBufferInfo bufferInfo) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorBufferInfos[binding].emplace_back(bufferInfo);
+        }
 
-		return *this;
-	}
+        return *this;
+    }
 
-	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addImage(uint32_t binding, VkDescriptorImageInfo imageInfo) {
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfo });
-		}
+    DescriptorSet::Overwriter &
+    DescriptorSet::Overwriter::addBuffer(uint32_t binding, const std::vector<VkDescriptorBufferInfo> &bufferInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorBufferInfos[binding].emplace_back(bufferInfos[i]);
+        }
 
-		return *this;
-	}
+        return *this;
+    }
 
-	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos) {
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{ imageInfos[i] });
-		}
+    DescriptorSet::Overwriter &DescriptorSet::Overwriter::addImage(uint32_t binding, VkDescriptorImageInfo imageInfo) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{imageInfo});
+        }
 
-		return *this;
-	}
+        return *this;
+    }
 
-	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addManyImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos) 
-	{
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(imageInfos);
-		}
+    DescriptorSet::Overwriter &
+    DescriptorSet::Overwriter::addImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(std::vector<VkDescriptorImageInfo>{imageInfos[i]});
+        }
 
-		return *this;
-	}
+        return *this;
+    }
 
-	DescriptorSet::Overwriter& DescriptorSet::Overwriter::addManyImage(uint32_t binding, const std::vector<std::vector<VkDescriptorImageInfo>> &imageInfos) 
-	{
-		for (uint32_t i = 0; i < this->descSetCount; i++) {
-			this->descriptorImageInfos[binding].emplace_back(imageInfos[i]);
-		}
+    DescriptorSet::Overwriter &
+    DescriptorSet::Overwriter::addManyImage(uint32_t binding, const std::vector<VkDescriptorImageInfo> &imageInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(imageInfos);
+        }
 
-		return *this;
-	}
+        return *this;
+    }
 
-	void DescriptorSet::Overwriter::overwrite(DescriptorSet* descriptorSet) {
-		descriptorSet->overwrite(this->descriptorBufferInfos, this->descriptorImageInfos);
-	}
+    DescriptorSet::Overwriter &DescriptorSet::Overwriter::addManyImage(uint32_t binding,
+                                                                       const std::vector<std::vector<VkDescriptorImageInfo>> &imageInfos) {
+        for (uint32_t i = 0; i < this->descSetCount; i++) {
+            this->descriptorImageInfos[binding].emplace_back(imageInfos[i]);
+        }
 
-	DescriptorSet::DescriptorSet(NugieVulkan::Device* device, NugieVulkan::DescriptorPool* descriptorPool, uint32_t descSetCount, std::unordered_map<uint32_t, DescriptorSetBinding> descriptorSetBindings, 
-		std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
-		: device{device}, descriptorPool{descriptorPool}, descSetCount{descSetCount}
-	{
-		this->createDescriptorLayout(descriptorSetBindings);
+        return *this;
+    }
 
-		this->descriptorSets.clear();
-		this->descriptorSets.resize(descSetCount);
+    void DescriptorSet::Overwriter::overwrite(DescriptorSet *descriptorSet) {
+        descriptorSet->overwrite(this->descriptorBufferInfos, this->descriptorImageInfos);
+    }
 
-		this->createDescriptorSet(descriptorBufferInfos, descriptorImageInfos);
-	}
+    DescriptorSet::DescriptorSet(NugieVulkan::Device *device, NugieVulkan::DescriptorPool *descriptorPool,
+                                 uint32_t descSetCount,
+                                 const std::unordered_map<uint32_t, DescriptorSetBinding> &descriptorSetBindings,
+                                 const std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> &descriptorBufferInfos,
+                                 const std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> &descriptorImageInfos)
+            : device{device}, descriptorPool{descriptorPool}, descSetCount{descSetCount} {
+        this->createDescriptorLayout(descriptorSetBindings);
+
+        this->descriptorSets.clear();
+        this->descriptorSets.resize(descSetCount);
+
+        this->createDescriptorSet(descriptorBufferInfos, descriptorImageInfos);
+    }
 
 
-	DescriptorSet::~DescriptorSet() {
-		if (this->descSetLayout != nullptr) delete this->descSetLayout;
-	}
+    DescriptorSet::~DescriptorSet() {
+        delete this->descSetLayout;
+    }
 
-	void DescriptorSet::createDescriptorLayout(std::unordered_map<uint32_t, DescriptorSetBinding> descriptorSetBindings) {
-		auto descSetLayoutBuilder = NugieVulkan::DescriptorSetLayout::Builder(this->device);
+    void
+    DescriptorSet::createDescriptorLayout(const std::unordered_map<uint32_t, DescriptorSetBinding> &descriptorSetBindings) {
+        auto descSetLayoutBuilder = NugieVulkan::DescriptorSetLayout::Builder(this->device);
 
-		for (auto &&descriptorSetBinding : descriptorSetBindings) {
-			descSetLayoutBuilder.addBinding(descriptorSetBinding.first, descriptorSetBinding.second.descSetType, 
-				descriptorSetBinding.second.shaderStage, descriptorSetBinding.second.descCount);
-		}
+        for (auto &&descriptorSetBinding: descriptorSetBindings) {
+            descSetLayoutBuilder.addBinding(descriptorSetBinding.first, descriptorSetBinding.second.descSetType,
+                                            descriptorSetBinding.second.shaderStage,
+                                            descriptorSetBinding.second.descCount);
+        }
 
-		this->descSetLayout = descSetLayoutBuilder.build();
-	}
+        this->descSetLayout = descSetLayoutBuilder.build();
+    }
 
-  void DescriptorSet::createDescriptorSet(std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, 
-		std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
-	{
-		auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
+    void DescriptorSet::createDescriptorSet(
+            std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos,
+            std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos) {
+        auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
 
-		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
-			descriptorWriter.clear();
+        for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+            descriptorWriter.clear();
 
-			for (auto &&descriptorBufferInfo : descriptorBufferInfos) {
-				descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
-			}
+            for (auto &&descriptorBufferInfo: descriptorBufferInfos) {
+                descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
+            }
 
-			for (auto &&descriptorImageInfo : descriptorImageInfos) {
-				descriptorWriter.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
-			}
+            for (auto &&descriptorImageInfo: descriptorImageInfos) {
+                descriptorWriter.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
+            }
 
-			descriptorWriter.build(&this->descriptorSets[i]);
-		}
-  }
+            descriptorWriter.build(&this->descriptorSets[i]);
+        }
+    }
 
-	void DescriptorSet::overwrite(std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos, 
-		std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos)
-	{
-		auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
+    void
+    DescriptorSet::overwrite(std::unordered_map<uint32_t, std::vector<VkDescriptorBufferInfo>> descriptorBufferInfos,
+                             std::unordered_map<uint32_t, std::vector<std::vector<VkDescriptorImageInfo>>> descriptorImageInfos) {
+        auto descriptorWriter = NugieVulkan::DescriptorWriter(this->device, this->descSetLayout, this->descriptorPool);
 
-		for (size_t i = 0; i < this->descriptorSets.size(); i++) {
-			descriptorWriter.clear();
+        for (size_t i = 0; i < this->descriptorSets.size(); i++) {
+            descriptorWriter.clear();
 
-			for (auto &&descriptorBufferInfo : descriptorBufferInfos) {
-				descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
-			}
+            for (auto &&descriptorBufferInfo: descriptorBufferInfos) {
+                descriptorWriter.writeBuffer(descriptorBufferInfo.first, descriptorBufferInfo.second[i]);
+            }
 
-			for (auto &&descriptorImageInfo : descriptorImageInfos) {
-				descriptorWriter.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
-			}
+            for (auto &&descriptorImageInfo: descriptorImageInfos) {
+                descriptorWriter.writeImage(descriptorImageInfo.first, descriptorImageInfo.second[i]);
+            }
 
-			descriptorWriter.overwrite(&this->descriptorSets[i]);
-		}
-	}
+            descriptorWriter.overwrite(&this->descriptorSets[i]);
+        }
+    }
 }

@@ -30,7 +30,7 @@ if (DEFINED GLFW_PATH)
   set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
   if (MSVC)
     set(GLFW_LIB "${GLFW_PATH}/lib-vc2022") # 2.1 Update lib-vc2019 to use same version as your visual studio
-  elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
+  else()
     message(STATUS "USING MINGW")
     set(GLFW_LIB "${GLFW_PATH}/lib-mingw-w64") # 2.1 make sure matches glfw mingw subdirectory
   endif()
@@ -92,7 +92,7 @@ if (WIN32)
     ${STB_PATH}
     ${GLFW_INCLUDE_DIRS}
     ${GLM_PATH}
-    ${VMA_PATH}
+    ${VMA_PATH}/include
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC
@@ -108,7 +108,7 @@ elseif (UNIX)
       ${Vulkan_INCLUDE_DIRS}
       ${TINYOBJ_PATH}
       ${STB_PATH}
-      ${VMA_PATH}
+      ${VMA_PATH}/include
     )
     target_link_libraries(${PROJECT_NAME} glfw ${Vulkan_LIBRARIES})
 endif()

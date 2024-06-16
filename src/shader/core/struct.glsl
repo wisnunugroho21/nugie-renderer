@@ -3,74 +3,90 @@
 #define RECIPROCAL_PI 0.3183098861837907
 #define RECIPROCAL_2PI 0.15915494309189535
 #define PI 3.14159265359
-#define FLT_MAX 3.402823e+38
-#define FLT_MIN 1.175494e-38
+#define FLT_MAX 1.0e+30
+#define FLT_MIN 1.0e-30
+#define K_EPSILON 1e-8
+
+struct Sphere {
+    vec4 centerRadius;
+};
 
 struct Vertex {
-  vec4 position;
+    vec3 position;
+    vec3 normal;
 };
 
-struct NormText {    
-  vec4 normal;
-  vec2 textCoord;
+struct Triangle {
+    uvec4 vertexMaterialIndexes;
 };
 
-struct Reference {
-  uint materialIndex;
-  uint transformIndex;
+struct Object {
+    uint firstBvhIndex;
+    uint firstGeometryIndex;
+    uint transformIndex;
 };
 
-struct Aabb {
-  vec4 point0;
-  vec4 point1;
-  vec4 point2;
-  vec4 point3;
-  vec4 point4;
-  vec4 point5;
-  vec4 point6;
-  vec4 point7;
+struct BvhNode {
+    uint leftNode;
+    uint rightNode;
 
-  uint firstIndex;
-  uint indicesCount;
+    uint objIndex;
+    uint typeIndex;
+
+    vec3 maximum;
+    vec3 minimum;
 };
 
 struct Material {
-  vec4 baseColor;
-  vec4 params;
-  uint colorTextureIndex;
+    vec4 baseColor;
 };
 
 struct Transformation {
-  mat4 modelMatrix;
-  mat4 normalMatrix;
+    mat4 worldToObjectMatrix;
+    mat4 objectToWorldMatrix;
 };
 
-struct ShadowTransformation {
-  mat4 view;
-	mat4 projection;
+struct Ray {
+    vec3 origin;
+    vec3 direction;
 };
 
-struct PointLight {
-  vec4 position;
-  vec4 color;
+struct HitRecord {
+    float t;
+    vec2 uv;
+
+    uint hitGeometryIndex;
+    uint hitGeometryTypeIndex;
+    uint hitTransformIndex;
 };
 
-struct SpotLight {
-  vec4 position;
-  vec4 color;
-  vec4 direction;
-  float angle;
+struct DirectData {
+    vec4 normalIsIlluminate;
+    vec3 origin;
+    uint materialIndex;
 };
 
-struct SunLight {
-  vec4 color;
-  vec4 direction;
+struct DirectResult {
+    vec4 radiancePdf;
 };
 
-struct VkDrawIndexedIndirectCommand {
-  uint indexCount;
-  uint instanceCount;
-  uint firstIndex;
-  int vertexOffset;
-  uint firstInstance;
+struct IndirectResult {
+    vec4 radiancePdf;
+};
+
+struct LightResult {
+    vec4 radianceIsIlluminate;
+};
+
+struct MissResult {
+    vec4 radianceIsMiss;
+};
+
+struct IntegratorResult {
+    vec4 totalRadianceIsRayBounce;
+    vec4 totalIndirectPdf;
+};
+
+struct SamplingResult {
+    vec4 finalColorCountSample;
 };
