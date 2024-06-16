@@ -111,7 +111,7 @@ namespace NugieVulkan {
                          const std::vector<VkDeviceSize> &vertexOffsets,
                          Buffer *indexBuffer = nullptr, VkDeviceSize indexOffset = 0);
 
-        static void draw(CommandBuffer *commandBuffer, uint32_t vertexCount);
+        static void draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount);
 
         static void drawIndirect(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer, uint32_t offset,
                                  uint32_t drawCount);

@@ -46,18 +46,18 @@ namespace NugieVulkan {
         submitInfo.pCommandBuffers = &this->commandBuffer;
 
         submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
-        if (waitSemaphores.size() == 0) {
+        if (waitSemaphores.empty()) {
             submitInfo.pWaitSemaphores = nullptr;
         } else {
             submitInfo.pWaitSemaphores = waitSemaphores.data();
         }
 
-        if (waitStages.size() > 0) {
+        if (!waitStages.empty()) {
             submitInfo.pWaitDstStageMask = waitStages.data();
         }
 
         submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
-        if (signalSemaphores.size() == 0) {
+        if (signalSemaphores.empty()) {
             submitInfo.pSignalSemaphores = nullptr;
         } else {
             submitInfo.pSignalSemaphores = signalSemaphores.data();
@@ -83,18 +83,18 @@ namespace NugieVulkan {
         submitInfo.pCommandBuffers = buffers.data();
 
         submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
-        if (waitSemaphores.size() == 0) {
+        if (waitSemaphores.empty()) {
             submitInfo.pWaitSemaphores = nullptr;
         } else {
             submitInfo.pWaitSemaphores = waitSemaphores.data();
         }
 
-        if (waitStages.size() > 0) {
+        if (!waitStages.empty()) {
             submitInfo.pWaitDstStageMask = waitStages.data();
         }
 
         submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
-        if (signalSemaphores.size() == 0) {
+        if (signalSemaphores.empty()) {
             submitInfo.pSignalSemaphores = nullptr;
         } else {
             submitInfo.pSignalSemaphores = signalSemaphores.data();

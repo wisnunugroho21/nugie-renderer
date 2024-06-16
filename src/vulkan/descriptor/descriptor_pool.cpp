@@ -57,7 +57,7 @@ namespace NugieVulkan {
         allocInfo.pSetLayouts = &descriptorSetLayout;
         allocInfo.descriptorSetCount = 1;
 
-        if (variableSetCounts.size() > 0) {
+        if (!variableSetCounts.empty()) {
             VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
             setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
             setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());
@@ -84,7 +84,7 @@ namespace NugieVulkan {
         allocInfo.pSetLayouts = descriptorSetLayout.data();
         allocInfo.descriptorSetCount = static_cast<uint32_t>(descriptors.size());
 
-        if (variableSetCounts.size() > 0) {
+        if (!variableSetCounts.empty()) {
             VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts{};
             setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
             setCounts.descriptorSetCount = static_cast<uint32_t>(variableSetCounts.size());

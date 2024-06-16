@@ -20,7 +20,7 @@ namespace NugieApp {
 
 	ComputeRenderSystem::~ComputeRenderSystem() {
 		vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
-		if (this->pipeline != nullptr) delete this->pipeline;
+		delete this->pipeline;
 	}
 
 	void ComputeRenderSystem::createPipelineLayout() {
@@ -36,7 +36,7 @@ namespace NugieApp {
 		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
 		pipelineLayoutInfo.pSetLayouts = (!setLayouts.empty()) ? setLayouts.data() : nullptr;
 		pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
-		pipelineLayoutInfo.pPushConstantRanges = (pushConstantRanges.size() > 0) ? pushConstantRanges.data() : nullptr;
+		pipelineLayoutInfo.pPushConstantRanges = (!pushConstantRanges.empty()) ? pushConstantRanges.data() : nullptr;
 
 		if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create pipeline layout!");
