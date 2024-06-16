@@ -67,26 +67,26 @@ struct DirectData {
 };
 
 struct DirectResult {
-    vec4 radiancePdf;
+    precise vec4 radiancePdf;
 };
 
 struct IndirectResult {
-    vec4 radiancePdf;
+    precise vec4 radiancePdf;
 };
 
 struct LightResult {
-    vec4 radianceIsIlluminate;
+    precise vec4 radianceIsIlluminate;
 };
 
 struct MissResult {
-    vec4 radianceIsMiss;
+    precise vec4 radianceIsMiss;
 };
 
 struct IntegratorResult {
-    vec4 totalRadianceIsRayBounce;
-    vec4 totalIndirectPdf;
+    precise vec4 totalRadianceIsRayBounce;
+    precise vec4 totalIndirectPdf;
 };
 
 struct SamplingResult {
-    vec4 finalColorCountSample;
+    precise vec4 finalColorCountSample;
 };
