@@ -38,7 +38,7 @@ layout (set = 0, binding = 6) buffer readonly TransformationBuffer {
 
 // ------------- Transform -------------
 
-vec3 positionTransform(mat4 mat, vec3 vec) {
+precise vec3 positionTransform(mat4 mat, vec3 vec) {
     precise vec3 res;
 
     res.x = mat[3][0] +
@@ -73,7 +73,7 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
 
 // ------------- Triangle -------------
 
-precise float triangleArea(Triangle triangle) {
+float triangleArea(Triangle triangle) {
    	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -81,11 +81,11 @@ precise float triangleArea(Triangle triangle) {
 	precise vec3 v0v1 = vertex1.position - vertex0.position;
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
-    precise vec3 pvec = cross(v0v1, v0v2);
+    vec3 pvec = cross(v0v1, v0v2);
     return 0.5 * sqrt(dot(pvec, pvec));
 }
 
-precise vec3 triangleNormal(Triangle triangle, Ray r) {
+vec3 triangleNormal(Triangle triangle, Ray r) {
     Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -93,7 +93,7 @@ precise vec3 triangleNormal(Triangle triangle, Ray r) {
 	precise vec3 v0v1 = vertex1.position - vertex0.position;
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
-    precise vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+    vec3 outwardNormal = normalize(cross(v0v1, v0v2));
     return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
@@ -105,14 +105,12 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 	precise vec3 v0v1 = vertex1.position - vertex0.position;
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
-	precise vec3 objPosition = vertex0.position + 
-	fma(
-		vec3(uv.x), 
-		v0v1, 
-		vec3(uv.y) * v0v2 
-	);
-
-	return objPosition;
+	return vertex0.position +
+           fma(
+               vec3(uv.x), 
+               v0v1, 
+               vec3(uv.y) * v0v2 
+           );
 }
 
 void main() {

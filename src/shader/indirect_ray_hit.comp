@@ -134,7 +134,7 @@ float lambertBrdfValue() {
     return 1.0f * RECIPROCAL_PI;
 }
 
-precise vec3 randomCosineDirection(uint additionalRandomSeed) {
+vec3 randomCosineDirection(uint additionalRandomSeed) {
     float r1 = randomFloat(additionalRandomSeed);
     float r2 = randomFloat(additionalRandomSeed + 1);
 
@@ -147,7 +147,7 @@ precise vec3 randomCosineDirection(uint additionalRandomSeed) {
     return vec3(x, y, z);
 }
 
-precise vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
+vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
     vec3 source = randomCosineDirection(additionalRandomSeed);
     return source.x * globalOnb[0] + source.y * globalOnb[1] + source.z * globalOnb[2];
 }
@@ -170,17 +170,15 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
         u2 = 1 - u2;
     }
 	
-	precise vec3 randomTriangle = vertex0.position + 
-	fma(
-		vec3(u1), 
-		v0v1, 
-		vec3(u2) * v0v2 
-	);
-
-	return randomTriangle;
+	return vertex0.position +
+           fma(
+               vec3(u1), 
+               v0v1, 
+               vec3(u2) * v0v2 
+           );
 }
 
-precise vec3 triangleNormal(Triangle triangle, Ray r) {
+vec3 triangleNormal(Triangle triangle, Ray r) {
    	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -188,7 +186,7 @@ precise vec3 triangleNormal(Triangle triangle, Ray r) {
     precise vec3 v0v1 = vertex1.position - vertex0.position;
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
-    precise vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+    vec3 outwardNormal = normalize(cross(v0v1, v0v2));
     return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
@@ -200,14 +198,12 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 	precise vec3 v0v1 = vertex1.position - vertex0.position;
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
-	precise vec3 objPosition = vertex0.position + 
-	fma(
-		vec3(uv.x), 
-		v0v1, 
-		vec3(uv.y) * v0v2 
-	);
-
-	return objPosition;
+	return vertex0.position +
+           fma(
+               vec3(uv.x), 
+               v0v1, 
+               vec3(uv.y) * v0v2 
+           );
 }
 
 void main() {

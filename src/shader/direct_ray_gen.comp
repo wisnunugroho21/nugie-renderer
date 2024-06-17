@@ -59,7 +59,7 @@ uint randomUint(uint min, uint max, uint additionalRandomSeed) {
 
 // ------------- Triangle -------------
 
-vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
+precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
     Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -75,14 +75,12 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
         u2 = 1 - u2;
     }
 	
-	precise vec3 randomTriangle = vertex0.position + 
-	fma(
-		vec3(u1), 
-		v0v1, 
-		vec3(u2) * v0v2 
-	);
-
-	return randomTriangle;
+	return vertex0.position +
+           fma(
+               vec3(u1), 
+               v0v1, 
+               vec3(u2) * v0v2 
+           );
 }
 
 void main() {
