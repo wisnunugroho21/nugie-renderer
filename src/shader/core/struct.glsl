@@ -47,13 +47,13 @@ struct Transformation {
 };
 
 struct Ray {
-    vec3 origin;
-    vec3 direction;
+    precise vec3 origin;
+    precise vec3 direction;
 };
 
 struct HitRecord {
-    float t;
-    vec2 uv;
+    precise float t;
+    precise vec2 uv;
 
     uint hitGeometryIndex;
     uint hitGeometryTypeIndex;
@@ -61,8 +61,8 @@ struct HitRecord {
 };
 
 struct DirectData {
-    vec4 normalIsIlluminate;
-    vec3 origin;
+    precise vec4 normalIsIlluminate;
+    precise vec3 origin;
     uint materialIndex;
 };
 
