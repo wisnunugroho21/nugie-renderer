@@ -47,7 +47,7 @@ namespace NugieApp {
 		rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationInfo->depthBiasEnable = VK_TRUE;
 
-		auto *depthStencilInfo = new VkPipelineDepthStencilStateCreateInfo;
+		auto *depthStencilInfo = new VkPipelineDepthStencilStateCreateInfo();
 		depthStencilInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencilInfo->depthTestEnable = VK_TRUE;
 		depthStencilInfo->depthWriteEnable = VK_TRUE;
