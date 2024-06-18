@@ -50,7 +50,7 @@ void main()
 	
 	SetMeshOutputsEXT(vertexCount, triangleCount);
 
-	if (gl_LocalInvocationIndex < 12) {
+	if (gl_LocalInvocationIndex < vertexCount) {
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = positions[gl_LocalInvocationIndex];
 		fragColor[gl_LocalInvocationIndex] = colors[gl_LocalInvocationIndex];
 	}
