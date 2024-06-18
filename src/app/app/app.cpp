@@ -23,8 +23,7 @@
 
 namespace NugieApp
 {
-    App::App()
-    {
+    App::App() {
         this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
@@ -38,100 +37,63 @@ namespace NugieApp
         this->recordCommand();
     }
 
-    App::~App()
-    {
-        if (this->terrainRenderer != nullptr)
-            delete this->terrainRenderer;
-        if (this->forwardPassRenderer != nullptr)
-            delete this->forwardPassRenderer;
-        if (this->shadowPassRenderer != nullptr)
-            delete this->shadowPassRenderer;
-        if (this->skyboxRenderer != nullptr)
-            delete this->skyboxRenderer;
+    App::~App() {
+        delete this->terrainRenderer;
+        delete this->forwardPassRenderer;
+        delete this->shadowPassRenderer;
+        delete this->skyboxRenderer;
+        
+        delete this->finalSubRenderer;
+        delete this->shadowSubRenderer;
+        
+        delete this->renderer;
+        
+        delete this->terrainDescSet;
+        delete this->forwardDescSet;
+        delete this->shadowDescSet;
+        delete this->skyboxDescSet;
+        
+        delete this->renderDataBuffer;
+        
+        delete this->indexBuffer;
+        delete this->vertexBuffer;
+        delete this->normTextBuffer;
+        delete this->referenceBuffer;
+        
+        delete this->materialBuffer;
+        delete this->transformationBuffer;
+        delete this->shadowTransformationBuffer;
+        delete this->spotLightBuffer;
 
-        if (this->finalSubRenderer != nullptr)
-            delete this->finalSubRenderer;
-        if (this->shadowSubRenderer != nullptr)
-            delete this->shadowSubRenderer;
-
-        if (this->renderer != nullptr)
-            delete this->renderer;
-
-        if (this->terrainDescSet != nullptr)
-            delete this->terrainDescSet;
-        if (this->forwardDescSet != nullptr)
-            delete this->forwardDescSet;
-        if (this->shadowDescSet != nullptr)
-            delete this->shadowDescSet;
-        if (this->skyboxDescSet != nullptr)
-            delete this->skyboxDescSet;
-
-        if (this->renderDataBuffer != nullptr)
-            delete this->renderDataBuffer;
-
-        if (this->indexBuffer != nullptr)
-            delete this->indexBuffer;
-        if (this->vertexBuffer != nullptr)
-            delete this->vertexBuffer;
-        if (this->normTextBuffer != nullptr)
-            delete this->normTextBuffer;
-        if (this->referenceBuffer != nullptr)
-            delete this->referenceBuffer;
-
-        if (this->materialBuffer != nullptr)
-            delete this->materialBuffer;
-        if (this->transformationBuffer != nullptr)
-            delete this->transformationBuffer;
-        if (this->shadowTransformationBuffer != nullptr)
-            delete this->shadowTransformationBuffer;
-        if (this->spotLightBuffer != nullptr)
-            delete this->spotLightBuffer;
-
-        for (auto &&colorTexture : this->colorTextures)
-        {
-            if (colorTexture != nullptr)
-                delete colorTexture;
+        for (auto &&colorTexture : this->colorTextures) {
+            delete colorTexture;
         }
 
-        for (auto &&terrainTexture : this->terrainTextures)
-        {
-            if (terrainTexture != nullptr)
-                delete terrainTexture;
+        for (auto &&terrainTexture : this->terrainTextures) {
+            delete terrainTexture;
         }
 
-        if (this->heightMapTexture != nullptr)
-            delete this->heightMapTexture;
-        if (this->skyboxTexture != nullptr)
-            delete this->skyboxTexture;
+        delete this->heightMapTexture;
+        delete this->skyboxTexture;
 
-        if (this->device != nullptr)
-            delete this->device;
-        if (this->window != nullptr)
-            delete this->window;
+        delete this->device;
+        delete this->window;
 
-        if (this->mouseController != nullptr)
-            delete this->mouseController;
-        if (this->keyboardController != nullptr)
-            delete this->keyboardController;
-        if (this->camera != nullptr)
-            delete this->camera;
+        delete this->mouseController;
+        delete this->keyboardController;
+        delete this->camera;
     }
 
-    void App::recordCommand()
-    {
+    void App::recordCommand() {
         auto prepareCommandBuffer = this->renderer->beginRecordPrepareCommand();
-        for (auto &&colorTexture : this->colorTextures)
-        {
-            if (!colorTexture->hasBeenMipmapped())
-            {
+        for (auto &&colorTexture : this->colorTextures) {
+            if (!colorTexture->hasBeenMipmapped()) {
                 colorTexture->generateMipmap(prepareCommandBuffer);
             }
         }
 
-        for (auto &&terrainTexture : this->terrainTextures)
-        {
-            if (!terrainTexture->hasBeenMipmapped())
-            {
+        for (auto &&terrainTexture : this->terrainTextures) {
+            if (!terrainTexture->hasBeenMipmapped()) {
                 terrainTexture->generateMipmap(prepareCommandBuffer);
             }
         }
@@ -174,14 +136,11 @@ namespace NugieApp
         uint32_t modelIndexSize = this->indexBuffer->size() - this->indicesTerrainCount - 36u;
         uint32_t modelIndexOffset = (this->indicesTerrainCount + 36u) * sizeof(uint32_t);
 
-        for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++)
-        {
-            for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++)
-            {
+        for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
+            for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-                for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++)
-                {
+                for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
                     this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
                     this->shadowPassRenderer->render(commandBuffer, shadowBuffers, this->indexBuffer->getBuffer(), modelIndexSize, lightIndex, shadowBufferOffsets, modelIndexOffset, {this->shadowDescSet->getDescriptorSets(frameIndex)}, {&lightIndex});
                     this->shadowSubRenderer->endRenderPass(commandBuffer);
@@ -200,44 +159,37 @@ namespace NugieApp
         }
     }
 
-    void App::renderLoop()
-    {
+    void App::renderLoop() {
         this->renderer->submitPrepareCommand();
 
-        while (this->isRendering)
-        {
+        while (this->isRendering) {
             this->frameCount++;
 
-            if (this->renderer->acquireFrame())
-            {
+            if (this->renderer->acquireFrame()) {
                 uint32_t frameIndex = this->renderer->getFrameIndex();
 
-                if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                {
+                if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
                     this->renderDataBuffer->writeGlobalData(frameIndex, this->renderData);
                     this->cameraUpdateCount++;
                 }
 
                 this->renderer->submitRenderCommand();
 
-                if (!this->renderer->presentFrame())
-                {
+                if (!this->renderer->presentFrame()) {
                     this->resize();
                     this->randomSeed = 0;
 
                     continue;
                 }
 
-                if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                {
+                if (frameIndex + 1 == NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
                     this->randomSeed++;
                 }
             }
         }
     }
 
-    void App::run()
-    {
+    void App::run() {
         glm::vec3 cameraPosition;
         glm::vec2 cameraRotation;
 
@@ -245,8 +197,7 @@ namespace NugieApp
 
         uint32_t t = 0;
 
-        for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++)
-        {
+        for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
             this->renderDataBuffer->writeGlobalData(i, this->renderData);
         }
 
@@ -255,8 +206,7 @@ namespace NugieApp
         auto oldTime = std::chrono::high_resolution_clock::now();
         auto oldFpsTime = std::chrono::high_resolution_clock::now();
 
-        while (!this->window->shouldClose())
-        {
+        while (!this->window->shouldClose()) {
             this->window->pollEvents();
 
             cameraPosition = this->camera->getPosition();
@@ -272,8 +222,7 @@ namespace NugieApp
             cameraRotation = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraRotation, &isMousePressed);
             cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, this->camera->getDirection(), &isKeyboardPressed);
 
-            if (isMousePressed || isKeyboardPressed)
-            {
+            if (isMousePressed || isKeyboardPressed) {
                 this->camera->setViewYXZ(cameraPosition, cameraRotation);
 
                 this->renderData.cameraTransformation.view = this->camera->getViewMatrix();
@@ -282,8 +231,7 @@ namespace NugieApp
                 this->cameraUpdateCount = 0u;
             }
 
-            if (t > 1000 && this->frameCount > 0)
-            {
+            if (t > 1000 && this->frameCount > 0) {
                 newTime = std::chrono::high_resolution_clock::now();
                 deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
                 oldFpsTime = newTime;
@@ -293,9 +241,7 @@ namespace NugieApp
 
                 this->frameCount = 0;
                 t = 0;
-            }
-            else
-            {
+            } else {
                 t++;
             }
         }
@@ -306,8 +252,7 @@ namespace NugieApp
         vkDeviceWaitIdle(this->device->getLogicalDevice());
     }
 
-    void App::loadObjects()
-    {
+    void App::loadObjects() {
         std::vector<Vertex> vertices;
         std::vector<NormText> normTexts;
         std::vector<Reference> references;
@@ -332,13 +277,11 @@ namespace NugieApp
             "../assets/textures/skybox/right.jpg",
         };
 
-        for (auto &&index : skyboxIndices)
-        {
+        for (auto &&index : skyboxIndices) {
             indices.emplace_back(index);
         }
 
-        for (auto &&vertex : skyboxVertices)
-        {
+        for (auto &&vertex : skyboxVertices) {
             vertices.emplace_back(vertex);
         }
 
@@ -361,24 +304,20 @@ namespace NugieApp
         this->indicesTerrainCount = static_cast<uint32_t>(quadMesh.getIndices().size());
 
         uint32_t indicesSize = static_cast<uint32_t>(indices.size());
-        for (auto &&aabb : quadMesh.getAabbs())
-        {
+        for (auto &&aabb : quadMesh.getAabbs()) {
             aabbs.emplace_back(aabb);
         }
 
         auto verticesSize = static_cast<uint32_t>(vertices.size());
-        for (auto &&index : quadMesh.getIndices())
-        {
+        for (auto &&index : quadMesh.getIndices()) {
             indices.emplace_back(index);
         }
 
-        for (auto &&vertex : quadMesh.getVertices())
-        {
+        for (auto &&vertex : quadMesh.getVertices()) {
             vertices.emplace_back(vertex);
         }
 
-        for (auto &&normText : quadMesh.getNormTexts())
-        {
+        for (auto &&normText : quadMesh.getNormTexts()) {
             normTexts.emplace_back(normText);
         }
 
@@ -387,23 +326,19 @@ namespace NugieApp
         LoadedBuffer loadedBuffer = loadObjModel("../assets/models/box.obj");
 
         verticesSize = static_cast<uint32_t>(vertices.size());
-        for (auto &&index : loadedBuffer.indices)
-        {
+        for (auto &&index : loadedBuffer.indices) {
             indices.emplace_back(index);
         }
 
-        for (auto &&vertex : loadedBuffer.vertices)
-        {
+        for (auto &&vertex : loadedBuffer.vertices) {
             vertices.emplace_back(vertex);
         }
 
-        for (auto &&normText : loadedBuffer.normTexts)
-        {
+        for (auto &&normText : loadedBuffer.normTexts) {
             normTexts.emplace_back(normText);
         }
 
-        for (size_t i = 0; i < loadedBuffer.vertices.size(); i++)
-        {
+        for (size_t i = 0; i < loadedBuffer.vertices.size(); i++) {
             references.emplace_back(Reference{1, 0});
         }
 
@@ -440,8 +375,7 @@ namespace NugieApp
 
         shadowTransforms.resize(this->spotNumLight);
 
-        for (size_t i = 0; i < spotLights.size(); i++)
-        {
+        for (size_t i = 0; i < spotLights.size(); i++) {
             shadowTransforms[i].projection = projection;
 
             shadowCamera.setViewDirection(spotLights[i].position, spotLights[i].direction);
@@ -492,8 +426,7 @@ namespace NugieApp
         this->renderer->submitTransferCommand();
     }
 
-    void App::initCamera(uint32_t width, uint32_t height)
-    {
+    void App::initCamera(uint32_t width, uint32_t height) {
         glm::vec3 position = glm::vec3(80.0f, 110.0f, 80.0f);
         glm::vec3 target = glm::vec3(400.0f, 110.0f, 400.0f);
 
@@ -519,8 +452,7 @@ namespace NugieApp
         this->renderData.fragmentData.sunLight.color = glm::vec4(3.0f, 3.0f, 3.0f, 1.0f);
     }
 
-    void App::init()
-    {
+    void App::init() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
@@ -543,12 +475,10 @@ namespace NugieApp
                                       .build();
 
         std::vector<std::vector<VkDescriptorImageInfo>> shadowImageInfos;
-        for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++)
-        {
+        for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             std::vector<VkDescriptorImageInfo> shadowFrameImageInfos;
 
-            for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++)
-            {
+            for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
                 shadowFrameImageInfos.emplace_back(this->shadowSubRenderer->getAttachmentInfos(0)[0][frameIndex * this->spotNumLight + lightIndex]);
             }
 
@@ -594,8 +524,8 @@ namespace NugieApp
 
         this->forwardPassRenderer = new ForwardPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/forward.vert.spv", "shader/forward.frag.spv", {this->forwardDescSet->getDescSetLayout()});
         this->shadowPassRenderer = new ShadowPassRenderSystem(this->device, this->shadowSubRenderer->getRenderPass(), "shader/shadow_map.vert.spv", {this->shadowDescSet->getDescSetLayout()}, {shadowPushConstantInfo});
-        this->terrainRenderer = new TerrainPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.tesc.spv",
-                                                            "shader/terrain.tese.spv", "shader/terrain.frag.spv", {this->terrainDescSet->getDescSetLayout()});
+        this->terrainRenderer = new TerrainPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.frag.spv", "shader/terrain.tesc.spv", "shader/terrain.tese.spv",  
+                                                            {this->terrainDescSet->getDescSetLayout()});
         this->skyboxRenderer = new SkyboxPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/skybox.vert.spv", "shader/skybox.frag.spv", {this->skyboxDescSet->getDescSetLayout()});
 
         this->forwardPassRenderer->initialize();
@@ -604,8 +534,7 @@ namespace NugieApp
         this->skyboxRenderer->initialize();
     }
 
-    void App::resize()
-    {
+    void App::resize() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
