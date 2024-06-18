@@ -16,7 +16,7 @@ namespace NugieApp {
                                             std::string vertFilePath, std::string fragFilePath,
                                             const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
                                             const std::vector<VkPushConstantRange> &pushConstantRanges)
-            : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, renderPass{renderPass},
+            : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, pushConstantRanges{std::move(pushConstantRanges)}, renderPass{renderPass},
               vertFilePath{std::move(vertFilePath)},
               fragFilePath{std::move(fragFilePath)} {
 
