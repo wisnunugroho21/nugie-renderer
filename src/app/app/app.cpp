@@ -534,7 +534,7 @@ namespace NugieApp
                                                             {this->terrainDescSet->getDescSetLayout()});
         this->skyboxRenderer = new SkyboxPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/skybox.vert.spv", "shader/skybox.frag.spv", {this->skyboxDescSet->getDescSetLayout()});
 
-        this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/better_cube.mesh.spv", "shader/mesh_shade.frag.spv", this->deviceProcedures);
+        this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/simple.task.spv", "shader/better_cube.mesh.spv", "shader/mesh_shade.frag.spv", this->deviceProcedures);
 
         this->forwardPassRenderer->initialize();
         this->shadowPassRenderer->initialize();

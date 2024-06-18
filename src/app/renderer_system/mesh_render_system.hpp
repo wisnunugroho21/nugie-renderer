@@ -18,7 +18,8 @@ namespace NugieApp {
 	class MeshRenderSystem : public GraphicRenderSystem {
 	public:
 		MeshRenderSystem(NugieVulkan::Device *device, NugieVulkan::RenderPass *renderPass,
-						 std::string meshFilePath, std::string fragFilePath,
+						 std::string taskFilePath, std::string meshFilePath,
+						 std::string fragFilePath,
 						 NugieVulkan::DeviceProcedures *deviceProcedures,
 						 const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts = {},
 						 const std::vector<VkPushConstantRange> &pushConstantRanges = {});

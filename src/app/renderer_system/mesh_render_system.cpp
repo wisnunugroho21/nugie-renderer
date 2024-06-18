@@ -11,11 +11,13 @@
 
 namespace NugieApp {
 	MeshRenderSystem::MeshRenderSystem(NugieVulkan::Device *device, NugieVulkan::RenderPass *renderPass,
-                                            	   std::string meshFilePath, std::string fragFilePath,
+                                            	   std::string taskFilePath, std::string meshFilePath, 
+												   std::string fragFilePath,
 												   NugieVulkan::DeviceProcedures *deviceProcedures,
                                             	   const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
                                             	   const std::vector<VkPushConstantRange> &pushConstantRanges)
-			: GraphicRenderSystem(device, renderPass, "", fragFilePath, descriptorSetLayouts, pushConstantRanges), meshFilePath{meshFilePath}, deviceProcedures{deviceProcedures} {
+			: GraphicRenderSystem(device, renderPass, "", fragFilePath, descriptorSetLayouts, pushConstantRanges), 
+				taskFilePath{taskFilePath}, meshFilePath{meshFilePath}, deviceProcedures{deviceProcedures} {
 	}
 
 	void MeshRenderSystem::createPipeline()
@@ -31,6 +33,7 @@ namespace NugieApp {
 			.setDefault(colorBlendAttachment)
 			.setVertexInputInfo(VK_NULL_HANDLE)
 			.setInputAssemblyInfo(VK_NULL_HANDLE)
+			.addShaderStage(VK_SHADER_STAGE_TASK_BIT_EXT, this->taskFilePath)
 			.addShaderStage(VK_SHADER_STAGE_MESH_BIT_EXT, this->meshFilePath)
 			.addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, this->fragFilePath)
 			.build();
