@@ -43,26 +43,26 @@ namespace NugieApp {
 
 		std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
 
-		VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
-		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-		dynamicStateInfo.pDynamicStates = dynamicStates.size() > 0 ? dynamicStates.data() : nullptr;
-		dynamicStateInfo.flags = 0;
+		auto *dynamicStateInfo = new VkPipelineDynamicStateCreateInfo();
+		dynamicStateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicStateInfo->dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+		dynamicStateInfo->pDynamicStates = !dynamicStates.empty() ? dynamicStates.data() : nullptr;
+		dynamicStateInfo->flags = 0;
 
-		VkPipelineMultisampleStateCreateInfo multisampleInfo{};
-		multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampleInfo.sampleShadingEnable = VK_FALSE;
-		multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		auto *multisampleInfo = new VkPipelineMultisampleStateCreateInfo();
+		multisampleInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisampleInfo->sampleShadingEnable = VK_FALSE;
+		multisampleInfo->rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-		VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
-		rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterizationInfo.depthClampEnable = VK_FALSE;
-		rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-		rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizationInfo.lineWidth = 1.0f;
-		rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_BIT;
-		rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterizationInfo.depthBiasEnable = VK_TRUE;
+		auto *rasterizationInfo = new VkPipelineRasterizationStateCreateInfo();
+		rasterizationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizationInfo->depthClampEnable = VK_FALSE;
+		rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
+		rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizationInfo->lineWidth = 1.0f;
+		rasterizationInfo->cullMode = VK_CULL_MODE_FRONT_BIT;
+		rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationInfo->depthBiasEnable = VK_TRUE;
 
 		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
 			.setDefault(bindingDescriptions, attributeDescription)

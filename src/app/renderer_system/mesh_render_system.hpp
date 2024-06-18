@@ -29,6 +29,6 @@ namespace NugieApp {
 		void createPipeline() override;
 
 		NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;
-		std::string meshFilePath;
+		std::string taskFilePath, meshFilePath;
 	};
 }
