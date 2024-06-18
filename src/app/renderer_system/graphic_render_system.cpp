@@ -70,9 +70,9 @@ namespace NugieApp {
         colorBlendAttachment[0].blendEnable = VK_FALSE;
 
         this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
-                .setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions,
-                            attributeDescription)
-                .build();
+            .setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions,
+                        attributeDescription)
+            .build();
     }
 
     void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, 

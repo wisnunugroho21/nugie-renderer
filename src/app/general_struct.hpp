@@ -4,101 +4,104 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
 #include <vector>
 
 namespace NugieApp {
-    struct Vertex {
-        alignas(16) glm::vec3 position;
-        alignas(16) glm::vec3 normal;
+	struct Vertex {
+		glm::vec4 position;
 
-        bool operator==(const Vertex &other) const {
-            return this->position == other.position && this->normal == other.normal;
-        }
-    };
+		bool operator==(const Vertex &other) const
+		{
+			return this->position == other.position;
+		}
+	};
 
-    struct Triangle {
-        glm::uvec4 vertexMaterialIndexes;
-    };
+	struct NormText {
+		glm::vec4 normal;
+		glm::vec2 textCoord;
+	};
 
-    struct Object {
-        uint32_t firstBvhIndex;
-        uint32_t firstGeometryIndex;
-        uint32_t transformIndex;
-    };
+	struct Reference {
+		uint32_t materialIndex;
+		uint32_t transformIndex;
+	};
 
-    struct BvhNode {
-        uint32_t leftNode = 0u;
-        uint32_t rightNode = 0u;
-        uint32_t objIndex = 0u;
-        uint32_t typeIndex = 0u;
+	struct Aabb {
+		alignas(16) glm::vec4 point0;
+		alignas(16) glm::vec4 point1;
+		alignas(16) glm::vec4 point2;
+		alignas(16) glm::vec4 point3;
+		alignas(16) glm::vec4 point4;
+		alignas(16) glm::vec4 point5;
+		alignas(16) glm::vec4 point6;
+		alignas(16) glm::vec4 point7;
 
-        alignas(16) glm::vec3 maximum{0.0f};
-        alignas(16) glm::vec3 minimum{0.0f};
-    };
+		uint32_t firstIndex;
+		uint32_t indicesCount;
+	};
 
-    struct Material {
-        glm::vec4 baseColor;
-    };
+	struct Material {
+		alignas(16) glm::vec4 baseColor;
+		alignas(16) glm::vec4 params;
+		uint32_t colorTextureIndex;
+	};
 
-    struct Transformation {
-        glm::mat4 worldToObjectMatrix{1.0f};
-        glm::mat4 objectToWorldMatrix{1.0f};
-    };
+	struct Transformation {
+		glm::mat4 modelMatrix{1.0f};
+		glm::mat4 normalMatrix{1.0f};
+	};
 
-    struct Ray {
-        glm::vec4 origin{0.0f};
-        glm::vec4 direction{0.0f};
-    };
+	struct ShadowTransformation {
+		glm::mat4 view{1.0f};
+		glm::mat4 projection{1.0f};
+	};
 
-    struct Hit {
-        float t = 0.0f;
-        alignas(16) glm::vec2 uv{0.0f};
+	struct PointLight {
+		glm::vec4 position;
+		glm::vec4 color;
+	};
 
-        uint32_t hitGeometryIndex = 0u;
-        uint32_t hitGeometryTypeIndex = 0u;
-        uint32_t hitTransformIndex = 0u;
-    };
+	struct SpotLight {
+		alignas(16) glm::vec4 position;
+		alignas(16) glm::vec4 color;
+		alignas(16) glm::vec4 direction;
+		float angle;
+	};
 
-    struct DirectData {
-        glm::vec4 normalIsIlluminate{0.0f};
-        glm::vec4 originMaterialIndex{0.0f};
-    };
+	struct SunLight {
+		alignas(16) glm::vec4 color;
+		alignas(16) glm::vec4 direction;
+	};
 
-    struct DirectResult {
-        glm::vec4 radiancePdf{0.0f};
-    };
+	struct CameraTransformation {
+		glm::mat4 view;
+		glm::mat4 projection;
+	};
 
-    struct IndirectResult {
-        glm::vec4 radiancePdf{0.0f};
-        Ray nextRay{};
-    };
+	struct TessellationData {
+		glm::vec4 tessellationScreenSizeFactorEdgeSize;
+	};
 
-    struct LightResult {
-        glm::vec4 radianceIsIlluminate{0.0f};
-    };
+	struct FragmentData {
+		glm::vec4 origin;
+		glm::uvec4 numLights;
+		SunLight sunLight;
+	};
 
-    struct MissResult {
-        glm::vec4 radianceIsMiss{0.0f};
-    };
+	struct RenderData {
+		CameraTransformation cameraTransformation;
+		TessellationData tessellationData;
+		FragmentData fragmentData;
+	};
 
-    struct IntegratorResult {
-        glm::vec4 totalRadianceIsRayBounce{0.0f};
-        glm::vec4 totalIndirectPdf{1.0f};
-    };
+	struct FrustumData {
+		uint32_t drawObjectCount = 0;
+	};
 
-    struct SamplingResult {
-        glm::vec4 finalColorCountSample{0.0f};
-    };
-
-    struct RayTraceUbo {
-        alignas(16) glm::vec3 origin{0.0f};
-        alignas(16) glm::vec3 horizontal{0.0f};
-        alignas(16) glm::vec3 vertical{0.0f};
-        alignas(16) glm::vec3 lowerLeftCorner{0.0f};
-        alignas(16) glm::uvec4 imgSizeRandomSeedNumLight{0u};
-    };
+	struct ShadowPushConstant {
+		uint32_t lightIndex;
+	};
 }

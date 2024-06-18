@@ -1,38 +1,75 @@
 #include "transform.hpp"
 
 namespace NugieApp {
-    glm::mat4 TransformComponent::getObjectToWorldMatrix() const {
-        auto curTransf = glm::mat4{1.0f};
-        auto originScalePosition = (this->objectMaximum - this->objectMinimum) / 2.0f + this->objectMinimum;
+  glm::mat4 TransformComponent::getModelMatrix() const {
+    const float c3 = glm::cos(this->rotation.z);
+    const float s3 = glm::sin(this->rotation.z);
+    const float c2 = glm::cos(this->rotation.x);
+    const float s2 = glm::sin(this->rotation.x);
+    const float c1 = glm::cos(this->rotation.y);
+    const float s1 = glm::sin(this->rotation.y);
+    
+    return glm::mat4{
+      {
+        this->scale.x * (c1 * c3 + s1 * s2 * s3),
+        this->scale.x * (c2 * s3),
+        this->scale.x * (c1 * s2 * s3 - c3 * s1),
+        0.0f,
+      },
+      {
+        this->scale.y * (c3 * s1 * s2 - c1 * s3),
+        this->scale.y * (c2 * c3),
+        this->scale.y * (c1 * c3 * s2 + s1 * s3),
+        0.0f,
+      },
+      {
+        this->scale.z * (c2 * s1),
+        this->scale.z * (-s2),
+        this->scale.z * (c1 * c2),
+        0.0f,
+      },
+      {this->translation.x, this->translation.y, this->translation.z, 1.0f}
+    };
+  }
 
-        curTransf = glm::translate(curTransf, this->translation);
+  glm::mat3 TransformComponent::getNormalMatrix() const {
+    const float c3 = glm::cos(this->rotation.z);
+    const float s3 = glm::sin(this->rotation.z);
+    const float c2 = glm::cos(this->rotation.x);
+    const float s2 = glm::sin(this->rotation.x);
+    const float c1 = glm::cos(this->rotation.y);
+    const float s1 = glm::sin(this->rotation.y);
 
-        curTransf = glm::translate(curTransf, originScalePosition);
-        curTransf = glm::scale(curTransf, this->scale);
+    const glm::vec3 invScale = 1.0f / scale;
+    
+    return glm::mat3{
+      {
+        invScale.x * (c1 * c3 + s1 * s2 * s3),
+        invScale.x * (c2 * s3),
+        invScale.x * (c1 * s2 * s3 - c3 * s1)
+      },
+      {
+        invScale.y * (c3 * s1 * s2 - c1 * s3),
+        invScale.y * (c2 * c3),
+        invScale.y * (c1 * c3 * s2 + s1 * s3)
+      },
+      {
+        invScale.z * (c2 * s1),
+        invScale.z * (-s2),
+        invScale.z * (c1 * c2)
+      },
+    };
+  }
 
-        curTransf = glm::rotate(curTransf, this->rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
-        curTransf = glm::rotate(curTransf, this->rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-        curTransf = glm::rotate(curTransf, this->rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
+  std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations) {
+		auto newTransforms = std::vector<Transformation>();
+		for (auto &&transform : transformations) {
+			newTransforms.emplace_back(Transformation{ 
+				transform.getModelMatrix(),
+				transform.getNormalMatrix() 
+			});
+		}
 
-        curTransf = glm::translate(curTransf, -1.0f * originScalePosition);
-
-        return curTransf;
-    }
-
-    glm::mat4 TransformComponent::getWorldToObjectMatrix() const {
-        return glm::inverse(this->getObjectToWorldMatrix());
-    }
-
-    std::vector<Transformation> ConvertComponentToTransform(const std::vector<TransformComponent> &transformations) {
-        std::vector<Transformation> newTransforms;
-
-        for (auto &&transform: transformations) {
-            newTransforms.emplace_back(Transformation{
-                    transform.getWorldToObjectMatrix(),
-                    transform.getObjectToWorldMatrix()
-            });
-        }
-
-        return newTransforms;
-    }
+		return newTransforms;
+	}
 } // namespace NugieApp
