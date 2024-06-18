@@ -61,12 +61,15 @@ namespace NugieVulkan {
 
             Builder &addShaderStage(VkShaderStageFlagBits shaderStage, const std::string &shaderFilePath);
 
+            Builder &setIsMeshShader(bool isMeshShader);
+
             GraphicPipeline *build();
 
         private:
             VkPipelineLayout pipelineLayout;
             VkRenderPass renderPass;
             uint32_t subpass = 0;
+            bool isMeshShader = false;
 
             VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
             VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
@@ -96,7 +99,8 @@ namespace NugieVulkan {
                 VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
                 VkPipelineDynamicStateCreateInfo dynamicStateInfo,
                 const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-                VkPipelineTessellationStateCreateInfo tessellationInfo
+                VkPipelineTessellationStateCreateInfo tessellationInfo,
+                bool isMeshShader = false
         );
 
         ~GraphicPipeline();
@@ -121,6 +125,8 @@ namespace NugieVulkan {
         static void drawIndirectIndexed(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer,
                                         uint32_t indexCount, uint32_t offset);
 
+        static void drawMeshShader(CommandBuffer *commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize);
+
     private:
         Device *device = nullptr;
         VkPipeline graphicPipeline;
@@ -138,7 +144,8 @@ namespace NugieVulkan {
                 VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
                 VkPipelineDynamicStateCreateInfo dynamicStateInfo,
                 const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-                VkPipelineTessellationStateCreateInfo tessellationInfo
+                VkPipelineTessellationStateCreateInfo tessellationInfo,
+                bool isMeshShader = false
         );
     };
 }

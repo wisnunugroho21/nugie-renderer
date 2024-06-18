@@ -20,6 +20,7 @@
 #include "../renderer_system/terrain_pass_render_system.hpp"
 #include "../renderer_system/shadow_pass_render_system.hpp"
 #include "../renderer_system/skybox_pass_render_system.hpp"
+#include "../renderer_system/mesh_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -57,9 +58,10 @@ namespace NugieApp {
         MouseController *mouseController = nullptr;
 
         Renderer *renderer = nullptr;
-
         SubRenderer *finalSubRenderer = nullptr;
         SubRenderer *shadowSubRenderer = nullptr;
+        
+        MeshRenderSystem *meshRenderer = nullptr;
 
         TerrainPassRenderSystem *terrainRenderer = nullptr;
         ForwardPassRenderSystem *forwardPassRenderer = nullptr;

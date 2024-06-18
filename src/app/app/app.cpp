@@ -42,6 +42,7 @@ namespace NugieApp
         delete this->forwardPassRenderer;
         delete this->shadowPassRenderer;
         delete this->skyboxRenderer;
+        delete this->meshRenderer;
         
         delete this->finalSubRenderer;
         delete this->shadowSubRenderer;
@@ -140,7 +141,7 @@ namespace NugieApp
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-                for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
+                /* for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
                     this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
                     this->shadowPassRenderer->render(commandBuffer, shadowBuffers, this->indexBuffer->getBuffer(), modelIndexSize, lightIndex, shadowBufferOffsets, modelIndexOffset, {this->shadowDescSet->getDescriptorSets(frameIndex)}, {&lightIndex});
                     this->shadowSubRenderer->endRenderPass(commandBuffer);
@@ -152,11 +153,15 @@ namespace NugieApp
                 this->terrainRenderer->render(commandBuffer, terrainBuffers, this->indexBuffer->getBuffer(), this->indicesTerrainCount, 1u, terrainBufferOffsets, terrainIndexOffset, {this->terrainDescSet->getDescriptorSets(frameIndex)});
                 this->forwardPassRenderer->render(commandBuffer, forwardBuffers, this->indexBuffer->getBuffer(), modelIndexSize, 1u, forwardBufferOffsets, modelIndexOffset, {this->forwardDescSet->getDescriptorSets(frameIndex)});
                
-                this->finalSubRenderer->endRenderPass(commandBuffer);
+                this->finalSubRenderer->endRenderPass(commandBuffer); */
+
+                this->meshRenderer->render(commandBuffer);
 
                 commandBuffer->endCommand();
             }
         }
+
+        
     }
 
     void App::renderLoop() {
@@ -527,6 +532,8 @@ namespace NugieApp
         this->terrainRenderer = new TerrainPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/terrain.vert.spv", "shader/terrain.frag.spv", "shader/terrain.tesc.spv", "shader/terrain.tese.spv",  
                                                             {this->terrainDescSet->getDescSetLayout()});
         this->skyboxRenderer = new SkyboxPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/skybox.vert.spv", "shader/skybox.frag.spv", {this->skyboxDescSet->getDescSetLayout()});
+
+        this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "mesh_shade.mesh.spv", "mesh_shade.frag.spv");
 
         this->forwardPassRenderer->initialize();
         this->shadowPassRenderer->initialize();

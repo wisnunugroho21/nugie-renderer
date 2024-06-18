@@ -337,6 +337,13 @@ namespace NugieVulkan {
         return *this;
     }
 
+    GraphicPipeline::Builder &
+    GraphicPipeline::Builder::setIsMeshShader(bool isMeshShader) {
+        this->isMeshShader = isMeshShader;
+
+        return *this;
+    }
+
     GraphicPipeline *GraphicPipeline::Builder::build() {
         return new GraphicPipeline(
                 this->device,
@@ -351,7 +358,8 @@ namespace NugieVulkan {
                 this->depthStencilInfo,
                 this->dynamicStateInfo,
                 this->shaderStagesInfo,
-                this->tessellationInfo
+                this->tessellationInfo,
+                this->isMeshShader
         );
     }
 
@@ -368,7 +376,8 @@ namespace NugieVulkan {
             VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
             VkPipelineDynamicStateCreateInfo dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-            VkPipelineTessellationStateCreateInfo tessellationInfo
+            VkPipelineTessellationStateCreateInfo tessellationInfo,
+            bool isMeshShader
     ) : device{device} {
         this->createGraphicPipeline(
                 pipelineLayout,
@@ -382,7 +391,8 @@ namespace NugieVulkan {
                 depthStencilInfo,
                 dynamicStateInfo,
                 shaderStagesInfo,
-                tessellationInfo
+                tessellationInfo,
+                isMeshShader
         );
     }
 
@@ -423,7 +433,8 @@ namespace NugieVulkan {
             VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
             VkPipelineDynamicStateCreateInfo dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-            VkPipelineTessellationStateCreateInfo tessellationInfo) {
+            VkPipelineTessellationStateCreateInfo tessellationInfo,
+            bool isMeshShader) {
         VkPipelineViewportStateCreateInfo viewportInfo{};
         viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewportInfo.viewportCount = 1;
@@ -433,8 +444,8 @@ namespace NugieVulkan {
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipelineInfo.stageCount = static_cast<uint32_t>(shaderStagesInfo.size());
         pipelineInfo.pStages = (!shaderStagesInfo.empty()) ? shaderStagesInfo.data() : nullptr;
-        pipelineInfo.pVertexInputState = &vertexInputInfo;
-        pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
+        pipelineInfo.pVertexInputState = (isMeshShader) ? VK_NULL_HANDLE : &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = (isMeshShader) ? VK_NULL_HANDLE : &inputAssemblyInfo;
         pipelineInfo.pViewportState = &viewportInfo;
         pipelineInfo.pRasterizationState = &rasterizationInfo;
         pipelineInfo.pMultisampleState = &multisampleInfo;
@@ -514,5 +525,9 @@ namespace NugieVulkan {
                                               uint32_t indexCount, uint32_t offset) {
         vkCmdDrawIndexedIndirect(commandBuffer->getCommandBuffer(), drawCommandBuffer->getBuffer(), offset, indexCount,
                                  static_cast<uint32_t>(sizeof(VkDrawIndexedIndirectCommand)));
+    }
+
+    void GraphicPipeline::drawMeshShader(CommandBuffer *commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize) {
+        vkCmdDrawMeshTasksEXT(commandBuffer->getCommandBuffer(), xSize, ySize, zSize);
     }
 } // namespace NugieVulkan
