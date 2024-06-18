@@ -496,8 +496,8 @@ namespace NugieVulkan {
         }
     }
 
-    void GraphicPipeline::draw(CommandBuffer *commandBuffer, uint32_t vertexCount) {
-        vkCmdDraw(commandBuffer->getCommandBuffer(), vertexCount, 1, 0, 0);
+    void GraphicPipeline::draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount) {
+        vkCmdDraw(commandBuffer->getCommandBuffer(), vertexCount, instanceCount, 0, 0);
     }
 
     void GraphicPipeline::drawIndirect(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer,

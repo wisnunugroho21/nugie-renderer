@@ -52,7 +52,7 @@ namespace NugieVulkan {
         descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
         descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
 
-        if (this->flags.size() > 0) {
+        if (!this->flags.empty()) {
             std::vector<VkDescriptorBindingFlags> setLayoutFlags{};
             for (auto &kv: this->bindings) {
                 if (this->flags.count(kv.first) == 0) {
