@@ -5,8 +5,8 @@
 #include <stdexcept>
 
 namespace NugieVulkan {
-    GraphicPipeline::Builder::Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout) : device{
-            device} {
+    GraphicPipeline::Builder::Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout, DeviceProcedures *deviceProcedures) : 
+            device{device}, deviceProcedures{deviceProcedures} {
         this->pipelineLayout = pipelineLayout;
         this->renderPass = renderPass->getRenderPass();
     }
@@ -346,7 +346,7 @@ namespace NugieVulkan {
 
     GraphicPipeline *GraphicPipeline::Builder::build() {
         return new GraphicPipeline(
-                this->device,
+                this->device,                
                 this->pipelineLayout,
                 this->renderPass,
                 this->subpass,
@@ -359,12 +359,13 @@ namespace NugieVulkan {
                 this->dynamicStateInfo,
                 this->shaderStagesInfo,
                 this->tessellationInfo,
-                this->isMeshShader
+                this->isMeshShader,
+                this->deviceProcedures
         );
     }
 
     GraphicPipeline::GraphicPipeline(
-            Device *device,
+            Device *device,            
             VkPipelineLayout pipelineLayout,
             VkRenderPass renderPass,
             uint32_t subpass,
@@ -377,8 +378,9 @@ namespace NugieVulkan {
             VkPipelineDynamicStateCreateInfo dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
             VkPipelineTessellationStateCreateInfo tessellationInfo,
-            bool isMeshShader
-    ) : device{device} {
+            bool isMeshShader,
+            DeviceProcedures *deviceProcedures
+    ) : device{device}, deviceProcedures{deviceProcedures} {
         this->createGraphicPipeline(
                 pipelineLayout,
                 renderPass,
@@ -528,6 +530,9 @@ namespace NugieVulkan {
     }
 
     void GraphicPipeline::drawMeshShader(CommandBuffer *commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize) {
-        vkCmdDrawMeshTasksEXT(commandBuffer->getCommandBuffer(), xSize, ySize, zSize);
+        if (this->deviceProcedures == nullptr)
+            throw std::runtime_error("device procedures cannot be null");
+
+        this->deviceProcedures->vkCmdDrawMeshTasksEXT(commandBuffer->getCommandBuffer(), xSize, ySize, zSize);
     }
 } // namespace NugieVulkan

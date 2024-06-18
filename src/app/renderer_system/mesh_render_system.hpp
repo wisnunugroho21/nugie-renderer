@@ -18,15 +18,17 @@ namespace NugieApp {
 	class MeshRenderSystem : public GraphicRenderSystem {
 	public:
 		MeshRenderSystem(NugieVulkan::Device *device, NugieVulkan::RenderPass *renderPass,
-                               std::string meshFilePath, std::string fragFilePath,
-                               const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts = {},
-                               const std::vector<VkPushConstantRange> &pushConstantRanges = {});
+						 std::string meshFilePath, std::string fragFilePath,
+						 NugieVulkan::DeviceProcedures *deviceProcedures,
+						 const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts = {},
+						 const std::vector<VkPushConstantRange> &pushConstantRanges = {});
 
 		void render(NugieVulkan::CommandBuffer *commandBuffer);
 
 	private:
 		void createPipeline() override;
 
+		NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;
 		std::string meshFilePath;
 	};
 }

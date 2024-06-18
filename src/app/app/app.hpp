@@ -2,6 +2,7 @@
 
 #include "../../vulkan/window/window.hpp"
 #include "../../vulkan/device/device.hpp"
+#include "../../vulkan/device/device_procedure.hpp"
 #include "../../vulkan/buffer/buffer.hpp"
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
@@ -52,6 +53,7 @@ namespace NugieApp {
 
         NugieVulkan::Window *window = nullptr;
         NugieVulkan::Device *device = nullptr;
+        NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;
 
         Camera *camera = nullptr;
         KeyboardController *keyboardController = nullptr;

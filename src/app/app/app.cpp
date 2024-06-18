@@ -26,6 +26,7 @@ namespace NugieApp
     App::App() {
         this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
         this->device = new NugieVulkan::Device(this->window);
+        this->deviceProcedures = new NugieVulkan::DeviceProcedures(this->device);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
         this->camera = new Camera();
@@ -145,17 +146,17 @@ namespace NugieApp
                     this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
                     this->shadowPassRenderer->render(commandBuffer, shadowBuffers, this->indexBuffer->getBuffer(), modelIndexSize, lightIndex, shadowBufferOffsets, modelIndexOffset, {this->shadowDescSet->getDescriptorSets(frameIndex)}, {&lightIndex});
                     this->shadowSubRenderer->endRenderPass(commandBuffer);
-                }
+                } */
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
 
-                this->skyboxRenderer->render(commandBuffer, {this->vertexBuffer->getBuffer()}, this->indexBuffer->getBuffer(), 36u, 1u, {}, 0u, {this->skyboxDescSet->getDescriptorSets(frameIndex)});
+                /* this->skyboxRenderer->render(commandBuffer, {this->vertexBuffer->getBuffer()}, this->indexBuffer->getBuffer(), 36u, 1u, {}, 0u, {this->skyboxDescSet->getDescriptorSets(frameIndex)});
                 this->terrainRenderer->render(commandBuffer, terrainBuffers, this->indexBuffer->getBuffer(), this->indicesTerrainCount, 1u, terrainBufferOffsets, terrainIndexOffset, {this->terrainDescSet->getDescriptorSets(frameIndex)});
-                this->forwardPassRenderer->render(commandBuffer, forwardBuffers, this->indexBuffer->getBuffer(), modelIndexSize, 1u, forwardBufferOffsets, modelIndexOffset, {this->forwardDescSet->getDescriptorSets(frameIndex)});
+                this->forwardPassRenderer->render(commandBuffer, forwardBuffers, this->indexBuffer->getBuffer(), modelIndexSize, 1u, forwardBufferOffsets, modelIndexOffset, {this->forwardDescSet->getDescriptorSets(frameIndex)}); */
                
-                this->finalSubRenderer->endRenderPass(commandBuffer); */
-
                 this->meshRenderer->render(commandBuffer);
+                
+                this->finalSubRenderer->endRenderPass(commandBuffer);
 
                 commandBuffer->endCommand();
             }
@@ -533,12 +534,13 @@ namespace NugieApp
                                                             {this->terrainDescSet->getDescSetLayout()});
         this->skyboxRenderer = new SkyboxPassRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/skybox.vert.spv", "shader/skybox.frag.spv", {this->skyboxDescSet->getDescSetLayout()});
 
-        this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "mesh_shade.mesh.spv", "mesh_shade.frag.spv");
+        this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/mesh_shade.mesh.spv", "shader/mesh_shade.frag.spv", this->deviceProcedures);
 
         this->forwardPassRenderer->initialize();
         this->shadowPassRenderer->initialize();
         this->terrainRenderer->initialize();
         this->skyboxRenderer->initialize();
+        this->meshRenderer->initialize();
     }
 
     void App::resize() {

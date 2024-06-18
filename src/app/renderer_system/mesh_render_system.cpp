@@ -12,9 +12,10 @@
 namespace NugieApp {
 	MeshRenderSystem::MeshRenderSystem(NugieVulkan::Device *device, NugieVulkan::RenderPass *renderPass,
                                             	   std::string meshFilePath, std::string fragFilePath,
+												   NugieVulkan::DeviceProcedures *deviceProcedures,
                                             	   const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
                                             	   const std::vector<VkPushConstantRange> &pushConstantRanges)
-			: GraphicRenderSystem(device, renderPass, "", fragFilePath, descriptorSetLayouts, pushConstantRanges), meshFilePath{meshFilePath} {
+			: GraphicRenderSystem(device, renderPass, "", fragFilePath, descriptorSetLayouts, pushConstantRanges), meshFilePath{meshFilePath}, deviceProcedures{deviceProcedures} {
 	}
 
 	void MeshRenderSystem::createPipeline()
@@ -55,15 +56,23 @@ namespace NugieApp {
 		depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
 		depthStencilInfo.stencilTestEnable = VK_FALSE;
 
-		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
+		this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout, this->deviceProcedures)
 			.setDefault(colorBlendAttachment, {}, {})
 			.setIsMeshShader(true)
 			.addShaderStage(VK_SHADER_STAGE_MESH_BIT_EXT, this->meshFilePath)
 			.addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, this->fragFilePath)
 			.build();
+
+		/* this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout, this->deviceProcedures)
+			.setDefault(colorBlendAttachment, {}, {})
+			.addShaderStage(VK_SHADER_STAGE_VERTEX_BIT, this->meshFilePath)
+			.addShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, this->fragFilePath)
+			.build(); */
 	}
 
 	void MeshRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer) {
+		this->pipeline->bindPipeline(commandBuffer);
+		// this->pipeline->draw(commandBuffer, 3u, 1u);
 		this->pipeline->drawMeshShader(commandBuffer, 1, 1, 1);
 	}
 }
