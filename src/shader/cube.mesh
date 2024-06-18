@@ -4,6 +4,8 @@
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = 8, max_primitives = 12) out;
 
+layout(location = 0) out vec4 fragColor[]; 
+
 void main()
 {
 	uint vertexCount = 8;
@@ -19,6 +21,15 @@ void main()
 	gl_MeshVerticesEXT[5].gl_Position = vec4(0.5, -0.5, 0.5, 1.0);
 	gl_MeshVerticesEXT[6].gl_Position = vec4(0.5, 0.5, -0.5, 1.0);
 	gl_MeshVerticesEXT[7].gl_Position = vec4(0.5, 0.5, 0.5, 1.0);
+
+	fragColor[0] = vec4(0.0, 0.0, 0.0, 1.0);
+	fragColor[1] = vec4(0.0, 0.0, 1.0, 1.0);
+	fragColor[2] = vec4(0.0, 1.0, 0.0, 1.0);
+	fragColor[3] = vec4(0.0, 1.0, 1.0, 1.0);
+	fragColor[4] = vec4(1.0, 0.0, 0.0, 1.0);
+	fragColor[5] = vec4(1.0, 0.0, 1.0, 1.0);
+	fragColor[6] = vec4(1.0, 1.0, 0.0, 1.0);
+	fragColor[7] = vec4(1.0, 1.0, 1.0, 1.0);
 
 	gl_PrimitiveTriangleIndicesEXT[0] = uvec3(0, 2, 1);
 	gl_PrimitiveTriangleIndicesEXT[1] = uvec3(1, 2, 3);
