@@ -4,5 +4,5 @@
 #include <string>
 
 namespace NugieApp {
-  char* ReadBinaryFile(const char* pFilename, int* size);
+    char *ReadBinaryFile(const char *pFilename, int *size);
 }

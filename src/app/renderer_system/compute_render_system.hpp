@@ -11,25 +11,34 @@
 #include <vector>
 
 namespace NugieApp {
-	class ComputeRenderSystem {
-		public:
-			ComputeRenderSystem(NugieVulkan::Device* device, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, std::string compFilePath);
-			~ComputeRenderSystem();
-			
-			void initialize();
-			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-				uint32_t xInvocations, uint32_t yInvocations, uint32_t zInvocations);
-		
-		private:
-			virtual void createPipelineLayout();
-			virtual void createPipeline();
+    class ComputeRenderSystem {
+    public:
+        ComputeRenderSystem(NugieVulkan::Device *device, std::string compFilePath,
+                            const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
+                            const std::vector<VkPushConstantRange> &pushConstantRanges = {});
 
-			NugieVulkan::Device* device = nullptr;
-			
-			VkPipelineLayout pipelineLayout;
-			NugieVulkan::ComputePipeline* pipeline = nullptr;
+        ~ComputeRenderSystem();
 
-			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
-			std::string compFilePath;
-	};
+        void initialize();
+
+        virtual void render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t xInvocations, uint32_t yInvocations,
+                            uint32_t zInvocations,
+                            const std::vector<VkDescriptorSet> &descriptorSets,
+                            const std::vector<void *> &pushConstants);
+
+    private:
+        virtual void createPipelineLayout();
+
+        virtual void createPipeline();
+
+        NugieVulkan::Device *device = nullptr;
+
+        VkPipelineLayout pipelineLayout;
+        NugieVulkan::ComputePipeline *pipeline = nullptr;
+
+        std::vector<NugieVulkan::DescriptorSetLayout *> descriptorSetLayouts;
+        std::vector<VkPushConstantRange> pushConstantRanges;
+
+        std::string compFilePath;
+    };
 }

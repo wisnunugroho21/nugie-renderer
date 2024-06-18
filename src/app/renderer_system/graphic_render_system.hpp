@@ -14,28 +14,35 @@
 #include <string>
 
 namespace NugieApp {
-	class GraphicRenderSystem {
-		public:
-			GraphicRenderSystem(NugieVulkan::Device* device, std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts, 
-				NugieVulkan::RenderPass* renderPass, const std::string& vertFilePath, const std::string& fragFilePath);
-			~GraphicRenderSystem();
+    class GraphicRenderSystem {
+    public:
+        GraphicRenderSystem(NugieVulkan::Device *device,
+                            std::vector<NugieVulkan::DescriptorSetLayout *> descriptorSetLayouts,
+                            NugieVulkan::RenderPass *renderPass, std::string vertFilePath,
+                            std::string fragFilePath);
 
-			void initialize();
-			virtual void render(NugieVulkan::CommandBuffer* commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, 
-				const std::vector<NugieVulkan::Buffer*> &vertexBuffers, NugieVulkan::Buffer* indexBuffer, uint32_t indexCount,
-				const std::vector<VkDeviceSize> &vertexOffsets = {}, VkDeviceSize indexOffset = 0);
-		
-		protected:
-			virtual void createPipelineLayout();
-			virtual void createPipeline();
-		
-			NugieVulkan::Device* device = nullptr;
-			
-			VkPipelineLayout pipelineLayout;
-			NugieVulkan::GraphicPipeline* pipeline = nullptr;
+        ~GraphicRenderSystem();
 
-			std::vector<NugieVulkan::DescriptorSetLayout*> descriptorSetLayouts; 
-			NugieVulkan::RenderPass* renderPass = nullptr;
-			std::string vertFilePath, fragFilePath;
-	};
+        void initialize();
+
+        virtual void
+        render(NugieVulkan::CommandBuffer *commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets,
+               const std::vector<NugieVulkan::Buffer *> &vertexBuffers, NugieVulkan::Buffer *indexBuffer,
+               uint32_t indexCount,
+               const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset);
+
+    protected:
+        virtual void createPipelineLayout();
+
+        virtual void createPipeline();
+
+        NugieVulkan::Device *device = nullptr;
+
+        VkPipelineLayout pipelineLayout;
+        NugieVulkan::GraphicPipeline *pipeline = nullptr;
+
+        std::vector<NugieVulkan::DescriptorSetLayout *> descriptorSetLayouts;
+        NugieVulkan::RenderPass *renderPass = nullptr;
+        std::string vertFilePath, fragFilePath;
+    };
 }

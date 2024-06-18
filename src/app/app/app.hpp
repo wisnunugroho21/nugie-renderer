@@ -8,18 +8,13 @@
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
-#include "../data/buffer/many_array_buffer.hpp"
+#include "../data/buffer/array_many_buffer.hpp"
+#include "../data/buffer/stacked_array_many_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
-#include "../data/texture/heightmap_texture.hpp"
-#include "../data/texture/cubemap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/compute_render_system.hpp"
-#include "../renderer_system/forward_pass_render_system.hpp"
-#include "../renderer_system/terrain_pass_render_system.hpp"
-#include "../renderer_system/shadow_pass_render_system.hpp"
-#include "../renderer_system/skybox_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -27,75 +22,75 @@
 
 #define APP_TITLE "Nugie Renderer"
 
-#define WIDTH 1280
-#define HEIGHT 720
+#define WIDTH 800
+#define HEIGHT 800
 #define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {
-	class App
-	{
-		public:
-			App();
-			~App();
+    class App {
+    public:
+        App();
 
-			void recordCommand();
+        ~App();
 
-			void run();
-			void renderLoop();
+        void recordCommand();
 
-			void singleThreadRun();
+        void run();
 
-		private:
-			void loadObjects();
-			void initCamera(uint32_t width, uint32_t height);
-			
-			void init();
-			void resize();
+        void renderLoop();
 
-			NugieVulkan::Window* window = nullptr;
-			NugieVulkan::Device* device = nullptr;
+    private:
+        void loadObjects();
 
-			Camera* camera = nullptr;
-			KeyboardController* keyboardController = nullptr;
-			MouseController* mouseController = nullptr;
+        void initCamera(uint32_t width, uint32_t height);
 
-			Renderer* renderer = nullptr;
+        void init();
 
-			SubRenderer* finalSubRenderer = nullptr;
-			SubRenderer* shadowSubRenderer = nullptr;			
-			
-			TerrainPassRenderSystem* terrainRenderer = nullptr;
-			ForwardPassRenderSystem* forwardPassRenderer = nullptr;
-			ShadowPassRenderSystem* shadowPassRenderer = nullptr;
-			SkyboxPassRenderSystem* skyboxRenderer = nullptr;
+        void resize();
 
-			ArrayBuffer<uint32_t>* indexBuffer = nullptr;
-			ArrayBuffer<Vertex>* vertexBuffer = nullptr;
-			ArrayBuffer<NormText>* normTextBuffer = nullptr;
-			ArrayBuffer<Reference>* referenceBuffer = nullptr;
-			
-			ArrayBuffer<Material>* materialBuffer = nullptr;
-			ArrayBuffer<Transformation>* transformationBuffer = nullptr;
-			ArrayBuffer<ShadowTransformation>* shadowTransformationBuffer = nullptr;
-			ArrayBuffer<SpotLight>* spotLightBuffer = nullptr;
+        NugieVulkan::Window *window = nullptr;
+        NugieVulkan::Device *device = nullptr;
 
-			ObjectBuffer<RenderData>* renderDataBuffer = nullptr;			
-			
-			DescriptorSet* terrainDescSet = nullptr;
-			DescriptorSet* forwardDescSet = nullptr;
-			DescriptorSet* shadowDescSet = nullptr;
-			DescriptorSet* skyboxDescSet = nullptr;
+        Camera *camera = nullptr;
+        Renderer *renderer = nullptr;
 
-			uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u,
-				frameCount = 0, verticeTerrainCount = 0, indicesTerrainCount = 0u;
+        ComputeRenderSystem *rayIntersectRenderer = nullptr;
+        ComputeRenderSystem *indirectRayGenRenderer = nullptr;
+        ComputeRenderSystem *indirectRayHitRenderer = nullptr;
+        ComputeRenderSystem *lightRayHitRenderer = nullptr;
+        ComputeRenderSystem *missRayRenderer = nullptr;
+        ComputeRenderSystem *directRayGenRenderer = nullptr;
+        ComputeRenderSystem *directRayHitRenderer = nullptr;
+        ComputeRenderSystem *integratorRenderer = nullptr;
+        ComputeRenderSystem *samplingRenderer = nullptr;
 
-			bool isRendering = true;
-			RenderData renderData;
+        ArrayBuffer<Object> *objectBuffer = nullptr;
+        ArrayBuffer<BvhNode> *objectBvhBuffer = nullptr;
+        ArrayBuffer<Triangle> *triangleBuffer = nullptr;
+        ArrayBuffer<Triangle> *triangleLightBuffer = nullptr;
+        ArrayBuffer<BvhNode> *geometryBvhBuffer = nullptr;
+        ArrayBuffer<Vertex> *vertexBuffer = nullptr;
+        ArrayBuffer<Transformation> *transformBuffer = nullptr;
+        ArrayBuffer<Material> *materialBuffer = nullptr;
 
-			HeightMapTexture* heightMapTexture;
+        ObjectBuffer<RayTraceUbo> *rayTraceUniformBuffer = nullptr;
+        StackedArrayManyBuffer *rayTraceStorageBuffer = nullptr;
 
-			std::vector<Texture*> colorTextures;
-			std::vector<Texture*> terrainTextures;
-			CubeMapTexture* skyboxTexture;
-	};
+        std::vector<NugieVulkan::Image *> resultImages{};
+
+        DescriptorSet *rayIntersectDescSet = nullptr;
+        DescriptorSet *indirectRayGenDescSet = nullptr;
+        DescriptorSet *indirectRayHitDescSet = nullptr;
+        DescriptorSet *lightRayHitDescSet = nullptr;
+        DescriptorSet *missRayDescSet = nullptr;
+        DescriptorSet *directRayGenDescSet = nullptr;
+        DescriptorSet *directRayHitDescSet = nullptr;
+        DescriptorSet *integratorDescSet = nullptr;
+        DescriptorSet *samplingDescSet = nullptr;
+
+        uint32_t frameCount = 0u, randomSeed = 0u;
+        bool isRendering = true;
+
+        RayTraceUbo rayTraceUbo;
+    };
 }

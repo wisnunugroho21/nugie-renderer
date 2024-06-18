@@ -7,34 +7,37 @@
 #include <memory>
 
 namespace NugieVulkan {
-  class CommandPool {
+    class CommandPool {
     public:
-      CommandPool(
-        Device* device,
-        uint32_t queueFamilyIndex,
-        VkCommandPoolCreateFlags flags
-      );
+        CommandPool(
+                Device *device,
+                uint32_t queueFamilyIndex,
+                VkCommandPoolCreateFlags flags
+        );
 
-      CommandPool(
-        Device* device,
-        uint32_t queueFamilyIndex
-      );
+        CommandPool(
+                Device *device,
+                uint32_t queueFamilyIndex
+        );
 
-      ~CommandPool();
+        ~CommandPool();
 
-      bool allocate(VkCommandBuffer* commandBuffer) const;
-      bool allocate(std::vector<VkCommandBuffer> &commandBuffers) const;
+        bool allocate(VkCommandBuffer *commandBuffer) const;
 
-      void free(VkCommandBuffer* commandBuffer) const;
-      void free(const std::vector<VkCommandBuffer> &commandBuffers) const;
-      
-      void reset();
+        bool allocate(std::vector<VkCommandBuffer> &commandBuffers) const;
+
+        void free(VkCommandBuffer *commandBuffer) const;
+
+        void free(const std::vector<VkCommandBuffer> &commandBuffers) const;
+
+        void reset();
 
     private:
-      void createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags);
-      void createCommandPool(uint32_t queueFamilyIndex);
+        void createCommandPool(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags);
 
-      Device* device = nullptr;
-      VkCommandPool commandPool;
-  };
+        void createCommandPool(uint32_t queueFamilyIndex);
+
+        Device *device = nullptr;
+        VkCommandPool commandPool;
+    };
 }
