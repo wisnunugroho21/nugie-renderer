@@ -10,6 +10,10 @@ struct Vertex {
   vec4 position;
 };
 
+struct Primitive {
+  uvec4 indices;
+};
+
 struct NormText {    
   vec4 normal;
   vec2 textCoord;

@@ -24,7 +24,7 @@ namespace NugieApp {
 						 const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts = {},
 						 const std::vector<VkPushConstantRange> &pushConstantRanges = {});
 
-		void render(NugieVulkan::CommandBuffer *commandBuffer);
+		void render(NugieVulkan::CommandBuffer *commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets = {});
 
 	private:
 		void createPipeline() override;

@@ -217,14 +217,14 @@ namespace NugieApp {
 
         if (this->isTransferStarteds[commandIndex]) {
             waitSemaphores.emplace_back(this->transferFinishedSemaphores[commandIndex]);
-            waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+            waitStages.emplace_back(VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT);
 
             this->isTransferStarteds[commandIndex] = false;
         }
 
         if (this->isTransferStarteds[commandIndex]) {
             waitSemaphores.emplace_back(this->prepareFinishedSemaphores[commandIndex]);
-            waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+            waitStages.emplace_back(VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT);
 
             this->isTransferStarteds[commandIndex] = false;
         }

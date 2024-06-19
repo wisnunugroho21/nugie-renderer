@@ -60,43 +60,17 @@ namespace NugieApp {
         MouseController *mouseController = nullptr;
 
         Renderer *renderer = nullptr;
-        SubRenderer *finalSubRenderer = nullptr;
-        SubRenderer *shadowSubRenderer = nullptr;
-        
+        SubRenderer *finalSubRenderer = nullptr;        
         MeshRenderSystem *meshRenderer = nullptr;
 
-        TerrainPassRenderSystem *terrainRenderer = nullptr;
-        ForwardPassRenderSystem *forwardPassRenderer = nullptr;
-        ShadowPassRenderSystem *shadowPassRenderer = nullptr;
-        SkyboxPassRenderSystem *skyboxRenderer = nullptr;
-
-        ArrayBuffer<uint32_t> *indexBuffer = nullptr;
+        ArrayBuffer<Primitive> *primitiveBuffer = nullptr;
         ArrayBuffer<Vertex> *vertexBuffer = nullptr;
-        ArrayBuffer<NormText> *normTextBuffer = nullptr;
-        ArrayBuffer<Reference> *referenceBuffer = nullptr;
 
-        ArrayBuffer<Material> *materialBuffer = nullptr;
-        ArrayBuffer<Transformation> *transformationBuffer = nullptr;
-        ArrayBuffer<ShadowTransformation> *shadowTransformationBuffer = nullptr;
-        ArrayBuffer<SpotLight> *spotLightBuffer = nullptr;
-
-        ObjectBuffer<RenderData> *renderDataBuffer = nullptr;
-
-        DescriptorSet *terrainDescSet = nullptr;
-        DescriptorSet *forwardDescSet = nullptr;
-        DescriptorSet *shadowDescSet = nullptr;
-        DescriptorSet *skyboxDescSet = nullptr;
+        DescriptorSet *meshDescSet = nullptr;
 
         uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u,
                  frameCount = 0, verticeTerrainCount = 0, indicesTerrainCount = 0u;
 
         bool isRendering = true;
-        RenderData renderData;
-
-        HeightMapTexture *heightMapTexture;
-
-        std::vector<Texture *> colorTextures;
-        std::vector<Texture *> terrainTextures;
-        CubeMapTexture *skyboxTexture;
     };
 }

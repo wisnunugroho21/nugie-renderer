@@ -19,6 +19,10 @@ namespace NugieApp {
 		}
 	};
 
+	struct Primitive {
+		glm::uvec4 indices;
+	};
+
 	struct NormText {
 		glm::vec4 normal;
 		glm::vec2 textCoord;

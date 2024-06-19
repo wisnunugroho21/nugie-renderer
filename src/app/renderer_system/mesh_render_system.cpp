@@ -39,8 +39,22 @@ namespace NugieApp {
 			.build();
 	}
 
-	void MeshRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer) {
+	void MeshRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets) {
 		this->pipeline->bindPipeline(commandBuffer);
+
+		if (!descriptorSets.empty()) {
+			vkCmdBindDescriptorSets(
+				commandBuffer->getCommandBuffer(),
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				this->pipelineLayout,
+				0u,
+				static_cast<uint32_t>(descriptorSets.size()),
+				descriptorSets.data(),
+				0u,
+				nullptr
+			);
+		}
+		
 		this->pipeline->drawMeshShader(commandBuffer, 1, 1, 1);
 	}
 }
