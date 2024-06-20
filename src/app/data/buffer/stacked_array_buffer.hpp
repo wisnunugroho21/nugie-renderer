@@ -14,7 +14,7 @@ namespace NugieApp {
     public:
         class Builder {
         public:
-            Builder(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags);
+            Builder(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags, bool isAlsoCreateStaging = true);
 
             Builder &addArrayItem(VkDeviceSize instanceSize, uint32_t count);
 
@@ -28,10 +28,12 @@ namespace NugieApp {
 
             std::vector<ArrayItemInfo> arrayItemInfos;
             uint32_t bufferCount;
+            bool isAlsoCreateStaging = true;
         };
 
         StackedArrayBuffer(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags,
-                           const std::vector<ArrayItemInfo> &arrayItemInfos);
+                           const std::vector<ArrayItemInfo> &arrayItemInfos,
+                           bool isAlsoCreateStaging);
 
         ~StackedArrayBuffer();
 
@@ -40,6 +42,10 @@ namespace NugieApp {
         VkDescriptorBufferInfo getInfo(uint32_t arrayIndex);
 
         VkDescriptorBufferInfo getInfo(std::string arrayId);
+
+        void replaceValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex, void* data);
+
+        void replaceValue(NugieVulkan::CommandBuffer *commandBuffer, std::string arrayId, void* data);
 
         void transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex,
                               VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,
@@ -57,10 +63,14 @@ namespace NugieApp {
 
     private:
         NugieVulkan::Device *device = nullptr;
+
         NugieVulkan::Buffer *buffer;
+        NugieVulkan::Buffer *stagingBuffer = nullptr;
 
         std::vector<ArrayItemBufferInfo> arrayItemBufferInfos;
         std::map<std::string, int> arrayIdMaps;
+
+        bool isAlsoCreateStaging = false;
 
         void createBuffers(VkBufferUsageFlags usageFlags, std::vector<ArrayItemInfo> arrayItemInfos);
     };

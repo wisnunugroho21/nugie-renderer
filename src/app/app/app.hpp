@@ -10,7 +10,7 @@
 #include "../data/buffer/array_buffer.hpp"
 #include "../data/buffer/object_buffer.hpp"
 #include "../data/buffer/array_many_buffer.hpp"
-#include "../data/buffer/stacked_array_many_buffer.hpp"
+#include "../data/buffer/stacked_array_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../data/texture/heightmap_texture.hpp"
@@ -63,8 +63,7 @@ namespace NugieApp {
         SubRenderer *finalSubRenderer = nullptr;        
         MeshRenderSystem *meshRenderer = nullptr;
 
-        ArrayBuffer<Primitive> *primitiveBuffer = nullptr;
-        ArrayBuffer<Vertex> *vertexBuffer = nullptr;
+        StackedArrayBuffer *geometryBuffer = nullptr;
 
         DescriptorSet *meshDescSet = nullptr;
 

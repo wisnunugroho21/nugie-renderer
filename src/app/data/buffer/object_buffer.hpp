@@ -38,7 +38,7 @@ namespace NugieApp {
     template<typename T>
     ObjectBuffer<T>::~ObjectBuffer() {
         for (auto &&buffer: this->buffers) {
-            if (buffer != nullptr) delete buffer;
+            delete buffer;
         }
     }
 

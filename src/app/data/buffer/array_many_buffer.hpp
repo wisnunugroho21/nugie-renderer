@@ -48,11 +48,11 @@ namespace NugieApp {
     template<typename T>
     ArrayManyBuffer<T>::~ArrayManyBuffer() {
         for (auto &&buffer: this->stagingBuffers) {
-            if (buffer != nullptr) delete buffer;
+            delete buffer;
         }
 
         for (auto &&buffer: this->buffers) {
-            if (buffer != nullptr) delete buffer;
+            delete buffer;
         }
     }
 

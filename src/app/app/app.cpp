@@ -45,8 +45,7 @@ namespace NugieApp
         
         delete this->meshDescSet;
         
-        delete this->primitiveBuffer;
-        delete this->vertexBuffer;
+        delete this->geometryBuffer;
 
         delete this->device;
         delete this->window;
@@ -189,13 +188,17 @@ namespace NugieApp
 
         // ----------------------------------------------------------------------------
 
+        this->geometryBuffer = StackedArrayBuffer::Builder(this->device, 
+                                                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+                                                            true)
+                .addArrayItem("vertices", static_cast<VkDeviceSize>(sizeof(Vertex)), static_cast<uint32_t>(vertices.size()))
+                .addArrayItem("primitives", static_cast<VkDeviceSize>(sizeof(Primitive)), static_cast<uint32_t>(primitives.size()))
+                .build();
+
         auto commandBuffer = this->renderer->beginRecordTransferCommand();
 
-        this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(vertices.size()));
-        this->vertexBuffer->replace(commandBuffer, vertices);
-        
-        this->primitiveBuffer = new ArrayBuffer<Primitive>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(primitives.size()));
-        this->primitiveBuffer->replace(commandBuffer, primitives);
+        this->geometryBuffer->replaceValue(commandBuffer, "vertices", vertices.data());
+        this->geometryBuffer->replaceValue(commandBuffer, "primitives", primitives.data());
 
         commandBuffer->endCommand();
         this->renderer->submitTransferCommand();
@@ -245,8 +248,8 @@ namespace NugieApp
                                      .build();
 
         this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(), NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                                .addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT, this->vertexBuffer->getInfo())
-                                .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT, this->primitiveBuffer->getInfo())
+                                .addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT, this->geometryBuffer->getInfo("vertices"))
+                                .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT, this->geometryBuffer->getInfo("primitives"))
                                 .build();
 
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), "shader/simple.task.spv", 

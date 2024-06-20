@@ -3,8 +3,8 @@
 
 #include "core/struct.glsl"
 
-layout(local_size_x = 12) in;
-layout(triangles, max_vertices = 8, max_primitives = 12) out;
+layout(local_size_x = 64) in;
+layout(triangles, max_vertices = 3, max_primitives = 1) out;
 
 layout(location = 0) out vec4 fragColor[];
 
@@ -18,15 +18,17 @@ layout (set = 0, binding = 1) buffer readonly PrimitiveBuffer {
 
 void main()
 {
-	uint vertexCount = 8;
-	uint triangleCount = 12;
+	uint vertexCount = 3;
+	uint triangleCount = 1;
 	
 	SetMeshOutputsEXT(vertexCount, triangleCount);
 
-	if (gl_LocalInvocationIndex < vertexCount) {
+	if (gl_GlobalInvocationID.x < vertexCount) {
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = vertices[gl_LocalInvocationIndex].position;
 		fragColor[gl_LocalInvocationIndex] = vec4(1.0f);
 	}
 
-	gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = primitives[gl_LocalInvocationIndex].indices.xyz;
+    if (gl_GlobalInvocationID.x < triangleCount) {
+		gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = primitives[gl_LocalInvocationIndex].indices.xyz;
+	}	
 }

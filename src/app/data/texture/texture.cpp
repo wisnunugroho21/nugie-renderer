@@ -18,9 +18,9 @@ namespace NugieApp {
     }
 
     Texture::~Texture() {
-        if (this->sampler != nullptr) delete this->sampler;
-        if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
-        if (this->image != nullptr) delete this->image;
+        delete this->sampler;
+        delete this->stagingBuffer;
+        delete this->image;
     }
 
     void Texture::createImage(NugieVulkan::CommandBuffer *commandBuffer, const char *textureFileName) {

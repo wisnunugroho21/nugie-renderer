@@ -46,8 +46,8 @@ namespace NugieApp {
 
     template<typename T>
     ArrayBuffer<T>::~ArrayBuffer() {
-        if (this->stagingBuffer != nullptr) delete this->stagingBuffer;
-        if (this->buffer != nullptr) delete this->buffer;
+        delete this->stagingBuffer;
+        delete this->buffer;
     }
 
     template<typename T>

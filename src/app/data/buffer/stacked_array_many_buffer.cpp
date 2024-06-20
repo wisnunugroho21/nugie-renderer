@@ -42,7 +42,7 @@ namespace NugieApp {
 
     StackedArrayManyBuffer::~StackedArrayManyBuffer() {
         for (auto &&buffer: this->buffers) {
-            if (buffer != nullptr) delete buffer;
+            delete buffer;
         }
     }
 

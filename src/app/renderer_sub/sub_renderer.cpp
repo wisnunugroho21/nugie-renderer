@@ -646,17 +646,17 @@ namespace NugieApp {
     }
 
     SubRenderer::~SubRenderer() {
-        if (this->renderPass != nullptr) delete this->renderPass;
+        delete this->renderPass;
 
         for (auto &&attachmentSampler: attachmentSamplers) {
             for (auto &&sampler: attachmentSampler) {
-                if (sampler != nullptr) delete sampler;
+                delete sampler;
             }
         }
 
         for (auto &&createdAttachment: this->createdAttachments) {
             for (auto &&attachment: createdAttachment) {
-                if (attachment != nullptr) delete attachment;
+                delete attachment;
             }
         }
     }
