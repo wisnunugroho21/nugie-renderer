@@ -24,7 +24,7 @@ namespace NugieApp {
                       bool *isPressed) const;
 
         KeyMappings keymaps{};
-        float moveSpeed{100.0f};
+        float moveSpeed{1.0f};
     };
 
 }

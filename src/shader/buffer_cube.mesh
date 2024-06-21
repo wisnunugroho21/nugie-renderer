@@ -8,11 +8,16 @@ layout(triangles, max_vertices = 8, max_primitives = 12) out;
 
 layout(location = 0) out vec4 fragColor[];
 
-layout (set = 0, binding = 0) buffer readonly VertexBuffer {
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
+layout (set = 0, binding = 1) buffer readonly VertexBuffer {
   Vertex vertices[];
 };
 
-layout (set = 0, binding = 1) buffer readonly PrimitiveBuffer {
+layout (set = 0, binding = 2) buffer readonly PrimitiveBuffer {
   Primitive primitives[];
 };
 
@@ -24,7 +29,7 @@ void main()
 	SetMeshOutputsEXT(vertexCount, triangleCount);
 
 	if (gl_LocalInvocationIndex < vertexCount) {
-		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = vertices[gl_LocalInvocationIndex].position;
+		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * vertices[gl_LocalInvocationIndex].position;
 		fragColor[gl_LocalInvocationIndex] = vec4(1.0f);
 	}
 

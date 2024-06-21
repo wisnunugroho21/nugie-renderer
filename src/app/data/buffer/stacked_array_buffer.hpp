@@ -28,7 +28,7 @@ namespace NugieApp {
 
             std::vector<ArrayItemInfo> arrayItemInfos;
             uint32_t bufferCount;
-            bool isAlsoCreateStaging = true;
+            bool isAlsoCreateStaging;
         };
 
         StackedArrayBuffer(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags,
@@ -43,9 +43,9 @@ namespace NugieApp {
 
         VkDescriptorBufferInfo getInfo(std::string arrayId);
 
-        void replaceValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex, void* data);
+        void writeValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex, void* data);
 
-        void replaceValue(NugieVulkan::CommandBuffer *commandBuffer, std::string arrayId, void* data);
+        void writeValue(NugieVulkan::CommandBuffer *commandBuffer, std::string arrayId, void* data);
 
         void transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex,
                               VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, VkAccessFlags srcAccess,

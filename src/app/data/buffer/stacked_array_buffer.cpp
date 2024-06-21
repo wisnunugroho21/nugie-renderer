@@ -99,7 +99,7 @@ namespace NugieApp {
         return this->getInfo(this->arrayIdMaps[arrayId]);
     }
 
-    void StackedArrayBuffer::replaceValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex, void* data) {
+    void StackedArrayBuffer::writeValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex, void* data) {
         assert(this->isAlsoCreateStaging && "staging buffer has not created yet!");
 
         this->stagingBuffer->writeToBuffer(data, this->arrayItemBufferInfos[arrayIndex].size, this->arrayItemBufferInfos[arrayIndex].offset);
@@ -107,8 +107,8 @@ namespace NugieApp {
                                             this->arrayItemBufferInfos[arrayIndex].offset, this->arrayItemBufferInfos[arrayIndex].offset);
     }
 
-    void StackedArrayBuffer::replaceValue(NugieVulkan::CommandBuffer *commandBuffer, std::string arrayId, void* data) {
-        this->replaceValue(commandBuffer, this->arrayIdMaps[arrayId], data);
+    void StackedArrayBuffer::writeValue(NugieVulkan::CommandBuffer *commandBuffer, std::string arrayId, void* data) {
+        this->writeValue(commandBuffer, this->arrayIdMaps[arrayId], data);
     }
 
     void StackedArrayBuffer::transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex,

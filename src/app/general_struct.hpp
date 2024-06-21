@@ -19,9 +19,43 @@ namespace NugieApp {
 		}
 	};
 
+	struct TextCoord {
+		glm::vec2 uv;
+	};
+
 	struct Primitive {
 		glm::uvec4 indices;
 	};
+
+	struct Material {
+		glm::vec4 baseColor;
+		glm::vec4 params;
+	};
+
+	struct Transformation {
+		glm::mat4 modelMatrix;
+		glm::mat4 normalMatrix;
+	};
+
+	struct Meshlet {
+		uint32_t primitiveCount;
+		uint32_t primitiveOffset;
+		uint32_t vertexCount;
+		uint32_t vertexOffset;
+	};
+
+	/* struct Vertex {
+		glm::vec4 position;
+
+		bool operator==(const Vertex &other) const
+		{
+			return this->position == other.position;
+		}
+	};
+
+	struct Primitive {
+		glm::uvec4 indices;
+	}; */
 
 	struct NormText {
 		glm::vec4 normal;
@@ -47,7 +81,7 @@ namespace NugieApp {
 		uint32_t indicesCount;
 	};
 
-	struct Material {
+	/* struct Material {
 		alignas(16) glm::vec4 baseColor;
 		alignas(16) glm::vec4 params;
 		uint32_t colorTextureIndex;
@@ -56,7 +90,7 @@ namespace NugieApp {
 	struct Transformation {
 		glm::mat4 modelMatrix{1.0f};
 		glm::mat4 normalMatrix{1.0f};
-	};
+	}; */
 
 	struct ShadowTransformation {
 		glm::mat4 view{1.0f};

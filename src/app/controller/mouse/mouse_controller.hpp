@@ -14,7 +14,7 @@ namespace NugieApp {
         glm::vec2 rotateInPlaceXZ(GLFWwindow *window, double dt, glm::vec2 rotation, bool *isPressed);
 
         KeyMappings keymaps{};
-        double lookSpeed{1000.0};
+        double lookSpeed{1.0};
 
         double lastDragged_x = 0;
         double lastDragged_y = 0;

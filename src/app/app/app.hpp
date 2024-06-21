@@ -7,10 +7,8 @@
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
-#include "../data/buffer/array_buffer.hpp"
-#include "../data/buffer/object_buffer.hpp"
-#include "../data/buffer/array_many_buffer.hpp"
 #include "../data/buffer/stacked_array_buffer.hpp"
+#include "../data/buffer/stacked_object_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../data/texture/heightmap_texture.hpp"
@@ -62,7 +60,8 @@ namespace NugieApp {
         Renderer *renderer = nullptr;
         SubRenderer *finalSubRenderer = nullptr;        
         MeshRenderSystem *meshRenderer = nullptr;
-
+        
+        StackedObjectBuffer *uniformBuffer = nullptr;
         StackedArrayBuffer *geometryBuffer = nullptr;
 
         DescriptorSet *meshDescSet = nullptr;
@@ -70,6 +69,7 @@ namespace NugieApp {
         uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u,
                  frameCount = 0, verticeTerrainCount = 0, indicesTerrainCount = 0u;
 
+        CameraTransformation cameraTransformation;
         bool isRendering = true;
     };
 }
