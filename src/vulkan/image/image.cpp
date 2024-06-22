@@ -5,8 +5,9 @@ namespace NugieVulkan {
                  VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memoryUsage,
                  VmaAllocationCreateFlags memoryAllocFlag,
                  VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType)
-            : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format},
-              aspectFlags{aspectFlags}, layerNum{layerNum} {
+                 : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format},
+                   aspectFlags{aspectFlags}, layerNum{layerNum} 
+    {
         this->createImage(numSamples, tiling, usage, memoryUsage, memoryAllocFlag, viewType);
         this->createImageView(viewType);
 
@@ -15,8 +16,9 @@ namespace NugieVulkan {
 
     Image::Image(Device *device, uint32_t width, uint32_t height, VkImage image, uint32_t mipLevels, VkFormat format,
                  VkImageAspectFlags aspectFlags, uint32_t layerNum, VkImageViewType viewType)
-            : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format},
-              aspectFlags{aspectFlags}, layerNum{layerNum} {
+                 : device{device}, height{height}, width{width}, mipLevels{mipLevels}, format{format},
+                   aspectFlags{aspectFlags}, layerNum{layerNum} 
+    {
         this->image = image;
         this->createImageView(viewType);
 
@@ -33,7 +35,8 @@ namespace NugieVulkan {
 
     void Image::createImage(VkSampleCountFlagBits numSamples, VkImageTiling tiling, VkImageUsageFlags usage,
                             VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags memoryAllocFlag,
-                            VkImageViewType viewType) {
+                            VkImageViewType viewType) 
+    {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -87,7 +90,8 @@ namespace NugieVulkan {
     void Image::transitionImageLayout(CommandBuffer *commandBuffer, VkImageLayout oldLayout, VkImageLayout newLayout,
                                       VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                       VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex,
-                                      uint32_t dstQueueFamilyIndex) {
+                                      uint32_t dstQueueFamilyIndex) 
+    {
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout = oldLayout;
@@ -123,7 +127,8 @@ namespace NugieVulkan {
                                       VkImageLayout oldLayout, VkImageLayout newLayout,
                                       VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                       VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex,
-                                      uint32_t dstQueueFamilyIndex) {
+                                      uint32_t dstQueueFamilyIndex) 
+    {
         std::vector<VkImageMemoryBarrier> barriers;
 
         for (auto &&image: images) {
@@ -163,7 +168,8 @@ namespace NugieVulkan {
 
     void
     Image::copyBufferToImage(CommandBuffer *commandBuffer, Buffer *srcBuffer, uint32_t srcOffset, uint32_t dstMipLevel,
-                             uint32_t dstLayer) {
+                             uint32_t dstLayer) 
+    {
         VkBufferImageCopy region{};
         region.bufferOffset = srcOffset;
         region.bufferRowLength = 0;
@@ -189,7 +195,8 @@ namespace NugieVulkan {
 
     void
     Image::copyImageToBuffer(CommandBuffer *commandBuffer, Buffer *destBuffer, uint32_t dstOffset, uint32_t srcMipLevel,
-                             uint32_t srcLayer) {
+                             uint32_t srcLayer) 
+    {
         VkBufferImageCopy region{};
         region.bufferOffset = dstOffset;
         region.bufferRowLength = 0;
@@ -215,7 +222,8 @@ namespace NugieVulkan {
 
     void
     Image::copyImageFromOther(CommandBuffer *commandBuffer, Image *srcImage, uint32_t srcMipLevel, uint32_t srcLayer,
-                              uint32_t dstMipLevel, uint32_t dstLayer) {
+                              uint32_t dstMipLevel, uint32_t dstLayer) 
+    {
         VkImageBlit blitRegion{};
 
         blitRegion.srcOffsets[0].x = 0;
@@ -249,7 +257,8 @@ namespace NugieVulkan {
     }
 
     void Image::copyImageToOther(CommandBuffer *commandBuffer, Image *dstImage, uint32_t srcMipLevel, uint32_t srcLayer,
-                                 uint32_t dstMipLevel, uint32_t dstLayer) {
+                                 uint32_t dstMipLevel, uint32_t dstLayer) 
+    {
         VkImageBlit blitRegion{};
 
         blitRegion.srcOffsets[0].x = 0;

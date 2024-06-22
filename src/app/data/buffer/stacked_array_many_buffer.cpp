@@ -40,7 +40,7 @@ namespace NugieApp {
     StackedArrayManyBuffer::StackedArrayManyBuffer(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags,
                                                    const std::vector<ArrayItemInfo> &arrayItemInfos,
                                                    uint32_t bufferCount, bool isAlsoCreateStaging)
-                           : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} 
+                                                   : device{device}, isAlsoCreateStaging{isAlsoCreateStaging} 
     {
         this->createBuffers(usageFlags, arrayItemInfos, bufferCount);
     }
@@ -124,7 +124,7 @@ namespace NugieApp {
     }
 
     void StackedArrayManyBuffer::writeValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t bufferIndex, uint32_t arrayIndex, 
-                                              void* data) 
+                                            void* data) 
     {
         assert(this->isAlsoCreateStaging && "staging buffer has not created yet!");
 
@@ -134,7 +134,7 @@ namespace NugieApp {
     }
 
     void StackedArrayManyBuffer::writeValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t bufferIndex, std::string arrayId, 
-                                              void* data) 
+                                            void* data) 
     {
         this->writeValue(commandBuffer, bufferIndex, this->arrayIdMaps[arrayId], data);
     }
@@ -143,7 +143,8 @@ namespace NugieApp {
                                                   uint32_t arrayIndex,
                                                   VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                                   VkAccessFlags srcAccess, VkAccessFlags dstAccess,
-                                                  uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+                                                  uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
+    {
         this->buffers[bufferIndex]->transitionBuffer(commandBuffer, this->arrayItemBufferInfos[arrayIndex].size,
                                                      this->arrayItemBufferInfos[arrayIndex].offset,
                                                      srcStage, dstStage, srcAccess, dstAccess, srcQueueFamilyIndex,
@@ -154,7 +155,8 @@ namespace NugieApp {
                                                   const std::string &arrayId,
                                                   VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                                   VkAccessFlags srcAccess, VkAccessFlags dstAccess,
-                                                  uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+                                                  uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
+    {
         this->transitionBuffer(commandBuffer, bufferIndex, this->arrayIdMaps[arrayId], srcStage, dstStage,
                                srcAccess, dstAccess, srcQueueFamilyIndex, dstQueueFamilyIndex);
     }

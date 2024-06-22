@@ -16,9 +16,9 @@ namespace NugieApp {
                                              std::vector<NugieVulkan::DescriptorSetLayout *> descriptorSetLayouts,
                                              NugieVulkan::RenderPass *renderPass, std::string vertFilePath,
                                              std::string fragFilePath)
-            : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, renderPass{renderPass},
-              vertFilePath{std::move(vertFilePath)},
-              fragFilePath{std::move(fragFilePath)} {
+                                             : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, 
+                                               renderPass{renderPass}, vertFilePath{std::move(vertFilePath)},
+                                               fragFilePath{std::move(fragFilePath)} {
 
     }
 
@@ -79,7 +79,8 @@ namespace NugieApp {
                                      const std::vector<VkDescriptorSet> &descriptorSets,
                                      const std::vector<NugieVulkan::Buffer *> &vertexBuffers,
                                      NugieVulkan::Buffer *indexBuffer, uint32_t indexCount,
-                                     const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset) {
+                                     const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset) 
+    {
         assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 
         this->pipeline->bindPipeline(commandBuffer);

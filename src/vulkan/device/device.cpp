@@ -18,7 +18,8 @@ namespace NugieVulkan {
             VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
             VkDebugUtilsMessageTypeFlagsEXT messageType,
             const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-            void *pUserData) {
+            void *pUserData) 
+    {
         std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
         return VK_FALSE;
     }
@@ -27,7 +28,8 @@ namespace NugieVulkan {
             VkInstance instance,
             const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
             const VkAllocationCallbacks *pAllocator,
-            VkDebugUtilsMessengerEXT *pDebugMessenger) {
+            VkDebugUtilsMessengerEXT *pDebugMessenger) 
+    {
         auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
                 instance,
                 "vkCreateDebugUtilsMessengerEXT"
@@ -43,7 +45,8 @@ namespace NugieVulkan {
     void DestroyDebugUtilsMessengerEXT(
             VkInstance instance,
             VkDebugUtilsMessengerEXT debugMessenger,
-            const VkAllocationCallbacks *pAllocator) {
+            const VkAllocationCallbacks *pAllocator) 
+    {
         auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
                 instance,
                 "vkDestroyDebugUtilsMessengerEXT"
@@ -509,7 +512,8 @@ namespace NugieVulkan {
     }
 
     VkFormat Device::findSupportedFormat(const std::vector<VkFormat> &candidates,
-                                         VkImageTiling tiling, VkFormatFeatureFlags features) {
+                                         VkImageTiling tiling, VkFormatFeatureFlags features) 
+    {
         for (VkFormat format: candidates) {
             VkFormatProperties props;
             vkGetPhysicalDeviceFormatProperties(this->physicalDevice, format, &props);
@@ -539,7 +543,8 @@ namespace NugieVulkan {
     }
 
     uint32_t Device::findMemoryType(uint32_t typeFilter, const std::vector<VkMemoryPropertyFlags> &properties,
-                                    VkMemoryPropertyFlags *selectedProperty) {
+                                    VkMemoryPropertyFlags *selectedProperty) 
+    {
         VkPhysicalDeviceMemoryProperties memProperties;
         vkGetPhysicalDeviceMemoryProperties(this->physicalDevice, &memProperties);
 

@@ -13,7 +13,8 @@ namespace NugieVulkan {
     Sampler::Sampler(Device *device, Image *image, VkFilter filterMode, VkSamplerAddressMode addressMode,
                      VkBool32 anisotropyEnable, VkBorderColor borderColor, VkCompareOp compareOp,
                      VkSamplerMipmapMode mipmapMode)
-            : device{device}, image{image} {
+                     : device{device}, image{image} 
+    {
         this->createSampler(filterMode, addressMode, anisotropyEnable, borderColor, compareOp, mipmapMode);
     }
 
@@ -22,7 +23,8 @@ namespace NugieVulkan {
     }
 
     void Sampler::createSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anisotropyEnable,
-                                VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) {
+                                VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) 
+    {
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 

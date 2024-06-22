@@ -9,14 +9,16 @@ namespace NugieVulkan {
             Device *device,
             uint32_t queueFamilyIndex,
             VkCommandPoolCreateFlags flags)
-            : device{device} {
+            : device{device} 
+    {
         this->createCommandPool(queueFamilyIndex, flags);
     }
 
     CommandPool::CommandPool(
             Device *device,
             uint32_t queueFamilyIndex)
-            : device{device} {
+            : device{device} 
+    {
         this->createCommandPool(queueFamilyIndex);
     }
 

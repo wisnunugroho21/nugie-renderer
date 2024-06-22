@@ -52,7 +52,8 @@ namespace NugieVulkan {
 
     RenderPass::RenderPass(Device *device, const std::vector<std::vector<VkImageView>> &viewImages,
                            VkRenderPassCreateInfo renderPassInfo, uint32_t width, uint32_t height, uint32_t layerNum)
-            : device{device} {
+                           : device{device} 
+    {
         this->createRenderPass(renderPassInfo);
         this->createFramebuffers(viewImages, width, height, layerNum);
     }
@@ -69,7 +70,8 @@ namespace NugieVulkan {
     }
 
     void RenderPass::createFramebuffers(const std::vector<std::vector<VkImageView>> &viewImages, uint32_t width,
-                                        uint32_t height, uint32_t layerNum) {
+                                        uint32_t height, uint32_t layerNum) 
+    {
         this->framebuffers.resize(viewImages.size());
 
         for (size_t i = 0; i < viewImages.size(); i++) {
@@ -93,7 +95,8 @@ namespace NugieVulkan {
     }
 
     void RenderPass::recreateFrameBuffer(const std::vector<std::vector<VkImageView>> &viewImages, uint32_t width,
-                                         uint32_t height, uint32_t layerNum) {
+                                         uint32_t height, uint32_t layerNum) 
+    {
         this->deleteFramebuffers();
         this->createFramebuffers(viewImages, width, height, layerNum);
     }
