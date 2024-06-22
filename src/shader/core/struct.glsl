@@ -24,6 +24,7 @@ struct Object {
     uint firstBvhIndex;
     uint firstGeometryIndex;
     uint transformIndex;
+    uint dummyIndex;
 };
 
 struct BvhNode {

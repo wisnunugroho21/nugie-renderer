@@ -53,17 +53,9 @@ namespace NugieApp {
         delete this->integratorDescSet;
         delete this->samplingDescSet;
 
-        delete this->objectBvhBuffer;
-        delete this->objectBuffer;
-        delete this->geometryBvhBuffer;
-        delete this->triangleBuffer;
-        delete this->triangleLightBuffer;
-        delete this->vertexBuffer;
-        delete this->transformBuffer;
-        delete this->materialBuffer;
-
+        delete this->dataBuffer;
         delete this->rayTraceStorageBuffer;
-        delete this->rayTraceUniformBuffer;
+        delete this->uniformBuffer;
 
         for (auto &&resultImage: this->resultImages) {
             delete resultImage;
@@ -242,7 +234,7 @@ namespace NugieApp {
                 uint32_t frameIndex = this->renderer->getFrameIndex();
 
                 this->rayTraceUbo.imgSizeRandomSeedNumLight.z = this->randomSeed;
-                this->rayTraceUniformBuffer->writeGlobalData(frameIndex, this->rayTraceUbo);
+                this->uniformBuffer->writeValue(frameIndex, "ubo", &this->rayTraceUbo);
 
                 this->renderer->submitRenderCommand();
 
@@ -575,23 +567,6 @@ namespace NugieApp {
 
         // ----------------------------------------------------------------------------
 
-        this->objectBuffer = new ArrayBuffer<Object>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                     static_cast<uint32_t>(objects.size()));
-        this->objectBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                         static_cast<uint32_t>(bvhObjects.size()));
-        this->triangleBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                         static_cast<uint32_t>(triangles.size()));
-        this->triangleLightBuffer = new ArrayBuffer<Triangle>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                              static_cast<uint32_t>(triangleLights.size()));
-        this->geometryBvhBuffer = new ArrayBuffer<BvhNode>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                           static_cast<uint32_t>(bvhTriangles.size()));
-        this->vertexBuffer = new ArrayBuffer<Vertex>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                     static_cast<uint32_t>(vertices.size()));
-        this->transformBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                                static_cast<uint32_t>(transforms.size()));
-        this->materialBuffer = new ArrayBuffer<Material>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                                         static_cast<uint32_t>(materials.size()));
-
         this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
             this->resultImages[i] = new NugieVulkan::Image(this->device, width, height, 1, VK_SAMPLE_COUNT_1_BIT,
@@ -603,10 +578,11 @@ namespace NugieApp {
                                                            VK_IMAGE_ASPECT_COLOR_BIT);
         }
 
-        this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                                                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                                                      NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                .addArrayItem("traced_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Traced Ray
+        this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, 
+                                                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                                      NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT,
+                                                                      false)
+                .addArrayItem("traced_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height)
                 .addArrayItem("hit_record", static_cast<VkDeviceSize>(sizeof(Hit)), width * height)
                 .addArrayItem("indirect_result", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
                 .addArrayItem("light_result", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
@@ -615,19 +591,40 @@ namespace NugieApp {
                 .addArrayItem("direct_result", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
                 .addArrayItem("integrator_result", static_cast<VkDeviceSize>(sizeof(IntegratorResult)), width * height)
                 .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
-                .addArrayItem("scattered_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height) // Scatters Ray
+                .addArrayItem("scattered_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height)
                 .build();
 
-        auto commandBuffer = this->renderer->beginRecordTransferCommand();
+        this->uniformBuffer = StackedObjectBuffer::Builder(this->device, 
+                                                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                           NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                .addArrayItem("ubo", static_cast<VkDeviceSize>(sizeof(RayTraceUbo)), 1u)
+                .build();
 
-        this->objectBuffer->replace(commandBuffer, objects);
-        this->objectBvhBuffer->replace(commandBuffer, bvhObjects);
-        this->triangleBuffer->replace(commandBuffer, triangles);
-        this->triangleLightBuffer->replace(commandBuffer, triangleLights);
-        this->geometryBvhBuffer->replace(commandBuffer, bvhTriangles);
-        this->vertexBuffer->replace(commandBuffer, vertices);
-        this->transformBuffer->replace(commandBuffer, transforms);
-        this->materialBuffer->replace(commandBuffer, materials);
+        this->dataBuffer = StackedArrayBuffer::Builder(this->device,
+                                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                       true)
+                .addArrayItem("object", static_cast<VkDeviceSize>(sizeof(Object)), static_cast<uint32_t>(objects.size()))
+                .addArrayItem("object_bvh", static_cast<VkDeviceSize>(sizeof(BvhNode)), static_cast<uint32_t>(bvhObjects.size()))
+                .addArrayItem("triangle", static_cast<VkDeviceSize>(sizeof(Triangle)), static_cast<uint32_t>(triangles.size()))
+                .addArrayItem("triangle_light", static_cast<VkDeviceSize>(sizeof(Triangle)), static_cast<uint32_t>(triangleLights.size()))
+                .addArrayItem("geometry_bvh", static_cast<VkDeviceSize>(sizeof(BvhNode)), static_cast<uint32_t>(bvhTriangles.size()))
+                .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(Vertex)), static_cast<uint32_t>(vertices.size()))
+                .addArrayItem("transform", static_cast<VkDeviceSize>(sizeof(Transformation)), static_cast<uint32_t>(transforms.size()))
+                .addArrayItem("material", static_cast<VkDeviceSize>(sizeof(Material)), static_cast<uint32_t>(materials.size()))
+                .build();
+
+        // ----------------------------------------------------------------------------
+
+        auto commandBuffer = this->renderer->beginRecordTransferCommand();
+        
+        this->dataBuffer->writeValue(commandBuffer, "object", objects.data());
+        this->dataBuffer->writeValue(commandBuffer, "object_bvh", bvhObjects.data());
+        this->dataBuffer->writeValue(commandBuffer, "triangle", triangles.data());
+        this->dataBuffer->writeValue(commandBuffer, "triangle_light", triangleLights.data());
+        this->dataBuffer->writeValue(commandBuffer, "geometry_bvh", bvhTriangles.data());
+        this->dataBuffer->writeValue(commandBuffer, "vertex", vertices.data());
+        this->dataBuffer->writeValue(commandBuffer, "transform", transforms.data());
+        this->dataBuffer->writeValue(commandBuffer, "material", materials.data());
 
         for (auto &&resultImage: this->resultImages) {
             resultImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
@@ -661,10 +658,6 @@ namespace NugieApp {
 
         this->initCamera(width, height);
 
-        this->rayTraceUniformBuffer = new ObjectBuffer<RayTraceUbo>(this->device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-                                                                                  VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
-
         std::vector<VkDescriptorImageInfo> resultImageInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
 
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -674,7 +667,7 @@ namespace NugieApp {
         this->indirectRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                              NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceUniformBuffer->getInfo())
+                           this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("traced_ray"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -690,25 +683,25 @@ namespace NugieApp {
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("traced_ray"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->objectBvhBuffer->getInfo())
+                           this->dataBuffer->getInfo("object_bvh"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->objectBuffer->getInfo())
+                           this->dataBuffer->getInfo("object"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->geometryBvhBuffer->getInfo())
+                           this->dataBuffer->getInfo("geometry_bvh"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->triangleBuffer->getInfo())
+                           this->dataBuffer->getInfo("triangle"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->triangleLightBuffer->getInfo())
+                           this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->vertexBuffer->getInfo())
+                           this->dataBuffer->getInfo("vertex"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->transformBuffer->getInfo())
+                           this->dataBuffer->getInfo("transform"))
                 .build();
 
         this->indirectRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                              NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceUniformBuffer->getInfo())
+                           this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("indirect_result"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -720,19 +713,19 @@ namespace NugieApp {
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->triangleBuffer->getInfo())
+                           this->dataBuffer->getInfo("triangle"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->vertexBuffer->getInfo())
+                           this->dataBuffer->getInfo("vertex"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->materialBuffer->getInfo())
+                           this->dataBuffer->getInfo("material"))
                 .addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->transformBuffer->getInfo())
+                           this->dataBuffer->getInfo("transform"))
                 .build();
 
         this->lightRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                           NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceUniformBuffer->getInfo())
+                           this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("light_result"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -740,17 +733,17 @@ namespace NugieApp {
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->triangleLightBuffer->getInfo())
+                           this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->vertexBuffer->getInfo())
+                           this->dataBuffer->getInfo("vertex"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->transformBuffer->getInfo())
+                           this->dataBuffer->getInfo("transform"))
                 .build();
 
         this->missRayDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                       NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceUniformBuffer->getInfo())
+                           this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("miss_result"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -760,21 +753,21 @@ namespace NugieApp {
         this->directRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                            NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceUniformBuffer->getInfo())
+                           this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("traced_ray"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("direct_data"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->triangleLightBuffer->getInfo())
+                           this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->vertexBuffer->getInfo())
+                           this->dataBuffer->getInfo("vertex"))
                 .build();
 
         this->directRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                            NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceUniformBuffer->getInfo())
+                           this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("direct_result"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -784,13 +777,13 @@ namespace NugieApp {
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->triangleLightBuffer->getInfo())
+                           this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->vertexBuffer->getInfo())
+                           this->dataBuffer->getInfo("vertex"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->materialBuffer->getInfo())
+                           this->dataBuffer->getInfo("material"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->transformBuffer->getInfo())
+                           this->dataBuffer->getInfo("transform"))
                 .build();
 
         this->integratorDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),

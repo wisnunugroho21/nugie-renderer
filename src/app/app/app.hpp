@@ -6,9 +6,8 @@
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
-#include "../data/buffer/array_buffer.hpp"
-#include "../data/buffer/object_buffer.hpp"
-#include "../data/buffer/array_many_buffer.hpp"
+#include "../data/buffer/stacked_object_buffer.hpp"
+#include "../data/buffer/stacked_array_buffer.hpp"
 #include "../data/buffer/stacked_array_many_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
@@ -22,8 +21,8 @@
 
 #define APP_TITLE "Nugie Renderer"
 
-#define WIDTH 1280
-#define HEIGHT 720
+#define WIDTH 800
+#define HEIGHT 800
 #define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {
@@ -63,17 +62,9 @@ namespace NugieApp {
         ComputeRenderSystem *directRayHitRenderer = nullptr;
         ComputeRenderSystem *integratorRenderer = nullptr;
         ComputeRenderSystem *samplingRenderer = nullptr;
-
-        ArrayBuffer<Object> *objectBuffer = nullptr;
-        ArrayBuffer<BvhNode> *objectBvhBuffer = nullptr;
-        ArrayBuffer<Triangle> *triangleBuffer = nullptr;
-        ArrayBuffer<Triangle> *triangleLightBuffer = nullptr;
-        ArrayBuffer<BvhNode> *geometryBvhBuffer = nullptr;
-        ArrayBuffer<Vertex> *vertexBuffer = nullptr;
-        ArrayBuffer<Transformation> *transformBuffer = nullptr;
-        ArrayBuffer<Material> *materialBuffer = nullptr;
-
-        ObjectBuffer<RayTraceUbo> *rayTraceUniformBuffer = nullptr;
+    
+        StackedArrayBuffer *dataBuffer = nullptr;
+        StackedObjectBuffer *uniformBuffer = nullptr;
         StackedArrayManyBuffer *rayTraceStorageBuffer = nullptr;
 
         std::vector<NugieVulkan::Image *> resultImages{};
@@ -91,6 +82,6 @@ namespace NugieApp {
         uint32_t frameCount = 0u, randomSeed = 0u;
         bool isRendering = true;
 
-        RayTraceUbo rayTraceUbo;
+        RayTraceUbo rayTraceUbo{};
     };
 }

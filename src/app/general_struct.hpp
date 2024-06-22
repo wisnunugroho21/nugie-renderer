@@ -28,6 +28,7 @@ namespace NugieApp {
         uint32_t firstBvhIndex;
         uint32_t firstGeometryIndex;
         uint32_t transformIndex;
+        uint32_t dummyIndex;
     };
 
     struct BvhNode {
