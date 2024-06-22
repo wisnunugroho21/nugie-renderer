@@ -13,12 +13,14 @@
 namespace NugieVulkan {
 
     SwapChain::SwapChain(Device *device, VkExtent2D extent)
-            : device{device}, windowExtent{extent} {
+                         : device{device}, windowExtent{extent} 
+    {
         this->init();
     }
 
     SwapChain::SwapChain(Device *device, VkExtent2D extent, SwapChain *previous)
-            : device{device}, windowExtent{extent} {
+                         : device{device}, windowExtent{extent} 
+    {
         if (previous != nullptr) {
             delete this->oldSwapChain;
             this->oldSwapChain = previous;
@@ -52,7 +54,8 @@ namespace NugieVulkan {
 
     VkResult
     SwapChain::presentRenders(VkQueue queue, const uint32_t *imageIndex,
-                              const std::vector<VkSemaphore> &waitSemaphores) {
+                              const std::vector<VkSemaphore> &waitSemaphores) 
+    {
         VkPresentInfoKHR presentInfo = {};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 

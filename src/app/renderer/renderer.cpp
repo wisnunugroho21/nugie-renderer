@@ -6,10 +6,9 @@
 #include <cassert>
 
 namespace NugieApp {
-    Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) : device{device},
-                                                                                                        window{window},
-                                                                                                        frameCount{
-                                                                                                                frameCount} {
+    Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) 
+                        : device{device}, window{window}, frameCount{frameCount} 
+    {
         this->recreateSwapChain();
         this->imageCount = this->swapChain->getImageCount();
 

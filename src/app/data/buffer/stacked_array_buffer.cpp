@@ -4,7 +4,7 @@
 
 namespace NugieApp {
     StackedArrayBuffer::Builder::Builder(NugieVulkan::Device *device, VkBufferUsageFlags usageFlags, bool isAlsoCreateStaging) 
-                                : device{device}, usageFlags{usageFlags}, isAlsoCreateStaging{isAlsoCreateStaging}
+                                        : device{device}, usageFlags{usageFlags}, isAlsoCreateStaging{isAlsoCreateStaging}
     {
         this->arrayItemInfos.clear();
     }
@@ -114,7 +114,8 @@ namespace NugieApp {
     void StackedArrayBuffer::transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, uint32_t arrayIndex,
                                               VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                               VkAccessFlags srcAccess, VkAccessFlags dstAccess,
-                                              uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+                                              uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
+    {
         this->buffer->transitionBuffer(commandBuffer, this->arrayItemBufferInfos[arrayIndex].size,
                                        this->arrayItemBufferInfos[arrayIndex].offset,
                                        srcStage, dstStage, srcAccess, dstAccess, srcQueueFamilyIndex,
@@ -124,7 +125,8 @@ namespace NugieApp {
     void StackedArrayBuffer::transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, std::string arrayId,
                                               VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                                               VkAccessFlags srcAccess, VkAccessFlags dstAccess,
-                                              uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) {
+                                              uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
+    {
         this->transitionBuffer(commandBuffer, this->arrayIdMaps[arrayId], srcStage, dstStage,
                                srcAccess, dstAccess, srcQueueFamilyIndex, dstQueueFamilyIndex);
     }

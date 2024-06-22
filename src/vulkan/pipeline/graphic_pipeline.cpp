@@ -5,8 +5,9 @@
 #include <stdexcept>
 
 namespace NugieVulkan {
-    GraphicPipeline::Builder::Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout) : device{
-            device} {
+    GraphicPipeline::Builder::Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout) 
+                                      : device{device} 
+    {
         this->pipelineLayout = pipelineLayout;
         this->renderPass = renderPass->getRenderPass();
     }
@@ -16,7 +17,8 @@ namespace NugieVulkan {
             const std::string &fragFilePath,
             const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
             const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-            const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) {
+            const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) 
+    {
         this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
         this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
@@ -116,8 +118,8 @@ namespace NugieVulkan {
 
     GraphicPipeline::Builder &GraphicPipeline::Builder::setDefault(
             const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-            const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
-    ) {
+            const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) 
+    {
         this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
         this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
@@ -186,8 +188,8 @@ namespace NugieVulkan {
     GraphicPipeline::Builder &GraphicPipeline::Builder::setDefault(
             const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
             const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
-            const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
-    ) {
+            const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) 
+    {
         this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
         this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
@@ -368,8 +370,9 @@ namespace NugieVulkan {
             VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
             VkPipelineDynamicStateCreateInfo dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-            VkPipelineTessellationStateCreateInfo tessellationInfo
-    ) : device{device} {
+            VkPipelineTessellationStateCreateInfo tessellationInfo) 
+            : device{device} 
+    {
         this->createGraphicPipeline(
                 pipelineLayout,
                 renderPass,
@@ -423,7 +426,8 @@ namespace NugieVulkan {
             VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
             VkPipelineDynamicStateCreateInfo dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-            VkPipelineTessellationStateCreateInfo tessellationInfo) {
+            VkPipelineTessellationStateCreateInfo tessellationInfo) 
+    {
         VkPipelineViewportStateCreateInfo viewportInfo{};
         viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewportInfo.viewportCount = 1;
@@ -479,7 +483,8 @@ namespace NugieVulkan {
 
     void GraphicPipeline::bindBuffers(CommandBuffer *commandBuffer, const std::vector<Buffer *> &vertexBuffers,
                                       const std::vector<VkDeviceSize> &vertexOffsets,
-                                      Buffer *indexBuffer, VkDeviceSize indexOffset) {
+                                      Buffer *indexBuffer, VkDeviceSize indexOffset) 
+    {
         std::vector<VkBuffer> vBuffers;
 
         vBuffers.reserve(vertexBuffers.size());
@@ -501,7 +506,8 @@ namespace NugieVulkan {
     }
 
     void GraphicPipeline::drawIndirect(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer,
-                                       uint32_t offset, uint32_t drawCount) {
+                                       uint32_t offset, uint32_t drawCount) 
+    {
         vkCmdDrawIndirect(commandBuffer->getCommandBuffer(), drawCommandBuffer->getBuffer(), offset, drawCount,
                           static_cast<uint32_t>(sizeof(VkDrawIndexedIndirectCommand)));
     }
@@ -511,7 +517,8 @@ namespace NugieVulkan {
     }
 
     void GraphicPipeline::drawIndirectIndexed(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer,
-                                              uint32_t indexCount, uint32_t offset) {
+                                              uint32_t indexCount, uint32_t offset) 
+    {
         vkCmdDrawIndexedIndirect(commandBuffer->getCommandBuffer(), drawCommandBuffer->getBuffer(), offset, indexCount,
                                  static_cast<uint32_t>(sizeof(VkDrawIndexedIndirectCommand)));
     }
