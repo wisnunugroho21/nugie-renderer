@@ -15,24 +15,24 @@ namespace NugieApp {
         return *this;
     }
     
-    Renderer::Builder &Renderer::Builder::addRenderSemaphore(std::string id) {
-        this->semaphoreIds.emplace_back(id);
+    Renderer::Builder &Renderer::Builder::setRenderSemaphore(uint32_t semaphoreCount) {
+        this->semaphoreCount = semaphoreCount;
         return *this;
     }
 
     Renderer *Renderer::Builder::build() {
-        return new Renderer(this->window, this->device, this->frameCount, this->renderCommandCount, this->semaphoreIds);
+        return new Renderer(this->window, this->device, this->frameCount, this->renderCommandCount, this->semaphoreCount);
     }
 
     Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount, 
-                       uint32_t renderCommandCount, std::vector<std::string> semaphoreIds) 
+                       uint32_t renderCommandCount, uint32_t semaphoreCount) 
                        : device{device}, window{window}, frameCount{frameCount},
                          renderCommandCount{renderCommandCount}
     {
         this->recreateSwapChain();
         this->imageCount = this->swapChain->getImageCount();
 
-        this->createSemaphores(semaphoreIds);
+        this->createSemaphores(semaphoreCount);
         this->createFences();
         this->createDescriptorPool();
         this->createCommandPool();
@@ -47,10 +47,8 @@ namespace NugieApp {
             vkDestroyFence(this->device->getLogicalDevice(), this->inFlightFences[i], nullptr);
         }
 
-        for (auto &&[id, semaphores] : this->semaphoreMaps) {
-            for (uint32_t i = 0; i < this->frameCount; i++) {
-                vkDestroySemaphore(this->device->getLogicalDevice(), semaphores[i], nullptr);
-            }
+        for (auto &&renderSemaphore : this->renderSemaphores) {
+            vkDestroySemaphore(this->device->getLogicalDevice(), renderSemaphore, nullptr);
         }
 
         for (auto &&graphicCommandBuffer : this->graphicCommandBuffers) {
@@ -113,7 +111,7 @@ namespace NugieApp {
         );
     }
 
-    void Renderer::createSemaphores(std::vector<std::string> semaphoreIds) {
+    void Renderer::createSemaphores(uint32_t semaphoreCount) {
         this->imageAvailableSemaphores.resize(this->frameCount);
         this->renderFinishedSemaphores.resize(this->frameCount);
         this->transferFinishedSemaphores.resize(this->frameCount);
@@ -134,19 +132,15 @@ namespace NugieApp {
             }
         }
 
-        for (auto &&semaphoreId : semaphoreIds) {
-            std::vector<VkSemaphore> semaphores;
-            semaphores.resize(this->frameCount);
+        this->renderSemaphores.clear();
+        this->renderSemaphores.resize(semaphoreCount * this->frameCount);
 
-            for (uint32_t i = 0; i < this->frameCount; i++) {
-                if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
-                                      &semaphores[i]) != VK_SUCCESS) 
-                {
-                    throw std::runtime_error("failed to add semaphores!");
-                }
+        for (uint32_t i = 0; i < semaphoreCount * this->frameCount; i++) {
+            if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
+                                  &this->renderSemaphores[i]) != VK_SUCCESS) 
+            {
+                throw std::runtime_error("failed to add semaphores!");
             }
-
-            this->semaphoreMaps[semaphoreId] = semaphores;
         }
 
         this->isTransferStarteds.resize(this->frameCount, false);
@@ -233,7 +227,7 @@ namespace NugieApp {
         return this->transferCommandBuffers[0];
     }
 
-    void Renderer::submitRenderCommand(uint32_t commandIndex, std::string waitSemaphoreId, std::string signalSemaphoreId, VkPipelineStageFlags waitStage) {
+    void Renderer::submitRenderCommand(uint32_t commandIndex, uint32_t waitSemaphoreIndex, uint32_t signalSemaphoreIndex, VkPipelineStageFlags waitStage) {
         assert(this->isFrameStarted && "can't submit command if frame is not in progress");
 
         uint32_t fullCommandIndex = commandIndex 
@@ -256,13 +250,13 @@ namespace NugieApp {
         std::vector<VkSemaphore> signalSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
         std::vector<VkPipelineStageFlags> waitStages = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
-        if (!waitSemaphoreId.empty()) {
-            waitSemaphores = {this->semaphoreMaps[waitSemaphoreId][this->currentFrameIndex]};
+        if (waitSemaphoreIndex > 0) {
+            waitSemaphores = {this->renderSemaphores[(waitSemaphoreIndex - 1u) * this->frameCount + this->currentFrameIndex]};
             waitStages = {waitStage};
         }
 
-        if (!signalSemaphoreId.empty()) {
-            signalSemaphores = {this->semaphoreMaps[signalSemaphoreId][this->currentFrameIndex]};
+        if (signalSemaphoreIndex > 0) {
+            signalSemaphores = {this->renderSemaphores[(signalSemaphoreIndex - 1u) * this->frameCount + this->currentFrameIndex]};
         }
 
         if (this->isTransferStarteds[commandIndex]) {

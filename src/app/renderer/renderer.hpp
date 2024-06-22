@@ -21,8 +21,8 @@ namespace NugieApp {
             Builder(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount);
 
             Builder &setRenderCommandCount(uint32_t commandCount);
-            
-            Builder &addRenderSemaphore(std::string id);
+
+            Builder &setRenderSemaphore(uint32_t semaphoreCount);
 
             Renderer *build();
 
@@ -30,12 +30,12 @@ namespace NugieApp {
             NugieVulkan::Window *window;
             NugieVulkan::Device *device;
 
-            uint32_t frameCount, renderCommandCount = 0, transferCommandCount = 0;
-            std::vector<std::string> semaphoreIds;
+            uint32_t frameCount, renderCommandCount = 0, 
+                transferCommandCount = 0, semaphoreCount = 0;
         };
 
         Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount, 
-                 uint32_t renderCommandCount, std::vector<std::string> semaphoreIds);
+                 uint32_t renderCommandCount, uint32_t semaphoreCount);
 
         ~Renderer();
 
@@ -61,7 +61,7 @@ namespace NugieApp {
 
         NugieVulkan::CommandBuffer *beginRecordTransferCommand();
 
-        void submitRenderCommand(uint32_t commandIndex, std::string waitSemaphoreId = "", std::string signalSemaphoreId = "", VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        void submitRenderCommand(uint32_t commandIndex, uint32_t waitSemaphoreIndex = 0, uint32_t signalSemaphoreIndex = 0, VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
         void submitTransferCommand();
 
@@ -74,7 +74,7 @@ namespace NugieApp {
 
         void createFences();
 
-        void createSemaphores(std::vector<std::string> semaphoreIds);
+        void createSemaphores(uint32_t semaphoreCount);
 
         void createDescriptorPool();
 
@@ -95,7 +95,7 @@ namespace NugieApp {
         std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
             transferFinishedSemaphores;
 
-        std::map<std::string, std::vector<VkSemaphore>> semaphoreMaps;
+        std::vector<VkSemaphore> renderSemaphores;
 
         uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0, 
             frameCount = 0, renderCommandCount = 0;
