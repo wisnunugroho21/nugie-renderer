@@ -6,13 +6,34 @@
 #include <cassert>
 
 namespace NugieApp {
-    Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) 
-                        : device{device}, window{window}, frameCount{frameCount} 
+    Renderer::Builder::Builder(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) {
+
+    }
+
+    Renderer::Builder &Renderer::Builder::setRenderCommandCount(uint32_t commandCount) {
+        this->renderCommandCount = commandCount;
+        return *this;
+    }
+    
+    Renderer::Builder &Renderer::Builder::addRenderSemaphore(std::string id) {
+        this->semaphoreIds.emplace_back(id);
+        return *this;
+    }
+
+    Renderer *Renderer::Builder::build() {
+        return new Renderer(this->window, this->device, this->frameCount, this->renderCommandCount, this->semaphoreIds);
+    }
+
+    Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount, 
+                       uint32_t renderCommandCount, std::vector<std::string> semaphoreIds) 
+                       : device{device}, window{window}, frameCount{frameCount},
+                         renderCommandCount{renderCommandCount}
     {
         this->recreateSwapChain();
         this->imageCount = this->swapChain->getImageCount();
 
-        this->createSyncObjects();
+        this->createSemaphores(semaphoreIds);
+        this->createFences();
         this->createDescriptorPool();
         this->createCommandPool();
         this->createCommandBuffers();
@@ -22,16 +43,23 @@ namespace NugieApp {
         for (uint32_t i = 0; i < this->frameCount; i++) {
             vkDestroySemaphore(this->device->getLogicalDevice(), this->renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(this->device->getLogicalDevice(), this->imageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(this->device->getLogicalDevice(), this->transferFinishedSemaphores[i], nullptr);
             vkDestroyFence(this->device->getLogicalDevice(), this->inFlightFences[i], nullptr);
-
-            delete this->graphicCommandBuffers[i];
         }
 
-        for (auto &&transferFinishedSemaphore : this->transferFinishedSemaphores) {
-            vkDestroySemaphore(this->device->getLogicalDevice(), transferFinishedSemaphore, nullptr);
-        }        
+        for (auto &&[id, semaphores] : this->semaphoreMaps) {
+            for (uint32_t i = 0; i < this->frameCount; i++) {
+                vkDestroySemaphore(this->device->getLogicalDevice(), semaphores[i], nullptr);
+            }
+        }
 
-        delete this->transferCommandBuffers[0];
+        for (auto &&graphicCommandBuffer : this->graphicCommandBuffers) {
+            delete graphicCommandBuffer;
+        }
+
+        for (auto &&transferCommandBuffer : this->transferCommandBuffers) {
+            delete transferCommandBuffer;
+        }
 
         delete this->graphicCommandPool;
         delete this->transferCommandPool;
@@ -85,50 +113,70 @@ namespace NugieApp {
         );
     }
 
-    void Renderer::createSyncObjects() {
+    void Renderer::createSemaphores(std::vector<std::string> semaphoreIds) {
         this->imageAvailableSemaphores.resize(this->frameCount);
         this->renderFinishedSemaphores.resize(this->frameCount);
-        this->inFlightFences.resize(this->frameCount);
-        this->imagesInFlights.resize(this->imageCount, VK_NULL_HANDLE);
-
         this->transferFinishedSemaphores.resize(this->frameCount);
+        this->isTransferStarteds.resize(this->frameCount, false);
 
         VkSemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fenceInfo = {};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         for (uint32_t i = 0; i < this->frameCount; i++) {
             if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
                                   &this->imageAvailableSemaphores[i]) != VK_SUCCESS ||
                 vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
                                   &this->renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(this->device->getLogicalDevice(), &fenceInfo, nullptr, &this->inFlightFences[i]) !=
-                VK_SUCCESS) {
-                throw std::runtime_error("failed to create synchronization objects for a frame!");
+                vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
+                                  &this->transferFinishedSemaphores[i]) != VK_SUCCESS) 
+            {
+                throw std::runtime_error("failed to create semaphore objects");
             }
         }
 
-        for (uint32_t i = 0; i < this->frameCount; i++) {
-            if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
-                                  &this->transferFinishedSemaphores[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create synchronization objects for transfer operation!");
+        for (auto &&semaphoreId : semaphoreIds) {
+            std::vector<VkSemaphore> semaphores;
+            semaphores.resize(this->frameCount);
+
+            for (uint32_t i = 0; i < this->frameCount; i++) {
+                if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
+                                      &semaphores[i]) != VK_SUCCESS) 
+                {
+                    throw std::runtime_error("failed to add semaphores!");
+                }
             }
+
+            this->semaphoreMaps[semaphoreId] = semaphores;
         }
 
         this->isTransferStarteds.resize(this->frameCount, false);
     }
 
+    void Renderer::createFences() {
+        this->inFlightFences.resize(this->frameCount);
+        this->imagesInFlights.resize(this->imageCount, VK_NULL_HANDLE);
+
+        VkFenceCreateInfo fenceInfo = {};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        for (uint32_t i = 0; i < this->frameCount; i++) {
+            if (vkCreateFence(this->device->getLogicalDevice(), &fenceInfo, nullptr, 
+                              &this->inFlightFences[i]) != VK_SUCCESS) 
+            {
+                throw std::runtime_error("failed to create fence objects!");
+            }
+        }
+    }
+
     void Renderer::createCommandBuffers() {
         std::vector<VkCommandBuffer> commandBuffers;
-        commandBuffers.resize(this->imageCount * this->frameCount);
+        commandBuffers.resize(this->renderCommandCount * this->imageCount * this->frameCount);
 
         this->graphicCommandPool->allocate(commandBuffers);
         this->graphicCommandBuffers.clear();
 
-        for (uint32_t i = 0; i < this->imageCount * this->frameCount; i++) {
+        for (uint32_t i = 0; i < this->renderCommandCount * this->imageCount * this->frameCount; i++) {
             this->graphicCommandBuffers.emplace_back(new NugieVulkan::CommandBuffer(this->device, commandBuffers[i]));
         }
 
@@ -171,11 +219,13 @@ namespace NugieApp {
         return true;
     }
 
-    NugieVulkan::CommandBuffer *Renderer::beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex) {
-        uint32_t commandIndex = frameIndex + this->frameCount * imageIndex;
+    NugieVulkan::CommandBuffer *Renderer::beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex, uint32_t commandIndex) {
+        uint32_t fullCommandIndex = commandIndex 
+                + this->renderCommandCount * frameIndex 
+                + this->renderCommandCount * this->frameCount * imageIndex;
 
-        this->graphicCommandBuffers[commandIndex]->beginReccuringCommand();
-        return this->graphicCommandBuffers[commandIndex];
+        this->graphicCommandBuffers[fullCommandIndex]->beginReccuringCommand();
+        return this->graphicCommandBuffers[fullCommandIndex];
     }
 
     NugieVulkan::CommandBuffer *Renderer::beginRecordTransferCommand() {
@@ -183,8 +233,12 @@ namespace NugieApp {
         return this->transferCommandBuffers[0];
     }
 
-    void Renderer::submitRenderCommand() {
+    void Renderer::submitRenderCommand(uint32_t commandIndex, std::string waitSemaphoreId, std::string signalSemaphoreId, VkPipelineStageFlags waitStage) {
         assert(this->isFrameStarted && "can't submit command if frame is not in progress");
+
+        uint32_t fullCommandIndex = commandIndex 
+                + this->renderCommandCount * this->currentFrameIndex 
+                + this->renderCommandCount * this->frameCount * this->currentImageIndex;
 
         if (this->imagesInFlights[this->currentImageIndex] != VK_NULL_HANDLE) {
             vkWaitForFences(
@@ -197,14 +251,22 @@ namespace NugieApp {
         }
 
         this->imagesInFlights[this->currentImageIndex] = this->inFlightFences[this->currentFrameIndex];
-        uint32_t commandIndex = this->currentFrameIndex + this->frameCount * this->currentImageIndex;
 
         std::vector<VkSemaphore> waitSemaphores = {this->imageAvailableSemaphores[this->currentFrameIndex]};
         std::vector<VkSemaphore> signalSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
         std::vector<VkPipelineStageFlags> waitStages = {VK_PIPELINE_STAGE_TRANSFER_BIT};
 
-        if (this->isTransferStarteds[this->currentFrameIndex]) {
-            waitSemaphores.emplace_back(this->transferFinishedSemaphores[this->currentFrameIndex]);
+        if (!waitSemaphoreId.empty()) {
+            waitSemaphores = {this->semaphoreMaps[waitSemaphoreId][this->currentFrameIndex]};
+            waitStages = {waitStage};
+        }
+
+        if (!signalSemaphoreId.empty()) {
+            signalSemaphores = {this->semaphoreMaps[signalSemaphoreId][this->currentFrameIndex]};
+        }
+
+        if (this->isTransferStarteds[commandIndex]) {
+            waitSemaphores.emplace_back(this->transferFinishedSemaphores[commandIndex]);
             waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
             this->isTransferStarteds[this->currentFrameIndex] = false;

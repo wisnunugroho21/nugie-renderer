@@ -10,12 +10,32 @@
 
 #include <memory>
 #include <vector>
-
+#include <map>
+#include <string>
 
 namespace NugieApp {
     class Renderer {
     public:
-        Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount);
+        class Builder {
+        public:
+            Builder(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount);
+
+            Builder &setRenderCommandCount(uint32_t commandCount);
+            
+            Builder &addRenderSemaphore(std::string id);
+
+            Renderer *build();
+
+        private:
+            NugieVulkan::Window *window;
+            NugieVulkan::Device *device;
+
+            uint32_t frameCount, renderCommandCount = 0, transferCommandCount = 0;
+            std::vector<std::string> semaphoreIds;
+        };
+
+        Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount, 
+                 uint32_t renderCommandCount, std::vector<std::string> semaphoreIds);
 
         ~Renderer();
 
@@ -37,11 +57,11 @@ namespace NugieApp {
 
         void resetCommandPool();
 
-        NugieVulkan::CommandBuffer *beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex);
+        NugieVulkan::CommandBuffer *beginRecordRenderCommand(uint32_t frameIndex, uint32_t imageIndex, uint32_t commandIndex);
 
         NugieVulkan::CommandBuffer *beginRecordTransferCommand();
 
-        void submitRenderCommand();
+        void submitRenderCommand(uint32_t commandIndex, std::string waitSemaphoreId = "", std::string signalSemaphoreId = "", VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
         void submitTransferCommand();
 
@@ -52,7 +72,9 @@ namespace NugieApp {
     private:
         void recreateSwapChain();
 
-        void createSyncObjects();
+        void createFences();
+
+        void createSemaphores(std::vector<std::string> semaphoreIds);
 
         void createDescriptorPool();
 
@@ -66,19 +88,19 @@ namespace NugieApp {
         NugieVulkan::DescriptorPool *descriptorPool = nullptr;
         NugieVulkan::SwapChain *swapChain = nullptr;
 
-        NugieVulkan::CommandPool *graphicCommandPool = nullptr;
-        NugieVulkan::CommandPool *transferCommandPool = nullptr;
-
-        std::vector<NugieVulkan::CommandBuffer *> graphicCommandBuffers;
-        std::vector<NugieVulkan::CommandBuffer *> transferCommandBuffers;
+        NugieVulkan::CommandPool *graphicCommandPool = nullptr, *transferCommandPool = nullptr;
+        std::vector<NugieVulkan::CommandBuffer *> graphicCommandBuffers, transferCommandBuffers;
 
         std::vector<VkFence> inFlightFences, imagesInFlights;
-        std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores;
-        std::vector<VkSemaphore> transferFinishedSemaphores;
+        std::vector<VkSemaphore> imageAvailableSemaphores, renderFinishedSemaphores, 
+            transferFinishedSemaphores;
 
-        uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0, frameCount = 0;
+        std::map<std::string, std::vector<VkSemaphore>> semaphoreMaps;
+
+        uint32_t currentImageIndex = 0, currentFrameIndex = 0, imageCount = 0, 
+            frameCount = 0, renderCommandCount = 0;
+
         bool isFrameStarted = false;
-
         std::vector<bool> isTransferStarteds;
     };
 }
