@@ -85,7 +85,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->indirectRayGenRenderer->render(commandBuffer, height / 8, width / 8, 1,
+                this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -94,7 +94,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayIntersectRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -108,7 +108,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->indirectRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->indirectRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                      {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_result",
@@ -126,7 +126,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->lightRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->lightRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                   {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -135,7 +135,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->missRayRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->missRayRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                               {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -148,7 +148,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->directRayGenRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->directRayGenRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -161,7 +161,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayIntersectRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -170,7 +170,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->directRayHitRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->directRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -184,7 +184,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-                this->integratorRenderer->render(commandBuffer, height * width / 64, 1, 1,
+                this->integratorRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                  {this->integratorDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -194,7 +194,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->samplingRenderer->render(commandBuffer, height / 8, width / 8, 1,
+                this->samplingRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
 
                 // -------------------------------------------------------------------------------------------------------------------
@@ -651,7 +651,8 @@ namespace NugieApp {
         this->rayTraceUbo.horizontal = cameraRay.horizontal;
         this->rayTraceUbo.vertical = cameraRay.vertical;
         this->rayTraceUbo.lowerLeftCorner = cameraRay.lowerLeftCorner;
-        this->rayTraceUbo.imgSizeRandomSeedNumLight = glm::uvec4{width, height, 0u, 0u};
+        this->rayTraceUbo.imgSizeRandomSeedNumLight.x = width;
+        this->rayTraceUbo.imgSizeRandomSeedNumLight.y = height;
     }
 
     void App::init() {

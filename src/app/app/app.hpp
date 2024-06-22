@@ -22,8 +22,8 @@
 
 #define APP_TITLE "Nugie Renderer"
 
-#define WIDTH 800
-#define HEIGHT 800
+#define WIDTH 1280
+#define HEIGHT 720
 #define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {

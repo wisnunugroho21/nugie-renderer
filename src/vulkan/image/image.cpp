@@ -255,9 +255,9 @@ namespace NugieVulkan {
         blitRegion.srcOffsets[0].x = 0;
         blitRegion.srcOffsets[0].y = 0;
         blitRegion.srcOffsets[0].z = 0;
-
-        blitRegion.srcOffsets[1].y = static_cast<int32_t >(this->height);
+        
         blitRegion.srcOffsets[1].x = static_cast<int32_t >(this->width);
+        blitRegion.srcOffsets[1].y = static_cast<int32_t >(this->height);
         blitRegion.srcOffsets[1].z = 1;
 
         blitRegion.dstOffsets[0].x = 0;
