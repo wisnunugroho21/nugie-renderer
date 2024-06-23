@@ -22,8 +22,8 @@ namespace NugieApp {
         this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = Renderer::Builder(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-            .setRenderCommandCount(11000)
-            .setRenderSemaphore(1100)
+            .setRenderCommandCount(5)
+            .setRenderSemaphore(30)
             .build();
 
         this->camera = new Camera(WIDTH, HEIGHT);
@@ -75,16 +75,13 @@ namespace NugieApp {
 
         for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
-                
-                auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
-
-                uint32_t h_tile_count = height / 8u;
-		        uint32_t w_tile_count = width / 8u;
+                uint32_t h_tile_count = 2;
+		        uint32_t w_tile_count = 2;
 
                 for (uint32_t i = 0; i < w_tile_count; i++) {
 					for (uint32_t j = 0; j < h_tile_count; j++) {
 						auto initialPixelCoord = glm::uvec2{ i * 8u, j * 8u };
-                        auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex, i + w_tile_count * j);
+                        auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex, i * h_tile_count + j);
 
                         // -------------------------------------------------------------------------------------------------------------------
 
@@ -206,10 +203,10 @@ namespace NugieApp {
                     }
                 }
 
-
                 // -------------------------------------------------------------------------------------------------------------------
                         
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex, h_tile_count * w_tile_count);
+                auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
                 
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                     VK_IMAGE_LAYOUT_GENERAL,
@@ -257,12 +254,12 @@ namespace NugieApp {
                 this->rayTraceUbo.imgSizeRandomSeedNumLight.z = this->randomSeed;
                 this->uniformBuffer->writeValue(frameIndex, "ubo", &this->rayTraceUbo);
 
-                uint32_t h_tile_count = height / 8u;
-		        uint32_t w_tile_count = width / 8u;
+                uint32_t h_tile_count = 2;
+		        uint32_t w_tile_count = 2;
 
                 for (uint32_t i = 0; i < w_tile_count; i++) {
 					for (uint32_t j = 0; j < h_tile_count; j++) {
-                        this->renderer->submitRenderCommand(i + w_tile_count * j, i + w_tile_count * j, i + w_tile_count * j + 1u, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+                        this->renderer->submitRenderCommand(i * h_tile_count + j, i * h_tile_count + j, i * h_tile_count + j + 1u, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
                     }
                 }
                 

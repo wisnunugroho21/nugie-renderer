@@ -236,42 +236,51 @@ namespace NugieApp {
                 + this->renderCommandCount * this->currentFrameIndex 
                 + this->renderCommandCount * this->frameCount * this->currentImageIndex;
 
-        if (this->imagesInFlights[this->currentImageIndex] != VK_NULL_HANDLE) {
-            vkWaitForFences(
-                    this->device->getLogicalDevice(),
-                    1,
-                    &this->imagesInFlights[this->currentImageIndex],
-                    VK_TRUE,
-                    std::numeric_limits<uint64_t>::max()
-            );
-        }
+        std::vector<VkSemaphore> waitSemaphores{};
+        std::vector<VkSemaphore> signalSemaphores{};
+        std::vector<VkPipelineStageFlags> waitStages{};
 
-        this->imagesInFlights[this->currentImageIndex] = this->inFlightFences[this->currentFrameIndex];
+        VkFence fence = VK_NULL_HANDLE;
 
-        std::vector<VkSemaphore> waitSemaphores = {this->imageAvailableSemaphores[this->currentFrameIndex]};
-        std::vector<VkSemaphore> signalSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
-        std::vector<VkPipelineStageFlags> waitStages = {VK_PIPELINE_STAGE_TRANSFER_BIT};
+        if (waitSemaphoreIndex == 0) {
+            if (this->imagesInFlights[this->currentImageIndex] != VK_NULL_HANDLE) {
+                vkWaitForFences(
+                        this->device->getLogicalDevice(),
+                        1,
+                        &this->imagesInFlights[this->currentImageIndex],
+                        VK_TRUE,
+                        std::numeric_limits<uint64_t>::max()
+                );
+            }                    
 
-        if (waitSemaphoreIndex > 0) {
+            waitSemaphores = {this->imageAvailableSemaphores[this->currentFrameIndex]};
+            waitStages = {VK_PIPELINE_STAGE_TRANSFER_BIT};
+
+            if (this->isTransferStarteds[this->currentFrameIndex]) {
+                waitSemaphores.emplace_back(this->transferFinishedSemaphores[this->currentFrameIndex]);
+                waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
+                this->isTransferStarteds[this->currentFrameIndex] = false;
+            }
+        } else {
             waitSemaphores = {this->renderSemaphores[(waitSemaphoreIndex - 1u) * this->frameCount + this->currentFrameIndex]};
             waitStages = {waitStage};
         }
 
-        if (signalSemaphoreIndex > 0) {
+        if (signalSemaphoreIndex == 0) {            
+            signalSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
+
+            vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
+            this->imagesInFlights[this->currentImageIndex] = this->inFlightFences[this->currentFrameIndex];
+            fence = this->inFlightFences[this->currentFrameIndex];
+
+        } else {
             signalSemaphores = {this->renderSemaphores[(signalSemaphoreIndex - 1u) * this->frameCount + this->currentFrameIndex]};
         }
-
-        if (this->isTransferStarteds[commandIndex]) {
-            waitSemaphores.emplace_back(this->transferFinishedSemaphores[commandIndex]);
-            waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-
-            this->isTransferStarteds[this->currentFrameIndex] = false;
-        }
-
-        vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);
+        
         this->graphicCommandBuffers[commandIndex]->submitCommand(this->device->getGraphicsQueue(),
                                                                  waitSemaphores, waitStages, signalSemaphores,
-                                                                 this->inFlightFences[this->currentFrameIndex]);
+                                                                 fence);
     }
 
     void Renderer::submitTransferCommand() {
