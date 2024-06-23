@@ -21,7 +21,10 @@ namespace NugieApp {
     App::App() {
         this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
         this->device = new NugieVulkan::Device(this->window);
-        this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
+        this->renderer = Renderer::Builder(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+            .setRenderCommandCount(11000)
+            .setRenderSemaphore(1100)
+            .build();
 
         this->camera = new Camera(WIDTH, HEIGHT);
 
@@ -72,154 +75,169 @@ namespace NugieApp {
 
         for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
-                auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
+                
                 auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
 
+                uint32_t h_tile_count = height / 8u;
+		        uint32_t w_tile_count = width / 8u;
+
+                for (uint32_t i = 0; i < w_tile_count; i++) {
+					for (uint32_t j = 0; j < h_tile_count; j++) {
+						auto initialPixelCoord = glm::uvec2{ i * 8u, j * 8u };
+                        auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex, i + w_tile_count * j);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->indirectRayGenRenderer->render(commandBuffer, 1, 1, 1,
+                                                            {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, { &initialPixelCoord });
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->rayIntersectRenderer->render(commandBuffer, 1, 1, 1,
+                                                        {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+
+                        this->indirectRayHitRenderer->render(commandBuffer, 1, 1, 1,
+                                                            {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, { &initialPixelCoord });
+
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_result",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_data",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->lightRayHitRenderer->render(commandBuffer, 1, 1, 1,
+                                                        {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->missRayRenderer->render(commandBuffer, 1, 1, 1,
+                                                    {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+                        this->directRayGenRenderer->render(commandBuffer, 1, 1, 1,
+                                                        {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+                        this->rayIntersectRenderer->render(commandBuffer, 1, 1, 1,
+                                                        {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->directRayHitRenderer->render(commandBuffer, 1, 1, 1,
+                                                        {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+                        this->integratorRenderer->render(commandBuffer, 1, 1, 1,
+                                                        {this->integratorDescSet->getDescriptorSets(frameIndex)}, { &initialPixelCoord });
+                        this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                                                                    VK_ACCESS_SHADER_READ_BIT);
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        this->samplingRenderer->render(commandBuffer, 1, 1, 1,
+                                                    {this->samplingDescSet->getDescriptorSets(frameIndex)}, { &initialPixelCoord });
+
+                        // -------------------------------------------------------------------------------------------------------------------
+
+                        commandBuffer->endCommand();
+                    }
+                }
+
+
                 // -------------------------------------------------------------------------------------------------------------------
-
-                this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
-                                                     {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                   {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-
-                this->indirectRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                     {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, {});
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_data",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->lightRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                  {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->missRayRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                              {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->directRayGenRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                   {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                   {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_record",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->directRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                   {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-                this->integratorRenderer->render(commandBuffer, width * height  / 64, 1, 1,
-                                                 {this->integratorDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT);
-
-                // -------------------------------------------------------------------------------------------------------------------
-
-                this->samplingRenderer->render(commandBuffer, width / 8, height / 8, 1,
-                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
-
-                // -------------------------------------------------------------------------------------------------------------------
+                        
+                auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex, h_tile_count * w_tile_count);
                 
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
-                                                                      VK_IMAGE_LAYOUT_GENERAL,
-                                                                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                                                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                                                      VK_ACCESS_SHADER_WRITE_BIT,
-                                                                      VK_ACCESS_TRANSFER_READ_BIT);
+                                                                    VK_IMAGE_LAYOUT_GENERAL,
+                                                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT,
+                                                                    VK_ACCESS_TRANSFER_READ_BIT);
                 swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED,
-                                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-                                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                                      0, VK_ACCESS_TRANSFER_WRITE_BIT);
+                                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+                                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                    0, VK_ACCESS_TRANSFER_WRITE_BIT);
 
                 this->resultImages[frameIndex]->copyImageToOther(commandBuffer, swapChainImage);                
                 
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer,
-                                                                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                                                      VK_IMAGE_LAYOUT_GENERAL,
-                                                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                                                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                                      VK_ACCESS_TRANSFER_READ_BIT,
-                                                                      VK_ACCESS_SHADER_WRITE_BIT);
+                                                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                                                    VK_IMAGE_LAYOUT_GENERAL,
+                                                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                    VK_ACCESS_TRANSFER_READ_BIT,
+                                                                    VK_ACCESS_SHADER_WRITE_BIT);
                 swapChainImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
-                                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                                      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0);
-
-                // -------------------------------------------------------------------------------------------------------------------
+                                                    VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
+                                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                                    VK_ACCESS_TRANSFER_WRITE_BIT, 0);
 
                 commandBuffer->endCommand();
             }
@@ -227,6 +245,9 @@ namespace NugieApp {
     }
 
     void App::renderLoop() {
+        uint32_t height = this->renderer->getSwapChain()->getHeight();
+        uint32_t width = this->renderer->getSwapChain()->getWidth();
+
         while (this->isRendering) {
             this->frameCount++;
 
@@ -236,7 +257,16 @@ namespace NugieApp {
                 this->rayTraceUbo.imgSizeRandomSeedNumLight.z = this->randomSeed;
                 this->uniformBuffer->writeValue(frameIndex, "ubo", &this->rayTraceUbo);
 
-                this->renderer->submitRenderCommand();
+                uint32_t h_tile_count = height / 8u;
+		        uint32_t w_tile_count = width / 8u;
+
+                for (uint32_t i = 0; i < w_tile_count; i++) {
+					for (uint32_t j = 0; j < h_tile_count; j++) {
+                        this->renderer->submitRenderCommand(i + w_tile_count * j, i + w_tile_count * j, i + w_tile_count * j + 1u, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+                    }
+                }
+                
+                this->renderer->submitRenderCommand(h_tile_count * w_tile_count, h_tile_count * w_tile_count, 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
                 if (!this->renderer->presentFrame()) {
                     this->resize();
@@ -809,12 +839,19 @@ namespace NugieApp {
                            this->rayTraceStorageBuffer->getInfo("integrator_result"))
                 .build();
 
+        VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pushConstantRange.offset = 0u;
+		pushConstantRange.size = sizeof(glm::uvec2);
+
         this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, "../build/shader/indirect_ray_gen.comp.spv",
-                                                               {this->indirectRayGenDescSet->getDescSetLayout()});
+                                                               {this->indirectRayGenDescSet->getDescSetLayout()}, 
+                                                               { pushConstantRange });
         this->rayIntersectRenderer = new ComputeRenderSystem(this->device, "../build/shader/ray_intersect.comp.spv",
                                                              {this->rayIntersectDescSet->getDescSetLayout()});
         this->indirectRayHitRenderer = new ComputeRenderSystem(this->device, "../build/shader/indirect_ray_hit.comp.spv",
-                                                               {this->indirectRayHitDescSet->getDescSetLayout()});
+                                                               {this->indirectRayHitDescSet->getDescSetLayout()},
+                                                               { pushConstantRange });
         this->lightRayHitRenderer = new ComputeRenderSystem(this->device, "../build/shader/light_ray_hit.comp.spv",
                                                             {this->lightRayHitDescSet->getDescSetLayout()});
         this->missRayRenderer = new ComputeRenderSystem(this->device, "../build/shader/ray_miss.comp.spv",
@@ -824,9 +861,11 @@ namespace NugieApp {
         this->directRayHitRenderer = new ComputeRenderSystem(this->device, "../build/shader/direct_ray_hit.comp.spv",
                                                              {this->directRayHitDescSet->getDescSetLayout()});
         this->integratorRenderer = new ComputeRenderSystem(this->device, "../build/shader/integrator.comp.spv",
-                                                           {this->integratorDescSet->getDescSetLayout()});
+                                                           {this->integratorDescSet->getDescSetLayout()},
+                                                           { pushConstantRange });
         this->samplingRenderer = new ComputeRenderSystem(this->device, "../build/shader/sampling.comp.spv",
-                                                         {this->samplingDescSet->getDescSetLayout()});
+                                                         {this->samplingDescSet->getDescSetLayout()},
+                                                         { pushConstantRange });
 
         this->indirectRayGenRenderer->initialize();
         this->rayIntersectRenderer->initialize();

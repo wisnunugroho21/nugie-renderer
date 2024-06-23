@@ -6,7 +6,9 @@
 #include <cassert>
 
 namespace NugieApp {
-    Renderer::Builder::Builder(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) {
+    Renderer::Builder::Builder(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount)
+                               : window{window}, device{device}, frameCount{frameCount} 
+    {
 
     }
 

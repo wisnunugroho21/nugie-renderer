@@ -24,14 +24,24 @@ layout (set = 0, binding = 3) buffer readonly IntegratorBuffer {
     IntegratorResult results[];
 } integratorBuffer;
 
+layout(push_constant) uniform Push {
+    uvec2 initialPixelCoord;
+};
+
 void main() {
-    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
-    uint bufferIndex = pixelCoord.x + ubo.imgSizeRandomSeedNumLight.x * pixelCoord.y;
-    vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSizeRandomSeedNumLight.xy);
+    uvec2 pixelCoord = gl_GlobalInvocationID.xy + initialPixelCoord;
+ 
+    uint bufferIndex = gl_GlobalInvocationID.x + 8 * gl_GlobalInvocationID.y;
+    uint totalBufferIndex = bufferIndex + (initialPixelCoord.x * initialPixelCoord.y);
+    
+    vec3 initialRayDirection = normalize(
+            ubo.lowerLeftCorner 
+            + pixelCoord.x * ubo.horizontal 
+            - pixelCoord.y * ubo.vertical 
+            - ubo.origin
+    );
 
-    vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
-
-    tracedRayBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].totalRadianceIsRayBounce.w > 0.5f
-    ? scatteredRayBuffer.rays[bufferIndex]
-    : Ray(ubo.origin, initialRayDirection);
+    tracedRayBuffer.rays[bufferIndex] = integratorBuffer.results[totalBufferIndex].totalRadianceIsRayBounce.w > 0.5f
+        ? scatteredRayBuffer.rays[totalBufferIndex]
+        : Ray(ubo.origin, initialRayDirection);
 }
