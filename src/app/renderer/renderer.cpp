@@ -50,10 +50,19 @@ namespace NugieApp {
         vkDeviceWaitIdle(this->device->getLogicalDevice());
 
         if (this->swapChain == nullptr) {
-            this->swapChain = new NugieVulkan::SwapChain(this->device, extent);
+            this->swapChain = NugieVulkan::SwapChain::Builder(this->device, 
+                                                              this->window->getSurface(), 
+                                                              extent.width, extent.height)
+                    .setDefault()
+                    .build();
         } else {
-            auto oldSwapChain = this->swapChain;
-            this->swapChain = new NugieVulkan::SwapChain(this->device, extent, oldSwapChain);
+            auto oldSwapChain = std::move(this->swapChain);
+            this->swapChain = NugieVulkan::SwapChain::Builder(this->device, 
+                                                              this->window->getSurface(), 
+                                                              extent.width, extent.height)
+                    .setDefault()
+                    .setOldSwapChain(oldSwapChain)
+                    .build();
 
             if (!oldSwapChain->compareSwapFormat(this->swapChain)) {
                 throw std::runtime_error("Swap chain image has changed");

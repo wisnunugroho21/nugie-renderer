@@ -22,6 +22,8 @@ namespace NugieVulkan {
             return {static_cast<uint32_t>(this->width), static_cast<uint32_t>(this->height)};
         }
 
+        VkSurfaceKHR getSurface() const { return this->surface; }
+
         bool shouldClose();
 
         void resetResizedFlag();
@@ -36,6 +38,7 @@ namespace NugieVulkan {
 
         uint32_t width, height;
         std::string name;
+        VkSurfaceKHR surface;
 
         void init();
 
