@@ -34,7 +34,7 @@ void main() {
 
     if (missResult.radianceIsMiss.w > 0.5f) {
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-        ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w * missResult.radianceIsMiss.xyz
+        ? integratorResult.totalRadianceIsRayBounce.xyz + missResult.radianceIsMiss.xyz * integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w
         : vec3(0.0f);
 
         integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
@@ -57,11 +57,11 @@ void main() {
         float totalPdf = indirectResult.radiancePdf.w + directResult.radiancePdf.w;
 
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-        ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz * (directResult.radiancePdf.w / totalPdf) * prevIndirect
+        ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz * (directResult.radiancePdf.w / totalPdf * prevIndirect)
         : directResult.radiancePdf.xyz;
 
         integratorResult.totalIndirectPdf.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-        ? indirectResult.radiancePdf.xyz * (indirectResult.radiancePdf.w / totalPdf) * prevIndirect
+        ? indirectResult.radiancePdf.xyz * (indirectResult.radiancePdf.w / totalPdf * prevIndirect)
         : indirectResult.radiancePdf.xyz;
 
         integratorResult.totalRadianceIsRayBounce.w = (max(integratorResult.totalIndirectPdf.x, max(integratorResult.totalIndirectPdf.y, integratorResult.totalIndirectPdf.z)) > 0.1f)
