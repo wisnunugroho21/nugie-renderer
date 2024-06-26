@@ -64,7 +64,7 @@ void main() {
         ? indirectResult.radiancePdf.xyz * (indirectResult.radiancePdf.w / totalPdf * prevIndirect)
         : indirectResult.radiancePdf.xyz;
 
-        integratorResult.totalRadianceIsRayBounce.w = (max(integratorResult.totalIndirectPdf.x, max(integratorResult.totalIndirectPdf.y, integratorResult.totalIndirectPdf.z)) > 0.1f)
+        integratorResult.totalRadianceIsRayBounce.w = (max(integratorResult.totalIndirectPdf.x, max(integratorResult.totalIndirectPdf.y, integratorResult.totalIndirectPdf.z)) > 0.01f)
         ? 1.0f
         : 0.0f;
 

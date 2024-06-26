@@ -171,11 +171,11 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
     }
 	
 	return vertex0.position +
-           fma(
+            fma(
                vec3(u1), 
                v0v1, 
                vec3(u2) * v0v2 
-           );
+            );
 }
 
 vec3 triangleNormal(Triangle triangle, Ray r) {
@@ -199,11 +199,11 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
 	return vertex0.position +
-           fma(
+            fma(
                vec3(uv.x), 
                v0v1, 
                vec3(uv.y) * v0v2 
-           );
+            );
 }
 
 void main() {
@@ -231,7 +231,7 @@ void main() {
         nextRay.origin = hittedPosition;
         nextRay.direction = normalize(target - hittedPosition);
 
-        float NoL = max(dot(hittedNormal, nextRay.direction), 0.001f);
+        float NoL = dot(hittedNormal, nextRay.direction);
         float brdf = lambertBrdfValue();
 
         finalResult.radiancePdf.w = lambertPdfValue(NoL);

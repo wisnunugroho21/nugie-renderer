@@ -76,11 +76,11 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
     }
 	
 	return vertex0.position +
-           fma(
+            fma(
                vec3(u1), 
                v0v1, 
                vec3(u2) * v0v2 
-           );
+            );
 }
 
 void main() {

@@ -106,11 +106,11 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
 	return vertex0.position +
-           fma(
+            fma(
                vec3(uv.x), 
                v0v1, 
                vec3(uv.y) * v0v2 
-           );
+            );
 }
 
 void main() {
@@ -129,11 +129,11 @@ void main() {
             trianglePositionFromUV(hittedLight, hitRecord.uv)
         );
         
-        float NloL = max(dot(hittedNormal, -1.0f * ray.direction), 0.001f);
+        float NloL = dot(hittedNormal, -1.0f * ray.direction);
         vec3 dst = hittedPosition - ray.origin;
 
         float area = triangleArea(hittedLight);
-        float squareDistance = max(dot(dst, dst), 0.001f);
+        float squareDistance = dot(dst, dst);
 
         finalResult.radianceIsIlluminate.w = 1.0f;
         finalResult.radianceIsIlluminate.xyz = vec3(100.0f) * (NloL * area / squareDistance);

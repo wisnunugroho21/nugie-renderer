@@ -124,11 +124,11 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
 	return vertex0.position +
-           fma(
+            fma(
                vec3(uv.x), 
                v0v1, 
                vec3(uv.y) * v0v2 
-           );
+            );
 }
 
 void main() {
@@ -149,12 +149,12 @@ void main() {
             trianglePositionFromUV(hittedLight, hitRecord.uv)
         );
 
-        float NloL = max(dot(hittedLightNormal, -1.0f * ray.direction), 0.001f);
-        float NoL = max(dot(directData.normalIsIlluminate.xyz, ray.direction), 0.001f);
+        float NloL = dot(hittedLightNormal, -1.0f * ray.direction);
+        float NoL = dot(directData.normalIsIlluminate.xyz, ray.direction);
         vec3 dst = hittedPosition - ray.origin;
 
         float brdf = lambertBrdfValue();
-        float squareDistance = max(dot(dst, dst), 0.001f);
+        float squareDistance = dot(dst, dst);
         float area = triangleArea(hittedLight);
 
         finalResult.radiancePdf.w = squareDistance / (NloL * area);
