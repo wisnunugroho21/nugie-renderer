@@ -194,7 +194,7 @@ namespace NugieApp {
                 this->samplingRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
 
-                /* // -------------------------------------------------------------------------------------------------------------------
+                // -------------------------------------------------------------------------------------------------------------------
                 
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
@@ -222,11 +222,11 @@ namespace NugieApp {
                                                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
                                                       VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0); */
+                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0);
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
+                /* this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
                                                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -244,7 +244,9 @@ namespace NugieApp {
                                                                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                                       VK_ACCESS_SHADER_READ_BIT,
-                                                                      VK_ACCESS_SHADER_WRITE_BIT);
+                                                                      VK_ACCESS_SHADER_WRITE_BIT); */
+
+                // -------------------------------------------------------------------------------------------------------------------
 
                 commandBuffer->endCommand();
             }
@@ -598,10 +600,12 @@ namespace NugieApp {
                                                        
         this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+            VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
             this->resultImages[i] = new NugieVulkan::Image(this->device, width, height, 1, VK_SAMPLE_COUNT_1_BIT,
                                                            VK_FORMAT_R32G32B32A32_SFLOAT,
                                                            VK_IMAGE_TILING_OPTIMAL,
-                                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                           imageUsage,
                                                            VMA_MEMORY_USAGE_AUTO,
                                                            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                                                            VK_IMAGE_ASPECT_COLOR_BIT);
