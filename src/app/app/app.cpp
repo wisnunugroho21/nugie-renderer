@@ -196,7 +196,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
                 
-                /* this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
+                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
                                                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -222,11 +222,11 @@ namespace NugieApp {
                                                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
                                                       VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0); */
+                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0);
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
+                /* this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
                                                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -244,7 +244,7 @@ namespace NugieApp {
                                                                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                                                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                                       VK_ACCESS_SHADER_READ_BIT,
-                                                                      VK_ACCESS_SHADER_WRITE_BIT); 
+                                                                      VK_ACCESS_SHADER_WRITE_BIT); */
 
                 // -------------------------------------------------------------------------------------------------------------------
 
