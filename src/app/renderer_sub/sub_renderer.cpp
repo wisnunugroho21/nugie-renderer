@@ -111,8 +111,7 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (size_t i = 0; i < samplers.size(); i++)
-            {
+            for (size_t i = 0; i < samplers.size(); i++) {
                 imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
@@ -199,8 +198,7 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (size_t i = 0; i < samplers.size(); i++)
-            {
+            for (size_t i = 0; i < samplers.size(); i++) {
                 imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
@@ -307,8 +305,7 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (size_t i = 0; i < samplers.size(); i++)
-            {
+            for (size_t i = 0; i < samplers.size(); i++) {
                 imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
             }
 
@@ -394,8 +391,7 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (size_t i = 0; i < samplers.size(); i++)
-            {
+            for (size_t i = 0; i < samplers.size(); i++) {
                 imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
             }
 
@@ -501,8 +497,7 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (size_t i = 0; i < samplers.size(); i++)
-            {
+            for (size_t i = 0; i < samplers.size(); i++) {
                 imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
@@ -589,8 +584,7 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (size_t i = 0; i < samplers.size(); i++)
-            {
+            for (size_t i = 0; i < samplers.size(); i++) {
                 imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
