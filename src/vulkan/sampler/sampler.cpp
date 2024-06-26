@@ -10,12 +10,12 @@
 #include "../command/command_buffer.hpp"
 
 namespace NugieVulkan {
-    Sampler::Sampler(Device *device, Image *image, VkFilter filterMode, VkSamplerAddressMode addressMode,
+    Sampler::Sampler(Device *device, VkFilter filterMode, VkSamplerAddressMode addressMode,
                      VkBool32 anisotropyEnable, VkBorderColor borderColor, VkCompareOp compareOp,
-                     VkSamplerMipmapMode mipmapMode)
-                     : device{device}, image{image} 
+                     VkSamplerMipmapMode mipmapMode, float maxLod)
+                     : device{device}
     {
-        this->createSampler(filterMode, addressMode, anisotropyEnable, borderColor, compareOp, mipmapMode);
+        this->createSampler(filterMode, addressMode, anisotropyEnable, borderColor, compareOp, mipmapMode, maxLod);
     }
 
     Sampler::~Sampler() {
@@ -23,7 +23,8 @@ namespace NugieVulkan {
     }
 
     void Sampler::createSampler(VkFilter filterMode, VkSamplerAddressMode addressMode, VkBool32 anisotropyEnable,
-                                VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode) 
+                                VkBorderColor borderColor, VkCompareOp compareOp, VkSamplerMipmapMode mipmapMode, 
+                                float maxLod) 
     {
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -46,7 +47,7 @@ namespace NugieVulkan {
 
         samplerInfo.mipmapMode = mipmapMode;
         samplerInfo.minLod = 0.0f; // Optional
-        samplerInfo.maxLod = static_cast<float>(this->image->getMipLevels());
+        samplerInfo.maxLod = maxLod;
         samplerInfo.mipLodBias = 0.0f; // Optional
 
         if (vkCreateSampler(this->device->getLogicalDevice(), &samplerInfo, nullptr, &this->sampler) != VK_SUCCESS) {
@@ -54,10 +55,10 @@ namespace NugieVulkan {
         }
     }
 
-    VkDescriptorImageInfo Sampler::getDescriptorInfo(VkImageLayout desiredImageLayout) const {
+    VkDescriptorImageInfo Sampler::getDescriptorInfo(Image *image, VkImageLayout desiredImageLayout) const {
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageLayout = desiredImageLayout;
-        imageInfo.imageView = this->image->getImageView();
+        imageInfo.imageView = image->getImageView();
         imageInfo.sampler = this->sampler;
 
         return imageInfo;

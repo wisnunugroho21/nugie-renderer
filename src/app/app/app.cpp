@@ -40,7 +40,9 @@ namespace NugieApp {
         delete this->directRayHitRenderer;
         delete this->integratorRenderer;
         delete this->samplingRenderer;
+        delete this->finalPassRenderSystem;
 
+        delete this->subRenderer;
         delete this->renderer;
 
         delete this->rayIntersectDescSet;
@@ -52,6 +54,7 @@ namespace NugieApp {
         delete this->directRayHitDescSet;
         delete this->integratorDescSet;
         delete this->samplingDescSet;
+        delete this->finalDescSet;
 
         delete this->dataBuffer;
         delete this->rayTraceStorageBuffer;
@@ -60,6 +63,8 @@ namespace NugieApp {
         for (auto &&resultImage: this->resultImages) {
             delete resultImage;
         }
+
+        delete this->resultSampler;
 
         delete this->device;
         delete this->window;
@@ -189,7 +194,7 @@ namespace NugieApp {
                 this->samplingRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
 
-                // -------------------------------------------------------------------------------------------------------------------
+                /* // -------------------------------------------------------------------------------------------------------------------
                 
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
@@ -217,9 +222,29 @@ namespace NugieApp {
                                                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
                                                       VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0);
+                                                      VK_ACCESS_TRANSFER_WRITE_BIT, 0); */
 
                 // -------------------------------------------------------------------------------------------------------------------
+
+                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
+                                                                      VK_IMAGE_LAYOUT_GENERAL,
+                                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                                                      VK_ACCESS_SHADER_WRITE_BIT,
+                                                                      VK_ACCESS_SHADER_READ_BIT);
+
+                this->subRenderer->beginRenderPass(commandBuffer, imageIndex);
+                this->finalPassRenderSystem->render(commandBuffer, 6u, 1u, {this->finalDescSet->getDescriptorSets(frameIndex)});
+                this->subRenderer->endRenderPass(commandBuffer);
+
+                this->resultImages[frameIndex]->transitionImageLayout(commandBuffer,
+                                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                                      VK_IMAGE_LAYOUT_GENERAL,
+                                                                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                                                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                                      VK_ACCESS_SHADER_READ_BIT,
+                                                                      VK_ACCESS_SHADER_WRITE_BIT);
 
                 commandBuffer->endCommand();
             }
@@ -567,12 +592,16 @@ namespace NugieApp {
 
         // ----------------------------------------------------------------------------
 
+        this->resultSampler = new NugieVulkan::Sampler(this->device, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
+                                                       VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+                                                       VK_SAMPLER_MIPMAP_MODE_LINEAR, 1.0f);
+                                                       
         this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
             this->resultImages[i] = new NugieVulkan::Image(this->device, width, height, 1, VK_SAMPLE_COUNT_1_BIT,
                                                            VK_FORMAT_R32G32B32A32_SFLOAT,
                                                            VK_IMAGE_TILING_OPTIMAL,
-                                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                                            VMA_MEMORY_USAGE_AUTO,
                                                            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                                                            VK_IMAGE_ASPECT_COLOR_BIT);
@@ -656,13 +685,29 @@ namespace NugieApp {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
 
+        VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
+        uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+
         this->initCamera(width, height);
 
         std::vector<VkDescriptorImageInfo> resultImageInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
+        std::vector<VkDescriptorImageInfo> resultSamplerInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
 
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
             resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
+            resultSamplerInfos[i] = this->resultSampler->getDescriptorInfo(this->resultImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
+
+        this->subRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
+            .addAttachment(this->renderer->getSwapChain()->getswapChainImages(), 
+                           AttachmentType::OUTPUT_STORED, 
+                           this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+                           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
+                           VK_SAMPLE_COUNT_1_BIT)
+			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
+				                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
+                                VK_SAMPLE_COUNT_1_BIT)
+			.build();
 
         this->indirectRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                              NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -809,6 +854,11 @@ namespace NugieApp {
                            this->rayTraceStorageBuffer->getInfo("integrator_result"))
                 .build();
 
+        this->finalDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
+                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                .addImage(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, resultSamplerInfos)
+                .build();
+
         this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, "../build/shader/indirect_ray_gen.comp.spv",
                                                                {this->indirectRayGenDescSet->getDescSetLayout()});
         this->rayIntersectRenderer = new ComputeRenderSystem(this->device, "../build/shader/ray_intersect.comp.spv",
@@ -828,6 +878,10 @@ namespace NugieApp {
         this->samplingRenderer = new ComputeRenderSystem(this->device, "../build/shader/sampling.comp.spv",
                                                          {this->samplingDescSet->getDescSetLayout()});
 
+        this->finalPassRenderSystem = new FinalPassRenderSystem(this->device, this->subRenderer->getRenderPass(), 
+                                                                "../build/shader/raster/final.vert.spv", "../build/shader/raster/final.frag.spv", 
+                                                                {this->finalDescSet->getDescSetLayout()});
+
         this->indirectRayGenRenderer->initialize();
         this->rayIntersectRenderer->initialize();
         this->indirectRayHitRenderer->initialize();
@@ -837,6 +891,7 @@ namespace NugieApp {
         this->directRayHitRenderer->initialize();
         this->integratorRenderer->initialize();
         this->samplingRenderer->initialize();
+        this->finalPassRenderSystem->initialize();
     }
 
     void App::resize() {

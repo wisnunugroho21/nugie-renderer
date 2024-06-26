@@ -14,6 +14,7 @@
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/compute_render_system.hpp"
+#include "../renderer_system/final_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -52,6 +53,7 @@ namespace NugieApp {
 
         Camera *camera = nullptr;
         Renderer *renderer = nullptr;
+        SubRenderer *subRenderer = nullptr;
 
         ComputeRenderSystem *rayIntersectRenderer = nullptr;
         ComputeRenderSystem *indirectRayGenRenderer = nullptr;
@@ -62,12 +64,15 @@ namespace NugieApp {
         ComputeRenderSystem *directRayHitRenderer = nullptr;
         ComputeRenderSystem *integratorRenderer = nullptr;
         ComputeRenderSystem *samplingRenderer = nullptr;
+
+        FinalPassRenderSystem *finalPassRenderSystem = nullptr;
     
         StackedArrayBuffer *dataBuffer = nullptr;
         StackedObjectBuffer *uniformBuffer = nullptr;
         StackedArrayManyBuffer *rayTraceStorageBuffer = nullptr;
 
         std::vector<NugieVulkan::Image *> resultImages{};
+        NugieVulkan::Sampler *resultSampler = nullptr;
 
         DescriptorSet *rayIntersectDescSet = nullptr;
         DescriptorSet *indirectRayGenDescSet = nullptr;
@@ -78,6 +83,7 @@ namespace NugieApp {
         DescriptorSet *directRayHitDescSet = nullptr;
         DescriptorSet *integratorDescSet = nullptr;
         DescriptorSet *samplingDescSet = nullptr;
+        DescriptorSet *finalDescSet = nullptr;
 
         uint32_t frameCount = 0u, randomSeed = 0u;
         bool isRendering = true;

@@ -12,19 +12,19 @@
 #include <vector>
 
 namespace NugieApp {
-    GraphicRenderSystem::GraphicRenderSystem(NugieVulkan::Device *device,
-                                             std::vector<NugieVulkan::DescriptorSetLayout *> descriptorSetLayouts,
-                                             NugieVulkan::RenderPass *renderPass, std::string vertFilePath,
-                                             std::string fragFilePath)
-                                             : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, 
-                                               renderPass{renderPass}, vertFilePath{std::move(vertFilePath)},
-                                               fragFilePath{std::move(fragFilePath)} {
+    GraphicRenderSystem::GraphicRenderSystem(NugieVulkan::Device *device, NugieVulkan::RenderPass *renderPass,
+                                            std::string vertFilePath, std::string fragFilePath,
+                                            const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
+                                            const std::vector<VkPushConstantRange> &pushConstantRanges)
+            : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, pushConstantRanges{std::move(pushConstantRanges)}, renderPass{renderPass},
+              vertFilePath{std::move(vertFilePath)}, fragFilePath{std::move(fragFilePath)} 
+    {
 
     }
 
     GraphicRenderSystem::~GraphicRenderSystem() {
         vkDestroyPipelineLayout(this->device->getLogicalDevice(), this->pipelineLayout, nullptr);
-        if (this->pipeline != nullptr) delete this->pipeline;
+        delete this->pipeline;
     }
 
     void GraphicRenderSystem::createPipelineLayout() {
@@ -39,8 +39,8 @@ namespace NugieApp {
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
         pipelineLayoutInfo.pSetLayouts = (!setLayouts.empty()) ? setLayouts.data() : nullptr;
-        pipelineLayoutInfo.pushConstantRangeCount = 0u;
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+        pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+		pipelineLayoutInfo.pPushConstantRanges = (!pushConstantRanges.empty()) ? pushConstantRanges.data() : nullptr;
 
         if (vkCreatePipelineLayout(this->device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                                    &this->pipelineLayout) != VK_SUCCESS) {
@@ -70,31 +70,86 @@ namespace NugieApp {
         colorBlendAttachment[0].blendEnable = VK_FALSE;
 
         this->pipeline = NugieVulkan::GraphicPipeline::Builder(this->device, this->renderPass, this->pipelineLayout)
-                .setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions,
-                            attributeDescription)
-                .build();
+            .setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions,
+                        attributeDescription)
+            .build();
     }
 
-    void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer,
+    void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t vertexCount,
+                                     uint32_t instanceCount,
                                      const std::vector<VkDescriptorSet> &descriptorSets,
-                                     const std::vector<NugieVulkan::Buffer *> &vertexBuffers,
-                                     NugieVulkan::Buffer *indexBuffer, uint32_t indexCount,
-                                     const std::vector<VkDeviceSize> &vertexOffsets, VkDeviceSize indexOffset) 
+                                     const std::vector<void *> &pushConstants) 
     {
         assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 
         this->pipeline->bindPipeline(commandBuffer);
 
-        vkCmdBindDescriptorSets(
-                commandBuffer->getCommandBuffer(),
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                this->pipelineLayout,
-                0,
-                static_cast<uint32_t>(descriptorSets.size()),
-                (!descriptorSets.empty()) ? descriptorSets.data() : nullptr,
-                0,
-                nullptr
-        );
+        if (!descriptorSets.empty()) {
+			vkCmdBindDescriptorSets(
+				commandBuffer->getCommandBuffer(),
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				this->pipelineLayout,
+				0u,
+				static_cast<uint32_t>(descriptorSets.size()),
+				descriptorSets.data(),
+				0u,
+				nullptr
+			);
+		}
+
+		if (!pushConstants.empty()) {
+			for (size_t i = 0; i < pushConstants.size(); i++) {
+				vkCmdPushConstants(
+					commandBuffer->getCommandBuffer(),
+					this->pipelineLayout,
+					this->pushConstantRanges[i].stageFlags,
+					this->pushConstantRanges[i].offset,
+					this->pushConstantRanges[i].size,
+					pushConstants[i]
+				);
+			}
+		}
+        
+        NugieVulkan::GraphicPipeline::draw(commandBuffer, vertexCount, instanceCount);
+    }
+
+    void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, 
+                                     const std::vector<NugieVulkan::Buffer *> &vertexBuffers,
+                                     NugieVulkan::Buffer *indexBuffer, uint32_t indexCount, 
+                                     uint32_t instanceCount,
+                                     const std::vector<VkDeviceSize> &vertexOffsets, 
+                                     VkDeviceSize indexOffset,
+                                     const std::vector<VkDescriptorSet> &descriptorSets,
+                                     const std::vector<void *> &pushConstants) {
+        assert((this->pipeline != nullptr) && "You must initialize this render system first!");
+
+        this->pipeline->bindPipeline(commandBuffer);
+
+        if (!descriptorSets.empty()) {
+			vkCmdBindDescriptorSets(
+				commandBuffer->getCommandBuffer(),
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				this->pipelineLayout,
+				0u,
+				static_cast<uint32_t>(descriptorSets.size()),
+				descriptorSets.data(),
+				0u,
+				nullptr
+			);
+		}
+
+		if (!pushConstants.empty()) {
+			for (size_t i = 0; i < pushConstants.size(); i++) {
+				vkCmdPushConstants(
+					commandBuffer->getCommandBuffer(),
+					this->pipelineLayout,
+					this->pushConstantRanges[i].stageFlags,
+					this->pushConstantRanges[i].offset,
+					this->pushConstantRanges[i].size,
+					pushConstants[i]
+				);
+			}
+		}
 
         if (vertexOffsets.empty()) {
             std::vector<VkDeviceSize> offsets{};
@@ -109,7 +164,58 @@ namespace NugieApp {
             NugieVulkan::GraphicPipeline::bindBuffers(commandBuffer, vertexBuffers, vertexOffsets, indexBuffer, indexOffset);
         }
 
-        NugieVulkan::GraphicPipeline::drawIndexed(commandBuffer, indexCount, 1);
+        NugieVulkan::GraphicPipeline::drawIndexed(commandBuffer, indexCount, instanceCount);
+    }
+
+    void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, const std::vector<NugieVulkan::Buffer *> &vertexBuffers,
+                                     uint32_t vertexCount, uint32_t instanceCount, 
+                                     const std::vector<VkDeviceSize> &vertexOffsets, 
+                                     const std::vector<VkDescriptorSet> &descriptorSets,
+                                     const std::vector<void *> &pushConstants) {
+        assert((this->pipeline != nullptr) && "You must initialize this render system first!");
+
+        this->pipeline->bindPipeline(commandBuffer);
+
+        if (!descriptorSets.empty()) {
+			vkCmdBindDescriptorSets(
+				commandBuffer->getCommandBuffer(),
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				this->pipelineLayout,
+				0u,
+				static_cast<uint32_t>(descriptorSets.size()),
+				descriptorSets.data(),
+				0u,
+				nullptr
+			);
+		}
+
+		if (!pushConstants.empty()) {
+			for (size_t i = 0; i < pushConstants.size(); i++) {
+				vkCmdPushConstants(
+					commandBuffer->getCommandBuffer(),
+					this->pipelineLayout,
+					this->pushConstantRanges[i].stageFlags,
+					this->pushConstantRanges[i].offset,
+					this->pushConstantRanges[i].size,
+					pushConstants[i]
+				);
+			}
+		}
+
+        if (vertexOffsets.empty()) {
+            std::vector<VkDeviceSize> offsets{};
+            offsets.reserve(vertexBuffers.size());
+
+            for (auto &&vertexBuffer: vertexBuffers) {
+                offsets.emplace_back(0);
+            }
+
+            NugieVulkan::GraphicPipeline::bindBuffers(commandBuffer, vertexBuffers, offsets);
+        } else {
+            NugieVulkan::GraphicPipeline::bindBuffers(commandBuffer, vertexBuffers, vertexOffsets);
+        }
+
+        NugieVulkan::GraphicPipeline::draw(commandBuffer, vertexCount, instanceCount);
     }
 
     void GraphicRenderSystem::initialize() {

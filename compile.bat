@@ -9,3 +9,6 @@ glslc src/shader/direct_ray_gen.comp -o build/shader/direct_ray_gen.comp.spv
 glslc src/shader/direct_ray_hit.comp -o build/shader/direct_ray_hit.comp.spv
 glslc src/shader/integrator.comp -o build/shader/integrator.comp.spv
 glslc src/shader/sampling.comp -o build/shader/sampling.comp.spv
+
+glslc src/shader/raster/final.vert -o build/shader/raster/final.vert.spv
+glslc src/shader/raster/final.frag -o build/shader/raster/final.frag.spv

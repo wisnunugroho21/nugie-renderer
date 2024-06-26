@@ -39,25 +39,29 @@ namespace NugieVulkan {
                     const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
             );
 
+            Builder &setDefault(
+                    const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments
+            );
+
             Builder &setSubpass(uint32_t subpass);
 
-            Builder &setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo);
+            Builder &setVertexInputInfo(VkPipelineVertexInputStateCreateInfo *vertexInputInfo);
 
-            Builder &setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo);
+            Builder &setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo);
 
-            Builder &setRasterizationInfo(VkPipelineRasterizationStateCreateInfo rasterizationInfo);
+            Builder &setRasterizationInfo(VkPipelineRasterizationStateCreateInfo *rasterizationInfo);
 
-            Builder &setMultisampleInfo(VkPipelineMultisampleStateCreateInfo multisampleInfo);
+            Builder &setMultisampleInfo(VkPipelineMultisampleStateCreateInfo *multisampleInfo);
 
-            Builder &setColorBlendInfo(VkPipelineColorBlendStateCreateInfo colorBlendInfo);
+            Builder &setColorBlendInfo(VkPipelineColorBlendStateCreateInfo *colorBlendInfo);
 
-            Builder &setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo depthStencilInfo);
+            Builder &setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo *depthStencilInfo);
 
-            Builder &setDynamicStateInfo(VkPipelineDynamicStateCreateInfo dynamicStateInfo);
+            Builder &setDynamicStateInfo(VkPipelineDynamicStateCreateInfo *dynamicStateInfo);
 
             Builder &setShaderStagesInfo(const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo);
 
-            Builder &setTessellationInfo(VkPipelineTessellationStateCreateInfo tessellationInfo);
+            Builder &setTessellationInfo(VkPipelineTessellationStateCreateInfo *tessellationInfo);
 
             Builder &addShaderStage(VkShaderStageFlagBits shaderStage, const std::string &shaderFilePath);
 
@@ -68,14 +72,14 @@ namespace NugieVulkan {
             VkRenderPass renderPass;
             uint32_t subpass = 0;
 
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-            VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
-            VkPipelineRasterizationStateCreateInfo rasterizationInfo{};
-            VkPipelineMultisampleStateCreateInfo multisampleInfo{};
-            VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
-            VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
-            VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
-            VkPipelineTessellationStateCreateInfo tessellationInfo{};
+            VkPipelineVertexInputStateCreateInfo *vertexInputInfo = nullptr;
+            VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo = nullptr;
+            VkPipelineRasterizationStateCreateInfo *rasterizationInfo = nullptr;
+            VkPipelineMultisampleStateCreateInfo *multisampleInfo = nullptr;
+            VkPipelineColorBlendStateCreateInfo *colorBlendInfo = nullptr;
+            VkPipelineDepthStencilStateCreateInfo *depthStencilInfo = nullptr;
+            VkPipelineDynamicStateCreateInfo *dynamicStateInfo = nullptr;
+            VkPipelineTessellationStateCreateInfo *tessellationInfo = nullptr;
 
             std::vector<VkDynamicState> dynamicStates{};
             std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo{};
@@ -84,19 +88,19 @@ namespace NugieVulkan {
         };
 
         GraphicPipeline(
-                Device *device,
+                Device *device,                
                 VkPipelineLayout pipelineLayout,
                 VkRenderPass renderPass,
                 uint32_t subpass,
-                VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-                VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-                VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-                VkPipelineMultisampleStateCreateInfo multisampleInfo,
-                VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-                VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-                VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+                VkPipelineVertexInputStateCreateInfo *vertexInputInfo,
+                VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo,
+                VkPipelineRasterizationStateCreateInfo *rasterizationInfo,
+                VkPipelineMultisampleStateCreateInfo *multisampleInfo,
+                VkPipelineColorBlendStateCreateInfo *colorBlendInfo,
+                VkPipelineDepthStencilStateCreateInfo *depthStencilInfo,
+                VkPipelineDynamicStateCreateInfo *dynamicStateInfo,
                 const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-                VkPipelineTessellationStateCreateInfo tessellationInfo
+                VkPipelineTessellationStateCreateInfo *tessellationInfo
         );
 
         ~GraphicPipeline();
@@ -111,7 +115,7 @@ namespace NugieVulkan {
                          const std::vector<VkDeviceSize> &vertexOffsets,
                          Buffer *indexBuffer = nullptr, VkDeviceSize indexOffset = 0);
 
-        static void draw(CommandBuffer *commandBuffer, uint32_t vertexCount);
+        static void draw(CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount);
 
         static void drawIndirect(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer, uint32_t offset,
                                  uint32_t drawCount);
@@ -123,6 +127,7 @@ namespace NugieVulkan {
 
     private:
         Device *device = nullptr;
+
         VkPipeline graphicPipeline;
         std::vector<VkShaderModule> shaderModules{};
 
@@ -130,15 +135,16 @@ namespace NugieVulkan {
                 VkPipelineLayout pipelineLayout,
                 VkRenderPass renderPass,
                 uint32_t subpass,
-                VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-                VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-                VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-                VkPipelineMultisampleStateCreateInfo multisampleInfo,
-                VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-                VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-                VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+                VkPipelineVertexInputStateCreateInfo *vertexInputInfo,
+                VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo,
+                VkPipelineRasterizationStateCreateInfo *rasterizationInfo,
+                VkPipelineMultisampleStateCreateInfo *multisampleInfo,
+                VkPipelineColorBlendStateCreateInfo *colorBlendInfo,
+                VkPipelineDepthStencilStateCreateInfo *depthStencilInfo,
+                VkPipelineDynamicStateCreateInfo *dynamicStateInfo,
                 const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-                VkPipelineTessellationStateCreateInfo tessellationInfo
+                VkPipelineTessellationStateCreateInfo *tessellationInfo,
+                bool isMeshShader = false
         );
     };
 }
