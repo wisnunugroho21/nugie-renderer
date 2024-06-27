@@ -24,15 +24,19 @@ layout (set = 0, binding = 3) buffer readonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
 
-layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
+layout (set = 0, binding = 4) buffer IntegratorBuffer {
+    IntegratorResult results[];
+} integratorBuffer;
+
+layout (set = 0, binding = 5) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 5) buffer readonly VertexBuffer {
+layout (set = 0, binding = 6) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 6) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 7) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -114,6 +118,7 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 }
 
 void main() {
+    IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
     LightResult finalResult;
@@ -136,7 +141,9 @@ void main() {
         float squareDistance = dot(dst, dst);
 
         finalResult.radianceIsIlluminate.w = 1.0f;
-        finalResult.radianceIsIlluminate.xyz = vec3(100.0f) * (NloL * area / squareDistance);
+        finalResult.radianceIsIlluminate.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
+            ? vec3(100.0f) * (NloL * area / squareDistance)
+            : vec3(1.0f);
     }
 
     lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
