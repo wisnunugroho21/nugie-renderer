@@ -34,8 +34,7 @@ void main() {
 
     if (missResult.radianceIsMiss.w > 0.5f) {
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? integratorResult.totalRadianceIsRayBounce.xyz + missResult.radianceIsMiss.xyz 
-                * integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w
+            ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz
             : missResult.radianceIsMiss.xyz;
 
         integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
@@ -45,8 +44,7 @@ void main() {
 
     else if (lightResult.radianceIsIlluminate.w > 0.5f) {
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? integratorResult.totalRadianceIsRayBounce.xyz + integratorResult.totalIndirectPdf.xyz 
-                * lightResult.radianceIsIlluminate.xyz
+            ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz
             : integratorResult.totalIndirectPdf.xyz;
 
         integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
@@ -55,17 +53,16 @@ void main() {
     }
 
     else {
-        vec3 prevIndirect = integratorResult.totalIndirectPdf.xyz / integratorResult.totalIndirectPdf.w;
         float totalPdf = indirectResult.radiancePdf.w + directResult.radiancePdf.w;
 
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
             ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz 
-                * (directResult.radiancePdf.w / totalPdf * prevIndirect)
+                * (directResult.radiancePdf.w / totalPdf * integratorResult.totalIndirectPdf.xyz)
             : directResult.radiancePdf.xyz;
 
         integratorResult.totalIndirectPdf.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
             ? indirectResult.radiancePdf.xyz 
-                * (indirectResult.radiancePdf.w / totalPdf * prevIndirect)
+                * (indirectResult.radiancePdf.w / totalPdf * integratorResult.totalIndirectPdf.xyz)
             : indirectResult.radiancePdf.xyz;
 
         integratorResult.totalRadianceIsRayBounce.w = (

@@ -125,25 +125,10 @@ void main() {
     finalResult.radianceIsIlluminate = vec4(0.0f);
 
     if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
-        Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
-        Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
-
-        vec3 hittedNormal = triangleNormal(hittedLight, ray);
-        vec3 hittedPosition = positionTransform(
-            transformationBuffer.transformations[hitRecord.hitTransformIndex].objectToWorldMatrix, 
-            trianglePositionFromUV(hittedLight, hitRecord.uv)
-        );
-        
-        float NloL = dot(hittedNormal, -1.0f * ray.direction);
-        vec3 dst = hittedPosition - ray.origin;
-
-        float area = triangleArea(hittedLight);
-        float squareDistance = dot(dst, dst);
-
         finalResult.radianceIsIlluminate.w = 1.0f;
         finalResult.radianceIsIlluminate.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? vec3(100.0f) * (ubo.imgSizeRandomSeedNumLight.w * NloL * area / squareDistance)
-            : vec3(1.0f);
+            ? vec3(100.0f)
+            : vec3(0.0f);
     }
 
     lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
