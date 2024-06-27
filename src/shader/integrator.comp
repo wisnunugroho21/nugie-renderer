@@ -53,16 +53,17 @@ void main() {
     }
 
     else {
-        float totalPdf = indirectResult.radiancePdf.w + directResult.radiancePdf.w;
+        float totalPdf = integratorResult.totalIndirectPdf.w + directResult.radiancePdf.w;
 
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? integratorResult.totalRadianceIsRayBounce.xyz + directResult.radiancePdf.xyz * integratorResult.totalIndirectPdf.xyz
-                * (directResult.radiancePdf.w / totalPdf)
+            ? integratorResult.totalRadianceIsRayBounce.xyz 
+                    * (integratorResult.totalIndirectPdf.w / totalPdf)
+                + directResult.radiancePdf.xyz * integratorResult.totalIndirectPdf.xyz
+                    * (directResult.radiancePdf.w / totalPdf)
             : directResult.radiancePdf.xyz;
 
         integratorResult.totalIndirectPdf.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
             ? indirectResult.radiancePdf.xyz * integratorResult.totalIndirectPdf.xyz
-                * (indirectResult.radiancePdf.w / totalPdf)
             : indirectResult.radiancePdf.xyz;
 
         integratorResult.totalRadianceIsRayBounce.w = (

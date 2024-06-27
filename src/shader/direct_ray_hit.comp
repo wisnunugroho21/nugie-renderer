@@ -85,8 +85,11 @@ float lambertPdfValue(float NoL) {
     return NoL * RECIPROCAL_PI;
 }
 
-float lambertBrdfValue() {
-    return 1.0f * RECIPROCAL_PI;
+vec3 lambertBrdfValue(uint materialIndex) {
+    return materialBuffer
+            .materials[materialIndex]
+            .baseColor.xyz 
+        * RECIPROCAL_PI;
 }
 
 // ------------- Triangle -------------
@@ -153,13 +156,12 @@ void main() {
         float NoL = dot(directData.normalIsIlluminate.xyz, ray.direction);
         vec3 dst = hittedPosition - ray.origin;
 
-        float brdf = lambertBrdfValue();
+        vec3 brdf = lambertBrdfValue(directData.materialIndex);
         float squareDistance = dot(dst, dst);
         float area = triangleArea(hittedLight);
 
         finalResult.radiancePdf.w = squareDistance / (ubo.imgSizeRandomSeedNumLight.w * NloL * area);
-        finalResult.radiancePdf.xyz = vec3(100.0f) * materialBuffer.materials[directData.materialIndex].baseColor.xyz 
-            * (brdf * NoL / finalResult.radiancePdf.w);
+        finalResult.radiancePdf.xyz = vec3(100.0f) * brdf * (NoL / finalResult.radiancePdf.w);
     }
 
     directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

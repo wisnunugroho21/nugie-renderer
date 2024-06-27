@@ -130,8 +130,11 @@ float lambertPdfValue(float NoL) {
     return NoL * RECIPROCAL_PI;
 }
 
-float lambertBrdfValue() {
-    return 1.0f * RECIPROCAL_PI;
+vec3 lambertBrdfValue(uint materialIndex) {
+    return materialBuffer
+            .materials[materialIndex]
+            .baseColor.xyz 
+        * RECIPROCAL_PI;
 }
 
 vec3 randomCosineDirection(uint additionalRandomSeed) {
@@ -225,26 +228,25 @@ void main() {
             trianglePositionFromUV(hittedTriangle, hitRecord.uv)
         );
 
-        vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
-
-        Ray nextRay;
-        nextRay.origin = hittedPosition;
-        nextRay.direction = normalize(target - hittedPosition);
-
-        float NoL = dot(hittedNormal, nextRay.direction);
-        float brdf = lambertBrdfValue();
-
-        finalResult.radiancePdf.w = lambertPdfValue(NoL);
-        finalResult.radiancePdf.xyz = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz 
-            * (brdf * NoL / finalResult.radiancePdf.w);
-
         data.normalIsIlluminate.xyz = hittedNormal;
         data.normalIsIlluminate.w = 1.0f;
 
         data.origin = hittedPosition;
         data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
 
+        vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
+
+        Ray nextRay;
+        nextRay.origin = hittedPosition;
+        nextRay.direction = normalize(target - hittedPosition);
+
         scatteredRayBuffer.rays[gl_GlobalInvocationID.x] = nextRay;
+
+        float NoL = dot(hittedNormal, nextRay.direction);
+        vec3 brdf = lambertBrdfValue(data.materialIndex);
+
+        finalResult.radiancePdf.w = lambertPdfValue(NoL);
+        finalResult.radiancePdf.xyz = brdf * (NoL / finalResult.radiancePdf.w);
     }
 
     indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

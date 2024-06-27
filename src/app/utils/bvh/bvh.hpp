@@ -50,8 +50,9 @@ namespace NugieApp {
 
     class TriangleBoundBox : public BoundBox {
     public:
-        TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t},
-                                                                                        vertices{v} {
+        TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) 
+                         : BoundBox(i), triangle{t}, vertices{v} 
+        {
             this->typeIndex = 1u;
         }
 
@@ -64,8 +65,9 @@ namespace NugieApp {
 
     class TriangleLightBoundBox : public BoundBox {
     public:
-        TriangleLightBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) : BoundBox(i), triangle{t},
-                                                                                             vertices{v} {
+        TriangleLightBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) 
+                              : BoundBox(i), triangle{t}, vertices{v} 
+        {
             this->typeIndex = 2u;
         }
 
