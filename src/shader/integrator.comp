@@ -34,7 +34,7 @@ void main() {
 
     if (missResult.radianceIsMiss.w > 0.5f) {
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? integratorResult.totalRadianceIsRayBounce.xyz + missResult.radianceIsMiss.xyz
+            ? integratorResult.totalRadianceIsRayBounce.xyz + missResult.radianceIsMiss.xyz * integratorResult.totalIndirectPdf.xyz
             : missResult.radianceIsMiss.xyz;
 
         integratorResult.totalIndirectPdf.xyz = vec3(1.0f);
@@ -44,7 +44,7 @@ void main() {
 
     else if (lightResult.radianceIsIlluminate.w > 0.5f) {
         integratorResult.totalRadianceIsRayBounce.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? integratorResult.totalRadianceIsRayBounce.xyz + lightResult.radianceIsIlluminate.xyz
+            ? integratorResult.totalRadianceIsRayBounce.xyz + lightResult.radianceIsIlluminate.xyz * integratorResult.totalIndirectPdf.xyz
             : lightResult.radianceIsIlluminate.xyz;
 
         integratorResult.totalIndirectPdf.xyz = vec3(1.0f);

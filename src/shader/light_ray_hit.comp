@@ -126,9 +126,7 @@ void main() {
 
     if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
         finalResult.radianceIsIlluminate.w = 1.0f;
-        finalResult.radianceIsIlluminate.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? vec3(0.0f)
-            : vec3(1.0f);
+        finalResult.radianceIsIlluminate.xyz = vec3(1.0f);
     }
 
     lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

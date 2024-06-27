@@ -161,7 +161,7 @@ void main() {
         float area = triangleArea(hittedLight);
 
         finalResult.radiancePdf.w = squareDistance / (ubo.imgSizeRandomSeedNumLight.w * NloL * area);
-        finalResult.radiancePdf.xyz = vec3(100.0f) * brdf * (NoL / finalResult.radiancePdf.w);
+        finalResult.radiancePdf.xyz = vec3(1.0f) * brdf * (NoL / finalResult.radiancePdf.w);
     }
 
     directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

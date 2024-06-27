@@ -33,9 +33,7 @@ void main() {
 
     if (hitRecord.t < 0.001f) {
         missRecord.radianceIsMiss.w = 1.0f;
-        missRecord.radianceIsMiss.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? vec3(0.0f)
-            : vec3(1.0f);
+        missRecord.radianceIsMiss.xyz = vec3(1.0f);
     }
 
     missBuffer.results[gl_GlobalInvocationID.x] = missRecord;
