@@ -142,7 +142,7 @@ void main() {
 
         finalResult.radianceIsIlluminate.w = 1.0f;
         finalResult.radianceIsIlluminate.xyz = (integratorResult.totalRadianceIsRayBounce.w > 0.5f)
-            ? vec3(100.0f) * (NloL * area / squareDistance)
+            ? vec3(100.0f) * (ubo.imgSizeRandomSeedNumLight.w * NloL * area / squareDistance)
             : vec3(1.0f);
     }
 

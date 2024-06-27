@@ -235,7 +235,8 @@ void main() {
         float brdf = lambertBrdfValue();
 
         finalResult.radiancePdf.w = lambertPdfValue(NoL);
-        finalResult.radiancePdf.xyz = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz * (brdf * NoL);
+        finalResult.radiancePdf.xyz = materialBuffer.materials[hittedTriangle.vertexMaterialIndexes.w].baseColor.xyz 
+            * (brdf * NoL);
 
         data.normalIsIlluminate.xyz = hittedNormal;
         data.normalIsIlluminate.w = 1.0f;
