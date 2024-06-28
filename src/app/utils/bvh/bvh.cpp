@@ -1,6 +1,7 @@
 #include "bvh.hpp"
 
 #include <array>
+#include <algorithm>
 
 namespace NugieApp {
     float Aabb::area() const {
@@ -31,32 +32,52 @@ namespace NugieApp {
 
     Aabb TriangleBoundBox::boundingBox() {
         return Aabb{
-                glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position,
-                                            this->vertices[this->triangle.vertexMaterialIndexes.y].position),
-                                   this->vertices[this->triangle.vertexMaterialIndexes.z].position)),
-                glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position,
-                                            this->vertices[this->triangle.vertexMaterialIndexes.y].position),
-                                   this->vertices[this->triangle.vertexMaterialIndexes.z].position))
+                glm::vec3(
+                    glm::min(
+                        glm::min(
+                                    this->vertices[this->triangle.vertexMaterialIndexes.x].position,
+                                    this->vertices[this->triangle.vertexMaterialIndexes.y].position
+                                ),
+                                this->vertices[this->triangle.vertexMaterialIndexes.z].position)
+                        ),
+                glm::vec3(
+                    glm::max(
+                        glm::max(
+                                    this->vertices[this->triangle.vertexMaterialIndexes.x].position,
+                                    this->vertices[this->triangle.vertexMaterialIndexes.y].position
+                                ),
+                                this->vertices[this->triangle.vertexMaterialIndexes.z].position
+                            )
+                        )
         };
     }
 
     Aabb TriangleLightBoundBox::boundingBox() {
         return Aabb{
-                glm::vec3(glm::min(glm::min(this->vertices[this->triangle.vertexMaterialIndexes.x].position,
-                                            this->vertices[this->triangle.vertexMaterialIndexes.y].position),
-                                   this->vertices[this->triangle.vertexMaterialIndexes.z].position)),
-                glm::vec3(glm::max(glm::max(this->vertices[this->triangle.vertexMaterialIndexes.x].position,
-                                            this->vertices[this->triangle.vertexMaterialIndexes.y].position),
-                                   this->vertices[this->triangle.vertexMaterialIndexes.z].position))
+                glm::vec3(
+                    glm::min(
+                        glm::min(
+                                    this->vertices[this->triangle.vertexMaterialIndexes.x].position,
+                                    this->vertices[this->triangle.vertexMaterialIndexes.y].position
+                                ),
+                                this->vertices[this->triangle.vertexMaterialIndexes.z].position)
+                        ),
+                glm::vec3(
+                    glm::max(
+                        glm::max(
+                                this->vertices[this->triangle.vertexMaterialIndexes.x].position,
+                                this->vertices[this->triangle.vertexMaterialIndexes.y].position
+                                ),
+                                this->vertices[this->triangle.vertexMaterialIndexes.z].position
+                            )
+                        )
         };
     }
 
     ObjectBoundBox::ObjectBoundBox(uint32_t i, const Object &o, const TransformComponent &tc,
-                                   const std::vector<Triangle> &t, const std::vector<Vertex> &v) : BoundBox(i),
-                                                                                                   object{o},
-                                                                                                   transformation{tc},
-                                                                                                   triangles{t},
-                                                                                                   vertices{v} {
+                                   const std::vector<Triangle> &t, const std::vector<Vertex> &v) 
+                                   : BoundBox(i), object{o}, transformation{tc}, triangles{t}, vertices{v} 
+    {
         this->typeIndex = 0u;
         this->originalMin = glm::vec3(this->findMin(0), this->findMin(1), this->findMin(2));
         this->originalMax = glm::vec3(this->findMax(0), this->findMax(1), this->findMax(2));
@@ -218,7 +239,7 @@ namespace NugieApp {
         return cost > 0 ? cost : FLT_MAX;
     }
 
-    SplitSAHResult splitSAH(BvhItemBuild node) {
+    /* SplitSAHResult splitSAH(BvhItemBuild node) {
         int bestAxis = -1;
         float bestPosition = 0.0f, bestCost = FLT_MAX;
 
@@ -233,6 +254,77 @@ namespace NugieApp {
                     bestAxis = axis;
                     bestCost = cost;
                 }
+            }
+        }
+
+        return SplitSAHResult {
+            bestAxis, 
+            bestPosition,
+            bestCost
+        };
+    } */
+
+    SplitSAHResult splitSAH(BvhItemBuild node) {
+        int bestAxis = -1;
+        float bestPosition = 0.0f, bestCost = FLT_MAX;
+
+        for (int axis = 0; axis < 3; axis++) {
+            if (node.box.max[axis] == node.box.min[axis]) {
+                continue;
+            }
+
+            std::array<BvhBinSAH, SPLIT_NUMBER> bins;
+            bins.fill(BvhBinSAH{});
+
+            float scale = SPLIT_NUMBER / (node.box.max[axis] - node.box.min[axis]);
+            for (auto &&object : node.objects) {
+                Aabb boundBox = object->boundingBox();
+                float objectPosition = (boundBox.max[axis] - boundBox.min[axis]) / 2.0f + boundBox.min[axis];
+
+                float initIdx = std::ceil((objectPosition - node.box.min[axis]) * scale);
+                int binIdx = std::min(SPLIT_NUMBER - 1, static_cast<int>(initIdx));
+                
+                bins[binIdx].objectCount++;
+                bins[binIdx].box.max = glm::max(bins[binIdx].box.max, boundBox.max);
+                bins[binIdx].box.min = glm::min(bins[binIdx].box.min, boundBox.min);
+            }
+
+            float leftArea[SPLIT_NUMBER - 1], rightArea[SPLIT_NUMBER - 1];
+            int leftCount[SPLIT_NUMBER - 1], rightCount[SPLIT_NUMBER - 1];
+            Aabb leftBox{}, rightBox{};
+            int leftSum = 0, rightSum = 0;
+
+            for (int i = 0; i < SPLIT_NUMBER - 1; i++)
+            {
+                leftSum += bins[i].objectCount;
+                leftCount[i] = leftSum;
+
+                leftBox.max = glm::max(leftBox.max, bins[i].box.max);
+                leftBox.min = glm::min(leftBox.min, bins[i].box.min);
+                
+                leftArea[i] = leftBox.area();
+
+                rightSum += bins[SPLIT_NUMBER - 1 - i].objectCount;
+                rightCount[SPLIT_NUMBER - 2 - i] = rightSum;
+
+                rightBox.max = glm::max(rightBox.max, bins[SPLIT_NUMBER - 1 - i].box.max);
+                rightBox.min = glm::min(rightBox.min, bins[SPLIT_NUMBER - 1 - i].box.min);
+                
+                rightArea[SPLIT_NUMBER - 2 - i] = rightBox.area();
+            }
+
+            scale = (node.box.max[axis] - node.box.min[axis]) / SPLIT_NUMBER;
+            for (int i = 0; i < SPLIT_NUMBER - 1; i++)
+            {
+                float planeCost = leftCount[i] * leftArea[i] 
+                                + rightCount[i] * rightArea[i];
+
+                if (planeCost < bestCost) {
+                    bestAxis = axis;
+                    bestPosition = node.box.min[axis] + scale * (i + 1);
+                    bestCost = planeCost;
+                }
+                
             }
         }
 

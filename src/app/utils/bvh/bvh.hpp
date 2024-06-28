@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <stack>
 
-#define SPLIT_NUMBER 4
+#define SPLIT_NUMBER 2
 
 namespace NugieApp {
     // Axis-aligned bounding box.
