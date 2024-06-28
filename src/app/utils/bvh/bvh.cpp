@@ -1,5 +1,7 @@
 #include "bvh.hpp"
 
+#include <array>
+
 namespace NugieApp {
     float Aabb::area() const {
         auto diff = this->max - this->min;
@@ -193,61 +195,52 @@ namespace NugieApp {
         return boxCompare(a, b, 2);
     }
 
-    float findTriangleSplitPosition(BvhItemBuild node, int axis, float length) {
-        float bestCost = FLT_MAX;
-        float splitPos = 0.0f;
-
-        BvhBinSAH bvhBins[SPLIT_NUMBER];
-        float scale = (node.box.max[axis] - node.box.min[axis]) / SPLIT_NUMBER;
-
-        if (scale == 0.0f) {
-            return (node.box.max[axis] - node.box.min[axis]) / 2.0f + node.box.min[axis];
-        }
-
-        for (auto &&item: node.objects) {
-            Aabb boundBox = item->boundingBox();
-            float pos = (boundBox.max[axis] - boundBox.min[axis]) / 2.0f + boundBox.min[axis];
-
-            int binIdx = glm::min(SPLIT_NUMBER - 1, (int) std::floor((pos - boundBox.min[axis]) / scale));
-            BvhBinSAH binSah = bvhBins[binIdx];
-
-            binSah.box.max = glm::max(binSah.box.max, boundBox.max);
-            binSah.box.min = glm::min(binSah.box.min, boundBox.min);
-            binSah.objectCount++;
-
-            bvhBins[binIdx] = binSah;
-        }
-
-        float leftArea[SPLIT_NUMBER - 1], rightArea[SPLIT_NUMBER - 1];
-        int leftCount[SPLIT_NUMBER - 1], rightCount[SPLIT_NUMBER - 1];
-        Aabb leftBox, rightBox;
+    float evaluateSAH(BvhItemBuild node, int axis, float position) {
+        Aabb leftBox{}, rightBox{};
         int leftSum = 0, rightSum = 0;
 
-        for (int i = 0; i < SPLIT_NUMBER - 1; i++) {
-            leftSum += bvhBins[i].objectCount;
-            leftCount[i] = leftSum;
+        for (auto &&object : node.objects) {
+            Aabb boundBox = object->boundingBox();
+            float objectPosition = (boundBox.max[axis] - boundBox.min[axis]) / 2.0f + boundBox.min[axis];
 
-            leftBox.max = glm::max(leftBox.max, bvhBins[i].box.max);
-            leftBox.min = glm::min(leftBox.min, bvhBins[i].box.min);
-            leftArea[i] = leftBox.area();
-
-            rightSum += bvhBins[i].objectCount;
-            rightCount[i] = rightSum;
-
-            rightBox.max = glm::max(rightBox.max, bvhBins[i].box.max);
-            rightBox.min = glm::min(rightBox.min, bvhBins[i].box.min);
-            rightArea[i] = rightBox.area();
-        }
-
-        for (int i = 0; i < SPLIT_NUMBER - 1; i++) {
-            float curCost = static_cast<float>(leftCount[i]) * leftArea[i] + static_cast<float>(rightCount[i]) * rightArea[i];
-            if (curCost < bestCost) {
-                bestCost = curCost;
-                splitPos = node.box.min[axis] + scale * static_cast<float>(i + 1);
+            if (objectPosition < position) {
+                leftBox.max = glm::max(leftBox.max, boundBox.max);
+                leftBox.min = glm::min(leftBox.min, boundBox.min);
+                leftSum++;
+            } else {
+                rightBox.max = glm::max(leftBox.max, boundBox.max);
+                rightBox.min = glm::min(leftBox.min, boundBox.min);
+                rightSum++;
             }
         }
 
-        return splitPos;
+        float cost = leftSum * leftBox.area() + rightSum * rightBox.area();
+        return cost > 0 ? cost : FLT_MAX;
+    }
+
+    SplitSAHResult splitSAH(BvhItemBuild node) {
+        int bestAxis = -1;
+        float bestPosition = 0.0f, bestCost = FLT_MAX;
+
+        for (int axis = 0; axis < 3; axis++) {
+            for (auto &&object : node.objects) {
+                Aabb boundBox = object->boundingBox();
+                float objectPosition = (boundBox.max[axis] - boundBox.min[axis]) / 2.0f + boundBox.min[axis];
+
+                float cost = evaluateSAH(node, axis, objectPosition);
+                if (cost < bestCost) {
+                    bestPosition = objectPosition;
+                    bestAxis = axis;
+                    bestCost = cost;
+                }
+            }
+        }
+
+        return SplitSAHResult {
+            bestAxis, 
+            bestPosition,
+            bestCost
+        };
     }
 
     // Since GPU can't deal with tree structures we need to create a flattened BVH.
@@ -270,35 +263,22 @@ namespace NugieApp {
             nodeStack.pop();
 
             currentNode.box = objectListBoundingBox(currentNode.objects);
-
-            int axis = currentNode.box.longestAxis();
-            auto comparator = (axis == 0) ? boxXCompare
-                                          : (axis == 1) ? boxYCompare
-                                                        : boxZCompare;
-
             size_t objectSpan = currentNode.objects.size();
-            std::sort(currentNode.objects.begin(), currentNode.objects.end(), comparator);
 
             if (objectSpan == 1) {
                 intermediate.push_back(currentNode);
             } else {
-                float length = currentNode.box.max[axis] - currentNode.box.min[axis];
-                float splitPos = findTriangleSplitPosition(currentNode, axis, length); //  std::ceil(objectSpan / 2);
-
                 BvhItemBuild leftNode, rightNode;
+                SplitSAHResult result = splitSAH(currentNode);
 
-                for (auto &&item: currentNode.objects) {
-                    Aabb curBox = item->boundingBox();
-                    float pos = (curBox.max[axis] - curBox.min[axis]) / 2 + curBox.min[axis];
+                float currentCost = currentNode.objects.size() * currentNode.box.area();
+                if (result.cost >= currentCost) {
+                    int axis = currentNode.box.longestAxis();
+                    auto comparator = (axis == 0) ? boxXCompare
+                                    : (axis == 1) ? boxYCompare
+                                    : boxZCompare;
 
-                    if (pos < splitPos) {
-                        leftNode.objects.push_back(item);
-                    } else {
-                        rightNode.objects.push_back(item);
-                    }
-                }
-
-                if (leftNode.objects.empty() || rightNode.objects.empty()) {
+                    std::sort(currentNode.objects.begin(), currentNode.objects.end(), comparator);
                     int mid = static_cast<int>(std::ceil(objectSpan / 2));
 
                     leftNode.objects.clear();
@@ -310,6 +290,22 @@ namespace NugieApp {
 
                     for (int i = mid; i < objectSpan; i++) {
                         rightNode.objects.push_back(currentNode.objects[i]);
+                    }
+                }
+
+                else {
+                    leftNode.objects.clear();
+                    rightNode.objects.clear();
+
+                    for (auto &&object : currentNode.objects) {
+                        Aabb boundBox = object->boundingBox();
+                        float objectPosition = (boundBox.max[result.axis] - boundBox.min[result.axis]) / 2.0f + boundBox.min[result.axis];
+
+                        if (objectPosition < result.position) {
+                            leftNode.objects.push_back(object);
+                        } else {
+                            rightNode.objects.push_back(object);
+                        }
                     }
                 }
 

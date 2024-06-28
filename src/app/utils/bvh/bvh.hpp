@@ -29,6 +29,12 @@ namespace NugieApp {
         static uint32_t randomAxis();
     };
 
+    struct SplitSAHResult {
+        int axis;
+        float position;
+        float cost;
+    };
+
     class BoundBox {
     public:
         BoundBox(uint32_t i) : index{i} {}
@@ -44,8 +50,8 @@ namespace NugieApp {
         virtual glm::vec3 getOriginalMax() { return glm::vec3(0.0f); }
 
     protected:
-        uint32_t index;
-        uint32_t typeIndex;
+        uint32_t index = 0u;
+        uint32_t typeIndex = 0u;
     };
 
     class TriangleBoundBox : public BoundBox {
@@ -59,8 +65,8 @@ namespace NugieApp {
         Aabb boundingBox() override;
 
     private:
-        Triangle triangle;
-        std::vector<Vertex> vertices;
+        Triangle triangle{};
+        std::vector<Vertex> vertices{};
     };
 
     class TriangleLightBoundBox : public BoundBox {
@@ -74,8 +80,8 @@ namespace NugieApp {
         Aabb boundingBox() override;
 
     private:
-        Triangle triangle;
-        std::vector<Vertex> vertices;
+        Triangle triangle{};
+        std::vector<Vertex> vertices{};
     };
 
     class ObjectBoundBox : public BoundBox {
@@ -90,11 +96,11 @@ namespace NugieApp {
         Aabb boundingBox() override;
 
     private:
-        Object object;
-        TransformComponent transformation;
+        Object object{};
+        TransformComponent transformation{};
 
-        std::vector<Triangle> triangles;
-        std::vector<Vertex> vertices;
+        std::vector<Triangle> triangles{};
+        std::vector<Vertex> vertices{};
 
         glm::vec3 originalMin{0.0f};
         glm::vec3 originalMax{0.0f};
@@ -107,17 +113,17 @@ namespace NugieApp {
     // Intermediate BvhNode structure needed for constructing Bvh.
     struct BvhItemBuild {
         Aabb box;
-        uint32_t index = 0; // index refers to the index in the final array of nodes. Used for sorting a flattened Bvh.
-        uint32_t leftNodeIndex = 0;
-        uint32_t rightNodeIndex = 0;
-        std::vector<BoundBox *> objects;
+        uint32_t index = 0u; // index refers to the index in the final array of nodes. Used for sorting a flattened Bvh.
+        uint32_t leftNodeIndex = 0u;
+        uint32_t rightNodeIndex = 0u;
+        std::vector<BoundBox *> objects{};
 
         BvhNode getGpuModel();
     };
 
     struct BvhBinSAH {
         Aabb box;
-        uint32_t objectCount;
+        uint32_t objectCount = 0u;
     };
 
     bool nodeCompare(const BvhItemBuild &a, const BvhItemBuild &b);
@@ -134,7 +140,9 @@ namespace NugieApp {
 
     bool boxZCompare(BoundBox *a, BoundBox *b);
 
-    float findTriangleSplitPosition(BvhItemBuild node, int axis, float length);
+    float evaluateSAH(BvhItemBuild node, int axis, float position);
+
+    SplitSAHResult splitSAH(BvhItemBuild node);
 
     // Since GPU can't deal with tree structures we need to create a flattened BVH.
     // Stack is used instead of a tree.
