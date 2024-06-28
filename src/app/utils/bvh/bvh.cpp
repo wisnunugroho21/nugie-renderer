@@ -294,8 +294,7 @@ namespace NugieApp {
             Aabb leftBox{}, rightBox{};
             int leftSum = 0, rightSum = 0;
 
-            for (int i = 0; i < SPLIT_NUMBER - 1; i++)
-            {
+            for (int i = 0; i < SPLIT_NUMBER - 1; i++) {
                 leftSum += bins[i].objectCount;
                 leftCount[i] = leftSum;
 
@@ -314,8 +313,7 @@ namespace NugieApp {
             }
 
             scale = (node.box.max[axis] - node.box.min[axis]) / SPLIT_NUMBER;
-            for (int i = 0; i < SPLIT_NUMBER - 1; i++)
-            {
+            for (int i = 0; i < SPLIT_NUMBER - 1; i++) {
                 float planeCost = leftCount[i] * leftArea[i] 
                                 + rightCount[i] * rightArea[i];
 
@@ -324,7 +322,6 @@ namespace NugieApp {
                     bestPosition = node.box.min[axis] + scale * (i + 1);
                     bestCost = planeCost;
                 }
-                
             }
         }
 
