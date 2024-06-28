@@ -36,7 +36,11 @@ layout (set = 0, binding = 6) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 7) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 7) buffer readonly MaterialBuffer {
+    Material materials[];
+} materialBuffer;
+
+layout (set = 0, binding = 8) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -125,8 +129,13 @@ void main() {
     finalResult.radianceIsIlluminate = vec4(0.0f);
 
     if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
+        Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
+
         finalResult.radianceIsIlluminate.w = 1.0f;
-        finalResult.radianceIsIlluminate.xyz = vec3(1.0f);
+        finalResult.radianceIsIlluminate.xyz = materialBuffer
+            .materials[hittedLight.vertexMaterialIndexes.w]
+            .baseColor
+            .xyz;
     }
 
     lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

@@ -549,8 +549,8 @@ namespace NugieApp {
         vertices.emplace_back(Vertex{glm::vec3{213.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{20u, 21u, 22u, 0u}});
-        curTris.emplace_back(Triangle{glm::uvec4{22u, 23u, 20u, 0u}});
+        curTris.emplace_back(Triangle{glm::uvec4{20u, 21u, 22u, 3u}});
+        curTris.emplace_back(Triangle{glm::uvec4{22u, 23u, 20u, 3u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
@@ -586,6 +586,7 @@ namespace NugieApp {
         materials.emplace_back(Material{glm::vec4(0.73f, 0.73f, 0.73f, 1.0f)});
         materials.emplace_back(Material{glm::vec4(0.12f, 0.45f, 0.15f, 1.0f)});
         materials.emplace_back(Material{glm::vec4(0.65f, 0.05f, 0.05f, 1.0f)});
+        materials.emplace_back(Material{glm::vec4(100.0f, 100.0f, 100.0f, 1.0f)});
 
         transforms = ConvertComponentToTransform(transformComponents);
         bvhObjects = createBvh(objectBoundBoxes);
@@ -788,6 +789,8 @@ namespace NugieApp {
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("vertex"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("material"))
+                .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("transform"))
                 .build();
 
