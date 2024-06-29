@@ -20,16 +20,9 @@ layout (set = 0, binding = 2) buffer readonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
 
-layout (set = 0, binding = 3) buffer readonly IntegratorBuffer {
-    IntegratorResult results[];
-} integratorBuffer;
-
 void main() {
-    IntegratorResult integratorResult = integratorBuffer.results[gl_GlobalInvocationID.x];
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
-
-    MissResult missRecord;
-    missRecord.radianceIsMiss = vec4(0.0f);
+    MissResult missRecord = MissResult(vec4(0.0f));
 
     if (hitRecord.t < 0.001f) {
         missRecord.radianceIsMiss.w = 1.0f;

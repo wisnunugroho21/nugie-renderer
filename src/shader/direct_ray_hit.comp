@@ -136,9 +136,7 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 
 void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
-
-    DirectResult finalResult;
-    finalResult.radiancePdf = vec4(0.0f);
+    DirectResult finalResult = DirectResult(vec4(0.0f));
 
     DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
 
@@ -156,8 +154,8 @@ void main() {
         float NoL = dot(directData.normalIsIlluminate.xyz, ray.direction);
         vec3 dst = hittedPosition - ray.origin;
 
-        float squareDistance = dot(dst, dst);
         float area = triangleArea(hittedLight);
+        float squareDistance = dot(dst, dst);
 
         vec3 surfaceColor = materialBuffer
             .materials[directData.materialIndex]

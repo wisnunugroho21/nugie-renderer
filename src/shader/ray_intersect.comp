@@ -220,12 +220,12 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
                 rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
             }
 
-            if (leftDist < 1.0e+28 || rightDist < 1.0e+28) {
-                if (leftDist >= 1.0e+28) {
+            if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
+                if (leftDist >= 1.0e+30) {
                     stack[stackIndex++] = curNode.rightNode;
                 }
 
-                else if (rightDist >= 1.0e+28) {
+                else if (rightDist >= 1.0e+30) {
                     stack[stackIndex++] = curNode.leftNode;
                 }
 
@@ -277,12 +277,12 @@ bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitGeometryIndex, ou
                 rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
             }
 
-            if (leftDist < 1.0e+28 || rightDist < 1.0e+28) {
-                if (leftDist >= 1.0e+28) {
+            if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
+                if (leftDist >= 1.0e+30) {
                     stack[stackIndex++] = curNode.rightNode;
                 }
 
-                else if (rightDist >= 1.0e+28) {
+                else if (rightDist >= 1.0e+30) {
                     stack[stackIndex++] = curNode.leftNode;
                 }
 

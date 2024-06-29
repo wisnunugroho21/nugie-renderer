@@ -212,11 +212,8 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
-    IndirectResult finalResult;
-    finalResult.radiancePdf = vec4(0.0f);
-
-    DirectData data;
-    data.normalIsIlluminate = vec4(0.0f);
+    IndirectResult finalResult = IndirectResult(vec4(0.0f));
+    DirectData data = DirectData(vec4(0.0f), vec3(0.0f), 0u);
 
     if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 1u) {
         Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitGeometryIndex];
@@ -236,17 +233,18 @@ void main() {
 
         vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
 
-        Ray nextRay;
-        nextRay.origin = hittedPosition;
-        nextRay.direction = normalize(target - hittedPosition);
-
+        Ray nextRay = Ray(hittedPosition, normalize(target - hittedPosition));
         scatteredRayBuffer.rays[gl_GlobalInvocationID.x] = nextRay;
 
         float NoL = dot(hittedNormal, nextRay.direction);
-        vec3 brdf = lambertBrdfValue(data.materialIndex);
+
+        vec3 surfaceColor = materialBuffer
+            .materials[data.materialIndex]
+            .baseColor
+            .xyz;
 
         finalResult.radiancePdf.w = lambertPdfValue(NoL);
-        finalResult.radiancePdf.xyz = brdf * (NoL / finalResult.radiancePdf.w);
+        finalResult.radiancePdf.xyz = surfaceColor * (RECIPROCAL_PI * NoL / finalResult.radiancePdf.w);
     }
 
     indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;

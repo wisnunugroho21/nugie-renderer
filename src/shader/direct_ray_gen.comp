@@ -85,9 +85,7 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
 
 void main() {
     DirectData data = directDataBuffer.datas[gl_GlobalInvocationID.x];
-
-    Ray newRay;
-    newRay.direction = vec3(0.0f);
+    Ray newRay = Ray(vec3(0.0f), vec3(0.0f));
 
     if (data.normalIsIlluminate.w > 0.5f) {
         uint lightIndex = randomUint(0u, ubo.imgSizeRandomSeedNumLight.w - 1u, 0u);
