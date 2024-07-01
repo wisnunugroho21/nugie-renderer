@@ -638,14 +638,13 @@ namespace NugieApp {
                 .addArrayItem("scattered_ray_direction", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("direct_origin_illuminate", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("direct_normal_material", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
-                .addArrayItem("indirect_radiance_pdf", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
-                .addArrayItem("light_radiance_illuminate", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
-                .addArrayItem("miss_radiance_miss", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
-                .addArrayItem("direct_radiance_pdf", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
+                .addArrayItem("indirect_radiance_pdf", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("light_radiance_illuminate", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("miss_radiance_miss", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("direct_radiance_pdf", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("integrator_radiance_bounce", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("integrator_indirect_pdf", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
-                .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
-                
+                .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)                
                 .build();
 
         this->uniformBuffer = StackedObjectBuffer::Builder(this->device, 
