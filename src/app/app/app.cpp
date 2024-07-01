@@ -85,11 +85,8 @@ namespace NugieApp {
                 this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_origin",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_direction",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "traced_ray_origin", "traced_ray_direction" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -99,34 +96,17 @@ namespace NugieApp {
                 this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_length",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_uv",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_geometry_index",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_geometry_type_index",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_transform_index",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "hit_length", "hit_uv", "hit_geometry_index", 
+                                                              "hit_geometry_type_index", "hit_transform_index" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_origin",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_direction",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "scattered_ray_origin", "scattered_ray_direction" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
@@ -134,25 +114,10 @@ namespace NugieApp {
                 this->indirectRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                      {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, {});
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_radiance_pdf",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_origin_illuminate",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_normal_material",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_origin",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_direction",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "scattered_ray_origin", "scattered_ray_direction",
+                                                              "direct_origin_illuminate", "direct_normal_material",
+                                                              "indirect_radiance_pdf"},
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -177,11 +142,8 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_origin",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_direction",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "traced_ray_origin", "traced_ray_direction" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
@@ -189,34 +151,17 @@ namespace NugieApp {
                 this->directRayGenRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_origin",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_direction",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "traced_ray_origin", "traced_ray_direction" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_length",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_uv",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_geometry_index",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_geometry_type_index",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_transform_index",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "hit_length", "hit_uv", "hit_geometry_index", 
+                                                              "hit_geometry_type_index", "hit_transform_index" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
@@ -224,23 +169,9 @@ namespace NugieApp {
                 this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_length",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_uv",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_geometry_index",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_geometry_type_index",
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "hit_transform_index",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
+                                                              "hit_length", "hit_uv", "hit_geometry_index", 
+                                                              "hit_geometry_type_index", "hit_transform_index" },
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -703,17 +634,18 @@ namespace NugieApp {
                 .addArrayItem("hit_geometry_index", static_cast<VkDeviceSize>(sizeof(uint32_t)), width * height)
                 .addArrayItem("hit_geometry_type_index", static_cast<VkDeviceSize>(sizeof(uint32_t)), width * height)
                 .addArrayItem("hit_transform_index", static_cast<VkDeviceSize>(sizeof(uint32_t)), width * height)
+                .addArrayItem("scattered_ray_origin", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("scattered_ray_direction", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("direct_origin_illuminate", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("direct_normal_material", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("indirect_radiance_pdf", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
                 .addArrayItem("light_radiance_illuminate", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
                 .addArrayItem("miss_radiance_miss", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
-                .addArrayItem("direct_origin_illuminate", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
-                .addArrayItem("direct_normal_material", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("direct_radiance_pdf", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
                 .addArrayItem("integrator_radiance_bounce", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("integrator_indirect_pdf", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
-                .addArrayItem("scattered_ray_origin", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
-                .addArrayItem("scattered_ray_direction", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                
                 .build();
 
         this->uniformBuffer = StackedObjectBuffer::Builder(this->device, 

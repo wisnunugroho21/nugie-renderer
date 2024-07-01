@@ -161,6 +161,54 @@ namespace NugieApp {
                                srcAccess, dstAccess, srcQueueFamilyIndex, dstQueueFamilyIndex);
     }
 
+    void StackedArrayManyBuffer::transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, uint32_t bufferIndex, 
+                                                  const std::vector<std::string> &arrayIds,
+                                                  VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
+                                                  VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+                                                  uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex) 
+    {
+        int prevIndex = this->arrayIdMaps[
+            arrayIds[0]
+        ];
+
+        for (size_t i = 1; i < arrayIds.size(); i++) {
+            int curIndex = this->arrayIdMaps[
+                arrayIds[i]
+            ];
+
+            if (curIndex - 1 != prevIndex) {
+                throw std::runtime_error("some id(s) did not sits in the correct order");
+            }
+
+            prevIndex = curIndex;
+        }
+
+        VkDeviceSize offset = this->arrayItemBufferInfos[
+            this->arrayIdMaps[
+                arrayIds[0]
+            ]
+        ].offset;
+
+        VkDeviceSize size = this->arrayItemBufferInfos[
+            this->arrayIdMaps[
+                arrayIds[0]
+            ]
+        ].size;
+
+        for (size_t i = 1; i < arrayIds.size(); i++) {
+            size += this->arrayItemBufferInfos[
+                this->arrayIdMaps[
+                    arrayIds[i]
+                ]
+            ].size;
+        }
+        
+        this->buffers[bufferIndex]->transitionBuffer(commandBuffer, size, offset, srcStage, dstStage, 
+                                                     srcAccess, dstAccess, srcQueueFamilyIndex,
+                                                     dstQueueFamilyIndex);
+
+    }
+
     void StackedArrayManyBuffer::initializeValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t value) {
         for (auto &&buffer: this->buffers) {
             buffer->fillBuffer(commandBuffer, value);

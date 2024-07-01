@@ -61,6 +61,14 @@ namespace NugieApp {
                          uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                          uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
 
+        void
+        transitionBuffer(NugieVulkan::CommandBuffer *commandBuffer, uint32_t bufferIndex, 
+                         const std::vector<std::string> &arrayIds,
+                         VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
+                         VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+                         uint32_t srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                         uint32_t dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED);
+
         void initializeValue(NugieVulkan::CommandBuffer *commandBuffer, uint32_t value = 0u);
 
     private:
