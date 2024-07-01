@@ -57,13 +57,24 @@ struct RayDirection {
     precise vec3 value;
 };
 
-struct HitRecord {
-    precise float t;
-    precise vec2 uv;
+struct HitLength {
+    precise float value;
+};
 
-    uint hitGeometryIndex;
-    uint hitGeometryTypeIndex;
-    uint hitTransformIndex;
+struct HitUV {
+    precise vec2 value;
+};
+
+struct HitGeometryIndex {
+    precise uint value;
+};
+
+struct HitGeometryTypeIndex {
+    precise uint value;
+};
+
+struct HitTransformIndex {
+    precise uint value;
 };
 
 struct DirectOriginIsIlluminate {

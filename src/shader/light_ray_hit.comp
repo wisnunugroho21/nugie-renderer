@@ -16,24 +16,31 @@ layout (set = 0, binding = 1) buffer writeonly LightRayHitBuffer {
     LightResult results[];
 } lightRayHitBuffer;
 
-layout (set = 0, binding = 3) buffer readonly IntersectBuffer {
-    HitRecord hits[];
-} intersectBuffer;
+layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
+    precise float hitLengths[];
+};
 
-layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
+layout (set = 0, binding = 3) buffer readonly HitGeometryIndexBuffer {
+    precise uint hitGeometryIndexes[];
+};
+
+layout (set = 0, binding = 4) buffer readonly HitGeometryTypeIndexBuffer {
+    precise uint hitGeometryTypeIndexes[];
+};
+
+layout (set = 0, binding = 5) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 5) buffer readonly MaterialBuffer {
+layout (set = 0, binding = 6) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
 void main() {
-    HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
     LightResult finalResult = LightResult(vec4(0.0f));
 
-    if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
-        Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
+        Triangle hittedLight = triangleLightBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
 
         finalResult.radianceIsIlluminate.w = 1.0f;
         finalResult.radianceIsIlluminate.xyz = materialBuffer

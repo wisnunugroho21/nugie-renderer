@@ -16,15 +16,14 @@ layout (set = 0, binding = 1) buffer writeonly MissBuffer {
     MissResult results[];
 } missBuffer;
 
-layout (set = 0, binding = 2) buffer readonly IntersectBuffer {
-    HitRecord hits[];
-} intersectBuffer;
+layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
+    precise float hitLengths[];
+};
 
 void main() {
-    HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
     MissResult missRecord = MissResult(vec4(0.0f));
 
-    if (hitRecord.t < 0.001f) {
+    if (hitLengths[gl_GlobalInvocationID.x] < 0.001f) {
         missRecord.radianceIsMiss.w = 1.0f;
         missRecord.radianceIsMiss.xyz = vec3(0.0f);
     }

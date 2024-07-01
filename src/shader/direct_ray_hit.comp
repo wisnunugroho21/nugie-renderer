@@ -28,23 +28,39 @@ layout (set = 0, binding = 4) buffer readonly TracedRayDirectionBuffer {
     precise vec3 tracedRayDirections[];
 };
 
-layout (set = 0, binding = 5) buffer readonly IntersectBuffer {
-    HitRecord hits[];
-} intersectBuffer;
+layout (set = 0, binding = 5) buffer readonly HitLengthBuffer {
+    precise float hitLengths[];
+};
 
-layout (set = 0, binding = 6) buffer readonly TriangleLightBuffer {
+layout (set = 0, binding = 6) buffer readonly HitUVBuffer {
+    precise vec2 hitUVs[];
+};
+
+layout (set = 0, binding = 7) buffer readonly HitGeometryIndexBuffer {
+    precise uint hitGeometryIndexes[];
+};
+
+layout (set = 0, binding = 8) buffer readonly HitGeometryTypeIndexBuffer {
+    precise uint hitGeometryTypeIndexes[];
+};
+
+layout (set = 0, binding = 9) buffer readonly HitTransformIndexBuffer {
+    precise uint hitTransformIndexes[];
+};
+
+layout (set = 0, binding = 10) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 7) buffer readonly VertexBuffer {
+layout (set = 0, binding = 11) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 8) buffer readonly MaterialBuffer {
+layout (set = 0, binding = 12) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
-layout (set = 0, binding = 9) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 13) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -139,19 +155,19 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 }
 
 void main() {
-    HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
     DirectResult finalResult = DirectResult(vec4(0.0f));
-
     DirectNormalMaterialIndex normalMaterialIndex = directNormalMaterialIndexes[gl_GlobalInvocationID.x];
 
-    if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
-        Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
+        Triangle hittedLight = triangleLightBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
         vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
 
         vec3 hittedLightNormal = triangleNormal(hittedLight, rayDirection);
         vec3 hittedPosition = positionTransform(
-            transformationBuffer.transformations[hitRecord.hitTransformIndex].objectToWorldMatrix, 
-            trianglePositionFromUV(hittedLight, hitRecord.uv)
+            transformationBuffer.transformations[
+                hitTransformIndexes[gl_GlobalInvocationID.x]
+            ].objectToWorldMatrix, 
+            trianglePositionFromUV(hittedLight, hitUVs[gl_GlobalInvocationID.x])
         );
 
         float NloL = dot(hittedLightNormal, -1.0f * rayDirection);
