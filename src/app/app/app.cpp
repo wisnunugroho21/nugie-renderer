@@ -51,8 +51,7 @@ namespace NugieApp {
         delete this->directRayGenDescSet;
         delete this->directRayHitDescSet;
         delete this->integratorDescSet;
-        delete this->samplingDescSet;
-        
+        delete this->samplingDescSet;       
 
         delete this->dataBuffer;
         delete this->rayTraceStorageBuffer;
@@ -608,17 +607,16 @@ namespace NugieApp {
 
         this->rayTraceUbo.imgSizeRandomSeedNumLight.w = static_cast<uint32_t>(triangleLights.size());
 
-        // ----------------------------------------------------------------------------
+        // ----------------------------------------------------------------------------        
 
-    #ifdef USE_RASTER
-        this->resultSampler = new NugieVulkan::Sampler(this->device, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
-                                                       VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
-                                                       VK_SAMPLER_MIPMAP_MODE_LINEAR, 1.0f);
-                                                       
+        #ifdef USE_RASTER
+            VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        #else
+            VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        #endif
+
         this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-            VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-
             this->resultImages[i] = new NugieVulkan::Image(this->device, width, height, 1, VK_SAMPLE_COUNT_1_BIT,
                                                            VK_FORMAT_R32G32B32A32_SFLOAT,
                                                            VK_IMAGE_TILING_OPTIMAL,
@@ -627,6 +625,11 @@ namespace NugieApp {
                                                            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                                                            VK_IMAGE_ASPECT_COLOR_BIT);
         }
+
+    #ifdef USE_RASTER
+        this->resultSampler = new NugieVulkan::Sampler(this->device, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
+                                                       VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
+                                                       VK_SAMPLER_MIPMAP_MODE_LINEAR, 1.0f);        
     #endif
 
         this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, 
@@ -721,12 +724,15 @@ namespace NugieApp {
         this->initCamera(width, height);
 
         std::vector<VkDescriptorImageInfo> resultImageInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
+
+        for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+            resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
+        }
     
     #ifdef USE_RASTER
         std::vector<VkDescriptorImageInfo> resultSamplerInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
 
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
-            resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
             resultSamplerInfos[i] = this->resultSampler->getDescriptorInfo(this->resultImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
 

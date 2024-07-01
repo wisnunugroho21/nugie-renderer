@@ -21,6 +21,7 @@
 #include <vector>
 
 #define APP_TITLE "Nugie Renderer"
+#define USE_RASTER
 
 #define WIDTH 800
 #define HEIGHT 800
