@@ -12,19 +12,23 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
-layout (set = 0, binding = 1) buffer writeonly RayGenBuffer {
-    Ray rays[];
-} tracedRayBuffer;
+layout (set = 0, binding = 1) buffer writeonly TracedRayOriginBuffer {
+    precise vec3 tracedRayOrigins[];
+};
 
-layout (set = 0, binding = 2) buffer readonly DirectDataBuffer {
+layout (set = 0, binding = 2) buffer writeonly TracedRayDirectionBuffer {
+    precise vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 3) buffer readonly DirectDataBuffer {
     DirectData datas[];
 } directDataBuffer;
 
-layout (set = 0, binding = 3) buffer readonly TriangleLightBuffer {
+layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 4) buffer readonly VertexBuffer {
+layout (set = 0, binding = 5) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
@@ -85,15 +89,14 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
 
 void main() {
     DirectData data = directDataBuffer.datas[gl_GlobalInvocationID.x];
-    Ray newRay = Ray(vec3(0.0f), vec3(0.0f));
 
     if (data.normalIsIlluminate.w > 0.5f) {
         uint lightIndex = randomUint(0u, ubo.imgSizeRandomSeedNumLight.w - 1u, 0u);
         vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
-        newRay.origin = data.origin;
-        newRay.direction = normalize(target - newRay.origin);
+        tracedRayOrigins[gl_GlobalInvocationID.x] = data.origin;
+        tracedRayDirections[gl_GlobalInvocationID.x] = normalize(target - data.origin);
+    } else {
+        tracedRayDirections[gl_GlobalInvocationID.x] = vec3(0.0f);
     }
-
-    tracedRayBuffer.rays[gl_GlobalInvocationID.x] = newRay;
 }

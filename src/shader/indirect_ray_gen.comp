@@ -12,17 +12,25 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
-layout (set = 0, binding = 1) buffer writeonly RayGenBuffer {
-    Ray rays[];
-} tracedRayBuffer;
+layout (set = 0, binding = 1) buffer writeonly TracedRayOriginBuffer {
+    precise vec3 tracedRayOrigins[];
+};
 
-layout (set = 0, binding = 2) buffer readonly ScatteredRayBuffer {
-    Ray rays[];
-} scatteredRayBuffer;
+layout (set = 0, binding = 2) buffer writeonly TracedRayDirectionBuffer {
+    precise vec3 tracedRayDirections[];
+};
 
-layout (set = 0, binding = 3) buffer readonly IntegratorBuffer {
-    IntegratorResult results[];
-} integratorBuffer;
+layout (set = 0, binding = 3) buffer readonly ScatteredRayOriginBuffer {
+    precise vec3 scatteredRayOrigins[];
+};
+
+layout (set = 0, binding = 4) buffer readonly ScatteredRayDirectionBuffer {
+    precise vec3 scatteredRayDirections[];
+};
+
+layout (set = 0, binding = 5) buffer readonly IntegratorTotalRadianceIsRayBounceBuffer {
+    precise vec4 integratorTotalRadianceIsRayBounces[];
+};
 
 void main() {
     ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -31,7 +39,11 @@ void main() {
 
     vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
 
-    tracedRayBuffer.rays[bufferIndex] = integratorBuffer.results[bufferIndex].totalRadianceIsRayBounce.w > 0.5f
-    ? scatteredRayBuffer.rays[bufferIndex]
-    : Ray(ubo.origin, initialRayDirection);
+    tracedRayOrigins[bufferIndex] = integratorTotalRadianceIsRayBounces[bufferIndex].w > 0.5f
+    ? scatteredRayOrigins[bufferIndex]
+    : ubo.origin;
+
+    tracedRayDirections[bufferIndex] = integratorTotalRadianceIsRayBounces[bufferIndex].w > 0.5f
+    ? scatteredRayDirections[bufferIndex]
+    : initialRayDirection;
 }

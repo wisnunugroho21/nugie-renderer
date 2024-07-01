@@ -8,35 +8,39 @@ layout (set = 0, binding = 0) buffer writeonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
 
-layout (set = 0, binding = 1) buffer readonly RayGenBuffer {
-    Ray rays[];
-} tracedRayBuffer;
+layout (set = 0, binding = 1) buffer readonly TracedRayOriginBuffer {
+    precise vec3 tracedRayOrigins[];
+};
 
-layout (set = 0, binding = 2) buffer readonly ObjectBvhBuffer {
+layout (set = 0, binding = 2) buffer readonly TracedRayDirectionBuffer {
+    precise vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 3) buffer readonly ObjectBvhBuffer {
     BvhNode objectBvhNodes[];
 } objectBvhBuffer;
 
-layout (set = 0, binding = 3) buffer readonly ObjectBuffer {
+layout (set = 0, binding = 4) buffer readonly ObjectBuffer {
     Object objects[];
 } objectBuffer;
 
-layout (set = 0, binding = 4) buffer readonly GeometryBvhBuffer {
+layout (set = 0, binding = 5) buffer readonly GeometryBvhBuffer {
     BvhNode geometryBvhNodes[];
 } geometryBvhBuffer;
 
-layout (set = 0, binding = 5) buffer readonly TriangleBuffer {
+layout (set = 0, binding = 6) buffer readonly TriangleBuffer {
     Triangle triangles[];
 } triangleBuffer;
 
-layout (set = 0, binding = 6) buffer readonly TriangleLightBuffer {
+layout (set = 0, binding = 7) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 7) buffer readonly VertexBuffer {
+layout (set = 0, binding = 8) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 8) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 9) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -110,14 +114,14 @@ precise vec3 directionTransform(mat4 mat, vec3 vec) {
 
 // ------------- Triangle -------------
 
-bool hitTriangle(Triangle triangle, Ray r, out precise float t, out precise vec2 uv) {
+bool hitTriangle(Triangle triangle, vec3 rayOrigin, vec3 rayDirection, out precise float t, out precise vec2 uv) {
     vec3 v0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position;
     vec3 v1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position;
     vec3 v2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
 
     precise vec3 edge1 = v1 - v0;
     precise vec3 edge2 = v2 - v0;
-    precise vec3 ray_cross_e2 = cross(r.direction, edge2);
+    precise vec3 ray_cross_e2 = cross(rayDirection, edge2);
     precise float det = dot(edge1, ray_cross_e2);
 
     if (abs(det) < K_EPSILON) {
@@ -125,7 +129,7 @@ bool hitTriangle(Triangle triangle, Ray r, out precise float t, out precise vec2
     }
 
     precise float inv_det = 1.0 / det;
-    precise vec3 s = r.origin - v0;
+    precise vec3 s = rayOrigin - v0;
     precise float u = inv_det * dot(s, ray_cross_e2);
 
     if (u < 0 || u > 1) {
@@ -133,7 +137,7 @@ bool hitTriangle(Triangle triangle, Ray r, out precise float t, out precise vec2
     }
 
     precise vec3 s_cross_e1 = cross(s, edge1);
-    precise float v = inv_det * dot(r.direction, s_cross_e1);
+    precise float v = inv_det * dot(rayDirection, s_cross_e1);
 
     if (v < 0 || u + v > 1) {
         return false;
@@ -152,9 +156,9 @@ bool hitTriangle(Triangle triangle, Ray r, out precise float t, out precise vec2
 
 // ------------- Bvh -------------
 
-precise float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
-    precise vec3 tMin = (boxMin - r.origin) / r.direction;
-    precise vec3 tMax = (boxMax - r.origin) / r.direction;
+precise float intersectAABB(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax) {
+    precise vec3 tMin = (boxMin - rayOrigin) / rayDirection;
+    precise vec3 tMax = (boxMax - rayOrigin) / rayDirection;
     precise vec3 t1 = min(tMin, tMax);
     precise vec3 t2 = max(tMin, tMax);
     precise float tNear = max(max(t1.x, t1.y), t1.z);
@@ -163,11 +167,11 @@ precise float intersectAABB(Ray r, vec3 boxMin, vec3 boxMax) {
     return tNear <= tFar ? tNear : FLT_MAX;
 }
 
-bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex, out float t, out vec2 uv, out uint hitGeometryIndex, out uint hitGeometryTypeIndex) {
+bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex, uint firstGeometryIndex, uint transformIndex, out float t, out vec2 uv, out uint hitGeometryIndex, out uint hitGeometryTypeIndex) {
     Transformation curTransf = transformationBuffer.transformations[transformIndex];
 
-    r.origin = positionTransform(curTransf.worldToObjectMatrix, r.origin);
-    r.direction = directionTransform(curTransf.worldToObjectMatrix, r.direction);
+    rayOrigin = positionTransform(curTransf.worldToObjectMatrix, rayOrigin);
+    rayDirection = directionTransform(curTransf.worldToObjectMatrix, rayDirection);
 
     uint stack[30];
     stack[0] = 1u;
@@ -187,7 +191,7 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
                     case 1u:
                         triangle = triangleBuffer.triangles[curNode.objIndex - 1u + firstGeometryIndex];
 
-                        if (hitTriangle(triangle, r, t, uv)) {
+                        if (hitTriangle(triangle, rayOrigin, rayDirection, t, uv)) {
                             hitGeometryIndex = curNode.objIndex - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 1u;
 
@@ -198,7 +202,7 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
                     case 2u:
                         triangle = triangleLightBuffer.triangles[curNode.objIndex - 1u + firstGeometryIndex];
 
-                        if (hitTriangle(triangle, r, t, uv)) {
+                        if (hitTriangle(triangle, rayOrigin, rayDirection, t, uv)) {
                             hitGeometryIndex = curNode.objIndex - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 2u;
 
@@ -212,12 +216,12 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
 
             if (curNode.leftNode > 0u) {
                 BvhNode leftNode = geometryBvhBuffer.geometryBvhNodes[curNode.leftNode - 1u + firstBvhIndex];
-                leftDist = intersectAABB(r, leftNode.minimum, leftNode.maximum);
+                leftDist = intersectAABB(rayOrigin, rayDirection, leftNode.minimum, leftNode.maximum);
             }
 
             if (curNode.rightNode > 0u) {
                 BvhNode rightNode = geometryBvhBuffer.geometryBvhNodes[curNode.rightNode - 1u + firstBvhIndex];
-                rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
+                rightDist = intersectAABB(rayOrigin, rayDirection, rightNode.minimum, rightNode.maximum);
             }
 
             if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
@@ -245,7 +249,7 @@ bool hitGeometryBvh(Ray r, uint firstBvhIndex, uint firstGeometryIndex, uint tra
     return false;
 }
 
-bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitGeometryIndex, out uint hitGeometryTypeIndex, out uint hitTransformIndex) {
+bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv, out uint hitGeometryIndex, out uint hitGeometryTypeIndex, out uint hitTransformIndex) {
     uint stack[30];
     stack[0] = 1u;
 
@@ -259,7 +263,7 @@ bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitGeometryIndex, ou
             if (curNode.objIndex > 0u) {
                 Object object = objectBuffer.objects[curNode.objIndex - 1u];
 
-                if (hitGeometryBvh(r, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex, t, uv, hitGeometryIndex, hitGeometryTypeIndex)) {
+                if (hitGeometryBvh(rayOrigin, rayDirection, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex, t, uv, hitGeometryIndex, hitGeometryTypeIndex)) {
                     hitTransformIndex = object.transformIndex;
                     return true;
                 }
@@ -269,12 +273,12 @@ bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitGeometryIndex, ou
 
             if (curNode.leftNode > 0u) {
                 BvhNode leftNode = objectBvhBuffer.objectBvhNodes[curNode.leftNode - 1u];
-                leftDist = intersectAABB(r, leftNode.minimum, leftNode.maximum);
+                leftDist = intersectAABB(rayOrigin, rayDirection, leftNode.minimum, leftNode.maximum);
             }
 
             if (curNode.rightNode > 0u) {
                 BvhNode rightNode = objectBvhBuffer.objectBvhNodes[curNode.rightNode - 1u];
-                rightDist = intersectAABB(r, rightNode.minimum, rightNode.maximum);
+                rightDist = intersectAABB(rayOrigin, rayDirection, rightNode.minimum, rightNode.maximum);
             }
 
             if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
@@ -304,10 +308,12 @@ bool hitObjectBvh(Ray r, out float t, out vec2 uv, out uint hitGeometryIndex, ou
 
 void main() {
     HitRecord hit = HitRecord(0.0f, vec2(0.0f), 0u, 0u, 0u);
-    Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
-    if (length(ray.direction) > 0.001f) {
-        hitObjectBvh(ray, hit.t, hit.uv, hit.hitGeometryIndex, hit.hitGeometryTypeIndex, hit.hitTransformIndex);
+    vec3 rayOrigin = tracedRayOrigins[gl_GlobalInvocationID.x];
+    vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
+
+    if (length(rayDirection) > 0.001f) {
+        hitObjectBvh(rayOrigin, rayDirection, hit.t, hit.uv, hit.hitGeometryIndex, hit.hitGeometryTypeIndex, hit.hitTransformIndex);
     }
 
     intersectBuffer.hits[gl_GlobalInvocationID.x] = hit;

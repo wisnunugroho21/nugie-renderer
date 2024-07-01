@@ -20,31 +20,39 @@ layout (set = 0, binding = 2) buffer writeonly DirectDataBuffer {
     DirectData datas[];
 } directDataBuffer;
 
-layout (set = 0, binding = 3) buffer writeonly ScatteredRayBuffer {
-    Ray rays[];
-} scatteredRayBuffer;
+layout (set = 0, binding = 3) buffer writeonly ScatteredRayOriginBuffer {
+    precise vec3 scatteredRayOrigins[];
+};
 
-layout (set = 0, binding = 4) buffer readonly RayGenBuffer {
-    Ray rays[];
-} tracedRayBuffer;
+layout (set = 0, binding = 4) buffer writeonly ScatteredRayDirectionBuffer {
+    precise vec3 scatteredRayDirections[];
+};
 
-layout (set = 0, binding = 5) buffer readonly IntersectBuffer {
+layout (set = 0, binding = 5) buffer readonly TracedRayOriginBuffer {
+    precise vec3 tracedRayOrigins[];
+};
+
+layout (set = 0, binding = 6) buffer readonly TracedRayDirectionBuffer {
+    precise vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 7) buffer readonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
 
-layout (set = 0, binding = 6) buffer readonly TriangleBuffer {
+layout (set = 0, binding = 8) buffer readonly TriangleBuffer {
     Triangle triangles[];
 } triangleBuffer;
 
-layout (set = 0, binding = 7) buffer readonly VertexBuffer {
+layout (set = 0, binding = 9) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 8) buffer readonly MaterialBuffer {
+layout (set = 0, binding = 10) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
-layout (set = 0, binding = 9) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 11) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -181,7 +189,7 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
             );
 }
 
-vec3 triangleNormal(Triangle triangle, Ray r) {
+vec3 triangleNormal(Triangle triangle, vec3 rayDirection) {
    	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -190,7 +198,7 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
     vec3 outwardNormal = normalize(cross(v0v1, v0v2));
-    return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+    return dot(rayDirection, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
 precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
@@ -217,9 +225,8 @@ void main() {
 
     if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 1u) {
         Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitGeometryIndex];
-        Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
 
-        vec3 hittedNormal = triangleNormal(hittedTriangle, ray);
+        vec3 hittedNormal = triangleNormal(hittedTriangle, tracedRayDirections[gl_GlobalInvocationID.x]);
         vec3 hittedPosition = positionTransform(
             transformationBuffer.transformations[hitRecord.hitTransformIndex].objectToWorldMatrix, 
             trianglePositionFromUV(hittedTriangle, hitRecord.uv)
@@ -232,11 +239,12 @@ void main() {
         data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
 
         vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
+        vec3 scatterdRayDirection = normalize(target - hittedPosition);
 
-        Ray nextRay = Ray(hittedPosition, normalize(target - hittedPosition));
-        scatteredRayBuffer.rays[gl_GlobalInvocationID.x] = nextRay;
+        scatteredRayOrigins[gl_GlobalInvocationID.x] = hittedPosition;
+        scatteredRayDirections[gl_GlobalInvocationID.x] = scatterdRayDirection;
 
-        float NoL = dot(hittedNormal, nextRay.direction);
+        float NoL = dot(hittedNormal, scatterdRayDirection);
 
         vec3 surfaceColor = materialBuffer
             .materials[data.materialIndex]

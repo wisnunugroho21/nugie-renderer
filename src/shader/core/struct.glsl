@@ -47,9 +47,14 @@ struct Transformation {
     mat4 objectToWorldMatrix;
 };
 
-struct Ray {
-    precise vec3 origin;
-    precise vec3 direction;
+// -----------------------------------------------
+
+struct RayOrigin {
+    precise vec3 value;
+};
+
+struct RayDirection {
+    precise vec3 value;
 };
 
 struct HitRecord {
@@ -83,9 +88,12 @@ struct MissResult {
     precise vec4 radianceIsMiss;
 };
 
-struct IntegratorResult {
-    precise vec4 totalRadianceIsRayBounce;
-    precise vec4 totalIndirectPdf;
+struct IntegratorTotalRadianceIsRayBounce {
+    precise vec4 value;
+};
+
+struct IntegratorTotalIndirectPdf {
+    precise vec4 value;
 };
 
 struct SamplingResult {

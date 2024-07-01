@@ -20,27 +20,31 @@ layout (set = 0, binding = 2) buffer readonly DirectDataBuffer {
     DirectData datas[];
 } directDataBuffer;
 
-layout (set = 0, binding = 3) buffer readonly RayGenBuffer {
-    Ray rays[];
-} tracedRayBuffer;
+layout (set = 0, binding = 3) buffer readonly TracedRayOriginBuffer {
+    precise vec3 tracedRayOrigins[];
+};
 
-layout (set = 0, binding = 4) buffer readonly IntersectBuffer {
+layout (set = 0, binding = 4) buffer readonly TracedRayDirectionBuffer {
+    precise vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 5) buffer readonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
 
-layout (set = 0, binding = 5) buffer readonly TriangleLightBuffer {
+layout (set = 0, binding = 6) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 6) buffer readonly VertexBuffer {
+layout (set = 0, binding = 7) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 7) buffer readonly MaterialBuffer {
+layout (set = 0, binding = 8) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
-layout (set = 0, binding = 8) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 9) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -106,7 +110,7 @@ float triangleArea(Triangle triangle) {
     return 0.5 * sqrt(dot(pvec, pvec));
 }
 
-vec3 triangleNormal(Triangle triangle, Ray r) {
+vec3 triangleNormal(Triangle triangle, vec3 rayDirection) {
     Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -115,7 +119,7 @@ vec3 triangleNormal(Triangle triangle, Ray r) {
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
     vec3 outwardNormal = normalize(cross(v0v1, v0v2));
-    return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+    return dot(rayDirection, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
 precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
@@ -142,17 +146,17 @@ void main() {
 
     if (directData.normalIsIlluminate.w > 0.5f && hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
         Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
-        Ray ray = tracedRayBuffer.rays[gl_GlobalInvocationID.x];
+        vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
 
-        vec3 hittedLightNormal = triangleNormal(hittedLight, ray);
+        vec3 hittedLightNormal = triangleNormal(hittedLight, rayDirection);
         vec3 hittedPosition = positionTransform(
             transformationBuffer.transformations[hitRecord.hitTransformIndex].objectToWorldMatrix, 
             trianglePositionFromUV(hittedLight, hitRecord.uv)
         );
 
-        float NloL = dot(hittedLightNormal, -1.0f * ray.direction);
-        float NoL = dot(directData.normalIsIlluminate.xyz, ray.direction);
-        vec3 dst = hittedPosition - ray.origin;
+        float NloL = dot(hittedLightNormal, -1.0f * rayDirection);
+        float NoL = dot(directData.normalIsIlluminate.xyz, rayDirection);
+        vec3 dst = hittedPosition - tracedRayOrigins[gl_GlobalInvocationID.x];
 
         float area = triangleArea(hittedLight);
         float squareDistance = dot(dst, dst);

@@ -10,21 +10,21 @@ layout (set = 0, binding = 1) buffer SamplingBuffer {
     SamplingResult results[];
 } samplingBuffer;
 
-layout (set = 0, binding = 2) buffer readonly IntegratorBuffer {
-    IntegratorResult results[];
-} integratorBuffer;
+layout (set = 0, binding = 2) buffer readonly IntegratorTotalRadianceIsRayBounceBuffer {
+    precise vec4 integratorTotalRadianceIsRayBounces[];
+};
 
 void main() {
     ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
     uint bufferIndex = pixelCoord.x + imageSize(resultImage).x * pixelCoord.y;
 
-    IntegratorResult result = integratorBuffer.results[bufferIndex];
+    vec4 totalRadianceIsRayBounce = integratorTotalRadianceIsRayBounces[bufferIndex];
 
-    if (result.totalRadianceIsRayBounce.w < 0.5f) {
+    if (totalRadianceIsRayBounce.w < 0.5f) {
         SamplingResult samplingResult = samplingBuffer.results[bufferIndex];
 
         vec3 totalColor =
-        (clamp(result.totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.finalColorCountSample.xyz * samplingResult.finalColorCountSample.w)
+        (clamp(totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.finalColorCountSample.xyz * samplingResult.finalColorCountSample.w)
         / (samplingResult.finalColorCountSample.w + 1.0f);
 
         samplingResult.finalColorCountSample.xyz = totalColor;

@@ -84,7 +84,12 @@ namespace NugieApp {
 
                 this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
+
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_origin",
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_direction",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -100,7 +105,11 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_origin",
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_direction",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
@@ -116,7 +125,12 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray",
+
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_origin",
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "scattered_ray_direction",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -141,13 +155,23 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_origin",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_direction",
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+
                 this->directRayGenRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray",
+
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_origin",
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                              VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "traced_ray_direction",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -176,14 +200,14 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_radiance_bounce",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
                 this->integratorRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                  {this->integratorDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_result",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_radiance_bounce",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
@@ -616,16 +640,19 @@ namespace NugieApp {
                                                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                                                       NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT,
                                                                       false)
-                .addArrayItem("traced_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height)
+                .addArrayItem("traced_ray_origin", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("traced_ray_direction", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("hit_record", static_cast<VkDeviceSize>(sizeof(Hit)), width * height)
                 .addArrayItem("indirect_result", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
                 .addArrayItem("light_result", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
                 .addArrayItem("miss_result", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
                 .addArrayItem("direct_data", static_cast<VkDeviceSize>(sizeof(DirectData)), width * height)
                 .addArrayItem("direct_result", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
-                .addArrayItem("integrator_result", static_cast<VkDeviceSize>(sizeof(IntegratorResult)), width * height)
+                .addArrayItem("integrator_radiance_bounce", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("integrator_indirect_pdf", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
-                .addArrayItem("scattered_ray", static_cast<VkDeviceSize>(sizeof(Ray)), width * height)
+                .addArrayItem("scattered_ray_origin", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
+                .addArrayItem("scattered_ray_direction", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .build();
 
         this->uniformBuffer = StackedObjectBuffer::Builder(this->device, 
@@ -719,11 +746,15 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("traced_ray"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_origin"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("scattered_ray"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_direction"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("integrator_result"))
+                           this->rayTraceStorageBuffer->getInfo("scattered_ray_origin"))
+                .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->rayTraceStorageBuffer->getInfo("scattered_ray_direction"))
+                .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->rayTraceStorageBuffer->getInfo("integrator_radiance_bounce"))
                 .build();
 
         this->rayIntersectDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
@@ -731,20 +762,22 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("traced_ray"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_origin"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("object_bvh"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_direction"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("object"))
+                           this->dataBuffer->getInfo("object_bvh"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("geometry_bvh"))
+                           this->dataBuffer->getInfo("object"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle"))
+                           this->dataBuffer->getInfo("geometry_bvh"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle_light"))
+                           this->dataBuffer->getInfo("triangle"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("vertex"))
+                           this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("vertex"))
+                .addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("transform"))
                 .build();
 
@@ -757,18 +790,22 @@ namespace NugieApp {
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("direct_data"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("scattered_ray"))
+                           this->rayTraceStorageBuffer->getInfo("scattered_ray_origin"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("traced_ray"))
+                           this->rayTraceStorageBuffer->getInfo("scattered_ray_direction"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("hit_record"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_origin"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_direction"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("vertex"))
+                           this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("material"))
+                           this->dataBuffer->getInfo("triangle"))
                 .addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("vertex"))
+                .addBuffer(10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("material"))
+                .addBuffer(11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("transform"))
                 .build();
 
@@ -801,12 +838,14 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("traced_ray"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_origin"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("direct_data"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_direction"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle_light"))
+                           this->rayTraceStorageBuffer->getInfo("direct_data"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("triangle_light"))
+                .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("vertex"))
                 .build();
 
@@ -819,30 +858,34 @@ namespace NugieApp {
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("direct_data"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("traced_ray"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_origin"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("hit_record"))
+                           this->rayTraceStorageBuffer->getInfo("traced_ray_direction"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle_light"))
+                           this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("vertex"))
+                           this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("material"))
+                           this->dataBuffer->getInfo("vertex"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("material"))
+                .addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("transform"))
                 .build();
 
         this->integratorDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                          NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("integrator_result"))
+                           this->rayTraceStorageBuffer->getInfo("integrator_radiance_bounce"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("indirect_result"))
+                           this->rayTraceStorageBuffer->getInfo("integrator_indirect_pdf"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("light_result"))
+                           this->rayTraceStorageBuffer->getInfo("indirect_result"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("direct_result"))
+                           this->rayTraceStorageBuffer->getInfo("light_result"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->rayTraceStorageBuffer->getInfo("direct_result"))
+                .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("miss_result"))
                 .build();
 
@@ -852,7 +895,7 @@ namespace NugieApp {
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("sampling_result"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("integrator_result"))
+                           this->rayTraceStorageBuffer->getInfo("integrator_radiance_bounce"))
                 .build();
 
         this->finalDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
