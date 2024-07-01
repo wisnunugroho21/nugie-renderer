@@ -66,9 +66,12 @@ struct HitRecord {
     uint hitTransformIndex;
 };
 
-struct DirectData {
-    precise vec4 normalIsIlluminate;
-    precise vec3 origin;
+struct DirectOriginIsIlluminate {
+    precise vec4 value;
+};
+
+struct DirectNormalMaterialIndex {
+    precise vec3 normal;
     uint materialIndex;
 };
 

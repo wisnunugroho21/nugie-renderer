@@ -16,43 +16,47 @@ layout (set = 0, binding = 1) buffer writeonly IndirectHitBuffer {
     IndirectResult results[];
 } indirectHitBuffer;
 
-layout (set = 0, binding = 2) buffer writeonly DirectDataBuffer {
-    DirectData datas[];
-} directDataBuffer;
+layout (set = 0, binding = 2) buffer writeonly DirectOriginIsIlluminateBuffer {
+    precise vec4 directOriginIsIlluminates[];
+};
 
-layout (set = 0, binding = 3) buffer writeonly ScatteredRayOriginBuffer {
+layout (set = 0, binding = 3) buffer writeonly DirectNormalMaterialIndexBuffer {
+    DirectNormalMaterialIndex directNormalMaterialIndexes[];
+};
+
+layout (set = 0, binding = 4) buffer writeonly ScatteredRayOriginBuffer {
     precise vec3 scatteredRayOrigins[];
 };
 
-layout (set = 0, binding = 4) buffer writeonly ScatteredRayDirectionBuffer {
+layout (set = 0, binding = 5) buffer writeonly ScatteredRayDirectionBuffer {
     precise vec3 scatteredRayDirections[];
 };
 
-layout (set = 0, binding = 5) buffer readonly TracedRayOriginBuffer {
+layout (set = 0, binding = 6) buffer readonly TracedRayOriginBuffer {
     precise vec3 tracedRayOrigins[];
 };
 
-layout (set = 0, binding = 6) buffer readonly TracedRayDirectionBuffer {
+layout (set = 0, binding = 7) buffer readonly TracedRayDirectionBuffer {
     precise vec3 tracedRayDirections[];
 };
 
-layout (set = 0, binding = 7) buffer readonly IntersectBuffer {
+layout (set = 0, binding = 8) buffer readonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
 
-layout (set = 0, binding = 8) buffer readonly TriangleBuffer {
+layout (set = 0, binding = 9) buffer readonly TriangleBuffer {
     Triangle triangles[];
 } triangleBuffer;
 
-layout (set = 0, binding = 9) buffer readonly VertexBuffer {
+layout (set = 0, binding = 10) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 10) buffer readonly MaterialBuffer {
+layout (set = 0, binding = 11) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
-layout (set = 0, binding = 11) buffer readonly TransformationBuffer {
+layout (set = 0, binding = 12) buffer readonly TransformationBuffer {
     Transformation transformations[];
 } transformationBuffer;
 
@@ -221,7 +225,9 @@ void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
 
     IndirectResult finalResult = IndirectResult(vec4(0.0f));
-    DirectData data = DirectData(vec4(0.0f), vec3(0.0f), 0u);
+
+    vec4 directOriginIsIlluminate = vec4(0.0f);
+    DirectNormalMaterialIndex directNormalMaterialIndex = DirectNormalMaterialIndex(vec3(0.0f), 0u);
 
     if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 1u) {
         Triangle hittedTriangle = triangleBuffer.triangles[hitRecord.hitGeometryIndex];
@@ -232,11 +238,11 @@ void main() {
             trianglePositionFromUV(hittedTriangle, hitRecord.uv)
         );
 
-        data.normalIsIlluminate.xyz = hittedNormal;
-        data.normalIsIlluminate.w = 1.0f;
+        directOriginIsIlluminate.xyz = hittedPosition;
+        directOriginIsIlluminate.w = 1.0f;
 
-        data.origin = hittedPosition;
-        data.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
+        directNormalMaterialIndex.normal = hittedNormal;
+        directNormalMaterialIndex.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
 
         vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
         vec3 scatterdRayDirection = normalize(target - hittedPosition);
@@ -247,7 +253,7 @@ void main() {
         float NoL = dot(hittedNormal, scatterdRayDirection);
 
         vec3 surfaceColor = materialBuffer
-            .materials[data.materialIndex]
+            .materials[directNormalMaterialIndex.materialIndex]
             .baseColor
             .xyz;
 
@@ -256,5 +262,7 @@ void main() {
     }
 
     indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
-    directDataBuffer.datas[gl_GlobalInvocationID.x] = data;
+
+    directOriginIsIlluminates[gl_GlobalInvocationID.x] = directOriginIsIlluminate;
+    directNormalMaterialIndexes[gl_GlobalInvocationID.x] = directNormalMaterialIndex;
 }

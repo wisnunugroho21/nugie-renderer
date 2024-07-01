@@ -16,9 +16,9 @@ layout (set = 0, binding = 1) buffer writeonly DirectHitBuffer {
     DirectResult results[];
 } directHitBuffer;
 
-layout (set = 0, binding = 2) buffer readonly DirectDataBuffer {
-    DirectData datas[];
-} directDataBuffer;
+layout (set = 0, binding = 2) buffer readonly DirectNormalMaterialIndexBuffer {
+    DirectNormalMaterialIndex directNormalMaterialIndexes[];
+};
 
 layout (set = 0, binding = 3) buffer readonly TracedRayOriginBuffer {
     precise vec3 tracedRayOrigins[];
@@ -142,9 +142,9 @@ void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];
     DirectResult finalResult = DirectResult(vec4(0.0f));
 
-    DirectData directData = directDataBuffer.datas[gl_GlobalInvocationID.x];
+    DirectNormalMaterialIndex normalMaterialIndex = directNormalMaterialIndexes[gl_GlobalInvocationID.x];
 
-    if (directData.normalIsIlluminate.w > 0.5f && hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
+    if (hitRecord.t >= 0.001f && hitRecord.hitGeometryTypeIndex == 2u) {
         Triangle hittedLight = triangleLightBuffer.triangles[hitRecord.hitGeometryIndex];
         vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
 
@@ -155,14 +155,14 @@ void main() {
         );
 
         float NloL = dot(hittedLightNormal, -1.0f * rayDirection);
-        float NoL = dot(directData.normalIsIlluminate.xyz, rayDirection);
+        float NoL = dot(normalMaterialIndex.normal, rayDirection);
         vec3 dst = hittedPosition - tracedRayOrigins[gl_GlobalInvocationID.x];
 
         float area = triangleArea(hittedLight);
         float squareDistance = dot(dst, dst);
 
         vec3 surfaceColor = materialBuffer
-            .materials[directData.materialIndex]
+            .materials[normalMaterialIndex.materialIndex]
             .baseColor
             .xyz;
 

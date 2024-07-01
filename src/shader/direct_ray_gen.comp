@@ -20,9 +20,9 @@ layout (set = 0, binding = 2) buffer writeonly TracedRayDirectionBuffer {
     precise vec3 tracedRayDirections[];
 };
 
-layout (set = 0, binding = 3) buffer readonly DirectDataBuffer {
-    DirectData datas[];
-} directDataBuffer;
+layout (set = 0, binding = 3) buffer readonly DirectOriginIsIlluminateBuffer {
+    precise vec4 directOriginIsIlluminates[];
+};
 
 layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
@@ -88,14 +88,14 @@ precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) 
 }
 
 void main() {
-    DirectData data = directDataBuffer.datas[gl_GlobalInvocationID.x];
+    vec4 directOriginIsIlluminate = directOriginIsIlluminates[gl_GlobalInvocationID.x];
 
-    if (data.normalIsIlluminate.w > 0.5f) {
+    if (directOriginIsIlluminate.w > 0.5f) {
         uint lightIndex = randomUint(0u, ubo.imgSizeRandomSeedNumLight.w - 1u, 0u);
         vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
 
-        tracedRayOrigins[gl_GlobalInvocationID.x] = data.origin;
-        tracedRayDirections[gl_GlobalInvocationID.x] = normalize(target - data.origin);
+        tracedRayOrigins[gl_GlobalInvocationID.x] = directOriginIsIlluminate.xyz;
+        tracedRayDirections[gl_GlobalInvocationID.x] = normalize(target - directOriginIsIlluminate.xyz);
     } else {
         tracedRayDirections[gl_GlobalInvocationID.x] = vec3(0.0f);
     }
