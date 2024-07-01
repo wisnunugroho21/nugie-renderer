@@ -12,9 +12,9 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
-layout (set = 0, binding = 1) buffer writeonly IndirectHitBuffer {
-    IndirectResult results[];
-} indirectHitBuffer;
+layout (set = 0, binding = 1) buffer writeonly IndirectRadiancePdfBuffer {
+    precise vec4 indirectRadiancePdfs[];
+};
 
 layout (set = 0, binding = 2) buffer writeonly DirectOriginIsIlluminateBuffer {
     precise vec4 directOriginIsIlluminates[];
@@ -238,10 +238,9 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 }
 
 void main() {
-    IndirectResult finalResult = IndirectResult(vec4(0.0f));
-
-    vec4 directOriginIsIlluminate = vec4(0.0f);
     DirectNormalMaterialIndex directNormalMaterialIndex = DirectNormalMaterialIndex(vec3(0.0f), 0u);
+    vec4 indirectRadiancePdf = vec4(0.0f);
+    vec4 directOriginIsIlluminate = vec4(0.0f);
 
     if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 1u) {
         Triangle hittedTriangle = triangleBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
@@ -273,12 +272,11 @@ void main() {
             .baseColor
             .xyz;
 
-        finalResult.radiancePdf.w = lambertPdfValue(NoL);
-        finalResult.radiancePdf.xyz = surfaceColor * (RECIPROCAL_PI * NoL / finalResult.radiancePdf.w);
+        indirectRadiancePdf.w = lambertPdfValue(NoL);
+        indirectRadiancePdf.xyz = surfaceColor * (RECIPROCAL_PI * NoL / indirectRadiancePdf.w);
     }
-
-    indirectHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
-
+    
+    indirectRadiancePdfs[gl_GlobalInvocationID.x] = indirectRadiancePdf;
     directOriginIsIlluminates[gl_GlobalInvocationID.x] = directOriginIsIlluminate;
     directNormalMaterialIndexes[gl_GlobalInvocationID.x] = directNormalMaterialIndex;
 }

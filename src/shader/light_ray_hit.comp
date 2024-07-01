@@ -12,9 +12,9 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
-layout (set = 0, binding = 1) buffer writeonly LightRayHitBuffer {
-    LightResult results[];
-} lightRayHitBuffer;
+layout (set = 0, binding = 1) buffer writeonly LightRadianceIsIlluminateBuffer {
+    precise vec4 lightRadianceIsIlluminates[];
+};
 
 layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
     precise float hitLengths[];
@@ -37,17 +37,17 @@ layout (set = 0, binding = 6) buffer readonly MaterialBuffer {
 } materialBuffer;
 
 void main() {
-    LightResult finalResult = LightResult(vec4(0.0f));
+    vec4 lightRadianceIsIlluminate = vec4(0.0f);
 
     if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
         Triangle hittedLight = triangleLightBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
 
-        finalResult.radianceIsIlluminate.w = 1.0f;
-        finalResult.radianceIsIlluminate.xyz = materialBuffer
+        lightRadianceIsIlluminate.w = 1.0f;
+        lightRadianceIsIlluminate.xyz = materialBuffer
             .materials[hittedLight.vertexMaterialIndexes.w]
             .baseColor
             .xyz;
     }
 
-    lightRayHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+    lightRadianceIsIlluminates[gl_GlobalInvocationID.x] = lightRadianceIsIlluminate;
 }

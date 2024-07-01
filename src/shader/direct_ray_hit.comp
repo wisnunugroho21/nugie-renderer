@@ -12,9 +12,9 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
-layout (set = 0, binding = 1) buffer writeonly DirectHitBuffer {
-    DirectResult results[];
-} directHitBuffer;
+layout (set = 0, binding = 1) buffer writeonly DirectRadiancePdfBuffer {
+    precise vec4 directRadiancePdfs[];
+};
 
 layout (set = 0, binding = 2) buffer readonly DirectNormalMaterialIndexBuffer {
     DirectNormalMaterialIndex directNormalMaterialIndexes[];
@@ -155,7 +155,7 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 }
 
 void main() {
-    DirectResult finalResult = DirectResult(vec4(0.0f));
+    vec4 directRadiancePdf = vec4(0.0f);
     DirectNormalMaterialIndex normalMaterialIndex = directNormalMaterialIndexes[gl_GlobalInvocationID.x];
 
     if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
@@ -187,10 +187,10 @@ void main() {
             .baseColor
             .xyz;
 
-        finalResult.radiancePdf.w = squareDistance / (ubo.imgSizeRandomSeedNumLight.w * NloL * area);
-        finalResult.radiancePdf.xyz = (lightColor * surfaceColor) 
-                                    * (RECIPROCAL_PI * NoL / finalResult.radiancePdf.w);
+        directRadiancePdf.w = squareDistance / (ubo.imgSizeRandomSeedNumLight.w * NloL * area);
+        directRadiancePdf.xyz = (lightColor * surfaceColor) 
+                                * (RECIPROCAL_PI * NoL / directRadiancePdf.w);
     }
 
-    directHitBuffer.results[gl_GlobalInvocationID.x] = finalResult;
+    directRadiancePdfs[gl_GlobalInvocationID.x] = directRadiancePdf;
 }

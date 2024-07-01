@@ -134,7 +134,7 @@ namespace NugieApp {
                 this->indirectRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                      {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, {});
 
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_result",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "indirect_radiance_pdf",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -161,7 +161,7 @@ namespace NugieApp {
 
                 this->lightRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                   {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_result",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_radiance_illuminate",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -170,7 +170,7 @@ namespace NugieApp {
 
                 this->missRayRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                               {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_result",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_radiance_miss",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -249,7 +249,7 @@ namespace NugieApp {
 
                 this->directRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
                                                    {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
-                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_result",
+                this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_radiance_pdf",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -703,12 +703,12 @@ namespace NugieApp {
                 .addArrayItem("hit_geometry_index", static_cast<VkDeviceSize>(sizeof(uint32_t)), width * height)
                 .addArrayItem("hit_geometry_type_index", static_cast<VkDeviceSize>(sizeof(uint32_t)), width * height)
                 .addArrayItem("hit_transform_index", static_cast<VkDeviceSize>(sizeof(uint32_t)), width * height)
-                .addArrayItem("indirect_result", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
-                .addArrayItem("light_result", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
-                .addArrayItem("miss_result", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
+                .addArrayItem("indirect_radiance_pdf", static_cast<VkDeviceSize>(sizeof(IndirectResult)), width * height)
+                .addArrayItem("light_radiance_illuminate", static_cast<VkDeviceSize>(sizeof(LightResult)), width * height)
+                .addArrayItem("miss_radiance_miss", static_cast<VkDeviceSize>(sizeof(MissResult)), width * height)
                 .addArrayItem("direct_origin_illuminate", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("direct_normal_material", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
-                .addArrayItem("direct_result", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
+                .addArrayItem("direct_radiance_pdf", static_cast<VkDeviceSize>(sizeof(DirectResult)), width * height)
                 .addArrayItem("integrator_radiance_bounce", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("integrator_indirect_pdf", static_cast<VkDeviceSize>(sizeof(glm::vec4)), width * height)
                 .addArrayItem("sampling_result", static_cast<VkDeviceSize>(sizeof(SamplingResult)), width * height)
@@ -855,7 +855,7 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("indirect_result"))
+                           this->rayTraceStorageBuffer->getInfo("indirect_radiance_pdf"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("direct_origin_illuminate"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -893,7 +893,7 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("light_result"))
+                           this->rayTraceStorageBuffer->getInfo("light_radiance_illuminate"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_length"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -911,7 +911,7 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("miss_result"))
+                           this->rayTraceStorageBuffer->getInfo("miss_radiance_miss"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_length"))
                 .build();
@@ -937,7 +937,7 @@ namespace NugieApp {
                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("direct_result"))
+                           this->rayTraceStorageBuffer->getInfo("direct_radiance_pdf"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("direct_normal_material"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
@@ -971,13 +971,13 @@ namespace NugieApp {
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("integrator_indirect_pdf"))
                 .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("indirect_result"))
+                           this->rayTraceStorageBuffer->getInfo("indirect_radiance_pdf"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("light_result"))
+                           this->rayTraceStorageBuffer->getInfo("light_radiance_illuminate"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("direct_result"))
+                           this->rayTraceStorageBuffer->getInfo("direct_radiance_pdf"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("miss_result"))
+                           this->rayTraceStorageBuffer->getInfo("miss_radiance_miss"))
                 .build();
 
         this->samplingDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),

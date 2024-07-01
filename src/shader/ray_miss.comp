@@ -12,21 +12,21 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     uvec4 imgSizeRandomSeedNumLight;
 } ubo;
 
-layout (set = 0, binding = 1) buffer writeonly MissBuffer {
-    MissResult results[];
-} missBuffer;
+layout (set = 0, binding = 1) buffer writeonly MissRadianceIsMissBuffer {
+    precise vec4 missRadianceIsMisses[];
+};
 
 layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
     precise float hitLengths[];
 };
 
 void main() {
-    MissResult missRecord = MissResult(vec4(0.0f));
+    vec4 missRadianceIsMiss = vec4(0.0f);
 
     if (hitLengths[gl_GlobalInvocationID.x] < 0.001f) {
-        missRecord.radianceIsMiss.w = 1.0f;
-        missRecord.radianceIsMiss.xyz = vec3(0.0f);
+        missRadianceIsMiss.w = 1.0f;
+        missRadianceIsMiss.xyz = vec3(0.0f);
     }
 
-    missBuffer.results[gl_GlobalInvocationID.x] = missRecord;
+    missRadianceIsMisses[gl_GlobalInvocationID.x] = missRadianceIsMiss;
 }
