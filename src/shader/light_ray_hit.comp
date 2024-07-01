@@ -16,10 +16,6 @@ layout (set = 0, binding = 1) buffer writeonly LightRayHitBuffer {
     LightResult results[];
 } lightRayHitBuffer;
 
-layout (set = 0, binding = 2) buffer readonly RayGenBuffer {
-    Ray rays[];
-} tracedRayBuffer;
-
 layout (set = 0, binding = 3) buffer readonly IntersectBuffer {
     HitRecord hits[];
 } intersectBuffer;
@@ -28,94 +24,9 @@ layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
     Triangle triangles[];
 } triangleLightBuffer;
 
-layout (set = 0, binding = 5) buffer readonly VertexBuffer {
-    Vertex vertices[];
-} vertexBuffer;
-
-layout (set = 0, binding = 6) buffer readonly MaterialBuffer {
+layout (set = 0, binding = 5) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
-
-layout (set = 0, binding = 7) buffer readonly TransformationBuffer {
-    Transformation transformations[];
-} transformationBuffer;
-
-// ------------- Transform -------------
-
-precise vec3 positionTransform(mat4 mat, vec3 vec) {
-    precise vec3 res;
-
-    res.x = mat[3][0] +
-    fma(
-        mat[0][0], vec.x,
-        fma(
-            mat[1][0], vec.y,
-            (mat[2][0] * vec.z)
-        )
-    );
-
-    res.y = mat[3][1] +
-    fma(
-        mat[0][1], vec.x,
-        fma(
-            mat[1][1], vec.y,
-            (mat[2][1] * vec.z)
-        )
-    );
-
-    res.z = mat[3][2] +
-    fma(
-        mat[0][2], vec.x,
-        fma(
-            mat[1][2], vec.y,
-            (mat[2][2] * vec.z)
-        )
-    );
-
-    return res;
-}
-
-// ------------- Triangle -------------
-
-float triangleArea(Triangle triangle) {
-   	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
-
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
-
-    vec3 pvec = cross(v0v1, v0v2);
-    return 0.5 * sqrt(dot(pvec, pvec));
-}
-
-vec3 triangleNormal(Triangle triangle, Ray r) {
-    Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
-
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
-
-    vec3 outwardNormal = normalize(cross(v0v1, v0v2));
-    return dot(r.direction, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
-}
-
-precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
-	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
-
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
-
-	return vertex0.position +
-            fma(
-               vec3(uv.x), 
-               v0v1, 
-               vec3(uv.y) * v0v2 
-            );
-}
 
 void main() {
     HitRecord hitRecord = intersectBuffer.hits[gl_GlobalInvocationID.x];

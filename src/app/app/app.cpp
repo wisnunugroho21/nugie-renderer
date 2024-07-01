@@ -778,18 +778,12 @@ namespace NugieApp {
                            this->uniformBuffer->getInfo("ubo"))
                 .addBuffer(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("light_result"))
-                .addBuffer(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->rayTraceStorageBuffer->getInfo("traced_ray"))
                 .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("hit_record"))
                 .addBuffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("triangle_light"))
                 .addBuffer(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("vertex"))
-                .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("material"))
-                .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("transform"))
                 .build();
 
         this->missRayDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
