@@ -53,7 +53,10 @@ namespace NugieApp {
 
         Camera *camera = nullptr;
         Renderer *renderer = nullptr;
+
+    #ifdef USE_RASTER
         SubRenderer *subRenderer = nullptr;
+    #endif
 
         ComputeRenderSystem *rayIntersectRenderer = nullptr;
         ComputeRenderSystem *indirectRayGenRenderer = nullptr;
@@ -65,14 +68,19 @@ namespace NugieApp {
         ComputeRenderSystem *integratorRenderer = nullptr;
         ComputeRenderSystem *samplingRenderer = nullptr;
 
+    #ifdef USE_RASTER
         FinalPassRenderSystem *finalPassRenderSystem = nullptr;
+    #endif
     
         StackedArrayBuffer *dataBuffer = nullptr;
         StackedObjectBuffer *uniformBuffer = nullptr;
         StackedArrayManyBuffer *rayTraceStorageBuffer = nullptr;
 
         std::vector<NugieVulkan::Image *> resultImages{};
+
+    #ifdef USE_RASTER
         NugieVulkan::Sampler *resultSampler = nullptr;
+    #endif
 
         DescriptorSet *rayIntersectDescSet = nullptr;
         DescriptorSet *indirectRayGenDescSet = nullptr;
@@ -83,11 +91,14 @@ namespace NugieApp {
         DescriptorSet *directRayHitDescSet = nullptr;
         DescriptorSet *integratorDescSet = nullptr;
         DescriptorSet *samplingDescSet = nullptr;
-        DescriptorSet *finalDescSet = nullptr;
 
         uint32_t frameCount = 0u, randomSeed = 0u;
         bool isRendering = true;
 
         RayTraceUbo rayTraceUbo{};
+
+    #ifdef USE_RASTER
+        DescriptorSet *finalDescSet = nullptr;
+    #endif
     };
 }
