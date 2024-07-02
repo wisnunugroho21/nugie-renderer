@@ -41,7 +41,19 @@ namespace NugieApp {
         delete this->integratorRenderer;
         delete this->samplingRenderer;
 
+#ifdef USE_RASTER
+        delete this->finalPassRenderer;
+#endif
+
+#ifdef USE_RASTER
+        delete this->subRenderer;
+#endif
+
         delete this->renderer;
+
+#ifdef USE_RASTER
+        delete this->finalDescSet;
+#endif
 
         delete this->rayIntersectDescSet;
         delete this->indirectRayGenDescSet;
@@ -61,15 +73,12 @@ namespace NugieApp {
             delete resultImage;
         }
 
+#ifdef USE_RASTER
+        delete this->resultSampler;
+#endif
+
         delete this->device;
         delete this->window;
-
-    #ifdef USE_RASTER
-        delete this->finalPassRenderSystem;
-        delete this->subRenderer;
-        delete this->finalDescSet;
-        delete this->resultSampler;
-    #endif
     }
 
     void App::recordCommand() {
@@ -210,7 +219,7 @@ namespace NugieApp {
                 
                 // -------------------------------------------------------------------------------------------------------------------
 
-            #ifdef USE_RASTER
+#ifdef USE_RASTER
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
                                                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -220,7 +229,7 @@ namespace NugieApp {
                                                                       VK_ACCESS_SHADER_READ_BIT);
 
                 this->subRenderer->beginRenderPass(commandBuffer, imageIndex);
-                this->finalPassRenderSystem->render(commandBuffer, 6u, 1u, {this->finalDescSet->getDescriptorSets(frameIndex)});
+                this->finalPassRenderer->render(commandBuffer, 6u, 1u, {this->finalDescSet->getDescriptorSets(frameIndex)});
                 this->subRenderer->endRenderPass(commandBuffer);
 
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer,
@@ -231,7 +240,7 @@ namespace NugieApp {
                                                                       VK_ACCESS_SHADER_READ_BIT,
                                                                       VK_ACCESS_SHADER_WRITE_BIT);
                 
-            #else
+#else
                 this->resultImages[frameIndex]->transitionImageLayout(commandBuffer, 
                                                                       VK_IMAGE_LAYOUT_GENERAL,
                                                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -259,7 +268,7 @@ namespace NugieApp {
                                                       VK_PIPELINE_STAGE_TRANSFER_BIT,
                                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                                       VK_ACCESS_TRANSFER_WRITE_BIT, 0);
-            #endif
+#endif
                 // -------------------------------------------------------------------------------------------------------------------
 
                 commandBuffer->endCommand();
@@ -609,11 +618,11 @@ namespace NugieApp {
 
         // ----------------------------------------------------------------------------        
 
-        #ifdef USE_RASTER
+    #ifdef USE_RASTER
             VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         #else
             VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        #endif
+    #endif
 
         this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -626,11 +635,11 @@ namespace NugieApp {
                                                            VK_IMAGE_ASPECT_COLOR_BIT);
         }
 
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
         this->resultSampler = new NugieVulkan::Sampler(this->device, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
                                                        VK_TRUE, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER, 
                                                        VK_SAMPLER_MIPMAP_MODE_LINEAR, 1.0f);        
-    #endif
+#endif
 
         this->rayTraceStorageBuffer = StackedArrayManyBuffer::Builder(this->device, 
                                                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -729,7 +738,7 @@ namespace NugieApp {
             resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
         }
     
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
         std::vector<VkDescriptorImageInfo> resultSamplerInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
 
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -747,7 +756,7 @@ namespace NugieApp {
                                 VK_SAMPLE_COUNT_1_BIT)
 			.build();
 
-    #endif
+#endif
 
         this->indirectRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                              NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -936,12 +945,12 @@ namespace NugieApp {
                            this->rayTraceStorageBuffer->getInfo("integrator_radiance_bounce"))
                 .build();
 
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
         this->finalDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                     NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                 .addImage(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, resultSamplerInfos)
                 .build();
-    #endif
+#endif
 
         this->indirectRayGenRenderer = new ComputeRenderSystem(this->device, "../build/shader/indirect_ray_gen.comp.spv",
                                                                {this->indirectRayGenDescSet->getDescSetLayout()});
@@ -962,11 +971,11 @@ namespace NugieApp {
         this->samplingRenderer = new ComputeRenderSystem(this->device, "../build/shader/sampling.comp.spv",
                                                          {this->samplingDescSet->getDescSetLayout()});
 
-    #ifdef USE_RASTER
-        this->finalPassRenderSystem = new FinalPassRenderSystem(this->device, this->subRenderer->getRenderPass(), 
+#ifdef USE_RASTER
+        this->finalPassRenderer = new FinalPassRenderSystem(this->device, this->subRenderer->getRenderPass(), 
                                                                 "../build/shader/raster/final.vert.spv", "../build/shader/raster/final.frag.spv", 
                                                                 {this->finalDescSet->getDescSetLayout()});
-    #endif
+#endif
 
         this->indirectRayGenRenderer->initialize();
         this->rayIntersectRenderer->initialize();
@@ -978,9 +987,9 @@ namespace NugieApp {
         this->integratorRenderer->initialize();
         this->samplingRenderer->initialize();
 
-    #ifdef USE_RASTER
-        this->finalPassRenderSystem->initialize();
-    #endif
+#ifdef USE_RASTER
+        this->finalPassRenderer->initialize();
+#endif
     }
 
     void App::resize() {

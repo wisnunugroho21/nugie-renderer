@@ -605,8 +605,6 @@ namespace NugieApp {
     }
 
     SubRenderer *SubRenderer::Builder::build() {
-        std::vector<std::vector<NugieVulkan::Image *>> attachments = this->attachments;
-
         return new SubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments,
                                this->createdAttachments,
                                this->attachmentDescs, this->outputAttachmentRefs, this->depthAttachmentRefs,
@@ -651,17 +649,17 @@ namespace NugieApp {
     }
 
     SubRenderer::~SubRenderer() {
-        if (this->renderPass != nullptr) delete this->renderPass;
+        delete this->renderPass;
 
-        for (auto &&attachmentSampler: attachmentSamplers) {
+        for (auto &&attachmentSampler: this->attachmentSamplers) {
             for (auto &&sampler: attachmentSampler) {
-                if (sampler != nullptr) delete sampler;
+                delete sampler;
             }
         }
 
         for (auto &&createdAttachment: this->createdAttachments) {
             for (auto &&attachment: createdAttachment) {
-                if (attachment != nullptr) delete attachment;
+                delete attachment;
             }
         }
     }

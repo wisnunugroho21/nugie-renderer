@@ -21,7 +21,7 @@
 #include <vector>
 
 #define APP_TITLE "Nugie Renderer"
-#define USE_RASTER
+// #define USE_RASTER
 
 #define WIDTH 800
 #define HEIGHT 800
@@ -55,9 +55,9 @@ namespace NugieApp {
         Camera *camera = nullptr;
         Renderer *renderer = nullptr;
 
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
         SubRenderer *subRenderer = nullptr;
-    #endif
+#endif
 
         ComputeRenderSystem *rayIntersectRenderer = nullptr;
         ComputeRenderSystem *indirectRayGenRenderer = nullptr;
@@ -69,9 +69,9 @@ namespace NugieApp {
         ComputeRenderSystem *integratorRenderer = nullptr;
         ComputeRenderSystem *samplingRenderer = nullptr;
 
-    #ifdef USE_RASTER
-        FinalPassRenderSystem *finalPassRenderSystem = nullptr;
-    #endif
+#ifdef USE_RASTER
+        FinalPassRenderSystem *finalPassRenderer = nullptr;
+#endif
     
         StackedArrayBuffer *dataBuffer = nullptr;
         StackedObjectBuffer *uniformBuffer = nullptr;
@@ -79,9 +79,9 @@ namespace NugieApp {
 
         std::vector<NugieVulkan::Image *> resultImages{};
 
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
         NugieVulkan::Sampler *resultSampler = nullptr;
-    #endif
+#endif
 
         DescriptorSet *rayIntersectDescSet = nullptr;
         DescriptorSet *indirectRayGenDescSet = nullptr;
@@ -98,8 +98,8 @@ namespace NugieApp {
 
         RayTraceUbo rayTraceUbo{};
 
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
         DescriptorSet *finalDescSet = nullptr;
-    #endif
+#endif
     };
 }
