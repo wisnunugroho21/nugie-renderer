@@ -618,11 +618,11 @@ namespace NugieApp {
 
         // ----------------------------------------------------------------------------        
 
-    #ifdef USE_RASTER
+#ifdef USE_RASTER
             VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-        #else
+#else
             VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    #endif
+#endif
 
         this->resultImages.resize(NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -755,7 +755,6 @@ namespace NugieApp {
 				                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
                                 VK_SAMPLE_COUNT_1_BIT)
 			.build();
-
 #endif
 
         this->indirectRayGenDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
