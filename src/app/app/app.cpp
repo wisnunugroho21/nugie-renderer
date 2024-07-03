@@ -23,7 +23,8 @@ namespace NugieApp {
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-        this->camera = new Camera(WIDTH, HEIGHT);
+        this->camera = new Camera(this->renderer->getSwapChain()->getWidth(), 
+                                  this->renderer->getSwapChain()->getHeight());
 
         this->loadObjects();
         this->init();
@@ -290,7 +291,7 @@ namespace NugieApp {
 
                 if (!this->renderer->presentFrame()) {
                     this->resize();
-                    this->randomSeed = 0;
+                    this->randomSeed = 0u;
 
                     continue;
                 }
@@ -307,32 +308,31 @@ namespace NugieApp {
         glm::vec2 cameraRotation;
 
         auto isMousePressed = false, isKeyboardPressed = false;
-
-        uint32_t t = 0;
+        uint32_t t = 0u;
 
         std::thread renderThread(&App::renderLoop, std::ref(*this));
 
-        auto oldTime = std::chrono::high_resolution_clock::now();
+        // auto oldTime = std::chrono::high_resolution_clock::now();
         auto oldFpsTime = std::chrono::high_resolution_clock::now();
 
         while (!this->window->shouldClose()) {
             NugieVulkan::Window::pollEvents();
 
-            auto newTime = std::chrono::high_resolution_clock::now();
+            /* auto newTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
-            oldTime = newTime;
+            oldTime = newTime; */
 
             if (t > 1000 && this->frameCount > 0) {
-                newTime = std::chrono::high_resolution_clock::now();
-                deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+                auto newTime = std::chrono::high_resolution_clock::now();
+                auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
                 oldFpsTime = newTime;
 
                 std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") +
                                        std::to_string((static_cast<float>(this->frameCount) / deltaTime));
                 glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
-                this->frameCount = 0;
-                t = 0;
+                this->frameCount = 0u;
+                t = 0u;
             } else {
                 t++;
             }
