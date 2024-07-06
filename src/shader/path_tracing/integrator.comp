@@ -1,6 +1,6 @@
 #version 460
 
-#include "core/struct.glsl"
+#include "struct.glsl"
 
 layout (local_size_x = 64) in;
 
