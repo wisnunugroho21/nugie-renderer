@@ -1,4 +1,4 @@
-#include "app.hpp"
+#include "path_tracing_app.hpp"
 
 #include "../utils/bvh/bvh.hpp"
 
@@ -18,7 +18,7 @@
 #include <thread>
 
 namespace NugieApp {
-    App::App() {
+    PathTracingApp::PathTracingApp() {
         this->window = new NugieVulkan::Window(WIDTH, HEIGHT, APP_TITLE);
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
@@ -26,12 +26,12 @@ namespace NugieApp {
         this->camera = new Camera(this->renderer->getSwapChain()->getWidth(), 
                                   this->renderer->getSwapChain()->getHeight());
 
-        this->loadObjects();
+        this->loadData();
         this->init();
         this->recordCommand();
     }
 
-    App::~App() {
+    PathTracingApp::~PathTracingApp() {
         delete this->rayIntersectRenderer;
         delete this->indirectRayGenRenderer;
         delete this->indirectRayHitRenderer;
@@ -82,7 +82,7 @@ namespace NugieApp {
         delete this->window;
     }
 
-    void App::recordCommand() {
+    void PathTracingApp::recordCommand() {
         uint32_t imageCount = this->renderer->getSwapChain()->getImageCount();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t width = this->renderer->getSwapChain()->getWidth();
@@ -277,7 +277,7 @@ namespace NugieApp {
         }
     }
 
-    void App::renderLoop() {
+    void PathTracingApp::renderLoop() {
         while (this->isRendering) {
             this->frameCount++;
 
@@ -303,14 +303,14 @@ namespace NugieApp {
         }
     }
 
-    void App::run() {
+    void PathTracingApp::run() {
         glm::vec3 cameraPosition;
         glm::vec2 cameraRotation;
 
         auto isMousePressed = false, isKeyboardPressed = false;
         uint32_t t = 0u;
 
-        std::thread renderThread(&App::renderLoop, std::ref(*this));
+        std::thread renderThread(&PathTracingApp::renderLoop, std::ref(*this));
 
         // auto oldTime = std::chrono::high_resolution_clock::now();
         auto oldFpsTime = std::chrono::high_resolution_clock::now();
@@ -344,41 +344,41 @@ namespace NugieApp {
         vkDeviceWaitIdle(this->device->getLogicalDevice());
     }
 
-    void App::loadObjects() {
+    void PathTracingApp::loadData() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
 
-        std::vector<Object> objects;
-        std::vector<BvhNode> bvhObjects;
-        std::vector<Triangle> triangles;
-        std::vector<Triangle> triangleLights;
-        std::vector<BvhNode> bvhTriangles;
-        std::vector<Vertex> vertices;
+        std::vector<NugiePathTracing::Object> objects;
+        std::vector<NugiePathTracing::BvhNode> bvhObjects;
+        std::vector<NugiePathTracing::Triangle> triangles;
+        std::vector<NugiePathTracing::Triangle> triangleLights;
+        std::vector<NugiePathTracing::BvhNode> bvhTriangles;
+        std::vector<NugiePathTracing::Vertex> vertices;
         std::vector<Transformation> transforms;
         std::vector<Material> materials;
 
         std::vector<BoundBox *> objectBoundBoxes;
         std::vector<BoundBox *> triangleBoundBoxes;
-        std::vector<Triangle> curTris;
+        std::vector<NugiePathTracing::Triangle> curTris;
         std::vector<TransformComponent> transformComponents;
 
         // ----------------------------------------------------------------------------
         // kanan
 
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 0.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 0.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{0u, 1u, 2u, 1u}});
-        curTris.emplace_back(Triangle{glm::uvec4{2u, 3u, 0u, 1u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{0u, 1u, 2u, 1u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{2u, 3u, 0u, 1u}});
 
         transformComponents.emplace_back(
                 TransformComponent{glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         auto transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
-        objects.emplace_back(Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
+        objects.emplace_back(NugiePathTracing::Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
                                     transformIndex});
         auto objSize = static_cast<uint32_t>(objects.size());
 
@@ -406,19 +406,19 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // kiri
 
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{4u, 5u, 6u, 2u}});
-        curTris.emplace_back(Triangle{glm::uvec4{6u, 7u, 4u, 2u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{4u, 5u, 6u, 2u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{6u, 7u, 4u, 2u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
-        objects.emplace_back(Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
+        objects.emplace_back(NugiePathTracing::Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
                                     transformIndex});
         objSize = static_cast<uint32_t>(objects.size());
 
@@ -446,19 +446,19 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // bawah
 
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{8u, 9u, 10u, 0u}});
-        curTris.emplace_back(Triangle{glm::uvec4{10u, 11u, 8u, 0u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{8u, 9u, 10u, 0u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{10u, 11u, 8u, 0u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
-        objects.emplace_back(Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
+        objects.emplace_back(NugiePathTracing::Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
                                     transformIndex});
         objSize = static_cast<uint32_t>(objects.size());
 
@@ -486,19 +486,19 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // atas
 
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{12u, 13u, 14u, 0u}});
-        curTris.emplace_back(Triangle{glm::uvec4{14u, 15u, 12u, 0u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{12u, 13u, 14u, 0u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{14u, 15u, 12u, 0u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
-        objects.emplace_back(Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
+        objects.emplace_back(NugiePathTracing::Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
                                     transformIndex});
         objSize = static_cast<uint32_t>(objects.size());
 
@@ -526,19 +526,19 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // depan
 
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{16u, 17u, 18u, 0u}});
-        curTris.emplace_back(Triangle{glm::uvec4{18u, 19u, 16u, 0u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{16u, 17u, 18u, 0u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{18u, 19u, 16u, 0u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
-        objects.emplace_back(Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
+        objects.emplace_back(NugiePathTracing::Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangles.size()),
                                     transformIndex});
         objSize = static_cast<uint32_t>(objects.size());
 
@@ -566,20 +566,20 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // light
 
-        vertices.emplace_back(Vertex{glm::vec3{213.0f, 554.0f, 227.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{343.0f, 554.0f, 227.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{343.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(Vertex{glm::vec3{213.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 227.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 227.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
 
         curTris.clear();
-        curTris.emplace_back(Triangle{glm::uvec4{20u, 21u, 22u, 3u}});
-        curTris.emplace_back(Triangle{glm::uvec4{22u, 23u, 20u, 3u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{20u, 21u, 22u, 3u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{22u, 23u, 20u, 3u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);
 
         objects.emplace_back(
-                Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangleLights.size()),
+                NugiePathTracing::Object{static_cast<uint32_t>(bvhTriangles.size()), static_cast<uint32_t>(triangleLights.size()),
                        transformIndex});
         objSize = static_cast<uint32_t>(objects.size());
 
@@ -668,18 +668,18 @@ namespace NugieApp {
         this->uniformBuffer = StackedObjectBuffer::Builder(this->device, 
                                                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                                            NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                .addArrayItem("ubo", static_cast<VkDeviceSize>(sizeof(RayTraceUbo)), 1u)
+                .addArrayItem("ubo", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Ubo)), 1u)
                 .build();
 
         this->dataBuffer = StackedArrayBuffer::Builder(this->device,
                                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                                        true)
-                .addArrayItem("object", static_cast<VkDeviceSize>(sizeof(Object)), static_cast<uint32_t>(objects.size()))
-                .addArrayItem("object_bvh", static_cast<VkDeviceSize>(sizeof(BvhNode)), static_cast<uint32_t>(bvhObjects.size()))
-                .addArrayItem("triangle", static_cast<VkDeviceSize>(sizeof(Triangle)), static_cast<uint32_t>(triangles.size()))
-                .addArrayItem("triangle_light", static_cast<VkDeviceSize>(sizeof(Triangle)), static_cast<uint32_t>(triangleLights.size()))
-                .addArrayItem("geometry_bvh", static_cast<VkDeviceSize>(sizeof(BvhNode)), static_cast<uint32_t>(bvhTriangles.size()))
-                .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(Vertex)), static_cast<uint32_t>(vertices.size()))
+                .addArrayItem("object", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Object)), static_cast<uint32_t>(objects.size()))
+                .addArrayItem("object_bvh", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNode)), static_cast<uint32_t>(bvhObjects.size()))
+                .addArrayItem("triangle", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Triangle)), static_cast<uint32_t>(triangles.size()))
+                .addArrayItem("triangle_light", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Triangle)), static_cast<uint32_t>(triangleLights.size()))
+                .addArrayItem("geometry_bvh", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNode)), static_cast<uint32_t>(bvhTriangles.size()))
+                .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Vertex)), static_cast<uint32_t>(vertices.size()))
                 .addArrayItem("transform", static_cast<VkDeviceSize>(sizeof(Transformation)), static_cast<uint32_t>(transforms.size()))
                 .addArrayItem("material", static_cast<VkDeviceSize>(sizeof(Material)), static_cast<uint32_t>(materials.size()))
                 .build();
@@ -709,8 +709,8 @@ namespace NugieApp {
         this->renderer->submitTransferCommand();
     }
 
-    void App::initCamera(uint32_t width, uint32_t height) {
-        RayTraceUbo ubo{};
+    void PathTracingApp::initCamera(uint32_t width, uint32_t height) {
+        NugiePathTracing::Ubo ubo{};
 
         this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
         CameraRay cameraRay = this->camera->getCameraRay();
@@ -723,7 +723,7 @@ namespace NugieApp {
         this->rayTraceUbo.imgSizeRandomSeedNumLight.y = height;
     }
 
-    void App::init() {
+    void PathTracingApp::init() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
 
@@ -991,7 +991,7 @@ namespace NugieApp {
 #endif
     }
 
-    void App::resize() {
+    void PathTracingApp::resize() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t imageCount = this->renderer->getSwapChain()->getImageCount();

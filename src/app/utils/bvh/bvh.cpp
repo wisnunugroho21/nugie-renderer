@@ -65,8 +65,8 @@ namespace NugieApp {
                 glm::vec3(
                     glm::max(
                         glm::max(
-                                this->vertices[this->triangle.vertexMaterialIndexes.x].position,
-                                this->vertices[this->triangle.vertexMaterialIndexes.y].position
+                                    this->vertices[this->triangle.vertexMaterialIndexes.x].position,
+                                    this->vertices[this->triangle.vertexMaterialIndexes.y].position
                                 ),
                                 this->vertices[this->triangle.vertexMaterialIndexes.z].position
                             )
@@ -74,8 +74,8 @@ namespace NugieApp {
         };
     }
 
-    ObjectBoundBox::ObjectBoundBox(uint32_t i, const Object &o, const TransformComponent &tc,
-                                   const std::vector<Triangle> &t, const std::vector<Vertex> &v) 
+    ObjectBoundBox::ObjectBoundBox(uint32_t i, const NugiePathTracing::Object &o, const TransformComponent &tc,
+                                   const std::vector<NugiePathTracing::Triangle> &t, const std::vector<NugiePathTracing::Vertex> &v) 
                                    : BoundBox(i), object{o}, transformation{tc}, triangles{t}, vertices{v} 
     {
         this->typeIndex = 0u;
@@ -150,10 +150,10 @@ namespace NugieApp {
         return min;
     }
 
-    BvhNode BvhItemBuild::getGpuModel() {
+    NugiePathTracing::BvhNode BvhItemBuild::getGpuModel() {
         bool leaf = leftNodeIndex == 0 && rightNodeIndex == 0;
 
-        BvhNode node{};
+        NugiePathTracing::BvhNode node{};
         node.minimum = box.min;
         node.maximum = box.max;
 
@@ -334,7 +334,7 @@ namespace NugieApp {
 
     // Since GPU can't deal with tree structures we need to create a flattened BVH.
     // Stack is used instead of a tree.
-    std::vector<BvhNode> createBvh(const std::vector<BoundBox *> &boundedBoxes) {
+    std::vector<NugiePathTracing::BvhNode> createBvh(const std::vector<BoundBox *> &boundedBoxes) {
         uint32_t nodeCounter = 1u;
 
         std::vector<BvhItemBuild> intermediate;
@@ -413,7 +413,7 @@ namespace NugieApp {
         }
 
         std::sort(intermediate.begin(), intermediate.end(), nodeCompare);
-        std::vector<BvhNode> output;
+        std::vector<NugiePathTracing::BvhNode> output;
 
         output.reserve(intermediate.size());
         for (auto & i : intermediate) {

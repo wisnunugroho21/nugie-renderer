@@ -3,6 +3,7 @@
 #include "../../vulkan/window/window.hpp"
 #include "../../vulkan/device/device.hpp"
 #include "../../vulkan/buffer/buffer.hpp"
+#include "../path_tracing_struct.hpp"
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
@@ -14,7 +15,7 @@
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/compute_render_system.hpp"
-#include "../renderer_system/final_pass_render_system.hpp"
+#include "../renderer_system/path_tracing/final_pass_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 
 #include <memory>
@@ -28,11 +29,11 @@
 #define SHADOW_RESOLUTION 2048
 
 namespace NugieApp {
-    class App {
+    class PathTracingApp {
     public:
-        App();
+        PathTracingApp();
 
-        ~App();
+        ~PathTracingApp();
 
         void recordCommand();
 
@@ -41,7 +42,7 @@ namespace NugieApp {
         void renderLoop();
 
     private:
-        void loadObjects();
+        void loadData();
 
         void initCamera(uint32_t width, uint32_t height);
 
@@ -96,7 +97,7 @@ namespace NugieApp {
         uint32_t frameCount = 0u, randomSeed = 0u;
         bool isRendering = true;
 
-        RayTraceUbo rayTraceUbo{};
+        NugiePathTracing::Ubo rayTraceUbo{};
 
 #ifdef USE_RASTER
         DescriptorSet *finalDescSet = nullptr;

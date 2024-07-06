@@ -2,11 +2,11 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "app/app/app.hpp"
+#include "app/app/path_tracing_app.hpp"
 
 int main(int argc, char const *argv[])
 {
-    NugieApp::App app{};
+    NugieApp::PathTracingApp app{};
 
     try {
         app.run();

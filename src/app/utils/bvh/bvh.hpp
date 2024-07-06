@@ -7,7 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "../transform/transform.hpp"
-#include "../../general_struct.hpp"
+#include "../../path_tracing_struct.hpp"
 
 #include <vector>
 #include <memory>
@@ -56,7 +56,7 @@ namespace NugieApp {
 
     class TriangleBoundBox : public BoundBox {
     public:
-        TriangleBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) 
+        TriangleBoundBox(uint32_t i, const NugiePathTracing::Triangle &t, const std::vector<NugiePathTracing::Vertex> &v) 
                          : BoundBox(i), triangle{t}, vertices{v} 
         {
             this->typeIndex = 1u;
@@ -65,13 +65,13 @@ namespace NugieApp {
         Aabb boundingBox() override;
 
     private:
-        Triangle triangle{};
-        std::vector<Vertex> vertices{};
+        NugiePathTracing::Triangle triangle{};
+        std::vector<NugiePathTracing::Vertex> vertices{};
     };
 
     class TriangleLightBoundBox : public BoundBox {
     public:
-        TriangleLightBoundBox(uint32_t i, const Triangle &t, const std::vector<Vertex> &v) 
+        TriangleLightBoundBox(uint32_t i, const NugiePathTracing::Triangle &t, const std::vector<NugiePathTracing::Vertex> &v) 
                               : BoundBox(i), triangle{t}, vertices{v} 
         {
             this->typeIndex = 2u;
@@ -80,14 +80,15 @@ namespace NugieApp {
         Aabb boundingBox() override;
 
     private:
-        Triangle triangle{};
-        std::vector<Vertex> vertices{};
+        NugiePathTracing::Triangle triangle{};
+        std::vector<NugiePathTracing::Vertex> vertices{};
     };
 
     class ObjectBoundBox : public BoundBox {
     public:
-        ObjectBoundBox(uint32_t i, const Object &o, const TransformComponent &tc, const std::vector<Triangle> &t,
-                       const std::vector<Vertex> &v);
+        ObjectBoundBox(uint32_t i, const NugiePathTracing::Object &o, const TransformComponent &tc, 
+                       const std::vector<NugiePathTracing::Triangle> &t,
+                       const std::vector<NugiePathTracing::Vertex> &v);
 
         glm::vec3 getOriginalMin() override { return this->originalMin; }
 
@@ -96,11 +97,11 @@ namespace NugieApp {
         Aabb boundingBox() override;
 
     private:
-        Object object{};
+        NugiePathTracing::Object object{};
         TransformComponent transformation{};
 
-        std::vector<Triangle> triangles{};
-        std::vector<Vertex> vertices{};
+        std::vector<NugiePathTracing::Triangle> triangles{};
+        std::vector<NugiePathTracing::Vertex> vertices{};
 
         glm::vec3 originalMin{0.0f};
         glm::vec3 originalMax{0.0f};
@@ -118,7 +119,7 @@ namespace NugieApp {
         uint32_t rightNodeIndex = 0u;
         std::vector<BoundBox *> objects{};
 
-        BvhNode getGpuModel();
+        NugiePathTracing::BvhNode getGpuModel();
     };
 
     struct BvhBinSAH {
@@ -146,6 +147,6 @@ namespace NugieApp {
 
     // Since GPU can't deal with tree structures we need to create a flattened BVH.
     // Stack is used instead of a tree.
-    std::vector<BvhNode> createBvh(const std::vector<BoundBox *> &boundedBoxes);
+    std::vector<NugiePathTracing::BvhNode> createBvh(const std::vector<BoundBox *> &boundedBoxes);
 
 }// namespace NugieApp 

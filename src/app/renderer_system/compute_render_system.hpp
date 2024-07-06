@@ -6,8 +6,6 @@
 #include "../../vulkan/buffer/buffer.hpp"
 #include "../../vulkan/descriptor/descriptor_set_layout.hpp"
 
-#include "../general_struct.hpp"
-
 #include <vector>
 
 namespace NugieApp {

@@ -8,8 +8,6 @@
 #include "../../vulkan/swap_chain/swap_chain.hpp"
 #include "../../vulkan/renderpass/renderpass.hpp"
 
-#include "../general_struct.hpp"
-
 #include <vector>
 #include <string>
 
