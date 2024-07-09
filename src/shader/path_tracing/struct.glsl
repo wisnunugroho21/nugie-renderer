@@ -25,6 +25,6 @@ struct BvhNode {
 // -----------------------------------------------
 
 struct DirectNormalMaterialIndex {
-    precise vec3 normal;
+    vec3 normal;
     uint materialIndex;
 };

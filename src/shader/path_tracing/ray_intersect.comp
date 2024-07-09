@@ -6,31 +6,31 @@
 layout (local_size_x = 64) in;
 
 layout (set = 0, binding = 0) buffer writeonly HitLengthBuffer {
-    precise float hitLengths[];
+    float hitLengths[];
 };
 
 layout (set = 0, binding = 1) buffer writeonly HitUVBuffer {
-    precise vec2 hitUVs[];
+    vec2 hitUVs[];
 };
 
 layout (set = 0, binding = 2) buffer writeonly HitGeometryIndexBuffer {
-    precise uint hitGeometryIndexes[];
+    uint hitGeometryIndexes[];
 };
 
 layout (set = 0, binding = 3) buffer writeonly HitGeometryTypeIndexBuffer {
-    precise uint hitGeometryTypeIndexes[];
+    uint hitGeometryTypeIndexes[];
 };
 
 layout (set = 0, binding = 4) buffer writeonly HitTransformIndexBuffer {
-    precise uint hitTransformIndexes[];
+    uint hitTransformIndexes[];
 };
 
 layout (set = 0, binding = 5) buffer readonly TracedRayOriginBuffer {
-    precise vec3 tracedRayOrigins[];
+    vec3 tracedRayOrigins[];
 };
 
 layout (set = 0, binding = 6) buffer readonly TracedRayDirectionBuffer {
-    precise vec3 tracedRayDirections[];
+    vec3 tracedRayDirections[];
 };
 
 layout (set = 0, binding = 7) buffer readonly ObjectBvhBuffer {
@@ -63,7 +63,7 @@ layout (set = 0, binding = 13) buffer readonly TransformationBuffer {
 
 // ------------- Transformation -------------
 
-precise vec3 positionTransform(mat4 mat, vec3 vec) {
+vec3 positionTransform(mat4 mat, vec3 vec) {
     precise vec3 res;
 
     res.x = mat[3][0] +
@@ -96,7 +96,7 @@ precise vec3 positionTransform(mat4 mat, vec3 vec) {
     return res;
 }
 
-precise vec3 directionTransform(mat4 mat, vec3 vec) {
+vec3 directionTransform(mat4 mat, vec3 vec) {
     precise vec3 res;
 
     res.x =
@@ -131,30 +131,30 @@ precise vec3 directionTransform(mat4 mat, vec3 vec) {
 
 // ------------- Triangle -------------
 
-bool hitTriangle(Triangle triangle, vec3 rayOrigin, vec3 rayDirection, out precise float t, out precise vec2 uv) {
+bool hitTriangle(Triangle triangle, vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv) {
     vec3 v0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position;
     vec3 v1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position;
     vec3 v2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
 
     precise vec3 edge1 = v1 - v0;
     precise vec3 edge2 = v2 - v0;
-    precise vec3 ray_cross_e2 = cross(rayDirection, edge2);
-    precise float det = dot(edge1, ray_cross_e2);
+    vec3 ray_cross_e2 = cross(rayDirection, edge2);
+    float det = dot(edge1, ray_cross_e2);
 
     if (abs(det) < K_EPSILON) {
         return false;    // This ray is parallel to this triangle.
     }
 
-    precise float inv_det = 1.0 / det;
     precise vec3 s = rayOrigin - v0;
-    precise float u = inv_det * dot(s, ray_cross_e2);
+    float inv_det = 1.0 / det;    
+    float u = inv_det * dot(s, ray_cross_e2);
 
     if (u < 0 || u > 1) {
         return false;
     }
 
-    precise vec3 s_cross_e1 = cross(s, edge1);
-    precise float v = inv_det * dot(rayDirection, s_cross_e1);
+    vec3 s_cross_e1 = cross(s, edge1);
+    float v = inv_det * dot(rayDirection, s_cross_e1);
 
     if (v < 0 || u + v > 1) {
         return false;
@@ -173,13 +173,13 @@ bool hitTriangle(Triangle triangle, vec3 rayOrigin, vec3 rayDirection, out preci
 
 // ------------- Bvh -------------
 
-precise float intersectAABB(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax) {
+float intersectAABB(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax) {
     precise vec3 tMin = (boxMin - rayOrigin) / rayDirection;
     precise vec3 tMax = (boxMax - rayOrigin) / rayDirection;
-    precise vec3 t1 = min(tMin, tMax);
-    precise vec3 t2 = max(tMin, tMax);
-    precise float tNear = max(max(t1.x, t1.y), t1.z);
-    precise float tFar = min(min(t2.x, t2.y), t2.z);
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
 
     return tNear <= tFar ? tNear : FLT_MAX;
 }
@@ -324,11 +324,11 @@ bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv, o
 }
 
 void main() {
-    precise float hitLength = 0.0f;
-    precise vec2 hitUV = vec2(0.0f);
-    precise uint hitGeometryIndex = 0u;
-    precise uint hitGeometryTypeIndex = 0u;
-    precise uint hitTransformIndex = 0u;
+    float hitLength = 0.0f;
+    vec2 hitUV = vec2(0.0f);
+    uint hitGeometryIndex = 0u;
+    uint hitGeometryTypeIndex = 0u;
+    uint hitTransformIndex = 0u;
 
     vec3 rayOrigin = tracedRayOrigins[gl_GlobalInvocationID.x];
     vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];

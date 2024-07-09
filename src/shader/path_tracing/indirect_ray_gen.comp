@@ -13,23 +13,23 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
 } ubo;
 
 layout (set = 0, binding = 1) buffer writeonly TracedRayOriginBuffer {
-    precise vec3 tracedRayOrigins[];
+    vec3 tracedRayOrigins[];
 };
 
 layout (set = 0, binding = 2) buffer writeonly TracedRayDirectionBuffer {
-    precise vec3 tracedRayDirections[];
+    vec3 tracedRayDirections[];
 };
 
 layout (set = 0, binding = 3) buffer readonly ScatteredRayOriginBuffer {
-    precise vec3 scatteredRayOrigins[];
+    vec3 scatteredRayOrigins[];
 };
 
 layout (set = 0, binding = 4) buffer readonly ScatteredRayDirectionBuffer {
-    precise vec3 scatteredRayDirections[];
+    vec3 scatteredRayDirections[];
 };
 
 layout (set = 0, binding = 5) buffer readonly IntegratorTotalRadianceIsRayBounceBuffer {
-    precise vec4 integratorTotalRadianceIsRayBounces[];
+    vec4 integratorTotalRadianceIsRayBounces[];
 };
 
 void main() {

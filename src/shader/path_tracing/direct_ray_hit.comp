@@ -14,7 +14,7 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
 } ubo;
 
 layout (set = 0, binding = 1) buffer writeonly DirectRadiancePdfBuffer {
-    precise vec4 directRadiancePdfs[];
+    vec4 directRadiancePdfs[];
 };
 
 layout (set = 0, binding = 2) buffer readonly DirectNormalMaterialIndexBuffer {
@@ -22,31 +22,31 @@ layout (set = 0, binding = 2) buffer readonly DirectNormalMaterialIndexBuffer {
 };
 
 layout (set = 0, binding = 3) buffer readonly TracedRayOriginBuffer {
-    precise vec3 tracedRayOrigins[];
+    vec3 tracedRayOrigins[];
 };
 
 layout (set = 0, binding = 4) buffer readonly TracedRayDirectionBuffer {
-    precise vec3 tracedRayDirections[];
+    vec3 tracedRayDirections[];
 };
 
 layout (set = 0, binding = 5) buffer readonly HitLengthBuffer {
-    precise float hitLengths[];
+    float hitLengths[];
 };
 
 layout (set = 0, binding = 6) buffer readonly HitUVBuffer {
-    precise vec2 hitUVs[];
+    vec2 hitUVs[];
 };
 
 layout (set = 0, binding = 7) buffer readonly HitGeometryIndexBuffer {
-    precise uint hitGeometryIndexes[];
+    uint hitGeometryIndexes[];
 };
 
 layout (set = 0, binding = 8) buffer readonly HitGeometryTypeIndexBuffer {
-    precise uint hitGeometryTypeIndexes[];
+    uint hitGeometryTypeIndexes[];
 };
 
 layout (set = 0, binding = 9) buffer readonly HitTransformIndexBuffer {
-    precise uint hitTransformIndexes[];
+    uint hitTransformIndexes[];
 };
 
 layout (set = 0, binding = 10) buffer readonly TriangleLightBuffer {
@@ -67,7 +67,7 @@ layout (set = 0, binding = 13) buffer readonly TransformationBuffer {
 
 // ------------- Transform -------------
 
-precise vec3 positionTransform(mat4 mat, vec3 vec) {
+vec3 positionTransform(mat4 mat, vec3 vec) {
     precise vec3 res;
 
     res.x = mat[3][0] +
@@ -139,7 +139,7 @@ vec3 triangleNormal(Triangle triangle, vec3 rayDirection) {
     return dot(rayDirection, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
-precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
+vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
@@ -147,12 +147,15 @@ precise vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
 	precise vec3 v0v1 = vertex1.position - vertex0.position;
     precise vec3 v0v2 = vertex2.position - vertex0.position;
 
-	return vertex0.position +
+	precise vec3 res = 
+            vertex0.position +
             fma(
                vec3(uv.x), 
                v0v1, 
                vec3(uv.y) * v0v2 
             );
+
+    return res;
 }
 
 void main() {

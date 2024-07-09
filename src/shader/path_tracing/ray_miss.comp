@@ -13,11 +13,11 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
 } ubo;
 
 layout (set = 0, binding = 1) buffer writeonly MissRadianceIsMissBuffer {
-    precise vec4 missRadianceIsMisses[];
+    vec4 missRadianceIsMisses[];
 };
 
 layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
-    precise float hitLengths[];
+    float hitLengths[];
 };
 
 void main() {

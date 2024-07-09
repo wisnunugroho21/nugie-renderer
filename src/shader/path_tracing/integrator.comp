@@ -5,27 +5,27 @@
 layout (local_size_x = 64) in;
 
 layout (set = 0, binding = 0) buffer IntegratorTotalRadianceIsRayBounceBuffer {
-    precise vec4 integratorTotalRadianceIsRayBounces[];
+    vec4 integratorTotalRadianceIsRayBounces[];
 };
 
 layout (set = 0, binding = 1) buffer IntegratorTotalIndirectPdfBuffer {
-    precise vec4 integratorTotalIndirectPdfs[];
+    vec4 integratorTotalIndirectPdfs[];
 };
 
 layout (set = 0, binding = 2) buffer readonly IndirectRadiancePdfBuffer {
-    precise vec4 indirectRadiancePdfs[];
+    vec4 indirectRadiancePdfs[];
 };
 
 layout (set = 0, binding = 3) buffer readonly LightRadianceIsIlluminateBuffer {
-    precise vec4 lightRadianceIsIlluminates[];
+    vec4 lightRadianceIsIlluminates[];
 };
 
 layout (set = 0, binding = 4) buffer readonly DirectRadiancePdfBuffer {
-    precise vec4 directRadiancePdfs[];
+    vec4 directRadiancePdfs[];
 };
 
 layout (set = 0, binding = 5) buffer readonly MissRadianceIsMissBuffer {
-    precise vec4 missRadianceIsMisses[];
+    vec4 missRadianceIsMisses[];
 };
 
 void main() {

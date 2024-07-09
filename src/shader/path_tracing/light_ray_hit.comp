@@ -14,19 +14,19 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
 } ubo;
 
 layout (set = 0, binding = 1) buffer writeonly LightRadianceIsIlluminateBuffer {
-    precise vec4 lightRadianceIsIlluminates[];
+    vec4 lightRadianceIsIlluminates[];
 };
 
 layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
-    precise float hitLengths[];
+    float hitLengths[];
 };
 
 layout (set = 0, binding = 3) buffer readonly HitGeometryIndexBuffer {
-    precise uint hitGeometryIndexes[];
+    uint hitGeometryIndexes[];
 };
 
 layout (set = 0, binding = 4) buffer readonly HitGeometryTypeIndexBuffer {
-    precise uint hitGeometryTypeIndexes[];
+    uint hitGeometryTypeIndexes[];
 };
 
 layout (set = 0, binding = 5) buffer readonly TriangleLightBuffer {

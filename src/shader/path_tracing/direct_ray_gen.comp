@@ -14,15 +14,15 @@ layout (set = 0, binding = 0) uniform readonly GlobalUniform {
 } ubo;
 
 layout (set = 0, binding = 1) buffer writeonly TracedRayOriginBuffer {
-    precise vec3 tracedRayOrigins[];
+    vec3 tracedRayOrigins[];
 };
 
 layout (set = 0, binding = 2) buffer writeonly TracedRayDirectionBuffer {
-    precise vec3 tracedRayDirections[];
+    vec3 tracedRayDirections[];
 };
 
 layout (set = 0, binding = 3) buffer readonly DirectOriginIsIlluminateBuffer {
-    precise vec4 directOriginIsIlluminates[];
+    vec4 directOriginIsIlluminates[];
 };
 
 layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
@@ -64,13 +64,13 @@ uint randomUint(uint min, uint max, uint additionalRandomSeed) {
 
 // ------------- Triangle -------------
 
-precise vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
+vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
     Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
     Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
     Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
 
-    precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+    vec3 v0v1 = vertex1.position - vertex0.position;
+    vec3 v0v2 = vertex2.position - vertex0.position;
 
     float u1 = randomFloat(additionalRandomSeed);
     float u2 = randomFloat(additionalRandomSeed + 1);

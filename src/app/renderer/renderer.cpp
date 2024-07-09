@@ -4,6 +4,7 @@
 #include <array>
 #include <string>
 #include <cassert>
+#include <limits>
 
 namespace NugieApp {
     Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) 
