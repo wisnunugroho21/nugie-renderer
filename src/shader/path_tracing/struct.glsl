@@ -16,9 +16,15 @@ struct Object {
     uvec4 firstBvhGeometryTransformIndex;
 };
 
-struct BvhNode {
+struct BvhNodeIndex {
     uvec4 leftRightNodeObjTypeIndex;
+};
+
+struct BvhNodeMaximum {
     vec3 maximum;
+};
+
+struct BvhNodeMinimum {
     vec3 minimum;
 };
 

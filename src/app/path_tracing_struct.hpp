@@ -40,6 +40,21 @@ namespace NugiePathTracing {
         alignas(16) glm::vec3 minimum{0.0f};
     };
 
+    struct BvhNodeIndex {
+        uint32_t leftNode = 0u;
+        uint32_t rightNode = 0u;
+        uint32_t objIndex = 0u;
+        uint32_t typeIndex = 0u;
+    };
+
+    struct BvhNodeMaximum {
+        alignas(16) glm::vec3 maximum;
+    };
+
+    struct BvhNodeMinimum {
+        alignas(16) glm::vec3 minimum;
+    };
+
     struct Ubo {
         alignas(16) glm::vec3 origin{0.0f};
         alignas(16) glm::vec3 horizontal{0.0f};

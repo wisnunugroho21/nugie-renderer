@@ -615,6 +615,50 @@ namespace NugieApp {
         bvhObjects = createBvh(objectBoundBoxes);
 
         this->rayTraceUbo.imgSizeRandomSeedNumLight.w = static_cast<uint32_t>(triangleLights.size());
+        
+        // ----------------------------------------------------------------------------
+
+        std::vector<NugiePathTracing::BvhNodeIndex> objectBvhNodeIndexes;
+        std::vector<NugiePathTracing::BvhNodeMaximum> objectBvhNodeMaximums;
+        std::vector<NugiePathTracing::BvhNodeMinimum> objectBvhNodeMinimums;
+
+        std::vector<NugiePathTracing::BvhNodeIndex> geometryBvhNodeIndexes;
+        std::vector<NugiePathTracing::BvhNodeMaximum> geometryBvhNodeMaximums;
+        std::vector<NugiePathTracing::BvhNodeMinimum> geometryBvhNodeMinimums;
+        
+        for (auto &&bvhObject : bvhObjects) {
+            objectBvhNodeIndexes.emplace_back(NugiePathTracing::BvhNodeIndex {
+                bvhObject.leftNode,
+                bvhObject.rightNode,
+                bvhObject.objIndex,
+                bvhObject.typeIndex
+            });
+            
+            objectBvhNodeMaximums.emplace_back(NugiePathTracing::BvhNodeMaximum {
+                bvhObject.maximum
+            });
+
+            objectBvhNodeMinimums.emplace_back(NugiePathTracing::BvhNodeMinimum {
+                bvhObject.minimum
+            });
+        }
+
+        for (auto &&bvhTriangle : bvhTriangles) {
+            geometryBvhNodeIndexes.emplace_back(NugiePathTracing::BvhNodeIndex {
+                bvhTriangle.leftNode,
+                bvhTriangle.rightNode,
+                bvhTriangle.objIndex,
+                bvhTriangle.typeIndex
+            });
+            
+            geometryBvhNodeMaximums.emplace_back(NugiePathTracing::BvhNodeMaximum {
+                bvhTriangle.maximum
+            });
+
+            geometryBvhNodeMinimums.emplace_back(NugiePathTracing::BvhNodeMinimum {
+                bvhTriangle.minimum
+            });
+        }
 
         // ----------------------------------------------------------------------------        
 
@@ -675,10 +719,14 @@ namespace NugieApp {
                                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                                        true)
                 .addArrayItem("object", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Object)), static_cast<uint32_t>(objects.size()))
-                .addArrayItem("object_bvh", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNode)), static_cast<uint32_t>(bvhObjects.size()))
+                .addArrayItem("object_bvh_index", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeIndex)), static_cast<uint32_t>(objectBvhNodeIndexes.size()))
+                .addArrayItem("object_bvh_maximum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMaximum)), static_cast<uint32_t>(objectBvhNodeMaximums.size()))
+                .addArrayItem("object_bvh_minimum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMinimum)), static_cast<uint32_t>(objectBvhNodeMinimums.size()))
                 .addArrayItem("triangle", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Triangle)), static_cast<uint32_t>(triangles.size()))
                 .addArrayItem("triangle_light", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Triangle)), static_cast<uint32_t>(triangleLights.size()))
-                .addArrayItem("geometry_bvh", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNode)), static_cast<uint32_t>(bvhTriangles.size()))
+                .addArrayItem("geometry_bvh_index", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeIndex)), static_cast<uint32_t>(geometryBvhNodeIndexes.size()))
+                .addArrayItem("geometry_bvh_maximum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMaximum)), static_cast<uint32_t>(geometryBvhNodeMaximums.size()))
+                .addArrayItem("geometry_bvh_minimum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMinimum)), static_cast<uint32_t>(geometryBvhNodeMinimums.size()))
                 .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Vertex)), static_cast<uint32_t>(vertices.size()))
                 .addArrayItem("transform", static_cast<VkDeviceSize>(sizeof(Transformation)), static_cast<uint32_t>(transforms.size()))
                 .addArrayItem("material", static_cast<VkDeviceSize>(sizeof(Material)), static_cast<uint32_t>(materials.size()))
@@ -689,10 +737,14 @@ namespace NugieApp {
         auto commandBuffer = this->renderer->beginRecordTransferCommand();
         
         this->dataBuffer->writeValue(commandBuffer, "object", objects.data());
-        this->dataBuffer->writeValue(commandBuffer, "object_bvh", bvhObjects.data());
+        this->dataBuffer->writeValue(commandBuffer, "object_bvh_index", objectBvhNodeIndexes.data());
+        this->dataBuffer->writeValue(commandBuffer, "object_bvh_maximum", objectBvhNodeMaximums.data());
+        this->dataBuffer->writeValue(commandBuffer, "object_bvh_minimum", objectBvhNodeMinimums.data());
         this->dataBuffer->writeValue(commandBuffer, "triangle", triangles.data());
         this->dataBuffer->writeValue(commandBuffer, "triangle_light", triangleLights.data());
-        this->dataBuffer->writeValue(commandBuffer, "geometry_bvh", bvhTriangles.data());
+        this->dataBuffer->writeValue(commandBuffer, "geometry_bvh_index", geometryBvhNodeIndexes.data());
+        this->dataBuffer->writeValue(commandBuffer, "geometry_bvh_maximum", geometryBvhNodeMaximums.data());
+        this->dataBuffer->writeValue(commandBuffer, "geometry_bvh_minimum", geometryBvhNodeMinimums.data());
         this->dataBuffer->writeValue(commandBuffer, "vertex", vertices.data());
         this->dataBuffer->writeValue(commandBuffer, "transform", transforms.data());
         this->dataBuffer->writeValue(commandBuffer, "material", materials.data());
@@ -790,18 +842,26 @@ namespace NugieApp {
                 .addBuffer(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->rayTraceStorageBuffer->getInfo("traced_ray_direction"))
                 .addBuffer(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("object_bvh"))
+                           this->dataBuffer->getInfo("object_bvh_index"))
                 .addBuffer(8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("object"))
+                           this->dataBuffer->getInfo("object_bvh_maximum"))
                 .addBuffer(9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("geometry_bvh"))
+                           this->dataBuffer->getInfo("object_bvh_minimum"))
                 .addBuffer(10, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle"))
+                           this->dataBuffer->getInfo("object"))
                 .addBuffer(11, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("triangle_light"))
+                           this->dataBuffer->getInfo("geometry_bvh_index"))
                 .addBuffer(12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("vertex"))
+                           this->dataBuffer->getInfo("geometry_bvh_maximum"))
                 .addBuffer(13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("geometry_bvh_minimum"))
+                .addBuffer(14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("triangle"))
+                .addBuffer(15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("triangle_light"))
+                .addBuffer(16, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                           this->dataBuffer->getInfo("vertex"))
+                .addBuffer(17, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("transform"))
                 .build();
 
