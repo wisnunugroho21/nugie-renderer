@@ -625,6 +625,9 @@ namespace NugieApp {
         std::vector<NugiePathTracing::BvhNodeIndex> geometryBvhNodeIndexes;
         std::vector<NugiePathTracing::BvhNodeMaximum> geometryBvhNodeMaximums;
         std::vector<NugiePathTracing::BvhNodeMinimum> geometryBvhNodeMinimums;
+
+        std::vector<glm::mat4> worldToObjectTransformations;
+        std::vector<glm::mat4> objectToWorldTransformations;
         
         for (auto &&bvhObject : bvhObjects) {
             objectBvhNodeIndexes.emplace_back(NugiePathTracing::BvhNodeIndex {
@@ -658,6 +661,11 @@ namespace NugieApp {
             geometryBvhNodeMinimums.emplace_back(NugiePathTracing::BvhNodeMinimum {
                 bvhTriangle.minimum
             });
+        }
+
+        for (auto &&transform : transforms) {
+            worldToObjectTransformations.emplace_back(transform.worldToObjectMatrix);
+            objectToWorldTransformations.emplace_back(transform.objectToWorldMatrix);
         }
 
         // ----------------------------------------------------------------------------        
@@ -728,7 +736,8 @@ namespace NugieApp {
                 .addArrayItem("geometry_bvh_maximum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMaximum)), static_cast<uint32_t>(geometryBvhNodeMaximums.size()))
                 .addArrayItem("geometry_bvh_minimum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMinimum)), static_cast<uint32_t>(geometryBvhNodeMinimums.size()))
                 .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Vertex)), static_cast<uint32_t>(vertices.size()))
-                .addArrayItem("transform", static_cast<VkDeviceSize>(sizeof(Transformation)), static_cast<uint32_t>(transforms.size()))
+                .addArrayItem("world_to_object", static_cast<VkDeviceSize>(sizeof(glm::mat4)), static_cast<uint32_t>(worldToObjectTransformations.size()))
+                .addArrayItem("object_to_world", static_cast<VkDeviceSize>(sizeof(glm::mat4)), static_cast<uint32_t>(objectToWorldTransformations.size()))
                 .addArrayItem("material", static_cast<VkDeviceSize>(sizeof(Material)), static_cast<uint32_t>(materials.size()))
                 .build();
 
@@ -746,7 +755,8 @@ namespace NugieApp {
         this->dataBuffer->writeValue(commandBuffer, "geometry_bvh_maximum", geometryBvhNodeMaximums.data());
         this->dataBuffer->writeValue(commandBuffer, "geometry_bvh_minimum", geometryBvhNodeMinimums.data());
         this->dataBuffer->writeValue(commandBuffer, "vertex", vertices.data());
-        this->dataBuffer->writeValue(commandBuffer, "transform", transforms.data());
+        this->dataBuffer->writeValue(commandBuffer, "world_to_object", worldToObjectTransformations.data());
+        this->dataBuffer->writeValue(commandBuffer, "object_to_world", objectToWorldTransformations.data());
         this->dataBuffer->writeValue(commandBuffer, "material", materials.data());
 
         for (auto &&resultImage: this->resultImages) {
@@ -862,7 +872,7 @@ namespace NugieApp {
                 .addBuffer(16, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("vertex"))
                 .addBuffer(17, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("transform"))
+                           this->dataBuffer->getInfo("world_to_object"))
                 .build();
 
         this->indirectRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
@@ -900,7 +910,7 @@ namespace NugieApp {
                 .addBuffer(15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("material"))
                 .addBuffer(16, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("transform"))
+                           this->dataBuffer->getInfo("object_to_world"))
                 .build();
 
         this->lightRayHitDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
@@ -976,7 +986,7 @@ namespace NugieApp {
                 .addBuffer(12, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
                            this->dataBuffer->getInfo("material"))
                 .addBuffer(13, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
-                           this->dataBuffer->getInfo("transform"))
+                           this->dataBuffer->getInfo("object_to_world"))
                 .build();
 
         this->integratorDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),

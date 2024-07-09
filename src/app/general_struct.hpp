@@ -19,4 +19,12 @@ namespace NugieApp {
         glm::mat4 worldToObjectMatrix{1.0f};
         glm::mat4 objectToWorldMatrix{1.0f};
     };
+
+    struct WorldToObjectTransformation {
+        glm::mat4 worldToObjectMatrix{1.0f};
+    };
+
+    struct ObjectToWorldTransformation {
+        glm::mat4 objectToWorldMatrix{1.0f};
+    };
 }

@@ -61,9 +61,9 @@ layout (set = 0, binding = 12) buffer readonly MaterialBuffer {
     Material materials[];
 } materialBuffer;
 
-layout (set = 0, binding = 13) buffer readonly TransformationBuffer {
-    Transformation transformations[];
-} transformationBuffer;
+layout (set = 0, binding = 13) buffer readonly ObjectToWorldTransformationBuffer {
+    mat4 objectToWorldTransformations[];
+};
 
 // ------------- Transform -------------
 
@@ -168,9 +168,7 @@ void main() {
 
         vec3 hittedLightNormal = triangleNormal(hittedLight, rayDirection);
         vec3 hittedPosition = positionTransform(
-            transformationBuffer.transformations[
-                hitTransformIndexes[gl_GlobalInvocationID.x]
-            ].objectToWorldMatrix, 
+            objectToWorldTransformations[hitTransformIndexes[gl_GlobalInvocationID.x]], 
             trianglePositionFromUV(hittedLight, hitUVs[gl_GlobalInvocationID.x])
         );
 

@@ -73,9 +73,9 @@ layout (set = 0, binding = 16) buffer readonly VertexBuffer {
     Vertex vertices[];
 } vertexBuffer;
 
-layout (set = 0, binding = 17) buffer readonly TransformationBuffer {
-    Transformation transformations[];
-} transformationBuffer;
+layout (set = 0, binding = 17) buffer readonly WorldToObjectTransformationBuffer {
+    mat4 worldToObjectTransformations[];
+};
 
 // ------------- Transformation -------------
 
@@ -205,10 +205,10 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex,
                     out float t, out vec2 uv, out uint hitGeometryIndex, 
                     out uint hitGeometryTypeIndex) 
 {
-    Transformation curTransf = transformationBuffer.transformations[transformIndex];
+    mat4 worldToObjectMatrix = worldToObjectTransformations[transformIndex];
 
-    rayOrigin = positionTransform(curTransf.worldToObjectMatrix, rayOrigin);
-    rayDirection = directionTransform(curTransf.worldToObjectMatrix, rayDirection);
+    rayOrigin = positionTransform(worldToObjectMatrix, rayOrigin);
+    rayDirection = directionTransform(worldToObjectMatrix, rayDirection);
 
     uint stack[30];
     stack[0] = 1u;
