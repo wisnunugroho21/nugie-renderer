@@ -365,10 +365,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // kanan
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{-1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{0u, 1u, 2u, 1u}});
@@ -406,10 +406,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // kiri
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{1.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{4u, 5u, 6u, 2u}});
@@ -446,10 +446,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // bawah
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{8u, 9u, 10u, 0u}});
@@ -486,10 +486,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // atas
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{12u, 13u, 14u, 0u}});
@@ -526,10 +526,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // depan
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}, glm::vec3{0.0f, 0.0f, -1.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{16u, 17u, 18u, 0u}});
@@ -566,10 +566,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // light
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 227.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 227.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 332.0f}, glm::vec3{0.0f, -1.0f, 0.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 227.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 227.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 332.0f}});
+        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 332.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{20u, 21u, 22u, 3u}});

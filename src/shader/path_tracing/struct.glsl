@@ -6,7 +6,6 @@ struct Sphere {
 
 struct Vertex {
     vec3 position;
-    vec3 normal;
 };
 
 struct Triangle {

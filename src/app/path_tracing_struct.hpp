@@ -13,10 +13,9 @@
 namespace NugiePathTracing {
     struct Vertex {
         alignas(16) glm::vec3 position;
-        alignas(16) glm::vec3 normal;
 
         bool operator==(const Vertex &other) const {
-            return this->position == other.position && this->normal == other.normal;
+            return this->position == other.position;
         }
     };
 

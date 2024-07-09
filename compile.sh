@@ -1,4 +1,5 @@
 mkdir -p build/shader
+mkdir -p build/shader/raster
 
 glslc src/shader/path_tracing/indirect_ray_gen.comp -o build/shader/indirect_ray_gen.comp.spv
 glslc src/shader/path_tracing/ray_intersect.comp -o build/shader/ray_intersect.comp.spv
