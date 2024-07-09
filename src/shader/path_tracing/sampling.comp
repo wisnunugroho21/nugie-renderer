@@ -7,7 +7,7 @@ layout (local_size_x = 8, local_size_y = 8) in;
 layout (set = 0, binding = 0, rgba32f) writeonly uniform image2D resultImage;
 
 layout (set = 0, binding = 1) buffer SamplingBuffer {
-    SamplingResult results[];
+    precise vec4 results[];
 } samplingBuffer;
 
 layout (set = 0, binding = 2) buffer readonly IntegratorTotalRadianceIsRayBounceBuffer {
@@ -21,14 +21,14 @@ void main() {
     vec4 totalRadianceIsRayBounce = integratorTotalRadianceIsRayBounces[bufferIndex];
 
     if (totalRadianceIsRayBounce.w < 0.5f) {
-        SamplingResult samplingResult = samplingBuffer.results[bufferIndex];
+        vec4 samplingResult = samplingBuffer.results[bufferIndex];
 
         vec3 totalColor =
-        (clamp(totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.finalColorCountSample.xyz * samplingResult.finalColorCountSample.w)
-        / (samplingResult.finalColorCountSample.w + 1.0f);
+            (clamp(totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.xyz * samplingResult.w)
+            / (samplingResult.w + 1.0f);
 
-        samplingResult.finalColorCountSample.xyz = totalColor;
-        samplingResult.finalColorCountSample.w = (samplingResult.finalColorCountSample.w + 1.0f < 0.0f) ? 0.0f : samplingResult.finalColorCountSample.w + 1.0f;
+        samplingResult.xyz = totalColor;
+        samplingResult.w = (samplingResult.w + 1.0f < 0.0f) ? 0.0f : samplingResult.w + 1.0f;
 
         samplingBuffer.results[bufferIndex] = samplingResult;
         imageStore(resultImage, pixelCoord, vec4(totalColor, 1.0f));

@@ -40,51 +40,6 @@ namespace NugiePathTracing {
         alignas(16) glm::vec3 minimum{0.0f};
     };
 
-    struct Ray {
-        glm::vec4 origin{0.0f};
-        glm::vec4 direction{0.0f};
-    };
-
-    struct Hit {
-        float t = 0.0f;
-        alignas(16) glm::vec2 uv{0.0f};
-
-        uint32_t hitGeometryIndex = 0u;
-        uint32_t hitGeometryTypeIndex = 0u;
-        uint32_t hitTransformIndex = 0u;
-    };
-
-    struct DirectData {
-        glm::vec4 normalIsIlluminate{0.0f};
-        glm::vec4 originMaterialIndex{0.0f};
-    };
-
-    struct DirectResult {
-        glm::vec4 radiancePdf{0.0f};
-    };
-
-    struct IndirectResult {
-        glm::vec4 radiancePdf{0.0f};
-        Ray nextRay{};
-    };
-
-    struct LightResult {
-        glm::vec4 radianceIsIlluminate{0.0f};
-    };
-
-    struct MissResult {
-        glm::vec4 radianceIsMiss{0.0f};
-    };
-
-    struct IntegratorResult {
-        glm::vec4 totalRadianceIsRayBounce{0.0f};
-        glm::vec4 totalIndirectPdf{1.0f};
-    };
-
-    struct SamplingResult {
-        glm::vec4 finalColorCountSample{0.0f};
-    };
-
     struct Ubo {
         alignas(16) glm::vec3 origin{0.0f};
         alignas(16) glm::vec3 horizontal{0.0f};
