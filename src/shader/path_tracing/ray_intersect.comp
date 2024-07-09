@@ -201,15 +201,15 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex, uint 
         if (currentNode > 0u) {
             BvhNode curNode = geometryBvhBuffer.geometryBvhNodes[currentNode - 1u + firstBvhIndex];
 
-            if (curNode.objIndex > 0u) {
+            if (curNode.leftRightNodeObjTypeIndex.z > 0u) {
                 Triangle triangle;
 
-                switch (curNode.typeIndex) {
+                switch (curNode.leftRightNodeObjTypeIndex.w) {
                     case 1u:
-                        triangle = triangleBuffer.triangles[curNode.objIndex - 1u + firstGeometryIndex];
+                        triangle = triangleBuffer.triangles[curNode.leftRightNodeObjTypeIndex.z - 1u + firstGeometryIndex];
 
                         if (hitTriangle(triangle, rayOrigin, rayDirection, t, uv)) {
-                            hitGeometryIndex = curNode.objIndex - 1u + firstGeometryIndex;
+                            hitGeometryIndex = curNode.leftRightNodeObjTypeIndex.z - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 1u;
 
                             return true;
@@ -217,10 +217,10 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex, uint 
                         break;
 
                     case 2u:
-                        triangle = triangleLightBuffer.triangles[curNode.objIndex - 1u + firstGeometryIndex];
+                        triangle = triangleLightBuffer.triangles[curNode.leftRightNodeObjTypeIndex.z - 1u + firstGeometryIndex];
 
                         if (hitTriangle(triangle, rayOrigin, rayDirection, t, uv)) {
-                            hitGeometryIndex = curNode.objIndex - 1u + firstGeometryIndex;
+                            hitGeometryIndex = curNode.leftRightNodeObjTypeIndex.z - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 2u;
 
                             return true;
@@ -231,33 +231,33 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex, uint 
 
             float leftDist = FLT_MAX, rightDist = FLT_MAX;
 
-            if (curNode.leftNode > 0u) {
-                BvhNode leftNode = geometryBvhBuffer.geometryBvhNodes[curNode.leftNode - 1u + firstBvhIndex];
+            if (curNode.leftRightNodeObjTypeIndex.x > 0u) {
+                BvhNode leftNode = geometryBvhBuffer.geometryBvhNodes[curNode.leftRightNodeObjTypeIndex.x - 1u + firstBvhIndex];
                 leftDist = intersectAABB(rayOrigin, rayDirection, leftNode.minimum, leftNode.maximum);
             }
 
-            if (curNode.rightNode > 0u) {
-                BvhNode rightNode = geometryBvhBuffer.geometryBvhNodes[curNode.rightNode - 1u + firstBvhIndex];
+            if (curNode.leftRightNodeObjTypeIndex.y > 0u) {
+                BvhNode rightNode = geometryBvhBuffer.geometryBvhNodes[curNode.leftRightNodeObjTypeIndex.y - 1u + firstBvhIndex];
                 rightDist = intersectAABB(rayOrigin, rayDirection, rightNode.minimum, rightNode.maximum);
             }
 
             if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
                 if (leftDist >= 1.0e+30) {
-                    stack[stackIndex++] = curNode.rightNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.y;
                 }
 
                 else if (rightDist >= 1.0e+30) {
-                    stack[stackIndex++] = curNode.leftNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.x;
                 }
 
                 else if (leftDist < rightDist) {
-                    stack[stackIndex++] = curNode.rightNode;
-                    stack[stackIndex++] = curNode.leftNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.y;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.x;
                 }
 
                 else {
-                    stack[stackIndex++] = curNode.leftNode;
-                    stack[stackIndex++] = curNode.rightNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.x;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.y;
                 }
             }
         }
@@ -277,44 +277,44 @@ bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv, o
         if (currentNode > 0u) {
             BvhNode curNode = objectBvhBuffer.objectBvhNodes[currentNode - 1u];
 
-            if (curNode.objIndex > 0u) {
-                Object object = objectBuffer.objects[curNode.objIndex - 1u];
+            if (curNode.leftRightNodeObjTypeIndex.z > 0u) {
+                Object object = objectBuffer.objects[curNode.leftRightNodeObjTypeIndex.z - 1u];
 
-                if (hitGeometryBvh(rayOrigin, rayDirection, object.firstBvhIndex, object.firstGeometryIndex, object.transformIndex, t, uv, hitGeometryIndex, hitGeometryTypeIndex)) {
-                    hitTransformIndex = object.transformIndex;
+                if (hitGeometryBvh(rayOrigin, rayDirection, object.firstBvhGeometryTransformIndex.x, object.firstBvhGeometryTransformIndex.y, object.firstBvhGeometryTransformIndex.z, t, uv, hitGeometryIndex, hitGeometryTypeIndex)) {
+                    hitTransformIndex = object.firstBvhGeometryTransformIndex.z;
                     return true;
                 }
             }
 
             float leftDist = FLT_MAX, rightDist = FLT_MAX;
 
-            if (curNode.leftNode > 0u) {
-                BvhNode leftNode = objectBvhBuffer.objectBvhNodes[curNode.leftNode - 1u];
+            if (curNode.leftRightNodeObjTypeIndex.x > 0u) {
+                BvhNode leftNode = objectBvhBuffer.objectBvhNodes[curNode.leftRightNodeObjTypeIndex.x - 1u];
                 leftDist = intersectAABB(rayOrigin, rayDirection, leftNode.minimum, leftNode.maximum);
             }
 
-            if (curNode.rightNode > 0u) {
-                BvhNode rightNode = objectBvhBuffer.objectBvhNodes[curNode.rightNode - 1u];
+            if (curNode.leftRightNodeObjTypeIndex.y > 0u) {
+                BvhNode rightNode = objectBvhBuffer.objectBvhNodes[curNode.leftRightNodeObjTypeIndex.y - 1u];
                 rightDist = intersectAABB(rayOrigin, rayDirection, rightNode.minimum, rightNode.maximum);
             }
 
             if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
                 if (leftDist >= 1.0e+30) {
-                    stack[stackIndex++] = curNode.rightNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.y;
                 }
 
                 else if (rightDist >= 1.0e+30) {
-                    stack[stackIndex++] = curNode.leftNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.x;
                 }
 
                 else if (leftDist < rightDist) {
-                    stack[stackIndex++] = curNode.rightNode;
-                    stack[stackIndex++] = curNode.leftNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.y;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.x;
                 }
 
                 else {
-                    stack[stackIndex++] = curNode.leftNode;
-                    stack[stackIndex++] = curNode.rightNode;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.x;
+                    stack[stackIndex++] = curNode.leftRightNodeObjTypeIndex.y;
                 }
             }
         }

@@ -13,19 +13,11 @@ struct Triangle {
 };
 
 struct Object {
-    uint firstBvhIndex;
-    uint firstGeometryIndex;
-    uint transformIndex;
-    uint dummyIndex;
+    uvec4 firstBvhGeometryTransformIndex;
 };
 
 struct BvhNode {
-    uint leftNode;
-    uint rightNode;
-
-    uint objIndex;
-    uint typeIndex;
-
+    uvec4 leftRightNodeObjTypeIndex;
     vec3 maximum;
     vec3 minimum;
 };
