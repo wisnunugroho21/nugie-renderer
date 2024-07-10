@@ -50,16 +50,16 @@ layout (set = 0, binding = 9) buffer readonly HitTransformIndexBuffer {
 };
 
 layout (set = 0, binding = 10) buffer readonly TriangleLightBuffer {
-    Triangle triangles[];
-} triangleLightBuffer;
+    uvec4 triangleLights[];
+};
 
-layout (set = 0, binding = 11) buffer readonly VertexBuffer {
-    Vertex vertices[];
-} vertexBuffer;
+layout (set = 0, binding = 11) buffer readonly VertexPositionBuffer {
+    vec3 verticesPosition[];
+};
 
-layout (set = 0, binding = 12) buffer readonly MaterialBuffer {
-    Material materials[];
-} materialBuffer;
+layout (set = 0, binding = 12) buffer readonly MaterialColorBuffer {
+    vec4 materialColors[];
+};
 
 layout (set = 0, binding = 13) buffer readonly ObjectToWorldTransformationBuffer {
     mat4 objectToWorldTransformations[];
@@ -107,48 +107,46 @@ float lambertPdfValue(float NoL) {
 }
 
 vec3 lambertBrdfValue(uint materialIndex) {
-    return materialBuffer
-            .materials[materialIndex]
-            .baseColor.xyz 
+    return materialColors[materialIndex].xyz 
         * RECIPROCAL_PI;
 }
 
 // ------------- Triangle -------------
 
-float triangleArea(Triangle triangle) {
-    Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+float triangleArea(uvec4 triangle) {
+    vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
     vec3 pvec = cross(v0v1, v0v2);
     return 0.5 * sqrt(dot(pvec, pvec));
 }
 
-vec3 triangleNormal(Triangle triangle, vec3 rayDirection) {
-    Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+vec3 triangleNormal(uvec4 triangle, vec3 rayDirection) {
+    vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
     vec3 outwardNormal = normalize(cross(v0v1, v0v2));
     return dot(rayDirection, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
-vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
-	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+vec3 trianglePositionFromUV(uvec4 triangle, vec2 uv) {
+	vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
 	precise vec3 res = 
-            vertex0.position +
+            vertexPosition0 +
             fma(
                vec3(uv.x), 
                v0v1, 
@@ -163,7 +161,7 @@ void main() {
     DirectNormalMaterialIndex normalMaterialIndex = directNormalMaterialIndexes[gl_GlobalInvocationID.x];
 
     if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
-        Triangle hittedLight = triangleLightBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
+        uvec4 hittedLight = triangleLights[hitGeometryIndexes[gl_GlobalInvocationID.x]];
         vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
 
         vec3 hittedLightNormal = triangleNormal(hittedLight, rayDirection);
@@ -179,15 +177,8 @@ void main() {
         float area = triangleArea(hittedLight);
         float squareDistance = dot(dst, dst);
 
-        vec3 surfaceColor = materialBuffer
-            .materials[normalMaterialIndex.materialIndex]
-            .baseColor
-            .xyz;
-
-        vec3 lightColor = materialBuffer
-            .materials[hittedLight.vertexMaterialIndexes.w]
-            .baseColor
-            .xyz;
+        vec3 surfaceColor = materialColors[normalMaterialIndex.materialIndex].xyz;
+        vec3 lightColor = materialColors[hittedLight.w].xyz;
 
         directRadiancePdf.w = squareDistance / (ubo.imgSizeRandomSeedNumLight.w * NloL * area);
         directRadiancePdf.xyz = (lightColor * surfaceColor) 

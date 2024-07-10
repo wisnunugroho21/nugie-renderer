@@ -26,12 +26,12 @@ layout (set = 0, binding = 3) buffer readonly DirectOriginIsIlluminateBuffer {
 };
 
 layout (set = 0, binding = 4) buffer readonly TriangleLightBuffer {
-    Triangle triangles[];
-} triangleLightBuffer;
+    uvec4 triangles[];
+};
 
-layout (set = 0, binding = 5) buffer readonly VertexBuffer {
-    Vertex vertices[];
-} vertexBuffer;
+layout (set = 0, binding = 5) buffer readonly VertexPositionBuffer {
+    vec3 verticesPosition[];
+};
 
 // ------------- Random ------------- 
 
@@ -64,13 +64,13 @@ uint randomUint(uint min, uint max, uint additionalRandomSeed) {
 
 // ------------- Triangle -------------
 
-vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-    Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+vec3 triangleRandomTarget(uvec4 triangle, uint additionalRandomSeed) {
+    vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-    vec3 v0v1 = vertex1.position - vertex0.position;
-    vec3 v0v2 = vertex2.position - vertex0.position;
+    vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
     float u1 = randomFloat(additionalRandomSeed);
     float u2 = randomFloat(additionalRandomSeed + 1);
@@ -80,7 +80,7 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
         u2 = 1 - u2;
     }
 	
-	return vertex0.position +
+	return vertexPosition0 +
             fma(
                vec3(u1), 
                v0v1, 
@@ -93,7 +93,7 @@ void main() {
 
     if (directOriginIsIlluminate.w > 0.5f) {
         uint lightIndex = randomUint(0u, ubo.imgSizeRandomSeedNumLight.w - 1u, 0u);
-        vec3 target = triangleRandomTarget(triangleLightBuffer.triangles[lightIndex], 0u);
+        vec3 target = triangleRandomTarget(triangles[lightIndex], 0u);
 
         tracedRayOrigins[gl_GlobalInvocationID.x] = directOriginIsIlluminate.xyz;
         tracedRayDirections[gl_GlobalInvocationID.x] = normalize(target - directOriginIsIlluminate.xyz);

@@ -30,24 +30,21 @@ layout (set = 0, binding = 4) buffer readonly HitGeometryTypeIndexBuffer {
 };
 
 layout (set = 0, binding = 5) buffer readonly TriangleLightBuffer {
-    Triangle triangles[];
-} triangleLightBuffer;
+    uvec4 triangleLights[];
+};
 
 layout (set = 0, binding = 6) buffer readonly MaterialBuffer {
-    Material materials[];
-} materialBuffer;
+    vec4 materialColors[];
+};
 
 void main() {
     vec4 lightRadianceIsIlluminate = vec4(0.0f);
 
     if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
-        Triangle hittedLight = triangleLightBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
+        uvec4 hittedLight = triangleLights[hitGeometryIndexes[gl_GlobalInvocationID.x]];
 
         lightRadianceIsIlluminate.w = 1.0f;
-        lightRadianceIsIlluminate.xyz = materialBuffer
-            .materials[hittedLight.vertexMaterialIndexes.w]
-            .baseColor
-            .xyz;
+        lightRadianceIsIlluminate.xyz = materialColors[hittedLight.w].xyz;
     }
 
     lightRadianceIsIlluminates[gl_GlobalInvocationID.x] = lightRadianceIsIlluminate;

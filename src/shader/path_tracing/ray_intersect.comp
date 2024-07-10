@@ -62,16 +62,16 @@ layout (set = 0, binding = 13) buffer readonly GeometryBvhNodeMinimumBuffer {
 };
 
 layout (set = 0, binding = 14) buffer readonly TriangleBuffer {
-    Triangle triangles[];
-} triangleBuffer;
+    uvec4 triangles[];
+};
 
 layout (set = 0, binding = 15) buffer readonly TriangleLightBuffer {
-    Triangle triangles[];
-} triangleLightBuffer;
+    uvec4 triangleLights[];
+};
 
-layout (set = 0, binding = 16) buffer readonly VertexBuffer {
-    Vertex vertices[];
-} vertexBuffer;
+layout (set = 0, binding = 16) buffer readonly VertexPositionBuffer {
+    vec3 verticesPosition[];
+};
 
 layout (set = 0, binding = 17) buffer readonly WorldToObjectTransformationBuffer {
     mat4 worldToObjectTransformations[];
@@ -147,13 +147,14 @@ vec3 directionTransform(mat4 mat, vec3 vec) {
 
 // ------------- Triangle -------------
 
-bool hitTriangle(Triangle triangle, vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv) {
-    vec3 v0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x].position;
-    vec3 v1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y].position;
-    vec3 v2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z].position;
+bool hitTriangle(uvec4 triangle, vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv) {
+    vec3 v0 = verticesPosition[triangle.x];
+    vec3 v1 = verticesPosition[triangle.y];
+    vec3 v2 = verticesPosition[triangle.z];
 
     precise vec3 edge1 = v1 - v0;
     precise vec3 edge2 = v2 - v0;
+
     vec3 ray_cross_e2 = cross(rayDirection, edge2);
     float det = dot(edge1, ray_cross_e2);
 
@@ -226,9 +227,9 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex,
 
                 switch (curNodeIndex.w) {
                     case 1u:
-                        triangle = triangleBuffer.triangles[curNodeIndex.z - 1u + firstGeometryIndex];
-
-                        if (hitTriangle(triangle, rayOrigin, rayDirection, t, uv)) {
+                        if (hitTriangle(triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
+                                        rayOrigin, rayDirection, t, uv)) 
+                        {
                             hitGeometryIndex = curNodeIndex.z - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 1u;
 
@@ -237,9 +238,9 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex,
                         break;
 
                     case 2u:
-                        triangle = triangleLightBuffer.triangles[curNodeIndex.z - 1u + firstGeometryIndex];
-
-                        if (hitTriangle(triangle, rayOrigin, rayDirection, t, uv)) {
+                        if (hitTriangle(triangleLights[curNodeIndex.z - 1u + firstGeometryIndex], 
+                                        rayOrigin, rayDirection, t, uv)) 
+                        {
                             hitGeometryIndex = curNodeIndex.z - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 2u;
 
@@ -306,10 +307,10 @@ bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection,
                 uvec4 object = objects[curNodeIndex.z - 1u];
 
                 if (hitGeometryBvh(rayOrigin, rayDirection, 
-                                   object.x, 
-                                   object.y, 
-                                   object.z, 
-                                   t, uv, hitGeometryIndex, hitGeometryTypeIndex)) 
+                                   object.x, object.y, 
+                                   object.z, t, uv, 
+                                   hitGeometryIndex, 
+                                   hitGeometryTypeIndex)) 
                 {
                     hitTransformIndex = object.z;
                     return true;

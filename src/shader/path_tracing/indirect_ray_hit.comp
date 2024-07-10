@@ -62,16 +62,16 @@ layout (set = 0, binding = 12) buffer readonly HitTransformIndexBuffer {
 };
 
 layout (set = 0, binding = 13) buffer readonly TriangleBuffer {
-    Triangle triangles[];
-} triangleBuffer;
+    uvec4 triangles[];
+};
 
-layout (set = 0, binding = 14) buffer readonly VertexBuffer {
-    Vertex vertices[];
-} vertexBuffer;
+layout (set = 0, binding = 14) buffer readonly VertexPositionBuffer {
+    vec3 verticesPosition[];
+};
 
 layout (set = 0, binding = 15) buffer readonly MaterialBuffer {
-    Material materials[];
-} materialBuffer;
+    vec4 materialColors[];
+};
 
 layout (set = 0, binding = 16) buffer readonly ObjectToWorldTransformationBuffer {
     mat4 objectToWorldTransformations[];
@@ -160,9 +160,7 @@ float lambertPdfValue(float NoL) {
 }
 
 vec3 lambertBrdfValue(uint materialIndex) {
-    return materialBuffer
-            .materials[materialIndex]
-            .baseColor.xyz 
+    return materialColors[materialIndex].xyz 
         * RECIPROCAL_PI;
 }
 
@@ -186,13 +184,13 @@ vec3 lambertRandomDirection(vec3[3] globalOnb, uint additionalRandomSeed) {
 
 // ------------- Triangle -------------
 
-vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
-    Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+vec3 triangleRandomTarget(uvec4 triangle, uint additionalRandomSeed) {
+    vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-    precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
     float u1 = randomFloat(additionalRandomSeed);
     float u2 = randomFloat(additionalRandomSeed + 1);
@@ -203,7 +201,7 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
     }
 	
 	precise vec3 res = 
-            vertex0.position +
+            vertexPosition0 +
             fma(
                vec3(u1), 
                v0v1, 
@@ -213,28 +211,28 @@ vec3 triangleRandomTarget(Triangle triangle, uint additionalRandomSeed) {
     return res;
 }
 
-vec3 triangleNormal(Triangle triangle, vec3 rayDirection) {
-   	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+vec3 triangleNormal(uvec4 triangle, vec3 rayDirection) {
+   	vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-    precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
     vec3 outwardNormal = normalize(cross(v0v1, v0v2));
     return dot(rayDirection, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
 }
 
-vec3 trianglePositionFromUV(Triangle triangle, vec2 uv) {
-	Vertex vertex0 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.x];
-    Vertex vertex1 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.y];
-    Vertex vertex2 = vertexBuffer.vertices[triangle.vertexMaterialIndexes.z];
+vec3 trianglePositionFromUV(uvec4 triangle, vec2 uv) {
+	vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
 
-	precise vec3 v0v1 = vertex1.position - vertex0.position;
-    precise vec3 v0v2 = vertex2.position - vertex0.position;
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
 
 	precise vec3 res = 
-            vertex0.position +
+            vertexPosition0 +
             fma(
                vec3(uv.x), 
                v0v1, 
@@ -250,7 +248,7 @@ void main() {
     vec4 directOriginIsIlluminate = vec4(0.0f);
 
     if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 1u) {
-        Triangle hittedTriangle = triangleBuffer.triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
+        uvec4 hittedTriangle = triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
 
         vec3 hittedNormal = triangleNormal(hittedTriangle, tracedRayDirections[gl_GlobalInvocationID.x]);
         vec3 hittedPosition = positionTransform(
@@ -262,7 +260,7 @@ void main() {
         directOriginIsIlluminate.w = 1.0f;
 
         directNormalMaterialIndex.normal = hittedNormal;
-        directNormalMaterialIndex.materialIndex = hittedTriangle.vertexMaterialIndexes.w;
+        directNormalMaterialIndex.materialIndex = hittedTriangle.w;
 
         vec3 target = lambertRandomDirection(buildOnb(hittedNormal), 0u);
         vec3 scatterdRayDirection = normalize(target - hittedPosition);
@@ -271,11 +269,7 @@ void main() {
         scatteredRayDirections[gl_GlobalInvocationID.x] = scatterdRayDirection;
 
         float NoL = dot(hittedNormal, scatterdRayDirection);
-
-        vec3 surfaceColor = materialBuffer
-            .materials[directNormalMaterialIndex.materialIndex]
-            .baseColor
-            .xyz;
+        vec3 surfaceColor = materialColors[directNormalMaterialIndex.materialIndex].xyz;
 
         indirectRadiancePdf.w = lambertPdfValue(NoL);
         indirectRadiancePdf.xyz = surfaceColor * (RECIPROCAL_PI * NoL / indirectRadiancePdf.w);
