@@ -8,9 +8,7 @@
 #define K_EPSILON 1e-8
 
 struct Material {
-  vec4 baseColor;
-  vec4 params;
-  uint colorTextureIndex;
+    vec4 baseColor;
 };
 
 struct Transformation {

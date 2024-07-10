@@ -12,7 +12,7 @@ namespace NugieApp {
     class ComputeRenderSystem {
     public:
         ComputeRenderSystem(NugieVulkan::Device *device, std::string compFilePath,
-                            const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts = {},
+                            const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
                             const std::vector<VkPushConstantRange> &pushConstantRanges = {});
 
         ~ComputeRenderSystem();
@@ -20,8 +20,9 @@ namespace NugieApp {
         void initialize();
 
         virtual void render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t xInvocations, uint32_t yInvocations,
-                            uint32_t zInvocations, const std::vector<VkDescriptorSet> &descriptorSets = {},
-                            const std::vector<void *> &pushConstants = {});
+                            uint32_t zInvocations,
+                            const std::vector<VkDescriptorSet> &descriptorSets,
+                            const std::vector<void *> &pushConstants);
 
     private:
         virtual void createPipelineLayout();

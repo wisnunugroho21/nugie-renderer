@@ -4,6 +4,7 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
@@ -14,10 +15,10 @@ namespace NugieApp {
         glm::vec4 baseColor;
     };
 
-	struct Transformation {
-		glm::mat4 modelMatrix{1.0f};
-		glm::mat4 normalMatrix{1.0f};
-	};
+    struct Transformation {
+        glm::mat4 worldToObjectMatrix{1.0f};
+        glm::mat4 objectToWorldMatrix{1.0f};
+    };
 
     struct WorldToObjectTransformation {
         glm::mat4 worldToObjectMatrix{1.0f};

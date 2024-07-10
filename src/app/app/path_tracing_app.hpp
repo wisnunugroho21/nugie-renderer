@@ -12,8 +12,6 @@
 #include "../data/buffer/stacked_array_many_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
-#include "../data/texture/heightmap_texture.hpp"
-#include "../data/texture/cubemap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/compute_render_system.hpp"
@@ -40,6 +38,7 @@ namespace NugieApp {
         void recordCommand();
 
         void run();
+
         void renderLoop();
 
     private:
@@ -48,15 +47,13 @@ namespace NugieApp {
         void initCamera(uint32_t width, uint32_t height);
 
         void init();
+
         void resize();
 
         NugieVulkan::Window *window = nullptr;
         NugieVulkan::Device *device = nullptr;
 
         Camera *camera = nullptr;
-        KeyboardController *keyboardController = nullptr;
-        MouseController *mouseController = nullptr;
-
         Renderer *renderer = nullptr;
 
 #ifdef USE_RASTER
@@ -81,10 +78,7 @@ namespace NugieApp {
         StackedObjectBuffer *uniformBuffer = nullptr;
         StackedArrayManyBuffer *rayTraceStorageBuffer = nullptr;
 
-        DescriptorSet *terrainDescSet = nullptr;
-        DescriptorSet *forwardDescSet = nullptr;
-        DescriptorSet *shadowDescSet = nullptr;
-        DescriptorSet *skyboxDescSet = nullptr;
+        std::vector<NugieVulkan::Image *> resultImages{};
 
 #ifdef USE_RASTER
         NugieVulkan::Sampler *resultSampler = nullptr;
@@ -100,8 +94,8 @@ namespace NugieApp {
         DescriptorSet *integratorDescSet = nullptr;
         DescriptorSet *samplingDescSet = nullptr;
 
+        uint32_t frameCount = 0u, randomSeed = 0u;
         bool isRendering = true;
-        RenderData renderData;
 
         NugiePathTracing::Ubo rayTraceUbo{};
 

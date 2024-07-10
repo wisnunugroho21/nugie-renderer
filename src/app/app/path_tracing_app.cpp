@@ -1,14 +1,10 @@
 #include "path_tracing_app.hpp"
 
-#include "../utils/load_model/load_model.hpp"
-
-#include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
-#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
-#include "../data/terrain/terrain_mesh/quads_terrain_mesh.hpp"
-#include "../data/skybox/skybox.hpp"
+#include "../utils/bvh/bvh.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
@@ -84,10 +80,6 @@ namespace NugieApp {
 
         delete this->device;
         delete this->window;
-
-        delete this->mouseController;
-        delete this->keyboardController;
-        delete this->camera;
     }
 
     void PathTracingApp::recordCommand() {
@@ -98,12 +90,9 @@ namespace NugieApp {
         for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
+                auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
 
-                for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
-                    this->shadowSubRenderer->beginRenderPass(commandBuffer, frameIndex * this->spotNumLight + lightIndex);
-                    this->shadowPassRenderer->render(commandBuffer, shadowBuffers, this->indexBuffer->getBuffer(), modelIndexSize, lightIndex, shadowBufferOffsets, modelIndexOffset, {this->shadowDescSet->getDescriptorSets(frameIndex)}, {&lightIndex});
-                    this->shadowSubRenderer->endRenderPass(commandBuffer);
-                }
+                // -------------------------------------------------------------------------------------------------------------------
 
                 this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
@@ -327,36 +316,19 @@ namespace NugieApp {
         auto oldFpsTime = std::chrono::high_resolution_clock::now();
 
         while (!this->window->shouldClose()) {
-            this->window->pollEvents();
-
-            cameraPosition = this->camera->getPosition();
-            cameraRotation = this->camera->getRotation();
-
-            isMousePressed = false;
-            isKeyboardPressed = false;
+            NugieVulkan::Window::pollEvents();
 
             /* auto newTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
             oldTime = newTime; */
-
-            cameraRotation = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraRotation, &isMousePressed);
-            cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, this->camera->getDirection(), &isKeyboardPressed);
-
-            if (isMousePressed || isKeyboardPressed) {
-                this->camera->setViewYXZ(cameraPosition, cameraRotation);
-
-                this->renderData.cameraTransformation.view = this->camera->getViewMatrix();
-                this->renderData.cameraTransformation.projection = this->camera->getProjectionMatrix();
-
-                this->cameraUpdateCount = 0u;
-            }
 
             if (t > 1000 && this->frameCount > 0) {
                 auto newTime = std::chrono::high_resolution_clock::now();
                 auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
                 oldFpsTime = newTime;
 
-                std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((this->frameCount / deltaTime));
+                std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") +
+                                       std::to_string((static_cast<float>(this->frameCount) / deltaTime));
                 glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
                 this->frameCount = 0u;
@@ -390,7 +362,8 @@ namespace NugieApp {
         std::vector<NugiePathTracing::Triangle> curTris;
         std::vector<TransformComponent> transformComponents;
 
-        shadowTransforms.resize(this->spotNumLight);
+        // ----------------------------------------------------------------------------
+        // kanan
 
         vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
         vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
@@ -786,20 +759,13 @@ namespace NugieApp {
         this->dataBuffer->writeValue(commandBuffer, "object_to_world", objectToWorldTransformations.data());
         this->dataBuffer->writeValue(commandBuffer, "material", materials.data());
 
-        this->transformationBuffer = new ArrayBuffer<Transformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(transforms.size()));
-        this->transformationBuffer->replace(commandBuffer, ConvertComponentToTransform(transforms));
+        for (auto &&resultImage: this->resultImages) {
+            resultImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                               0, VK_ACCESS_SHADER_WRITE_BIT);
+        }
 
-        this->shadowTransformationBuffer = new ArrayBuffer<ShadowTransformation>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(shadowTransforms.size()));
-        this->shadowTransformationBuffer->replace(commandBuffer, shadowTransforms);
-
-        this->spotLightBuffer = new ArrayBuffer<SpotLight>(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, static_cast<uint32_t>(spotLights.size()));
-        this->spotLightBuffer->replace(commandBuffer, spotLights);
-
-        this->colorTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/smile.png"));
-        this->terrainTextures.emplace_back(new Texture(this->device, commandBuffer, "../assets/textures/white.jpg"));
-
-        this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());
-        this->skyboxTexture = new CubeMapTexture(this->device, commandBuffer, skyboxTexturFilenames);
+        this->rayTraceStorageBuffer->initializeValue(commandBuffer);
 
         commandBuffer->endCommand();
         this->renderer->submitTransferCommand();
@@ -808,8 +774,8 @@ namespace NugieApp {
     void PathTracingApp::initCamera(uint32_t width, uint32_t height) {
         NugiePathTracing::Ubo ubo{};
 
-        float near = 0.1f;
-        float far = 2000.0f;
+        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
+        CameraRay cameraRay = this->camera->getCameraRay();
 
         this->rayTraceUbo.origin = cameraRay.origin;
         this->rayTraceUbo.horizontal = cameraRay.horizontal;
@@ -822,27 +788,16 @@ namespace NugieApp {
     void PathTracingApp::init() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
-        uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
-        VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
         VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
         uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
 
         this->initCamera(width, height);
 
-        this->shadowSubRenderer = SubRenderer::Builder(this->device, SHADOW_RESOLUTION, SHADOW_RESOLUTION, this->spotNumLight * NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                                      .setDepthAttachment(AttachmentType::OUTPUT_TEXTURE, VK_FORMAT_D16_UNORM, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_SAMPLE_COUNT_1_BIT)
-                                      .build();
+        std::vector<VkDescriptorImageInfo> resultImageInfos{NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT};
 
-        std::vector<std::vector<VkDescriptorImageInfo>> shadowImageInfos;
-        for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
-            std::vector<VkDescriptorImageInfo> shadowFrameImageInfos;
-
-            for (uint32_t lightIndex = 0; lightIndex < this->spotNumLight; lightIndex++) {
-                shadowFrameImageInfos.emplace_back(this->shadowSubRenderer->getAttachmentInfos(0)[0][frameIndex * this->spotNumLight + lightIndex]);
-            }
-
-            shadowImageInfos.emplace_back(shadowFrameImageInfos);
+        for (uint32_t i = 0; i < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; i++) {
+            resultImageInfos[i] = this->resultImages[i]->getDescriptorInfo(VK_IMAGE_LAYOUT_GENERAL);
         }
     
 #ifdef USE_RASTER
@@ -1109,25 +1064,10 @@ namespace NugieApp {
     void PathTracingApp::resize() {
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
-        uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
+        uint32_t imageCount = this->renderer->getSwapChain()->getImageCount();
         VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
         this->renderer->resetCommandPool();
-
-        SubRenderer::Overwriter(this->device, width, height, imageCount)
-            .addOutsideAttachment(this->renderer->getSwapChain()->getswapChainImages())
-            .overwrite(this->finalSubRenderer);
-
-        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-        this->camera->setAspect(aspectRatio);
-
-        this->renderData.cameraTransformation.view = this->camera->getViewMatrix();
-        this->renderData.cameraTransformation.projection = this->camera->getProjectionMatrix();
-        this->renderData.tessellationData.tessellationScreenSizeFactorEdgeSize.x = width;
-        this->renderData.tessellationData.tessellationScreenSizeFactorEdgeSize.y = height;
-
-        this->cameraUpdateCount = 0u;
-
         this->recordCommand();
     }
 }
