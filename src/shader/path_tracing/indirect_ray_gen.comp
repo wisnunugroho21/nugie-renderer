@@ -1,0 +1,49 @@
+#version 460
+
+#include "struct.glsl"
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+layout (set = 0, binding = 0) uniform readonly GlobalUniform {
+    vec3 origin;
+    vec3 horizontal;
+    vec3 vertical;
+    vec3 lowerLeftCorner;
+    uvec4 imgSizeRandomSeedNumLight;
+} ubo;
+
+layout (set = 0, binding = 1) buffer writeonly TracedRayOriginBuffer {
+    vec3 tracedRayOrigins[];
+};
+
+layout (set = 0, binding = 2) buffer writeonly TracedRayDirectionBuffer {
+    vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 3) buffer readonly ScatteredRayOriginBuffer {
+    vec3 scatteredRayOrigins[];
+};
+
+layout (set = 0, binding = 4) buffer readonly ScatteredRayDirectionBuffer {
+    vec3 scatteredRayDirections[];
+};
+
+layout (set = 0, binding = 5) buffer readonly IntegratorTotalRadianceIsRayBounceBuffer {
+    vec4 integratorTotalRadianceIsRayBounces[];
+};
+
+void main() {
+    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+    uint bufferIndex = pixelCoord.x + ubo.imgSizeRandomSeedNumLight.x * pixelCoord.y;
+    vec2 uv = vec2(pixelCoord) / vec2(ubo.imgSizeRandomSeedNumLight.xy);
+
+    vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
+
+    tracedRayOrigins[bufferIndex] = integratorTotalRadianceIsRayBounces[bufferIndex].w > 0.5f
+    ? scatteredRayOrigins[bufferIndex]
+    : ubo.origin;
+
+    tracedRayDirections[bufferIndex] = integratorTotalRadianceIsRayBounces[bufferIndex].w > 0.5f
+    ? scatteredRayDirections[bufferIndex]
+    : initialRayDirection;
+}

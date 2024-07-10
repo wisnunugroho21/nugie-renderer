@@ -5,8 +5,9 @@
 #include <stdexcept>
 
 namespace NugieVulkan {
-    GraphicPipeline::Builder::Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout) : device{
-            device} {
+    GraphicPipeline::Builder::Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout) 
+                                      : device{device} 
+    {
         this->pipelineLayout = pipelineLayout;
         this->renderPass = renderPass->getRenderPass();
     }
@@ -17,69 +18,78 @@ namespace NugieVulkan {
             const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
             const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
             const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions) {
-        this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-        this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
-        this->vertexInputInfo.pVertexAttributeDescriptions = (!attributeDescriptions.empty())
-                                                             ? attributeDescriptions.data() : nullptr;
-        this->vertexInputInfo.pVertexBindingDescriptions = (!bindingDescriptions.empty())
-                                                           ? bindingDescriptions.data() : nullptr;
+        this->vertexInputInfo = new VkPipelineVertexInputStateCreateInfo();         
+        this->vertexInputInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        this->vertexInputInfo->vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        this->vertexInputInfo->vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+        this->vertexInputInfo->pVertexAttributeDescriptions = !attributeDescriptions.empty()
+                                                              ? attributeDescriptions.data() : nullptr;
+        this->vertexInputInfo->pVertexBindingDescriptions = !bindingDescriptions.empty()
+                                                            ? bindingDescriptions.data() : nullptr;
 
-        this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+        this->inputAssemblyInfo = new VkPipelineInputAssemblyStateCreateInfo();
+        this->inputAssemblyInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        this->inputAssemblyInfo->topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        this->inputAssemblyInfo->primitiveRestartEnable = VK_FALSE;                
 
-        this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        this->colorBlendInfo.logicOpEnable = VK_FALSE;
-        this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-        this->colorBlendInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
-        this->colorBlendInfo.pAttachments = !colorBlendAttachments.empty() ? colorBlendAttachments.data() : nullptr;
-        this->colorBlendInfo.blendConstants[0] = 0.0f;  // Optional
-        this->colorBlendInfo.blendConstants[1] = 0.0f;  // Optional
-        this->colorBlendInfo.blendConstants[2] = 0.0f;  // Optional
-        this->colorBlendInfo.blendConstants[3] = 0.0f;  // Optional
+        this->rasterizationInfo = new VkPipelineRasterizationStateCreateInfo();
+        this->rasterizationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        this->rasterizationInfo->depthClampEnable = VK_FALSE;
+        this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
+        this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
+        this->rasterizationInfo->lineWidth = 1.0f;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        this->rasterizationInfo->depthBiasEnable = VK_FALSE;
+        this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional
+        this->rasterizationInfo->depthBiasClamp = 0.0f;           // Optional
+        this->rasterizationInfo->depthBiasSlopeFactor = 0.0f;     // Optional
 
-        this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        this->rasterizationInfo.depthClampEnable = VK_FALSE;
-        this->rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-        this->rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-        this->rasterizationInfo.lineWidth = 1.0f;
-        this->rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-        this->rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        this->rasterizationInfo.depthBiasEnable = VK_FALSE;
-        this->rasterizationInfo.depthBiasConstantFactor = 0.0f;  // Optional
-        this->rasterizationInfo.depthBiasClamp = 0.0f;           // Optional
-        this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
+        this->multisampleInfo = new VkPipelineMultisampleStateCreateInfo();
+        this->multisampleInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        this->multisampleInfo->sampleShadingEnable = VK_TRUE;
+        this->multisampleInfo->rasterizationSamples = this->device->getMSAASamples();
+        this->multisampleInfo->minSampleShading = 0.2f;
+        this->multisampleInfo->pSampleMask = nullptr;             // Optional
+        this->multisampleInfo->alphaToCoverageEnable = VK_FALSE;  // Optional
+        this->multisampleInfo->alphaToOneEnable = VK_FALSE;       // Optional
 
-        this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        this->multisampleInfo.sampleShadingEnable = VK_TRUE;
-        this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
-        this->multisampleInfo.minSampleShading = 0.2f;
-        this->multisampleInfo.pSampleMask = nullptr;             // Optional
-        this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
-        this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
+        this->colorBlendInfo = new VkPipelineColorBlendStateCreateInfo();
+        this->colorBlendInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        this->colorBlendInfo->logicOpEnable = VK_FALSE;
+        this->colorBlendInfo->logicOp = VK_LOGIC_OP_COPY;  // Optional
+        this->colorBlendInfo->blendConstants[0] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[1] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[2] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[3] = 0.0f;  // Optional
+        this->colorBlendInfo->attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+        this->colorBlendInfo->pAttachments = !colorBlendAttachments.empty() 
+                                             ? colorBlendAttachments.data() : nullptr;
 
-        this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        this->depthStencilInfo.depthTestEnable = VK_TRUE;
-        this->depthStencilInfo.depthWriteEnable = VK_TRUE;
-        this->depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-        this->depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
-        this->depthStencilInfo.minDepthBounds = 0.0f;  // Optional
-        this->depthStencilInfo.maxDepthBounds = 1.0f;  // Optional
-        this->depthStencilInfo.stencilTestEnable = VK_FALSE;
-        this->depthStencilInfo.front = {};  // Optional
-        this->depthStencilInfo.back = {};   // Optional
+        this->depthStencilInfo = new VkPipelineDepthStencilStateCreateInfo();
+        this->depthStencilInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        this->depthStencilInfo->depthTestEnable = VK_TRUE;
+        this->depthStencilInfo->depthWriteEnable = VK_TRUE;
+        this->depthStencilInfo->depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+        this->depthStencilInfo->depthBoundsTestEnable = VK_FALSE;
+        this->depthStencilInfo->minDepthBounds = 0.0f;  // Optional
+        this->depthStencilInfo->maxDepthBounds = 1.0f;  // Optional
+        this->depthStencilInfo->stencilTestEnable = VK_FALSE;
+        this->depthStencilInfo->front = {};  // Optional
+        this->depthStencilInfo->back = {};   // Optional
 
         this->dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
-        this->dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
-        this->dynamicStateInfo.pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
-        this->dynamicStateInfo.flags = 0;
+        this->dynamicStateInfo = new VkPipelineDynamicStateCreateInfo();
+        this->dynamicStateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        this->dynamicStateInfo->dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
+        this->dynamicStateInfo->pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
+        this->dynamicStateInfo->flags = 0;
 
-        this->tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-        this->tessellationInfo.patchControlPoints = 0;
-        this->tessellationInfo.flags = 0;
+        this->tessellationInfo = new VkPipelineTessellationStateCreateInfo();
+        this->tessellationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+        this->tessellationInfo->patchControlPoints = 0;
+        this->tessellationInfo->flags = 0;
 
         this->subpass = 0u;
 
@@ -118,65 +128,72 @@ namespace NugieVulkan {
             const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
             const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
     ) {
-        this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-        this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
-        this->vertexInputInfo.pVertexAttributeDescriptions = (!attributeDescriptions.empty())
-                                                             ? attributeDescriptions.data() : nullptr;
-        this->vertexInputInfo.pVertexBindingDescriptions = (!bindingDescriptions.empty())
-                                                           ? bindingDescriptions.data() : nullptr;
+        this->vertexInputInfo = new VkPipelineVertexInputStateCreateInfo();         
+        this->vertexInputInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        this->vertexInputInfo->vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        this->vertexInputInfo->vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+        this->vertexInputInfo->pVertexAttributeDescriptions = !attributeDescriptions.empty()
+                                                              ? attributeDescriptions.data() : nullptr;
+        this->vertexInputInfo->pVertexBindingDescriptions = !bindingDescriptions.empty()
+                                                            ? bindingDescriptions.data() : nullptr;
 
-        this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+        this->inputAssemblyInfo = new VkPipelineInputAssemblyStateCreateInfo();
+        this->inputAssemblyInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        this->inputAssemblyInfo->topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        this->inputAssemblyInfo->primitiveRestartEnable = VK_FALSE;                
 
-        this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        this->colorBlendInfo.logicOpEnable = VK_FALSE;
-        this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-        this->colorBlendInfo.attachmentCount = 0;
-        this->colorBlendInfo.pAttachments = nullptr;
+        this->rasterizationInfo = new VkPipelineRasterizationStateCreateInfo();
+        this->rasterizationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        this->rasterizationInfo->depthClampEnable = VK_FALSE;
+        this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
+        this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
+        this->rasterizationInfo->lineWidth = 1.0f;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        this->rasterizationInfo->depthBiasEnable = VK_FALSE;
+        this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional
+        this->rasterizationInfo->depthBiasClamp = 0.0f;           // Optional
+        this->rasterizationInfo->depthBiasSlopeFactor = 0.0f;     // Optional
 
-        this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        this->rasterizationInfo.depthClampEnable = VK_FALSE;
-        this->rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-        this->rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-        this->rasterizationInfo.lineWidth = 1.0f;
-        this->rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-        this->rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-        this->rasterizationInfo.depthBiasEnable = VK_FALSE;
-        this->rasterizationInfo.depthBiasConstantFactor = 0.0f;  // Optional
-        this->rasterizationInfo.depthBiasClamp = 0.0f;           // Optional
-        this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
+        this->multisampleInfo = new VkPipelineMultisampleStateCreateInfo();
+        this->multisampleInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        this->multisampleInfo->sampleShadingEnable = VK_TRUE;
+        this->multisampleInfo->rasterizationSamples = this->device->getMSAASamples();
+        this->multisampleInfo->minSampleShading = 0.2f;
+        this->multisampleInfo->pSampleMask = nullptr;             // Optional
+        this->multisampleInfo->alphaToCoverageEnable = VK_FALSE;  // Optional
+        this->multisampleInfo->alphaToOneEnable = VK_FALSE;       // Optional
 
-        this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        this->multisampleInfo.sampleShadingEnable = VK_TRUE;
-        this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
-        this->multisampleInfo.minSampleShading = 0.2f;
-        this->multisampleInfo.pSampleMask = nullptr;             // Optional
-        this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
-        this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
+        this->colorBlendInfo = new VkPipelineColorBlendStateCreateInfo();
+        this->colorBlendInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        this->colorBlendInfo->logicOpEnable = VK_FALSE;
+        this->colorBlendInfo->attachmentCount = 0;
+        this->colorBlendInfo->pAttachments = nullptr;
 
-        this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        this->depthStencilInfo.depthTestEnable = VK_TRUE;
-        this->depthStencilInfo.depthWriteEnable = VK_TRUE;
-        this->depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-        this->depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
-        this->depthStencilInfo.minDepthBounds = 0.0f;  // Optional
-        this->depthStencilInfo.maxDepthBounds = 1.0f;  // Optional
-        this->depthStencilInfo.stencilTestEnable = VK_FALSE;
-        this->depthStencilInfo.front = {};  // Optional
-        this->depthStencilInfo.back = {};   // Optional
+        this->depthStencilInfo = new VkPipelineDepthStencilStateCreateInfo();
+        this->depthStencilInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        this->depthStencilInfo->depthTestEnable = VK_TRUE;
+        this->depthStencilInfo->depthWriteEnable = VK_TRUE;
+        this->depthStencilInfo->depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+        this->depthStencilInfo->depthBoundsTestEnable = VK_FALSE;
+        this->depthStencilInfo->minDepthBounds = 0.0f;  // Optional
+        this->depthStencilInfo->maxDepthBounds = 1.0f;  // Optional
+        this->depthStencilInfo->stencilTestEnable = VK_FALSE;
+        this->depthStencilInfo->front = {};  // Optional
+        this->depthStencilInfo->back = {};   // Optional
 
         this->dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
-        this->dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
-        this->dynamicStateInfo.pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
-        this->dynamicStateInfo.flags = 0;
+        this->dynamicStateInfo = new VkPipelineDynamicStateCreateInfo();
+        this->dynamicStateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        this->dynamicStateInfo->dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
+        this->dynamicStateInfo->pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
+        this->dynamicStateInfo->flags = 0;
 
-        this->tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-        this->tessellationInfo.patchControlPoints = 0;
-        this->tessellationInfo.flags = 0;
+        this->tessellationInfo = new VkPipelineTessellationStateCreateInfo();
+        this->tessellationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+        this->tessellationInfo->patchControlPoints = 0;
+        this->tessellationInfo->flags = 0;
 
         this->subpass = 0u;
 
@@ -188,69 +205,148 @@ namespace NugieVulkan {
             const std::vector<VkVertexInputBindingDescription> &bindingDescriptions,
             const std::vector<VkVertexInputAttributeDescription> &attributeDescriptions
     ) {
-        this->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        this->vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-        this->vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
-        this->vertexInputInfo.pVertexAttributeDescriptions = (!attributeDescriptions.empty())
-                                                             ? attributeDescriptions.data() : nullptr;
-        this->vertexInputInfo.pVertexBindingDescriptions = (!bindingDescriptions.empty())
-                                                           ? bindingDescriptions.data() : nullptr;
+        this->vertexInputInfo = new VkPipelineVertexInputStateCreateInfo();         
+        this->vertexInputInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        this->vertexInputInfo->vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        this->vertexInputInfo->vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescriptions.size());
+        this->vertexInputInfo->pVertexAttributeDescriptions = !attributeDescriptions.empty()
+                                                              ? attributeDescriptions.data() : nullptr;
+        this->vertexInputInfo->pVertexBindingDescriptions = !bindingDescriptions.empty()
+                                                            ? bindingDescriptions.data() : nullptr;
 
-        this->inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        this->inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        this->inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+        this->inputAssemblyInfo = new VkPipelineInputAssemblyStateCreateInfo();
+        this->inputAssemblyInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        this->inputAssemblyInfo->topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        this->inputAssemblyInfo->primitiveRestartEnable = VK_FALSE;                
 
-        this->colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        this->colorBlendInfo.logicOpEnable = VK_FALSE;
-        this->colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;  // Optional
-        this->colorBlendInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
-        this->colorBlendInfo.pAttachments = !colorBlendAttachments.empty() ? colorBlendAttachments.data() : nullptr;
-        this->colorBlendInfo.blendConstants[0] = 0.0f;  // Optional
-        this->colorBlendInfo.blendConstants[1] = 0.0f;  // Optional
-        this->colorBlendInfo.blendConstants[2] = 0.0f;  // Optional
-        this->colorBlendInfo.blendConstants[3] = 0.0f;  // Optional
+        this->rasterizationInfo = new VkPipelineRasterizationStateCreateInfo();
+        this->rasterizationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        this->rasterizationInfo->depthClampEnable = VK_FALSE;
+        this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
+        this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
+        this->rasterizationInfo->lineWidth = 1.0f;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        this->rasterizationInfo->depthBiasEnable = VK_FALSE;
+        this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional
+        this->rasterizationInfo->depthBiasClamp = 0.0f;           // Optional
+        this->rasterizationInfo->depthBiasSlopeFactor = 0.0f;     // Optional
 
-        this->rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        this->rasterizationInfo.depthClampEnable = VK_FALSE;
-        this->rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-        this->rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-        this->rasterizationInfo.lineWidth = 1.0f;
-        this->rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-        this->rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        this->rasterizationInfo.depthBiasEnable = VK_FALSE;
-        this->rasterizationInfo.depthBiasConstantFactor = 0.0f;  // Optional
-        this->rasterizationInfo.depthBiasClamp = 0.0f;           // Optional
-        this->rasterizationInfo.depthBiasSlopeFactor = 0.0f;     // Optional
+        this->multisampleInfo = new VkPipelineMultisampleStateCreateInfo();
+        this->multisampleInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        this->multisampleInfo->sampleShadingEnable = VK_TRUE;
+        this->multisampleInfo->rasterizationSamples = this->device->getMSAASamples();
+        this->multisampleInfo->minSampleShading = 0.2f;
+        this->multisampleInfo->pSampleMask = nullptr;             // Optional
+        this->multisampleInfo->alphaToCoverageEnable = VK_FALSE;  // Optional
+        this->multisampleInfo->alphaToOneEnable = VK_FALSE;       // Optional
 
-        this->multisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        this->multisampleInfo.sampleShadingEnable = VK_TRUE;
-        this->multisampleInfo.rasterizationSamples = this->device->getMSAASamples();
-        this->multisampleInfo.minSampleShading = 0.2f;
-        this->multisampleInfo.pSampleMask = nullptr;             // Optional
-        this->multisampleInfo.alphaToCoverageEnable = VK_FALSE;  // Optional
-        this->multisampleInfo.alphaToOneEnable = VK_FALSE;       // Optional
+        this->colorBlendInfo = new VkPipelineColorBlendStateCreateInfo();
+        this->colorBlendInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        this->colorBlendInfo->logicOpEnable = VK_FALSE;
+        this->colorBlendInfo->logicOp = VK_LOGIC_OP_COPY;  // Optional
+        this->colorBlendInfo->blendConstants[0] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[1] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[2] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[3] = 0.0f;  // Optional
+        this->colorBlendInfo->attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+        this->colorBlendInfo->pAttachments = !colorBlendAttachments.empty() 
+                                             ? colorBlendAttachments.data() : nullptr;
 
-        this->depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        this->depthStencilInfo.depthTestEnable = VK_TRUE;
-        this->depthStencilInfo.depthWriteEnable = VK_TRUE;
-        this->depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-        this->depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
-        this->depthStencilInfo.minDepthBounds = 0.0f;  // Optional
-        this->depthStencilInfo.maxDepthBounds = 1.0f;  // Optional
-        this->depthStencilInfo.stencilTestEnable = VK_FALSE;
-        this->depthStencilInfo.front = {};  // Optional
-        this->depthStencilInfo.back = {};   // Optional
+        this->depthStencilInfo = new VkPipelineDepthStencilStateCreateInfo();
+        this->depthStencilInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        this->depthStencilInfo->depthTestEnable = VK_TRUE;
+        this->depthStencilInfo->depthWriteEnable = VK_TRUE;
+        this->depthStencilInfo->depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+        this->depthStencilInfo->depthBoundsTestEnable = VK_FALSE;
+        this->depthStencilInfo->minDepthBounds = 0.0f;  // Optional
+        this->depthStencilInfo->maxDepthBounds = 1.0f;  // Optional
+        this->depthStencilInfo->stencilTestEnable = VK_FALSE;
+        this->depthStencilInfo->front = {};  // Optional
+        this->depthStencilInfo->back = {};   // Optional
 
         this->dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
-        this->dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        this->dynamicStateInfo.dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
-        this->dynamicStateInfo.pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
-        this->dynamicStateInfo.flags = 0;
+        this->dynamicStateInfo = new VkPipelineDynamicStateCreateInfo();
+        this->dynamicStateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        this->dynamicStateInfo->dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
+        this->dynamicStateInfo->pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
+        this->dynamicStateInfo->flags = 0;
 
-        this->tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-        this->tessellationInfo.patchControlPoints = 0;
-        this->tessellationInfo.flags = 0;
+        this->tessellationInfo = new VkPipelineTessellationStateCreateInfo();
+        this->tessellationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+        this->tessellationInfo->patchControlPoints = 0;
+        this->tessellationInfo->flags = 0;
+
+        this->subpass = 0u;
+
+        return *this;
+    }
+
+    GraphicPipeline::Builder &GraphicPipeline::Builder::setDefault(
+            const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments
+    ) {
+        this->vertexInputInfo = VK_NULL_HANDLE;
+        this->inputAssemblyInfo = VK_NULL_HANDLE;                
+
+        this->rasterizationInfo = new VkPipelineRasterizationStateCreateInfo();
+        this->rasterizationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        this->rasterizationInfo->depthClampEnable = VK_FALSE;
+        this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
+        this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
+        this->rasterizationInfo->lineWidth = 1.0f;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        this->rasterizationInfo->depthBiasEnable = VK_FALSE;
+        this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional
+        this->rasterizationInfo->depthBiasClamp = 0.0f;           // Optional
+        this->rasterizationInfo->depthBiasSlopeFactor = 0.0f;     // Optional
+
+        this->multisampleInfo = new VkPipelineMultisampleStateCreateInfo();
+        this->multisampleInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        this->multisampleInfo->sampleShadingEnable = VK_TRUE;
+        this->multisampleInfo->rasterizationSamples = this->device->getMSAASamples();
+        this->multisampleInfo->minSampleShading = 0.2f;
+        this->multisampleInfo->pSampleMask = nullptr;             // Optional
+        this->multisampleInfo->alphaToCoverageEnable = VK_FALSE;  // Optional
+        this->multisampleInfo->alphaToOneEnable = VK_FALSE;       // Optional
+
+        this->colorBlendInfo = new VkPipelineColorBlendStateCreateInfo();
+        this->colorBlendInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        this->colorBlendInfo->logicOpEnable = VK_FALSE;
+        this->colorBlendInfo->logicOp = VK_LOGIC_OP_COPY;  // Optional
+        this->colorBlendInfo->blendConstants[0] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[1] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[2] = 0.0f;  // Optional
+        this->colorBlendInfo->blendConstants[3] = 0.0f;  // Optional
+        this->colorBlendInfo->attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+        this->colorBlendInfo->pAttachments = !colorBlendAttachments.empty() 
+                                             ? colorBlendAttachments.data() : nullptr;
+
+        this->depthStencilInfo = new VkPipelineDepthStencilStateCreateInfo();
+        this->depthStencilInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        this->depthStencilInfo->depthTestEnable = VK_TRUE;
+        this->depthStencilInfo->depthWriteEnable = VK_TRUE;
+        this->depthStencilInfo->depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+        this->depthStencilInfo->depthBoundsTestEnable = VK_FALSE;
+        this->depthStencilInfo->minDepthBounds = 0.0f;  // Optional
+        this->depthStencilInfo->maxDepthBounds = 1.0f;  // Optional
+        this->depthStencilInfo->stencilTestEnable = VK_FALSE;
+        this->depthStencilInfo->front = {};  // Optional
+        this->depthStencilInfo->back = {};   // Optional
+
+        this->dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+
+        this->dynamicStateInfo = new VkPipelineDynamicStateCreateInfo();
+        this->dynamicStateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        this->dynamicStateInfo->dynamicStateCount = static_cast<uint32_t>(this->dynamicStates.size());
+        this->dynamicStateInfo->pDynamicStates = !this->dynamicStates.empty() ? this->dynamicStates.data() : nullptr;
+        this->dynamicStateInfo->flags = 0;
+
+        this->tessellationInfo = new VkPipelineTessellationStateCreateInfo();
+        this->tessellationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+        this->tessellationInfo->patchControlPoints = 0;
+        this->tessellationInfo->flags = 0;
 
         this->subpass = 0u;
 
@@ -263,43 +359,43 @@ namespace NugieVulkan {
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setVertexInputInfo(VkPipelineVertexInputStateCreateInfo vertexInputInfo) {
+    GraphicPipeline::Builder::setVertexInputInfo(VkPipelineVertexInputStateCreateInfo *vertexInputInfo) {
         this->vertexInputInfo = vertexInputInfo;
         return *this;
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo) {
+    GraphicPipeline::Builder::setInputAssemblyInfo(VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo) {
         this->inputAssemblyInfo = inputAssemblyInfo;
         return *this;
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setRasterizationInfo(VkPipelineRasterizationStateCreateInfo rasterizationInfo) {
+    GraphicPipeline::Builder::setRasterizationInfo(VkPipelineRasterizationStateCreateInfo *rasterizationInfo) {
         this->rasterizationInfo = rasterizationInfo;
         return *this;
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setMultisampleInfo(VkPipelineMultisampleStateCreateInfo multisampleInfo) {
+    GraphicPipeline::Builder::setMultisampleInfo(VkPipelineMultisampleStateCreateInfo *multisampleInfo) {
         this->multisampleInfo = multisampleInfo;
         return *this;
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setColorBlendInfo(VkPipelineColorBlendStateCreateInfo colorBlendInfo) {
+    GraphicPipeline::Builder::setColorBlendInfo(VkPipelineColorBlendStateCreateInfo *colorBlendInfo) {
         this->colorBlendInfo = colorBlendInfo;
         return *this;
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo depthStencilInfo) {
+    GraphicPipeline::Builder::setDepthStencilInfo(VkPipelineDepthStencilStateCreateInfo *depthStencilInfo) {
         this->depthStencilInfo = depthStencilInfo;
         return *this;
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setDynamicStateInfo(VkPipelineDynamicStateCreateInfo dynamicStateInfo) {
+    GraphicPipeline::Builder::setDynamicStateInfo(VkPipelineDynamicStateCreateInfo *dynamicStateInfo) {
         this->dynamicStateInfo = dynamicStateInfo;
         return *this;
     }
@@ -311,7 +407,7 @@ namespace NugieVulkan {
     }
 
     GraphicPipeline::Builder &
-    GraphicPipeline::Builder::setTessellationInfo(VkPipelineTessellationStateCreateInfo tessellationInfo) {
+    GraphicPipeline::Builder::setTessellationInfo(VkPipelineTessellationStateCreateInfo *tessellationInfo) {
         this->tessellationInfo = tessellationInfo;
         return *this;
     }
@@ -339,7 +435,7 @@ namespace NugieVulkan {
 
     GraphicPipeline *GraphicPipeline::Builder::build() {
         return new GraphicPipeline(
-                this->device,
+                this->device,                
                 this->pipelineLayout,
                 this->renderPass,
                 this->subpass,
@@ -356,19 +452,19 @@ namespace NugieVulkan {
     }
 
     GraphicPipeline::GraphicPipeline(
-            Device *device,
+            Device *device,            
             VkPipelineLayout pipelineLayout,
             VkRenderPass renderPass,
             uint32_t subpass,
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-            VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-            VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-            VkPipelineMultisampleStateCreateInfo multisampleInfo,
-            VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-            VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-            VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+            VkPipelineVertexInputStateCreateInfo *vertexInputInfo,
+            VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo,
+            VkPipelineRasterizationStateCreateInfo *rasterizationInfo,
+            VkPipelineMultisampleStateCreateInfo *multisampleInfo,
+            VkPipelineColorBlendStateCreateInfo *colorBlendInfo,
+            VkPipelineDepthStencilStateCreateInfo *depthStencilInfo,
+            VkPipelineDynamicStateCreateInfo *dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-            VkPipelineTessellationStateCreateInfo tessellationInfo
+            VkPipelineTessellationStateCreateInfo *tessellationInfo
     ) : device{device} {
         this->createGraphicPipeline(
                 pipelineLayout,
@@ -415,15 +511,16 @@ namespace NugieVulkan {
             VkPipelineLayout pipelineLayout,
             VkRenderPass renderPass,
             uint32_t subpass,
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo,
-            VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo,
-            VkPipelineRasterizationStateCreateInfo rasterizationInfo,
-            VkPipelineMultisampleStateCreateInfo multisampleInfo,
-            VkPipelineColorBlendStateCreateInfo colorBlendInfo,
-            VkPipelineDepthStencilStateCreateInfo depthStencilInfo,
-            VkPipelineDynamicStateCreateInfo dynamicStateInfo,
+            VkPipelineVertexInputStateCreateInfo *vertexInputInfo,
+            VkPipelineInputAssemblyStateCreateInfo *inputAssemblyInfo,
+            VkPipelineRasterizationStateCreateInfo *rasterizationInfo,
+            VkPipelineMultisampleStateCreateInfo *multisampleInfo,
+            VkPipelineColorBlendStateCreateInfo *colorBlendInfo,
+            VkPipelineDepthStencilStateCreateInfo *depthStencilInfo,
+            VkPipelineDynamicStateCreateInfo *dynamicStateInfo,
             const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-            VkPipelineTessellationStateCreateInfo tessellationInfo) {
+            VkPipelineTessellationStateCreateInfo *tessellationInfo,
+            bool isMeshShader) {
         VkPipelineViewportStateCreateInfo viewportInfo{};
         viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewportInfo.viewportCount = 1;
@@ -433,15 +530,15 @@ namespace NugieVulkan {
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipelineInfo.stageCount = static_cast<uint32_t>(shaderStagesInfo.size());
         pipelineInfo.pStages = (!shaderStagesInfo.empty()) ? shaderStagesInfo.data() : nullptr;
-        pipelineInfo.pVertexInputState = &vertexInputInfo;
-        pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
+        pipelineInfo.pVertexInputState = vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = inputAssemblyInfo;
         pipelineInfo.pViewportState = &viewportInfo;
-        pipelineInfo.pRasterizationState = &rasterizationInfo;
-        pipelineInfo.pMultisampleState = &multisampleInfo;
-        pipelineInfo.pColorBlendState = &colorBlendInfo;
-        pipelineInfo.pDepthStencilState = &depthStencilInfo;
-        pipelineInfo.pDynamicState = &dynamicStateInfo;
-        pipelineInfo.pTessellationState = &tessellationInfo;
+        pipelineInfo.pRasterizationState = rasterizationInfo;
+        pipelineInfo.pMultisampleState = multisampleInfo;
+        pipelineInfo.pColorBlendState = colorBlendInfo;
+        pipelineInfo.pDepthStencilState = depthStencilInfo;
+        pipelineInfo.pDynamicState = dynamicStateInfo;
+        pipelineInfo.pTessellationState = tessellationInfo;
 
         pipelineInfo.layout = pipelineLayout;
         pipelineInfo.renderPass = renderPass;
@@ -459,6 +556,15 @@ namespace NugieVulkan {
         for (auto &shaderStage: shaderStagesInfo) {
             this->shaderModules.push_back(shaderStage.module);
         }
+
+        delete vertexInputInfo;
+        delete inputAssemblyInfo;
+        delete rasterizationInfo;
+        delete multisampleInfo;
+        delete colorBlendInfo;
+        delete depthStencilInfo;
+        delete dynamicStateInfo;
+        delete tessellationInfo;
     }
 
     void

@@ -6,11 +6,10 @@
 #include "../../vulkan/buffer/buffer.hpp"
 #include "../../vulkan/descriptor/descriptor_pool.hpp"
 #include "../../vulkan/command/command_buffer.hpp"
-#include "../general_struct.hpp"
 
 #include <memory>
 #include <vector>
-
+#include <cassert>
 
 namespace NugieApp {
     class Renderer {

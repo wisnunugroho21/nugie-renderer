@@ -40,7 +40,8 @@ namespace NugieVulkan {
             : device{device},
               instanceSize{instanceSize},
               instanceCount{instanceCount},
-              usageFlags{usageFlags} {
+              usageFlags{usageFlags} 
+    {
         this->alignmentSize = this->getAlignment(instanceSize, minOffsetAlignment);
         this->bufferSize = alignmentSize * instanceCount;
 
@@ -56,7 +57,8 @@ namespace NugieVulkan {
             VkDeviceSize minOffsetAlignment
     )
             : device{device},
-              usageFlags{usageFlags} {
+              usageFlags{usageFlags} 
+    {
         this->bufferSize = size;
         this->createBuffer(size, usageFlags, memoryUsage, memoryAllocFlag);
     }
@@ -239,7 +241,8 @@ namespace NugieVulkan {
     void
     Buffer::transitionBuffer(CommandBuffer *commandBuffer, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
                              VkAccessFlags srcAccess, VkAccessFlags dstAccess, uint32_t srcQueueFamilyIndex,
-                             uint32_t dstQueueFamilyIndex) {
+                             uint32_t dstQueueFamilyIndex) 
+    {
         VkBufferMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 

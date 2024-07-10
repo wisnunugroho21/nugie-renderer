@@ -4,13 +4,15 @@ namespace NugieVulkan {
     // *************** Descriptor Pool Builder *********************
 
     DescriptorPool::Builder &DescriptorPool::Builder::addPoolSize(
-            VkDescriptorType descriptorType, uint32_t count) {
+            VkDescriptorType descriptorType, uint32_t count) 
+    {
         this->poolSizes.push_back({descriptorType, count});
         return *this;
     }
 
     DescriptorPool::Builder &DescriptorPool::Builder::setPoolFlags(
-            VkDescriptorPoolCreateFlags flags) {
+            VkDescriptorPoolCreateFlags flags) 
+    {
         this->poolFlags = flags;
         return *this;
     }
@@ -31,7 +33,8 @@ namespace NugieVulkan {
             uint32_t maxSets,
             VkDescriptorPoolCreateFlags poolFlags,
             const std::vector<VkDescriptorPoolSize> &poolSizes)
-            : device{device} {
+            : device{device} 
+    {
         VkDescriptorPoolCreateInfo descriptorPoolInfo{};
         descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
@@ -50,7 +53,8 @@ namespace NugieVulkan {
     }
 
     bool DescriptorPool::allocate(VkDescriptorSet *descriptor, const VkDescriptorSetLayout &descriptorSetLayout,
-                                  const std::vector<uint32_t> &variableSetCounts) const {
+                                  const std::vector<uint32_t> &variableSetCounts) const 
+    {
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = this->descriptorPool;
@@ -77,7 +81,8 @@ namespace NugieVulkan {
 
     bool DescriptorPool::allocate(std::vector<VkDescriptorSet> &descriptors,
                                   std::vector<VkDescriptorSetLayout> &descriptorSetLayout,
-                                  const std::vector<uint32_t> &variableSetCounts) const {
+                                  const std::vector<uint32_t> &variableSetCounts) const 
+    {
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = this->descriptorPool;

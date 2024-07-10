@@ -1,0 +1,192 @@
+#version 460
+
+#include "struct.glsl"
+#include "../core/struct.glsl"
+
+layout (local_size_x = 64) in;
+
+layout (set = 0, binding = 0) uniform readonly GlobalUniform {
+    vec3 origin;
+    vec3 horizontal;
+    vec3 vertical;
+    vec3 lowerLeftCorner;
+    uvec4 imgSizeRandomSeedNumLight;
+} ubo;
+
+layout (set = 0, binding = 1) buffer writeonly DirectRadiancePdfBuffer {
+    vec4 directRadiancePdfs[];
+};
+
+layout (set = 0, binding = 2) buffer readonly DirectNormalMaterialIndexBuffer {
+    DirectNormalMaterialIndex directNormalMaterialIndexes[];
+};
+
+layout (set = 0, binding = 3) buffer readonly TracedRayOriginBuffer {
+    vec3 tracedRayOrigins[];
+};
+
+layout (set = 0, binding = 4) buffer readonly TracedRayDirectionBuffer {
+    vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 5) buffer readonly HitLengthBuffer {
+    float hitLengths[];
+};
+
+layout (set = 0, binding = 6) buffer readonly HitUVBuffer {
+    vec2 hitUVs[];
+};
+
+layout (set = 0, binding = 7) buffer readonly HitGeometryIndexBuffer {
+    uint hitGeometryIndexes[];
+};
+
+layout (set = 0, binding = 8) buffer readonly HitGeometryTypeIndexBuffer {
+    uint hitGeometryTypeIndexes[];
+};
+
+layout (set = 0, binding = 9) buffer readonly HitTransformIndexBuffer {
+    uint hitTransformIndexes[];
+};
+
+layout (set = 0, binding = 10) buffer readonly TriangleLightBuffer {
+    uvec4 triangleLights[];
+};
+
+layout (set = 0, binding = 11) buffer readonly VertexPositionBuffer {
+    vec3 verticesPosition[];
+};
+
+layout (set = 0, binding = 12) buffer readonly MaterialColorBuffer {
+    vec4 materialColors[];
+};
+
+layout (set = 0, binding = 13) buffer readonly ObjectToWorldTransformationBuffer {
+    mat4 objectToWorldTransformations[];
+};
+
+// ------------- Transform -------------
+
+vec3 positionTransform(mat4 mat, vec3 vec) {
+    precise vec3 res;
+
+    res.x = mat[3][0] +
+    fma(
+        mat[0][0], vec.x,
+        fma(
+            mat[1][0], 
+            vec.y,
+            (mat[2][0] * vec.z)
+        )
+    );
+
+    res.y = mat[3][1] +
+    fma(
+        mat[0][1], vec.x,
+        fma(
+            mat[1][1], 
+            vec.y,
+            (mat[2][1] * vec.z)
+        )
+    );
+
+    res.z = mat[3][2] +
+    fma(
+        mat[0][2], vec.x,
+        fma(
+            mat[1][2], 
+            vec.y,
+            (mat[2][2] * vec.z)
+        )
+    );
+
+    return res;
+}
+
+// ------------- Lambert -------------
+
+float lambertPdfValue(float NoL) {
+    return NoL * RECIPROCAL_PI;
+}
+
+vec3 lambertBrdfValue(uint materialIndex) {
+    return materialColors[materialIndex].xyz 
+        * RECIPROCAL_PI;
+}
+
+// ------------- Triangle -------------
+
+float triangleArea(uvec4 triangle) {
+    vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
+
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
+
+    vec3 pvec = cross(v0v1, v0v2);
+    return 0.5 * sqrt(dot(pvec, pvec));
+}
+
+vec3 triangleNormal(uvec4 triangle, vec3 rayDirection) {
+    vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
+
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
+
+    vec3 outwardNormal = normalize(cross(v0v1, v0v2));
+    return dot(rayDirection, outwardNormal) < 0.0f ? outwardNormal : -1.0f * outwardNormal;
+}
+
+vec3 trianglePositionFromUV(uvec4 triangle, vec2 uv) {
+	vec3 vertexPosition0 = verticesPosition[triangle.x];
+    vec3 vertexPosition1 = verticesPosition[triangle.y];
+    vec3 vertexPosition2 = verticesPosition[triangle.z];
+
+	precise vec3 v0v1 = vertexPosition1 - vertexPosition0;
+    precise vec3 v0v2 = vertexPosition2 - vertexPosition0;
+
+	precise vec3 res = 
+            vertexPosition0 +
+            fma(
+                vec3(uv.x), 
+                v0v1, 
+                vec3(uv.y) * v0v2 
+            );
+
+    return res;
+}
+
+void main() {
+    vec4 directRadiancePdf = vec4(0.0f);
+    DirectNormalMaterialIndex normalMaterialIndex = directNormalMaterialIndexes[gl_GlobalInvocationID.x];
+
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
+        uvec4 hittedLight = triangleLights[hitGeometryIndexes[gl_GlobalInvocationID.x]];
+        vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
+
+        vec3 hittedLightNormal = triangleNormal(hittedLight, rayDirection);
+        vec3 hittedPosition = positionTransform(
+            objectToWorldTransformations[hitTransformIndexes[gl_GlobalInvocationID.x]], 
+            trianglePositionFromUV(hittedLight, hitUVs[gl_GlobalInvocationID.x])
+        );
+
+        float NloL = dot(hittedLightNormal, -1.0f * rayDirection);
+        float NoL = dot(normalMaterialIndex.normal, rayDirection);
+        vec3 dst = hittedPosition - tracedRayOrigins[gl_GlobalInvocationID.x];
+
+        float area = triangleArea(hittedLight);
+        float squareDistance = dot(dst, dst);
+
+        vec3 surfaceColor = materialColors[normalMaterialIndex.materialIndex].xyz;
+        vec3 lightColor = materialColors[hittedLight.w].xyz;
+
+        directRadiancePdf.w = squareDistance / (ubo.imgSizeRandomSeedNumLight.w * NloL * area);
+        directRadiancePdf.xyz = (lightColor * surfaceColor) 
+                                * (RECIPROCAL_PI * NoL / directRadiancePdf.w);
+    }
+
+    directRadiancePdfs[gl_GlobalInvocationID.x] = directRadiancePdf;
+}

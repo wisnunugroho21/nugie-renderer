@@ -17,8 +17,8 @@ namespace NugieApp {
                                             const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
                                             const std::vector<VkPushConstantRange> &pushConstantRanges)
             : device{device}, descriptorSetLayouts{std::move(descriptorSetLayouts)}, pushConstantRanges{std::move(pushConstantRanges)}, renderPass{renderPass},
-              vertFilePath{std::move(vertFilePath)},
-              fragFilePath{std::move(fragFilePath)} {
+              vertFilePath{std::move(vertFilePath)}, fragFilePath{std::move(fragFilePath)} 
+    {
 
     }
 
@@ -73,6 +73,44 @@ namespace NugieApp {
             .setDefault(this->vertFilePath, this->fragFilePath, colorBlendAttachment, bindingDescriptions,
                         attributeDescription)
             .build();
+    }
+
+    void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t vertexCount,
+                                     uint32_t instanceCount,
+                                     const std::vector<VkDescriptorSet> &descriptorSets,
+                                     const std::vector<void *> &pushConstants) 
+    {
+        assert((this->pipeline != nullptr) && "You must initialize this render system first!");
+
+        this->pipeline->bindPipeline(commandBuffer);
+
+        if (!descriptorSets.empty()) {
+			vkCmdBindDescriptorSets(
+				commandBuffer->getCommandBuffer(),
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				this->pipelineLayout,
+				0u,
+				static_cast<uint32_t>(descriptorSets.size()),
+				descriptorSets.data(),
+				0u,
+				nullptr
+			);
+		}
+
+		if (!pushConstants.empty()) {
+			for (size_t i = 0; i < pushConstants.size(); i++) {
+				vkCmdPushConstants(
+					commandBuffer->getCommandBuffer(),
+					this->pipelineLayout,
+					this->pushConstantRanges[i].stageFlags,
+					this->pushConstantRanges[i].offset,
+					this->pushConstantRanges[i].size,
+					pushConstants[i]
+				);
+			}
+		}
+        
+        NugieVulkan::GraphicPipeline::draw(commandBuffer, vertexCount, instanceCount);
     }
 
     void GraphicRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, 

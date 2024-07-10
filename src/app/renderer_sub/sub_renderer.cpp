@@ -6,7 +6,7 @@
 namespace NugieApp {
     SubRenderer::Builder::Builder(NugieVulkan::Device *device, uint32_t width, uint32_t height, uint32_t imageCount,
                                   uint32_t layerNum)
-            : device{device}, width{width}, height{height}, imageCount{imageCount}, layerNum{layerNum} {
+                                  : device{device}, width{width}, height{height}, imageCount{imageCount}, layerNum{layerNum} {
         this->outputAttachmentRefs.emplace_back();
         this->depthAttachmentRefs.emplace_back();
         this->inputAttachmentRefs.emplace_back();
@@ -16,7 +16,8 @@ namespace NugieApp {
 
     SubRenderer::Builder &
     SubRenderer::Builder::addAttachment(AttachmentType attachmentType, VkFormat format, VkImageLayout layout,
-                                        VkSampleCountFlagBits sample) {
+                                        VkSampleCountFlagBits sample) 
+    {
         SubRendererAttachmentDesc attachDesc{};
         attachDesc.attachmentRole = AttachmentRole::COLOR;
         attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
@@ -99,10 +100,10 @@ namespace NugieApp {
             samplers.reserve(frameImages.size());
 
             for (auto &&frameImage: frameImages) {
-                samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST,
+                samplers.emplace_back(new NugieVulkan::Sampler(this->device, VK_FILTER_NEAREST,
                                                                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE,
                                                                VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER,
-                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST));
+                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST, static_cast<float>(frameImage->getMipLevels())));
             }
 
             this->attachmentSamplers.emplace_back(samplers);
@@ -110,8 +111,8 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (auto &&sampler: samplers) {
-                imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            for (size_t i = 0; i < samplers.size(); i++) {
+                imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
             this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -123,7 +124,8 @@ namespace NugieApp {
     SubRenderer::Builder &SubRenderer::Builder::addAttachment(const std::vector<NugieVulkan::Image *> &frameImages,
                                                               AttachmentType attachmentType, VkFormat format,
                                                               VkImageLayout layout,
-                                                              VkSampleCountFlagBits sample) {
+                                                              VkSampleCountFlagBits sample) 
+    {
         SubRendererAttachmentDesc attachDesc{};
         attachDesc.attachmentRole = AttachmentRole::COLOR;
         attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
@@ -185,10 +187,10 @@ namespace NugieApp {
             samplers.reserve(frameImages.size());
 
             for (auto &&frameImage: frameImages) {
-                samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST,
+                samplers.emplace_back(new NugieVulkan::Sampler(this->device, VK_FILTER_NEAREST,
                                                                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE,
                                                                VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER,
-                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST));
+                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST, static_cast<float>(frameImage->getMipLevels())));
             }
 
             this->attachmentSamplers.emplace_back(samplers);
@@ -196,8 +198,8 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (auto &&sampler: samplers) {
-                imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            for (size_t i = 0; i < samplers.size(); i++) {
+                imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
             this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -208,7 +210,8 @@ namespace NugieApp {
 
     SubRenderer::Builder &SubRenderer::Builder::setDepthAttachment(AttachmentType attachmentType,
                                                                    VkFormat format, VkImageLayout layout,
-                                                                   VkSampleCountFlagBits sample) {
+                                                                   VkSampleCountFlagBits sample) 
+    {
         SubRendererAttachmentDesc attachDesc{};
         attachDesc.attachmentRole = AttachmentRole::DEPTH;
         attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
@@ -291,10 +294,10 @@ namespace NugieApp {
             samplers.reserve(frameImages.size());
 
             for (auto &&frameImage: frameImages) {
-                samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_LINEAR,
+                samplers.emplace_back(new NugieVulkan::Sampler(this->device, VK_FILTER_LINEAR,
                                                                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE,
                                                                VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_LESS,
-                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST));
+                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST, static_cast<float>(frameImage->getMipLevels())));
             }
 
             this->attachmentSamplers.emplace_back(samplers);
@@ -302,8 +305,8 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (auto &&sampler: samplers) {
-                imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+            for (size_t i = 0; i < samplers.size(); i++) {
+                imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
             }
 
             this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -314,7 +317,8 @@ namespace NugieApp {
 
     SubRenderer::Builder &SubRenderer::Builder::setDepthAttachment(const std::vector<NugieVulkan::Image *> &frameImages,
                                                                    AttachmentType attachmentType, VkFormat format,
-                                                                   VkImageLayout layout, VkSampleCountFlagBits sample) {
+                                                                   VkImageLayout layout, VkSampleCountFlagBits sample) 
+    {
         SubRendererAttachmentDesc attachDesc{};
         attachDesc.attachmentRole = AttachmentRole::DEPTH;
         attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
@@ -376,10 +380,10 @@ namespace NugieApp {
             samplers.reserve(frameImages.size());
 
             for (auto &&frameImage: frameImages) {
-                samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_LINEAR,
+                samplers.emplace_back(new NugieVulkan::Sampler(this->device, VK_FILTER_LINEAR,
                                                                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE,
                                                                VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE, VK_COMPARE_OP_LESS,
-                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST));
+                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST, static_cast<float>(frameImage->getMipLevels())));
             }
 
             this->attachmentSamplers.emplace_back(samplers);
@@ -387,8 +391,8 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (auto &&sampler: samplers) {
-                imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+            for (size_t i = 0; i < samplers.size(); i++) {
+                imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
             }
 
             this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -482,10 +486,10 @@ namespace NugieApp {
             samplers.reserve(frameImages.size());
 
             for (auto &&frameImage: frameImages) {
-                samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST,
+                samplers.emplace_back(new NugieVulkan::Sampler(this->device, VK_FILTER_NEAREST,
                                                                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE,
                                                                VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER,
-                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST));
+                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST, static_cast<float>(frameImage->getMipLevels())));
             }
 
             this->attachmentSamplers.emplace_back(samplers);
@@ -493,8 +497,8 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (auto &&sampler: samplers) {
-                imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            for (size_t i = 0; i < samplers.size(); i++) {
+                imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
             this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -506,7 +510,8 @@ namespace NugieApp {
     SubRenderer::Builder &
     SubRenderer::Builder::addResolvedAttachment(const std::vector<NugieVulkan::Image *> &frameImages,
                                                 AttachmentType attachmentType,
-                                                VkFormat format, VkImageLayout layout) {
+                                                VkFormat format, VkImageLayout layout) 
+    {
         SubRendererAttachmentDesc attachDesc{};
         attachDesc.attachmentRole = AttachmentRole::RESOLVED;
         attachDesc.subpassIndex = static_cast<uint32_t>(this->depthAttachmentRefs.size() - 1u);
@@ -568,10 +573,10 @@ namespace NugieApp {
             samplers.reserve(frameImages.size());
 
             for (auto &&frameImage: frameImages) {
-                samplers.emplace_back(new NugieVulkan::Sampler(this->device, frameImage, VK_FILTER_NEAREST,
+                samplers.emplace_back(new NugieVulkan::Sampler(this->device, VK_FILTER_NEAREST,
                                                                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, VK_FALSE,
                                                                VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_COMPARE_OP_NEVER,
-                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST));
+                                                               VK_SAMPLER_MIPMAP_MODE_NEAREST, static_cast<float>(frameImage->getMipLevels())));
             }
 
             this->attachmentSamplers.emplace_back(samplers);
@@ -579,8 +584,8 @@ namespace NugieApp {
             std::vector<VkDescriptorImageInfo> imageInfos{};
             imageInfos.reserve(samplers.size());
 
-            for (auto &&sampler: samplers) {
-                imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            for (size_t i = 0; i < samplers.size(); i++) {
+                imageInfos.emplace_back(samplers[i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
             }
 
             this->attachmentInfos[this->attachmentInfos.size() - 1].emplace_back(imageInfos);
@@ -600,9 +605,6 @@ namespace NugieApp {
     }
 
     SubRenderer *SubRenderer::Builder::build() {
-        std::vector<std::vector<NugieVulkan::Image *>> attachments = this->attachments;
-
-
         return new SubRenderer(this->device, this->width, this->height, this->layerNum, this->attachments,
                                this->createdAttachments,
                                this->attachmentDescs, this->outputAttachmentRefs, this->depthAttachmentRefs,
@@ -638,25 +640,26 @@ namespace NugieApp {
                              const std::vector<std::vector<NugieVulkan::Sampler *>> &attachmentSamplers,
                              const std::vector<SubRendererAttachmentDesc> &subRendererAttachmentDescs,
                              const std::vector<std::vector<std::vector<VkDescriptorImageInfo>>> &attachmentInfos)
-            : device{device}, width{width}, height{height}, layerNum{layerNum}, createdAttachments{createdAttachments},
-              attachmentSamplers{attachmentSamplers}, subRendererAttachmentDescs{subRendererAttachmentDescs},
-              attachmentInfos{attachmentInfos} {
+                             : device{device}, width{width}, height{height}, layerNum{layerNum}, createdAttachments{createdAttachments},
+                               attachmentSamplers{attachmentSamplers}, subRendererAttachmentDescs{subRendererAttachmentDescs},
+                               attachmentInfos{attachmentInfos} 
+    {
         this->createRenderPass(attachments, attachmentDescs, outputAttachmentRefs, depthAttachmentRefs,
                                inputAttachmentRefs, resolveAttachmentRefs);
     }
 
     SubRenderer::~SubRenderer() {
-        if (this->renderPass != nullptr) delete this->renderPass;
+        delete this->renderPass;
 
-        for (auto &&attachmentSampler: attachmentSamplers) {
+        for (auto &&attachmentSampler: this->attachmentSamplers) {
             for (auto &&sampler: attachmentSampler) {
-                if (sampler != nullptr) delete sampler;
+                delete sampler;
             }
         }
 
         for (auto &&createdAttachment: this->createdAttachments) {
             for (auto &&attachment: createdAttachment) {
-                if (attachment != nullptr) delete attachment;
+                delete attachment;
             }
         }
     }
@@ -666,7 +669,8 @@ namespace NugieApp {
                                        const std::vector<std::vector<VkAttachmentReference>> &outputAttachmentRefs,
                                        const std::vector<VkAttachmentReference> &depthAttachmentRefs,
                                        const std::vector<std::vector<VkAttachmentReference>> &inputAttachmentRefs,
-                                       const std::vector<std::vector<VkAttachmentReference>> &resolveAttachmentRefs) {
+                                       const std::vector<std::vector<VkAttachmentReference>> &resolveAttachmentRefs) 
+    {
         std::vector<VkSubpassDescription> subpasses;
         std::vector<VkSubpassDependency> subpassDependencies;
 
@@ -817,7 +821,8 @@ namespace NugieApp {
     }
 
     void SubRenderer::recreateResources(uint32_t width, uint32_t height, uint32_t imageCount,
-                                        const std::vector<std::vector<NugieVulkan::Image *>> &outsideAttachments) {
+                                        const std::vector<std::vector<NugieVulkan::Image *>> &outsideAttachments) 
+    {
         this->width = width;
         this->height = height;
 
@@ -900,17 +905,15 @@ namespace NugieApp {
 
                     this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
                 } else if (subRendererAttachmentDesc.attachmentType == AttachmentType::OUTPUT_TEXTURE) {
-                    for (size_t i = 0; i < this->attachmentSamplers[samplerIndex].size(); i++) {
-                        this->attachmentSamplers[samplerIndex][i]->setImage(frameImages[i]);
-                    }
-
                     if (this->attachmentInfos.size() < subRendererAttachmentDesc.subpassIndex + 1) {
                         this->attachmentInfos.resize(subRendererAttachmentDesc.subpassIndex + 1);
                     }
 
                     std::vector<VkDescriptorImageInfo> imageInfos{};
-                    for (auto &&sampler: this->attachmentSamplers[samplerIndex]) {
-                        imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                    imageInfos.reserve(this->attachmentSamplers[samplerIndex].size());
+
+                    for (size_t i = 0; i < this->attachmentSamplers[samplerIndex].size(); i++) {
+                        imageInfos.emplace_back(this->attachmentSamplers[samplerIndex][i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
                     }
 
                     this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
@@ -972,17 +975,15 @@ namespace NugieApp {
 
                     this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
                 } else if (subRendererAttachmentDesc.attachmentType == AttachmentType::OUTPUT_TEXTURE) {
-                    for (size_t i = 0; i < this->attachmentSamplers[samplerIndex].size(); i++) {
-                        this->attachmentSamplers[samplerIndex][i]->setImage(frameImages[i]);
-                    }
-
                     if (this->attachmentInfos.size() < subRendererAttachmentDesc.subpassIndex + 1) {
                         this->attachmentInfos.resize(subRendererAttachmentDesc.subpassIndex + 1);
                     }
 
                     std::vector<VkDescriptorImageInfo> imageInfos{};
-                    for (auto &&sampler: this->attachmentSamplers[samplerIndex]) {
-                        imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
+                    imageInfos.reserve(this->attachmentSamplers[samplerIndex].size());
+
+                    for (size_t i = 0; i < this->attachmentSamplers[samplerIndex].size(); i++) {
+                        imageInfos.emplace_back(this->attachmentSamplers[samplerIndex][i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL));
                     }
 
                     this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
@@ -1046,17 +1047,15 @@ namespace NugieApp {
 
                     this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);
                 } else if (subRendererAttachmentDesc.attachmentType == AttachmentType::OUTPUT_TEXTURE) {
-                    for (size_t i = 0; i < this->attachmentSamplers[samplerIndex].size(); i++) {
-                        this->attachmentSamplers[samplerIndex][i]->setImage(frameImages[i]);
-                    }
-
                     if (this->attachmentInfos.size() < subRendererAttachmentDesc.subpassIndex + 1) {
                         this->attachmentInfos.resize(subRendererAttachmentDesc.subpassIndex + 1);
                     }
 
                     std::vector<VkDescriptorImageInfo> imageInfos{};
-                    for (auto &&sampler: this->attachmentSamplers[samplerIndex]) {
-                        imageInfos.emplace_back(sampler->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                    imageInfos.reserve(this->attachmentSamplers[samplerIndex].size());
+
+                    for (size_t i = 0; i < this->attachmentSamplers[samplerIndex].size(); i++) {
+                        imageInfos.emplace_back(this->attachmentSamplers[samplerIndex][i]->getDescriptorInfo(frameImages[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
                     }
 
                     this->attachmentInfos[subRendererAttachmentDesc.subpassIndex].emplace_back(imageInfos);

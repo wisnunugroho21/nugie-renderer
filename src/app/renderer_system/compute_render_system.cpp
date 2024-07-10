@@ -11,9 +11,12 @@
 #include <utility>
 
 namespace NugieApp {
-	ComputeRenderSystem::ComputeRenderSystem(NugieVulkan::Device* device, std::string compFilePath, const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
-		const std::vector<VkPushConstantRange> &pushConstantRanges)
-		: device{device}, compFilePath{std::move(compFilePath)}, descriptorSetLayouts{descriptorSetLayouts}, pushConstantRanges{pushConstantRanges}
+	ComputeRenderSystem::ComputeRenderSystem(NugieVulkan::Device* device, std::string compFilePath, 
+											 const std::vector<NugieVulkan::DescriptorSetLayout*> &descriptorSetLayouts, 
+											 const std::vector<VkPushConstantRange> &pushConstantRanges)
+											 : device{device}, compFilePath{std::move(compFilePath)}, 
+											   descriptorSetLayouts{descriptorSetLayouts}, 
+											   pushConstantRanges{pushConstantRanges}
 	{
 		
 	}
@@ -51,8 +54,10 @@ namespace NugieApp {
 			.build();
 	}
 
-	void ComputeRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t xInvocations, uint32_t yInvocations, 
-		uint32_t zInvocations, const std::vector<VkDescriptorSet> &descriptorSets, const std::vector<void *> &pushConstants)
+	void ComputeRenderSystem::render(NugieVulkan::CommandBuffer* commandBuffer, uint32_t xInvocations, 
+									 uint32_t yInvocations, uint32_t zInvocations, 
+									 const std::vector<VkDescriptorSet> &descriptorSets, 
+									 const std::vector<void *> &pushConstants)
 	{
 		assert((this->pipeline != nullptr) && "You must initialize this render system first!");
 		

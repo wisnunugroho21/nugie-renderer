@@ -5,6 +5,7 @@
 /.vscode
 /cmake-build-debug
 /.idea
+/.cache
 .DS_Store
 .env.cmake
 *.zip

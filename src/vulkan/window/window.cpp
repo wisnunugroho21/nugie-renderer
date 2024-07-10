@@ -36,9 +36,11 @@ namespace NugieVulkan {
     }
 
     void Window::createWindowSurface(VkInstance instance, VkSurfaceKHR *surface) {
-        if (glfwCreateWindowSurface(instance, this->window, nullptr, surface) != VK_SUCCESS) {
+        if (glfwCreateWindowSurface(instance, this->window, nullptr, &this->surface) != VK_SUCCESS) {
             throw std::runtime_error("failed to create window surface");
         }
+
+        *surface = this->surface;
     }
 
     void Window::resetResizedFlag() {

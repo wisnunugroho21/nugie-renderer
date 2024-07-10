@@ -4,12 +4,12 @@
 #include <array>
 #include <string>
 #include <cassert>
+#include <limits>
 
 namespace NugieApp {
-    Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) : device{device},
-                                                                                                        window{window},
-                                                                                                        frameCount{
-                                                                                                                frameCount} {
+    Renderer::Renderer(NugieVulkan::Window *window, NugieVulkan::Device *device, uint32_t frameCount) 
+                        : device{device}, window{window}, frameCount{frameCount} 
+    {
         this->recreateSwapChain();
         this->imageCount = this->swapChain->getImageCount();
 
@@ -28,10 +28,9 @@ namespace NugieApp {
             delete this->graphicCommandBuffers[i];
         }
 
-        for (uint32_t i = 0; i < this->imageCount * this->frameCount; i++) {
-            vkDestroySemaphore(this->device->getLogicalDevice(), this->transferFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(this->device->getLogicalDevice(), this->prepareFinishedSemaphores[i], nullptr);
-        }
+        for (auto &&transferFinishedSemaphore : this->transferFinishedSemaphores) {
+            vkDestroySemaphore(this->device->getLogicalDevice(), transferFinishedSemaphore, nullptr);
+        }        
 
         delete this->transferCommandBuffers[0];
 
@@ -52,10 +51,19 @@ namespace NugieApp {
         vkDeviceWaitIdle(this->device->getLogicalDevice());
 
         if (this->swapChain == nullptr) {
-            this->swapChain = new NugieVulkan::SwapChain(this->device, extent);
+            this->swapChain = NugieVulkan::SwapChain::Builder(this->device, 
+                                                              this->window->getSurface(), 
+                                                              extent.width, extent.height)
+                    .setDefault()
+                    .build();
         } else {
-            auto oldSwapChain = this->swapChain;
-            this->swapChain = new NugieVulkan::SwapChain(this->device, extent, oldSwapChain);
+            auto oldSwapChain = std::move(this->swapChain);
+            this->swapChain = NugieVulkan::SwapChain::Builder(this->device, 
+                                                              this->window->getSurface(), 
+                                                              extent.width, extent.height)
+                    .setDefault()
+                    .setOldSwapChain(oldSwapChain)
+                    .build();
 
             if (!oldSwapChain->compareSwapFormat(this->swapChain)) {
                 throw std::runtime_error("Swap chain image has changed");
@@ -70,9 +78,8 @@ namespace NugieApp {
                         .setPoolFlags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)
                         .addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 50)
                         .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 50)
-                        .addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 50)
-                        .addPoolSize(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 50)
-				        .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 50)
+                        .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 50)
+                        .addPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 150)
                         .build();
     }
 
@@ -95,8 +102,7 @@ namespace NugieApp {
         this->inFlightFences.resize(this->frameCount);
         this->imagesInFlights.resize(this->imageCount, VK_NULL_HANDLE);
 
-        this->transferFinishedSemaphores.resize(this->frameCount * this->imageCount);
-        this->prepareFinishedSemaphores.resize(this->frameCount * this->imageCount);
+        this->transferFinishedSemaphores.resize(this->frameCount);
 
         VkSemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -116,7 +122,7 @@ namespace NugieApp {
             }
         }
 
-        for (uint32_t i = 0; i < this->frameCount * this->imageCount; i++) {
+        for (uint32_t i = 0; i < this->frameCount; i++) {
             if (vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr,
                                   &this->transferFinishedSemaphores[i]) != VK_SUCCESS || 
                 vkCreateSemaphore(this->device->getLogicalDevice(), &semaphoreInfo, nullptr, 
@@ -125,7 +131,7 @@ namespace NugieApp {
             }
         }
 
-        this->isTransferStarteds.resize(this->frameCount * this->imageCount, false);
+        this->isTransferStarteds.resize(this->frameCount, false);
     }
 
     void Renderer::createCommandBuffers() {
@@ -215,18 +221,11 @@ namespace NugieApp {
         std::vector<VkSemaphore> signalSemaphores = {this->renderFinishedSemaphores[this->currentFrameIndex]};
         std::vector<VkPipelineStageFlags> waitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
-        if (this->isTransferStarteds[commandIndex]) {
-            waitSemaphores.emplace_back(this->transferFinishedSemaphores[commandIndex]);
-            waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+        if (this->isTransferStarteds[this->currentFrameIndex]) {
+            waitSemaphores.emplace_back(this->transferFinishedSemaphores[this->currentFrameIndex]);
+            waitStages.emplace_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-            this->isTransferStarteds[commandIndex] = false;
-        }
-
-        if (this->isTransferStarteds[commandIndex]) {
-            waitSemaphores.emplace_back(this->prepareFinishedSemaphores[commandIndex]);
-            waitStages.emplace_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
-
-            this->isTransferStarteds[commandIndex] = false;
+            this->isTransferStarteds[this->currentFrameIndex] = false;
         }
 
         vkResetFences(this->device->getLogicalDevice(), 1, &this->inFlightFences[this->currentFrameIndex]);

@@ -1,0 +1,51 @@
+#version 460
+
+#include "struct.glsl"
+#include "../core/struct.glsl"
+
+layout (local_size_x = 64) in;
+
+layout (set = 0, binding = 0) uniform readonly GlobalUniform {
+    vec3 origin;
+    vec3 horizontal;
+    vec3 vertical;
+    vec3 lowerLeftCorner;
+    uvec4 imgSizeRandomSeedNumLight;
+} ubo;
+
+layout (set = 0, binding = 1) buffer writeonly LightRadianceIsIlluminateBuffer {
+    vec4 lightRadianceIsIlluminates[];
+};
+
+layout (set = 0, binding = 2) buffer readonly HitLengthBuffer {
+    float hitLengths[];
+};
+
+layout (set = 0, binding = 3) buffer readonly HitGeometryIndexBuffer {
+    uint hitGeometryIndexes[];
+};
+
+layout (set = 0, binding = 4) buffer readonly HitGeometryTypeIndexBuffer {
+    uint hitGeometryTypeIndexes[];
+};
+
+layout (set = 0, binding = 5) buffer readonly TriangleLightBuffer {
+    uvec4 triangleLights[];
+};
+
+layout (set = 0, binding = 6) buffer readonly MaterialBuffer {
+    vec4 materialColors[];
+};
+
+void main() {
+    vec4 lightRadianceIsIlluminate = vec4(0.0f);
+
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
+        uvec4 hittedLight = triangleLights[hitGeometryIndexes[gl_GlobalInvocationID.x]];
+
+        lightRadianceIsIlluminate.w = 1.0f;
+        lightRadianceIsIlluminate.xyz = materialColors[hittedLight.w].xyz;
+    }
+
+    lightRadianceIsIlluminates[gl_GlobalInvocationID.x] = lightRadianceIsIlluminate;
+}

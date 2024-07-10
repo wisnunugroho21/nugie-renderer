@@ -8,8 +8,6 @@
 #include "../../vulkan/swap_chain/swap_chain.hpp"
 #include "../../vulkan/renderpass/renderpass.hpp"
 
-#include "../general_struct.hpp"
-
 #include <vector>
 #include <string>
 
@@ -24,6 +22,11 @@ namespace NugieApp {
         ~GraphicRenderSystem();
 
         void initialize();
+
+        virtual void
+        render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t vertexCount, uint32_t instanceCount = 1u,
+               const std::vector<VkDescriptorSet> &descriptorSets = {},
+               const std::vector<void *> &pushConstants = {});
 
         virtual void
         render(NugieVulkan::CommandBuffer *commandBuffer, const std::vector<NugieVulkan::Buffer *> &vertexBuffers,

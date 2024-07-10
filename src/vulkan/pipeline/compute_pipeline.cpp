@@ -30,7 +30,8 @@ namespace NugieVulkan {
     }
 
     ComputePipeline::Builder &ComputePipeline::Builder::setShaderStageInfo(
-            VkPipelineShaderStageCreateInfo shaderStageInfo) {
+            VkPipelineShaderStageCreateInfo shaderStageInfo) 
+    {
         this->shaderStageInfo = shaderStageInfo;
         return *this;
     }
@@ -57,7 +58,9 @@ namespace NugieVulkan {
 
     ComputePipeline::ComputePipeline(Device *device, VkPipelineLayout pipelineLayout,
                                      VkPipelineShaderStageCreateInfo shaderStageInfo, VkPipeline basePipelineHandleInfo,
-                                     int32_t basePipelineIndex) : device{device} {
+                                     int32_t basePipelineIndex) 
+                                     : device{device} 
+    {
         this->createGraphicPipeline(
                 pipelineLayout,
                 shaderStageInfo,
@@ -90,7 +93,8 @@ namespace NugieVulkan {
 
     void ComputePipeline::createGraphicPipeline(VkPipelineLayout pipelineLayout,
                                                 VkPipelineShaderStageCreateInfo shaderStageInfo,
-                                                VkPipeline basePipelineHandleInfo, int32_t basePipelineIndex) {
+                                                VkPipeline basePipelineHandleInfo, int32_t basePipelineIndex) 
+    {
         VkComputePipelineCreateInfo pipelineInfo{};
 
         pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;

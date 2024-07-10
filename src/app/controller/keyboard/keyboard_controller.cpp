@@ -2,7 +2,8 @@
 
 namespace NugieApp {
     glm::vec3 KeyboardController::moveInPlaceXZ(GLFWwindow *window, float dt, glm::vec3 currentCameraPosition,
-                                                glm::vec3 currentCameraDirection, bool *isPressed) const {
+                                                glm::vec3 currentCameraDirection, bool *isPressed) const 
+    {
         glm::vec3 newCameraPosition = currentCameraPosition;
         glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
 

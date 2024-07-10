@@ -1,0 +1,395 @@
+#version 460
+
+#include "struct.glsl"
+#include "../core/struct.glsl"
+
+layout (local_size_x = 64) in;
+
+layout (set = 0, binding = 0) buffer writeonly HitLengthBuffer {
+    float hitLengths[];
+};
+
+layout (set = 0, binding = 1) buffer writeonly HitUVBuffer {
+    vec2 hitUVs[];
+};
+
+layout (set = 0, binding = 2) buffer writeonly HitGeometryIndexBuffer {
+    uint hitGeometryIndexes[];
+};
+
+layout (set = 0, binding = 3) buffer writeonly HitGeometryTypeIndexBuffer {
+    uint hitGeometryTypeIndexes[];
+};
+
+layout (set = 0, binding = 4) buffer writeonly HitTransformIndexBuffer {
+    uint hitTransformIndexes[];
+};
+
+layout (set = 0, binding = 5) buffer readonly TracedRayOriginBuffer {
+    vec3 tracedRayOrigins[];
+};
+
+layout (set = 0, binding = 6) buffer readonly TracedRayDirectionBuffer {
+    vec3 tracedRayDirections[];
+};
+
+layout (set = 0, binding = 7) buffer readonly ObjectBvhNodeIndexBuffer {
+    uvec4 objectBvhNodeIndexes[];
+};
+
+layout (set = 0, binding = 8) buffer readonly ObjectBvhNodeMaximumBuffer {
+    vec3 objectBvhNodeMaximums[];
+};
+
+layout (set = 0, binding = 9) buffer readonly ObjectBvhNodeMinimumBuffer {
+    vec3 objectBvhNodeMinimums[];
+};
+
+layout (set = 0, binding = 10) buffer readonly ObjectBuffer {
+    uvec4 objects[];
+};
+
+layout (set = 0, binding = 11) buffer readonly GeometryBvhNodeIndexBuffer {
+    uvec4 geometryBvhNodeIndexes[];
+};
+
+layout (set = 0, binding = 12) buffer readonly GeometryBvhNodeMaximumBuffer {
+    vec3 geometryBvhNodeMaximums[];
+};
+
+layout (set = 0, binding = 13) buffer readonly GeometryBvhNodeMinimumBuffer {
+    vec3 geometryBvhNodeMinimums[];
+};
+
+layout (set = 0, binding = 14) buffer readonly TriangleBuffer {
+    uvec4 triangles[];
+};
+
+layout (set = 0, binding = 15) buffer readonly TriangleLightBuffer {
+    uvec4 triangleLights[];
+};
+
+layout (set = 0, binding = 16) buffer readonly VertexPositionBuffer {
+    vec3 verticesPosition[];
+};
+
+layout (set = 0, binding = 17) buffer readonly WorldToObjectTransformationBuffer {
+    mat4 worldToObjectTransformations[];
+};
+
+// ------------- Transformation -------------
+
+vec3 positionTransform(mat4 mat, vec3 vec) {
+    precise vec3 res;
+
+    res.x = mat[3][0] +
+    fma(
+        mat[0][0], vec.x,
+        fma(
+            mat[1][0], 
+            vec.y,
+            (mat[2][0] * vec.z)
+        )
+    );
+
+    res.y = mat[3][1] +
+    fma(
+        mat[0][1], vec.x,
+        fma(
+            mat[1][1], 
+            vec.y,
+            (mat[2][1] * vec.z)
+        )
+    );
+
+    res.z = mat[3][2] +
+    fma(
+        mat[0][2], vec.x,
+        fma(
+            mat[1][2], 
+            vec.y,
+            (mat[2][2] * vec.z)
+        )
+    );
+
+    return res;
+}
+
+vec3 directionTransform(mat4 mat, vec3 vec) {
+    precise vec3 res;
+
+    res.x =
+    fma(
+        mat[0][0], vec.x,
+        fma(
+            mat[1][0], 
+            vec.y,
+            (mat[2][0] * vec.z)
+        )
+    );
+
+    res.y =
+    fma(
+        mat[0][1], vec.x,
+        fma(
+            mat[1][1], 
+            vec.y,
+            (mat[2][1] * vec.z)
+        )
+    );
+
+    res.z =
+    fma(
+        mat[0][2], vec.x,
+        fma(
+            mat[1][2], 
+            vec.y,
+            (mat[2][2] * vec.z)
+        )
+    );
+
+    return normalize(res);
+}
+
+// ------------- Triangle -------------
+
+bool hitTriangle(uvec4 triangle, vec3 rayOrigin, vec3 rayDirection, out float t, out vec2 uv) {
+    vec3 v0 = verticesPosition[triangle.x];
+    vec3 v1 = verticesPosition[triangle.y];
+    vec3 v2 = verticesPosition[triangle.z];
+
+    precise vec3 edge1 = v1 - v0;
+    precise vec3 edge2 = v2 - v0;
+
+    vec3 ray_cross_e2 = cross(rayDirection, edge2);
+    float det = dot(edge1, ray_cross_e2);
+
+    if (abs(det) < K_EPSILON) {
+        return false;    // This ray is parallel to this triangle.
+    }
+
+    precise vec3 s = rayOrigin - v0;
+    float inv_det = 1.0 / det;    
+    float u = inv_det * dot(s, ray_cross_e2);
+
+    if (u < 0 || u > 1) {
+        return false;
+    }
+
+    vec3 s_cross_e1 = cross(s, edge1);
+    float v = inv_det * dot(rayDirection, s_cross_e1);
+
+    if (v < 0 || u + v > 1) {
+        return false;
+    }
+
+    // At this stage we can compute t to find out where the intersection point is on the line.
+    t = inv_det * dot(edge2, s_cross_e1);
+
+    if (t < 0.001f) {
+        return false;
+    }
+    
+    uv = vec2(u, v);
+    return true;
+}
+
+// ------------- Bvh -------------
+
+float intersectAABB(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax) {
+    precise vec3 tMin = (boxMin - rayOrigin) / rayDirection;
+    precise vec3 tMax = (boxMax - rayOrigin) / rayDirection;
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+
+    return tNear <= tFar ? tNear : FLT_MAX;
+}
+
+bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex, 
+                    uint firstGeometryIndex, uint transformIndex, 
+                    out float t, out vec2 uv, out uint hitGeometryIndex, 
+                    out uint hitGeometryTypeIndex) 
+{
+    mat4 worldToObjectMatrix = worldToObjectTransformations[transformIndex];
+
+    rayOrigin = positionTransform(worldToObjectMatrix, rayOrigin);
+    rayDirection = directionTransform(worldToObjectMatrix, rayDirection);
+
+    uint stack[30];
+    stack[0] = 1u;
+
+    int stackIndex = 1;
+
+    while (stackIndex > 0 && stackIndex <= 30) {
+        uint currentNode = stack[--stackIndex];
+
+        if (currentNode > 0u) {
+            uvec4 curNodeIndex = geometryBvhNodeIndexes[currentNode - 1u + firstBvhIndex];
+
+            if (curNodeIndex.z > 0u) {
+                Triangle triangle;
+
+                switch (curNodeIndex.w) {
+                    case 1u:
+                        if (
+                            hitTriangle(
+                                        triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
+                                        rayOrigin, rayDirection, t, uv
+                            )
+                        ) {
+                            hitGeometryIndex = curNodeIndex.z - 1u + firstGeometryIndex;
+                            hitGeometryTypeIndex = 1u;
+
+                            return true;
+                        }
+                        break;
+
+                    case 2u:
+                        if (hitTriangle(triangleLights[curNodeIndex.z - 1u + firstGeometryIndex], 
+                                        rayOrigin, rayDirection, t, uv)) 
+                        {
+                            hitGeometryIndex = curNodeIndex.z - 1u + firstGeometryIndex;
+                            hitGeometryTypeIndex = 2u;
+
+                            return true;
+                        }
+                        break;
+                }
+            }
+
+            float leftDist = FLT_MAX, rightDist = FLT_MAX;
+
+            if (curNodeIndex.x > 0u) {
+                leftDist = intersectAABB(rayOrigin, rayDirection, 
+                                         geometryBvhNodeMinimums[curNodeIndex.x - 1u + firstBvhIndex], 
+                                         geometryBvhNodeMaximums[curNodeIndex.x - 1u + firstBvhIndex]);
+            }
+
+            if (curNodeIndex.y > 0u) {
+                rightDist = intersectAABB(rayOrigin, rayDirection, 
+                                          geometryBvhNodeMinimums[curNodeIndex.y - 1u + firstBvhIndex], 
+                                          geometryBvhNodeMaximums[curNodeIndex.y - 1u + firstBvhIndex]);
+            }
+
+            if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
+                if (leftDist >= 1.0e+30) {
+                    stack[stackIndex++] = curNodeIndex.y;
+                }
+
+                else if (rightDist >= 1.0e+30) {
+                    stack[stackIndex++] = curNodeIndex.x;
+                }
+
+                else if (leftDist < rightDist) {
+                    stack[stackIndex++] = curNodeIndex.y;
+                    stack[stackIndex++] = curNodeIndex.x;
+                }
+
+                else {
+                    stack[stackIndex++] = curNodeIndex.x;
+                    stack[stackIndex++] = curNodeIndex.y;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection, 
+                  out float t, out vec2 uv, out uint hitGeometryIndex, 
+                  out uint hitGeometryTypeIndex, out uint hitTransformIndex) 
+{
+    uint stack[30];
+    stack[0] = 1u;
+
+    int stackIndex = 1;
+    while (stackIndex > 0 && stackIndex <= 30) {
+        uint currentNode = stack[--stackIndex];
+
+        if (currentNode > 0u) {
+            uvec4 curNodeIndex = objectBvhNodeIndexes[currentNode - 1u];
+
+            if (curNodeIndex.z > 0u) {
+                uvec4 object = objects[curNodeIndex.z - 1u];
+
+                if (
+                    hitGeometryBvh(
+                                   rayOrigin,
+                                   rayDirection, 
+                                   object.x, 
+                                   object.y, 
+                                   object.z, 
+                                   t, uv,
+                                   hitGeometryIndex, 
+                                   hitGeometryTypeIndex
+                    )
+                ) {
+                    hitTransformIndex = object.z;
+                    return true;
+                }
+            }
+
+            float leftDist = FLT_MAX, rightDist = FLT_MAX;
+
+            if (curNodeIndex.x > 0u) {
+                leftDist = intersectAABB(rayOrigin, rayDirection, 
+                                         objectBvhNodeMinimums[curNodeIndex.x - 1u], 
+                                         objectBvhNodeMaximums[curNodeIndex.x - 1u]);
+            }
+
+            if (curNodeIndex.y > 0u) {
+                rightDist = intersectAABB(rayOrigin, rayDirection, 
+                                          objectBvhNodeMinimums[curNodeIndex.y - 1u], 
+                                          objectBvhNodeMaximums[curNodeIndex.y - 1u]);
+            }
+
+            if (leftDist < 1.0e+30 || rightDist < 1.0e+30) {
+                if (leftDist >= 1.0e+30) {
+                    stack[stackIndex++] = curNodeIndex.y;
+                }
+
+                else if (rightDist >= 1.0e+30) {
+                    stack[stackIndex++] = curNodeIndex.x;
+                }
+
+                else if (leftDist < rightDist) {
+                    stack[stackIndex++] = curNodeIndex.y;
+                    stack[stackIndex++] = curNodeIndex.x;
+                }
+
+                else {
+                    stack[stackIndex++] = curNodeIndex.x;
+                    stack[stackIndex++] = curNodeIndex.y;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+void main() {
+    float hitLength = 0.0f;
+    vec2 hitUV = vec2(0.0f);
+    uint hitGeometryIndex = 0u;
+    uint hitGeometryTypeIndex = 0u;
+    uint hitTransformIndex = 0u;
+
+    vec3 rayOrigin = tracedRayOrigins[gl_GlobalInvocationID.x];
+    vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
+
+    if (length(rayDirection) > 0.001f) {
+        hitObjectBvh(rayOrigin, rayDirection, hitLength, hitUV, 
+                     hitGeometryIndex, hitGeometryTypeIndex, 
+                     hitTransformIndex);
+    }
+
+    hitLengths[gl_GlobalInvocationID.x] = hitLength;
+    hitUVs[gl_GlobalInvocationID.x] = hitUV;
+    hitGeometryIndexes[gl_GlobalInvocationID.x] = hitGeometryIndex;
+    hitGeometryTypeIndexes[gl_GlobalInvocationID.x] = hitGeometryTypeIndex;
+    hitTransformIndexes[gl_GlobalInvocationID.x] = hitTransformIndex;
+}

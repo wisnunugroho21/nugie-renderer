@@ -10,98 +10,20 @@
 #include <vector>
 
 namespace NugieApp {
-	struct Vertex {
-		glm::vec4 position;
-
-		bool operator==(const Vertex &other) const
-		{
-			return this->position == other.position;
-		}
-	};
-
-	struct NormText {
-		glm::vec4 normal;
-		glm::vec2 textCoord;
-	};
-
-	struct Reference {
-		uint32_t materialIndex;
-		uint32_t transformIndex;
-	};
-
-	struct Aabb {
-		alignas(16) glm::vec4 point0;
-		alignas(16) glm::vec4 point1;
-		alignas(16) glm::vec4 point2;
-		alignas(16) glm::vec4 point3;
-		alignas(16) glm::vec4 point4;
-		alignas(16) glm::vec4 point5;
-		alignas(16) glm::vec4 point6;
-		alignas(16) glm::vec4 point7;
-
-		uint32_t firstIndex;
-		uint32_t indicesCount;
-	};
-
-	struct Material {
-		alignas(16) glm::vec4 baseColor;
-		alignas(16) glm::vec4 params;
-		uint32_t colorTextureIndex;
-	};
+    struct Material {
+        glm::vec4 baseColor;
+    };
 
 	struct Transformation {
 		glm::mat4 modelMatrix{1.0f};
 		glm::mat4 normalMatrix{1.0f};
 	};
 
-	struct ShadowTransformation {
-		glm::mat4 view{1.0f};
-		glm::mat4 projection{1.0f};
-	};
+    struct WorldToObjectTransformation {
+        glm::mat4 worldToObjectMatrix{1.0f};
+    };
 
-	struct PointLight {
-		glm::vec4 position;
-		glm::vec4 color;
-	};
-
-	struct SpotLight {
-		alignas(16) glm::vec4 position;
-		alignas(16) glm::vec4 color;
-		alignas(16) glm::vec4 direction;
-		float angle;
-	};
-
-	struct SunLight {
-		alignas(16) glm::vec4 color;
-		alignas(16) glm::vec4 direction;
-	};
-
-	struct CameraTransformation {
-		glm::mat4 view;
-		glm::mat4 projection;
-	};
-
-	struct TessellationData {
-		glm::vec4 tessellationScreenSizeFactorEdgeSize;
-	};
-
-	struct FragmentData {
-		glm::vec4 origin;
-		glm::uvec4 numLights;
-		SunLight sunLight;
-	};
-
-	struct RenderData {
-		CameraTransformation cameraTransformation;
-		TessellationData tessellationData;
-		FragmentData fragmentData;
-	};
-
-	struct FrustumData {
-		uint32_t drawObjectCount = 0;
-	};
-
-	struct ShadowPushConstant {
-		uint32_t lightIndex;
-	};
+    struct ObjectToWorldTransformation {
+        glm::mat4 objectToWorldMatrix{1.0f};
+    };
 }

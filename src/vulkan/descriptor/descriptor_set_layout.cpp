@@ -11,7 +11,8 @@ namespace NugieVulkan {
             uint32_t binding,
             VkDescriptorType descriptorType,
             VkShaderStageFlags stageFlags,
-            uint32_t count) {
+            uint32_t count) 
+    {
         assert(this->bindings.count(binding) == 0 && "Binding already in use");
 
         VkDescriptorSetLayoutBinding layoutBinding{};
@@ -26,7 +27,8 @@ namespace NugieVulkan {
 
     DescriptorSetLayout::Builder &DescriptorSetLayout::Builder::addFlag(
             uint32_t binding,
-            VkDescriptorBindingFlags flag) {
+            VkDescriptorBindingFlags flag) 
+    {
         assert(this->flags.count(binding) == 0 && "Flag already in use");
 
         this->flags[binding] = flag;
@@ -41,7 +43,8 @@ namespace NugieVulkan {
 
     DescriptorSetLayout::DescriptorSetLayout(
             Device *device, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings)
-            : device{device}, bindings{bindings} {
+            : device{device}, bindings{bindings} 
+    {
         std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings{};
         for (auto &kv: this->bindings) {
             setLayoutBindings.push_back(kv.second);
