@@ -82,9 +82,9 @@ vec3 triangleRandomTarget(uvec4 triangle, uint additionalRandomSeed) {
 	
 	return vertexPosition0 +
             fma(
-               vec3(u1), 
-               v0v1, 
-               vec3(u2) * v0v2 
+                vec3(u1), 
+                v0v1, 
+                vec3(u2) * v0v2 
             );
 }
 

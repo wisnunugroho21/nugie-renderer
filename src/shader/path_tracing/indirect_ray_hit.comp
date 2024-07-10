@@ -203,9 +203,9 @@ vec3 triangleRandomTarget(uvec4 triangle, uint additionalRandomSeed) {
 	precise vec3 res = 
             vertexPosition0 +
             fma(
-               vec3(u1), 
-               v0v1, 
-               vec3(u2) * v0v2 
+                vec3(u1), 
+                v0v1, 
+                vec3(u2) * v0v2 
             );
 
     return res;
@@ -234,9 +234,9 @@ vec3 trianglePositionFromUV(uvec4 triangle, vec2 uv) {
 	precise vec3 res = 
             vertexPosition0 +
             fma(
-               vec3(uv.x), 
-               v0v1, 
-               vec3(uv.y) * v0v2 
+                vec3(uv.x), 
+                v0v1, 
+                vec3(uv.y) * v0v2 
             );
 
     return res;

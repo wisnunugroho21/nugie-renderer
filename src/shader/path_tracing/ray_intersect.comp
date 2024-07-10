@@ -86,7 +86,8 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][0], vec.x,
         fma(
-            mat[1][0], vec.y,
+            mat[1][0], 
+            vec.y,
             (mat[2][0] * vec.z)
         )
     );
@@ -95,7 +96,8 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][1], vec.x,
         fma(
-            mat[1][1], vec.y,
+            mat[1][1], 
+            vec.y,
             (mat[2][1] * vec.z)
         )
     );
@@ -104,7 +106,8 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][2], vec.x,
         fma(
-            mat[1][2], vec.y,
+            mat[1][2], 
+            vec.y,
             (mat[2][2] * vec.z)
         )
     );
@@ -119,7 +122,8 @@ vec3 directionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][0], vec.x,
         fma(
-            mat[1][0], vec.y,
+            mat[1][0], 
+            vec.y,
             (mat[2][0] * vec.z)
         )
     );
@@ -128,7 +132,8 @@ vec3 directionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][1], vec.x,
         fma(
-            mat[1][1], vec.y,
+            mat[1][1], 
+            vec.y,
             (mat[2][1] * vec.z)
         )
     );
@@ -137,7 +142,8 @@ vec3 directionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][2], vec.x,
         fma(
-            mat[1][2], vec.y,
+            mat[1][2], 
+            vec.y,
             (mat[2][2] * vec.z)
         )
     );
@@ -227,9 +233,12 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex,
 
                 switch (curNodeIndex.w) {
                     case 1u:
-                        if (hitTriangle(triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
-                                        rayOrigin, rayDirection, t, uv)) 
-                        {
+                        if (
+                            hitTriangle(
+                                        triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
+                                        rayOrigin, rayDirection, t, uv
+                            )
+                        ) {
                             hitGeometryIndex = curNodeIndex.z - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 1u;
 
@@ -306,12 +315,18 @@ bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection,
             if (curNodeIndex.z > 0u) {
                 uvec4 object = objects[curNodeIndex.z - 1u];
 
-                if (hitGeometryBvh(rayOrigin, rayDirection, 
-                                   object.x, object.y, 
-                                   object.z, t, uv, 
+                if (
+                    hitGeometryBvh(
+                                   rayOrigin,
+                                   rayDirection, 
+                                   object.x, 
+                                   object.y, 
+                                   object.z, 
+                                   t, uv,
                                    hitGeometryIndex, 
-                                   hitGeometryTypeIndex)) 
-                {
+                                   hitGeometryTypeIndex
+                    )
+                ) {
                     hitTransformIndex = object.z;
                     return true;
                 }

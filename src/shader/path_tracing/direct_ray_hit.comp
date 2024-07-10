@@ -74,7 +74,8 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][0], vec.x,
         fma(
-            mat[1][0], vec.y,
+            mat[1][0], 
+            vec.y,
             (mat[2][0] * vec.z)
         )
     );
@@ -83,7 +84,8 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][1], vec.x,
         fma(
-            mat[1][1], vec.y,
+            mat[1][1], 
+            vec.y,
             (mat[2][1] * vec.z)
         )
     );
@@ -92,7 +94,8 @@ vec3 positionTransform(mat4 mat, vec3 vec) {
     fma(
         mat[0][2], vec.x,
         fma(
-            mat[1][2], vec.y,
+            mat[1][2], 
+            vec.y,
             (mat[2][2] * vec.z)
         )
     );
@@ -148,9 +151,9 @@ vec3 trianglePositionFromUV(uvec4 triangle, vec2 uv) {
 	precise vec3 res = 
             vertexPosition0 +
             fma(
-               vec3(uv.x), 
-               v0v1, 
-               vec3(uv.y) * v0v2 
+                vec3(uv.x), 
+                v0v1, 
+                vec3(uv.y) * v0v2 
             );
 
     return res;
