@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "app/app/mesh_shading_app.hpp"
+#include "app/app/path_tracing_app.hpp"
 
 int main(int argc, char const *argv[])
 {
