@@ -163,7 +163,9 @@ void main() {
     vec4 directRadiancePdf = vec4(0.0f);
     DirectNormalMaterialIndex normalMaterialIndex = directNormalMaterialIndexes[gl_GlobalInvocationID.x];
 
-    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f 
+        && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) 
+    {
         uvec4 hittedLight = triangleLights[hitGeometryIndexes[gl_GlobalInvocationID.x]];
         vec3 rayDirection = tracedRayDirections[gl_GlobalInvocationID.x];
 

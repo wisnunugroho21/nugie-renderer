@@ -233,12 +233,9 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex,
 
                 switch (curNodeIndex.w) {
                     case 1u:
-                        if (
-                            hitTriangle(
-                                        triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
-                                        rayOrigin, rayDirection, t, uv
-                            )
-                        ) {
+                        if (hitTriangle(triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
+                                        rayOrigin, rayDirection, t, uv)) 
+                        {
                             hitGeometryIndex = curNodeIndex.z - 1u + firstGeometryIndex;
                             hitGeometryTypeIndex = 1u;
 
@@ -315,18 +312,15 @@ bool hitObjectBvh(vec3 rayOrigin, vec3 rayDirection,
             if (curNodeIndex.z > 0u) {
                 uvec4 object = objects[curNodeIndex.z - 1u];
 
-                if (
-                    hitGeometryBvh(
-                                   rayOrigin,
+                if (hitGeometryBvh(rayOrigin,
                                    rayDirection, 
                                    object.x, 
                                    object.y, 
                                    object.z, 
                                    t, uv,
                                    hitGeometryIndex, 
-                                   hitGeometryTypeIndex
-                    )
-                ) {
+                                   hitGeometryTypeIndex)) 
+                {
                     hitTransformIndex = object.z;
                     return true;
                 }

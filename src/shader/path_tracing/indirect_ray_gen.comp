@@ -40,10 +40,10 @@ void main() {
     vec3 initialRayDirection = normalize(ubo.lowerLeftCorner + uv.x * ubo.horizontal - uv.y * ubo.vertical - ubo.origin);
 
     tracedRayOrigins[bufferIndex] = integratorTotalRadianceIsRayBounces[bufferIndex].w > 0.5f
-    ? scatteredRayOrigins[bufferIndex]
-    : ubo.origin;
+        ? scatteredRayOrigins[bufferIndex]
+        : ubo.origin;
 
     tracedRayDirections[bufferIndex] = integratorTotalRadianceIsRayBounces[bufferIndex].w > 0.5f
-    ? scatteredRayDirections[bufferIndex]
-    : initialRayDirection;
+        ? scatteredRayDirections[bufferIndex]
+        : initialRayDirection;
 }

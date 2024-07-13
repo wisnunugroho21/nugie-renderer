@@ -371,8 +371,8 @@ namespace NugieApp {
         vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
 
         curTris.clear();
-        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{0u, 1u, 2u, 1u}});
-        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{2u, 3u, 0u, 1u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{0u, 1u, 2u, 2u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{2u, 3u, 0u, 2u}});
 
         transformComponents.emplace_back(
                 TransformComponent{glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
@@ -412,8 +412,8 @@ namespace NugieApp {
         vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
 
         curTris.clear();
-        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{4u, 5u, 6u, 2u}});
-        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{6u, 7u, 4u, 2u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{4u, 5u, 6u, 1u}});
+        curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{6u, 7u, 4u, 1u}});
 
         transformComponents.emplace_back(TransformComponent{glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f)});
         transformIndex = static_cast<uint32_t>(transformComponents.size() - 1);

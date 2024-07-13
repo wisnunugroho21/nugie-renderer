@@ -28,7 +28,9 @@ void main() {
             / (samplingResult.w + 1.0f);
 
         samplingResult.xyz = totalColor;
-        samplingResult.w = (samplingResult.w + 1.0f < 0.0f) ? 0.0f : samplingResult.w + 1.0f;
+
+        samplingResult.w = samplingResult.w + 1.0;
+        samplingResult.w = (samplingResult.w < 0.0f) ? 0.0f : samplingResult.w;
 
         samplingBuffer.results[bufferIndex] = samplingResult;
         imageStore(resultImage, pixelCoord, vec4(totalColor, 1.0f));

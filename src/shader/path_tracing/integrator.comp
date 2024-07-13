@@ -62,12 +62,12 @@ void main() {
 
         totalRadianceIsRayBounce.xyz = (totalRadianceIsRayBounce.w > 0.5f)
             ? totalRadianceIsRayBounce.xyz
-                + directRadiancePdf.xyz * totalIndirectPdf.xyz
+                + totalIndirectPdf.xyz * directRadiancePdf.xyz
                 * (directRadiancePdf.w / totalPdf)
             : directRadiancePdf.xyz;
 
         totalIndirectPdf.xyz = (totalRadianceIsRayBounce.w > 0.5f)
-            ? indirectRadiancePdf.xyz * totalIndirectPdf.xyz
+            ? totalIndirectPdf.xyz * indirectRadiancePdf.xyz
                 * (indirectRadiancePdf.w / totalPdf)
             : indirectRadiancePdf.xyz;
 

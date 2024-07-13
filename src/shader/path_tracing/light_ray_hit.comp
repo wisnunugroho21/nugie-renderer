@@ -40,8 +40,12 @@ layout (set = 0, binding = 6) buffer readonly MaterialBuffer {
 void main() {
     vec4 lightRadianceIsIlluminate = vec4(0.0f);
 
-    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) {
-        uvec4 hittedLight = triangleLights[hitGeometryIndexes[gl_GlobalInvocationID.x]];
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f 
+        && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 2u) 
+    {
+        uvec4 hittedLight = triangleLights[
+            hitGeometryIndexes[gl_GlobalInvocationID.x]
+        ];
 
         lightRadianceIsIlluminate.w = 1.0f;
         lightRadianceIsIlluminate.xyz = materialColors[hittedLight.w].xyz;

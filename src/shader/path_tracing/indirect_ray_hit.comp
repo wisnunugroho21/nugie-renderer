@@ -247,7 +247,9 @@ void main() {
     vec4 indirectRadiancePdf = vec4(0.0f);
     vec4 directOriginIsIlluminate = vec4(0.0f);
 
-    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 1u) {
+    if (hitLengths[gl_GlobalInvocationID.x] >= 0.001f 
+        && hitGeometryTypeIndexes[gl_GlobalInvocationID.x] == 1u) 
+    {
         uvec4 hittedTriangle = triangles[hitGeometryIndexes[gl_GlobalInvocationID.x]];
 
         vec3 hittedNormal = triangleNormal(hittedTriangle, tracedRayDirections[gl_GlobalInvocationID.x]);
