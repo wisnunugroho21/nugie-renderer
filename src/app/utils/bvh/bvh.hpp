@@ -56,7 +56,7 @@ namespace NugieApp {
 
     class TriangleBoundBox : public BoundBox {
     public:
-        TriangleBoundBox(uint32_t i, const NugiePathTracing::Triangle &t, const std::vector<NugiePathTracing::Vertex> &v) 
+        TriangleBoundBox(uint32_t i, const NugiePathTracing::Triangle &t, const std::vector<Vertex> &v) 
                          : BoundBox(i), triangle{t}, vertices{v} 
         {
             this->typeIndex = 1u;
@@ -66,12 +66,12 @@ namespace NugieApp {
 
     private:
         NugiePathTracing::Triangle triangle{};
-        std::vector<NugiePathTracing::Vertex> vertices{};
+        std::vector<Vertex> vertices{};
     };
 
     class TriangleLightBoundBox : public BoundBox {
     public:
-        TriangleLightBoundBox(uint32_t i, const NugiePathTracing::Triangle &t, const std::vector<NugiePathTracing::Vertex> &v) 
+        TriangleLightBoundBox(uint32_t i, const NugiePathTracing::Triangle &t, const std::vector<Vertex> &v) 
                               : BoundBox(i), triangle{t}, vertices{v} 
         {
             this->typeIndex = 2u;
@@ -81,14 +81,14 @@ namespace NugieApp {
 
     private:
         NugiePathTracing::Triangle triangle{};
-        std::vector<NugiePathTracing::Vertex> vertices{};
+        std::vector<Vertex> vertices{};
     };
 
     class ObjectBoundBox : public BoundBox {
     public:
         ObjectBoundBox(uint32_t i, const NugiePathTracing::Object &o, const TransformComponent &tc, 
                        const std::vector<NugiePathTracing::Triangle> &t,
-                       const std::vector<NugiePathTracing::Vertex> &v);
+                       const std::vector<Vertex> &v);
 
         glm::vec3 getOriginalMin() override { return this->originalMin; }
 
@@ -101,7 +101,7 @@ namespace NugieApp {
         TransformComponent transformation{};
 
         std::vector<NugiePathTracing::Triangle> triangles{};
-        std::vector<NugiePathTracing::Vertex> vertices{};
+        std::vector<Vertex> vertices{};
 
         glm::vec3 originalMin{0.0f};
         glm::vec3 originalMax{0.0f};

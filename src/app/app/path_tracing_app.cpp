@@ -353,7 +353,7 @@ namespace NugieApp {
         std::vector<NugiePathTracing::Triangle> triangles;
         std::vector<NugiePathTracing::Triangle> triangleLights;
         std::vector<NugiePathTracing::BvhNode> bvhTriangles;
-        std::vector<NugiePathTracing::Vertex> vertices;
+        std::vector<Vertex> vertices;
         std::vector<Transformation> transforms;
         std::vector<Material> materials;
 
@@ -365,10 +365,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // kanan
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{0u, 1u, 2u, 2u}});
@@ -406,10 +406,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // kiri
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{4u, 5u, 6u, 1u}});
@@ -446,10 +446,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // bawah
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{8u, 9u, 10u, 0u}});
@@ -486,10 +486,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // atas
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 0.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{12u, 13u, 14u, 0u}});
@@ -526,10 +526,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // depan
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 0.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{0.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 555.0f, 555.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{555.0f, 0.0f, 555.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{16u, 17u, 18u, 0u}});
@@ -566,10 +566,10 @@ namespace NugieApp {
         // ----------------------------------------------------------------------------
         // light
 
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 227.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 227.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{343.0f, 554.0f, 332.0f}});
-        vertices.emplace_back(NugiePathTracing::Vertex{glm::vec3{213.0f, 554.0f, 332.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{213.0f, 554.0f, 227.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{343.0f, 554.0f, 227.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{343.0f, 554.0f, 332.0f}});
+        vertices.emplace_back(Vertex{glm::vec3{213.0f, 554.0f, 332.0f}});
 
         curTris.clear();
         curTris.emplace_back(NugiePathTracing::Triangle{glm::uvec4{20u, 21u, 22u, 3u}});
@@ -735,7 +735,7 @@ namespace NugieApp {
                 .addArrayItem("geometry_bvh_index", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeIndex)), static_cast<uint32_t>(geometryBvhNodeIndexes.size()))
                 .addArrayItem("geometry_bvh_maximum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMaximum)), static_cast<uint32_t>(geometryBvhNodeMaximums.size()))
                 .addArrayItem("geometry_bvh_minimum", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::BvhNodeMinimum)), static_cast<uint32_t>(geometryBvhNodeMinimums.size()))
-                .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(NugiePathTracing::Vertex)), static_cast<uint32_t>(vertices.size()))
+                .addArrayItem("vertex", static_cast<VkDeviceSize>(sizeof(Vertex)), static_cast<uint32_t>(vertices.size()))
                 .addArrayItem("world_to_object", static_cast<VkDeviceSize>(sizeof(glm::mat4)), static_cast<uint32_t>(worldToObjectTransformations.size()))
                 .addArrayItem("object_to_world", static_cast<VkDeviceSize>(sizeof(glm::mat4)), static_cast<uint32_t>(objectToWorldTransformations.size()))
                 .addArrayItem("material", static_cast<VkDeviceSize>(sizeof(Material)), static_cast<uint32_t>(materials.size()))

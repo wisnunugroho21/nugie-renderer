@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "../device/device.hpp"
+#include "../device/device_procedure.hpp"
 #include "../renderpass/renderpass.hpp"
 #include "../buffer/buffer.hpp"
 #include "../command/command_buffer.hpp"
@@ -14,7 +15,7 @@ namespace NugieVulkan {
     public:
         class Builder {
         public:
-            Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout);
+            Builder(Device *device, RenderPass *renderPass, VkPipelineLayout pipelineLayout, DeviceProcedures *deviceProcedures = nullptr);
 
             std::vector<VkDynamicState> getDynamicStates() const { return this->dynamicStates; }
 
@@ -85,6 +86,7 @@ namespace NugieVulkan {
             std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo{};
 
             Device *device = nullptr;
+            DeviceProcedures *deviceProcedures = nullptr;
         };
 
         GraphicPipeline(
@@ -100,7 +102,8 @@ namespace NugieVulkan {
                 VkPipelineDepthStencilStateCreateInfo *depthStencilInfo,
                 VkPipelineDynamicStateCreateInfo *dynamicStateInfo,
                 const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-                VkPipelineTessellationStateCreateInfo *tessellationInfo
+                VkPipelineTessellationStateCreateInfo *tessellationInfo,
+                DeviceProcedures *deviceProcedures = nullptr
         );
 
         ~GraphicPipeline();
@@ -125,8 +128,11 @@ namespace NugieVulkan {
         static void drawIndirectIndexed(CommandBuffer *commandBuffer, NugieVulkan::Buffer *drawCommandBuffer,
                                         uint32_t indexCount, uint32_t offset);
 
+        void drawMeshShader(CommandBuffer *commandBuffer, uint32_t xSize, uint32_t ySize, uint32_t zSize);
+
     private:
         Device *device = nullptr;
+        DeviceProcedures *deviceProcedures = nullptr;
 
         VkPipeline graphicPipeline;
         std::vector<VkShaderModule> shaderModules{};
@@ -143,8 +149,7 @@ namespace NugieVulkan {
                 VkPipelineDepthStencilStateCreateInfo *depthStencilInfo,
                 VkPipelineDynamicStateCreateInfo *dynamicStateInfo,
                 const std::vector<VkPipelineShaderStageCreateInfo> &shaderStagesInfo,
-                VkPipelineTessellationStateCreateInfo *tessellationInfo,
-                bool isMeshShader = false
+                VkPipelineTessellationStateCreateInfo *tessellationInfo
         );
     };
 }

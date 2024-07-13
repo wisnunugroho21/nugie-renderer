@@ -75,7 +75,7 @@ namespace NugieApp {
     }
 
     ObjectBoundBox::ObjectBoundBox(uint32_t i, const NugiePathTracing::Object &o, const TransformComponent &tc,
-                                   const std::vector<NugiePathTracing::Triangle> &t, const std::vector<NugiePathTracing::Vertex> &v) 
+                                   const std::vector<NugiePathTracing::Triangle> &t, const std::vector<Vertex> &v) 
                                    : BoundBox(i), object{o}, transformation{tc}, triangles{t}, vertices{v} 
     {
         this->typeIndex = 0u;

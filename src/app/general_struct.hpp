@@ -11,6 +11,14 @@
 #include <vector>
 
 namespace NugieApp {
+    struct Vertex {
+        alignas(16) glm::vec3 position;
+
+        bool operator==(const Vertex &other) const {
+            return this->position == other.position;
+        }
+    };
+    
     struct Material {
         glm::vec4 baseColor;
     };

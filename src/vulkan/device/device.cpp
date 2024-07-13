@@ -90,7 +90,7 @@ namespace NugieVulkan {
         appInfo.pApplicationName = "Nugie App";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_2;
+        appInfo.apiVersion = VK_API_VERSION_1_3;
 
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -214,13 +214,13 @@ namespace NugieVulkan {
             queueCreateInfos.emplace_back(queueCreateInfo);
         }
 
+        VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
+        meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+        meshShaderFeatures.meshShader = true;
+        // meshShaderFeatures.taskShader = true;
+
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
-        VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
-        descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-        descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-        descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
 
         VkPhysicalDeviceFeatures deviceFeatures{};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
@@ -230,7 +230,7 @@ namespace NugieVulkan {
         deviceFeatures.multiDrawIndirect = VK_TRUE;
 
         createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.pNext = &descriptorIndexingFeatures;
+        createInfo.pNext = &meshShaderFeatures;
 
 #ifdef __APPLE__
         this->deviceExtensions.emplace_back("VK_KHR_portability_subset");

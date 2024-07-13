@@ -2,11 +2,11 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "app/app/path_tracing_app.hpp"
+#include "app/app/mesh_shading_app.hpp"
 
 int main(int argc, char const *argv[])
 {
-    NugieApp::PathTracingApp app{};
+    NugieApp::MeshShadingApp app{};
 
     try {
         app.run();
