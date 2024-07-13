@@ -51,9 +51,7 @@ namespace NugieApp
 
                 commandBuffer->endCommand();
             }
-        }
-
-        
+        }        
     }
 
     void MeshShadingApp::renderLoop() {
@@ -146,8 +144,8 @@ namespace NugieApp
                                      .build();
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
-                                                  "shader/better_cube.mesh.spv", "shader/mesh_shade.frag.spv", 
-                                                  this->deviceProcedures);
+                                                  "shader/simple.task.spv", "shader/better_cube.mesh.spv", 
+                                                  "shader/mesh_shade.frag.spv", this->deviceProcedures);
 
         this->meshRenderer->initialize();
     }
