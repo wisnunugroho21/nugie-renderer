@@ -18,5 +18,5 @@ glslc src/shader/mesh_shader/better_cube.mesh -o build/shader/better_cube.mesh.s
 glslc src/shader/mesh_shader/simple.task -o build/shader/simple.task.spv --target-spv=spv1.4
 glslc src/shader/mesh_shader/mesh_shade.frag -o build/shader/mesh_shade.mesh.spv --target-spv=spv1.
 
-glslc src/shader/mesh_shader/tessallation_cube.mesh -o build/shader/tessallation_cube.mesh.spv --target-spv=spv1.4
+glslc src/shader/mesh_shader/tessellation_cube.mesh -o build/shader/tessellation_cube.mesh.spv --target-spv=spv1.4
 
