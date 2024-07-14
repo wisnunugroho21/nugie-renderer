@@ -1,0 +1,47 @@
+#version 460
+#extension GL_EXT_mesh_shader : require
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = 9, max_primitives = 8) out;
+
+layout(location = 0) out vec4 fragColor[]; 
+
+void main()
+{
+	uint vertexCount = 9;
+	uint triangleCount = 8;
+	
+	SetMeshOutputsEXT(vertexCount, triangleCount);
+	
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(-0.5, 0.5, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.5, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.5, 0.5, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+
+	fragColor[0] = vec4(0.0, 0.0, 0.0, 1.0);
+	fragColor[1] = vec4(0.0, 0.0, 1.0, 1.0);
+	fragColor[2] = vec4(0.0, 1.0, 0.0, 1.0);
+	fragColor[3] = vec4(0.0, 1.0, 1.0, 1.0);
+	fragColor[4] = vec4(1.0, 0.0, 0.0, 1.0);
+	fragColor[5] = vec4(1.0, 0.0, 1.0, 1.0);
+	fragColor[6] = vec4(1.0, 1.0, 0.0, 1.0);
+	fragColor[7] = vec4(1.0, 1.0, 1.0, 1.0);
+
+	gl_PrimitiveTriangleIndicesEXT[0] = uvec3(0, 2, 1);
+	gl_PrimitiveTriangleIndicesEXT[1] = uvec3(1, 2, 3);
+	gl_PrimitiveTriangleIndicesEXT[2] = uvec3(4, 5, 6);
+	gl_PrimitiveTriangleIndicesEXT[3] = uvec3(5, 7, 6);
+	gl_PrimitiveTriangleIndicesEXT[4] = uvec3(0, 1, 5);
+	gl_PrimitiveTriangleIndicesEXT[5] = uvec3(0, 5, 4);
+	gl_PrimitiveTriangleIndicesEXT[6] = uvec3(2, 6, 7);
+	gl_PrimitiveTriangleIndicesEXT[7] = uvec3(2, 7, 3);
+	gl_PrimitiveTriangleIndicesEXT[8] = uvec3(0, 4, 6);
+	gl_PrimitiveTriangleIndicesEXT[9] = uvec3(0, 6, 2);
+	gl_PrimitiveTriangleIndicesEXT[10] = uvec3(1, 3, 7);
+	gl_PrimitiveTriangleIndicesEXT[11] = uvec3(1, 7, 5);	
+}
