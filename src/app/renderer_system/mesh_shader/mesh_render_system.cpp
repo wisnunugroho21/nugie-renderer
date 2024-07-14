@@ -11,13 +11,13 @@
 
 namespace NugieApp {
 	MeshRenderSystem::MeshRenderSystem(NugieVulkan::Device *device, NugieVulkan::RenderPass *renderPass,
-                                            	   std::string taskFilePath, std::string meshFilePath, 
-												   std::string fragFilePath,
-												   NugieVulkan::DeviceProcedures *deviceProcedures,
-                                            	   const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
-                                            	   const std::vector<VkPushConstantRange> &pushConstantRanges)
-			: GraphicRenderSystem(device, renderPass, "", fragFilePath, descriptorSetLayouts, pushConstantRanges), taskFilePath{taskFilePath}, 
-			  meshFilePath{meshFilePath}, deviceProcedures{deviceProcedures} 
+                                       std::string taskFilePath, std::string meshFilePath, 
+									   std::string fragFilePath,
+									   NugieVulkan::DeviceProcedures *deviceProcedures,
+                                       const std::vector<NugieVulkan::DescriptorSetLayout *> &descriptorSetLayouts,
+                                       const std::vector<VkPushConstantRange> &pushConstantRanges)
+									   : GraphicRenderSystem(device, renderPass, "", fragFilePath, descriptorSetLayouts, pushConstantRanges), 
+									     taskFilePath{taskFilePath}, meshFilePath{meshFilePath}, deviceProcedures{deviceProcedures} 
 	{ }
 
 	void MeshRenderSystem::createPipeline()
@@ -39,8 +39,39 @@ namespace NugieApp {
 			.build();
 	}
 
-	void MeshRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer) {
+	void MeshRenderSystem::render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t xInvocations, 
+                            	  uint32_t yInvocations, uint32_t zInvocations,
+                            	  const std::vector<VkDescriptorSet> &descriptorSets,
+                            	  const std::vector<void *> &pushConstants) 
+	{
 		this->pipeline->bindPipeline(commandBuffer);
-		this->pipeline->drawMeshShader(commandBuffer, 1, 1, 1);
+
+		if (!descriptorSets.empty()) {
+			vkCmdBindDescriptorSets(
+				commandBuffer->getCommandBuffer(),
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				this->pipelineLayout,
+				0u,
+				static_cast<uint32_t>(descriptorSets.size()),
+				descriptorSets.data(),
+				0u,
+				nullptr
+			);
+		}
+
+		if (!pushConstants.empty()) {
+			for (size_t i = 0; i < pushConstants.size(); i++) {
+				vkCmdPushConstants(
+					commandBuffer->getCommandBuffer(),
+					this->pipelineLayout,
+					this->pushConstantRanges[i].stageFlags,
+					this->pushConstantRanges[i].offset,
+					this->pushConstantRanges[i].size,
+					pushConstants[i]
+				);
+			}
+		}
+
+		this->pipeline->drawMeshShader(commandBuffer, xInvocations, yInvocations, zInvocations);
 	}
 }

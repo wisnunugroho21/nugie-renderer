@@ -45,7 +45,7 @@ namespace NugieApp
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
                
-                this->meshRenderer->render(commandBuffer);
+                this->meshRenderer->render(commandBuffer, 1u, 1u, 1u);
                 
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 

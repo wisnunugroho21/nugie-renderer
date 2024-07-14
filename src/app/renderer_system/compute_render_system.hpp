@@ -19,10 +19,10 @@ namespace NugieApp {
 
         void initialize();
 
-        virtual void render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t xInvocations, uint32_t yInvocations,
-                            uint32_t zInvocations,
-                            const std::vector<VkDescriptorSet> &descriptorSets,
-                            const std::vector<void *> &pushConstants);
+        virtual void render(NugieVulkan::CommandBuffer *commandBuffer, uint32_t xInvocations, 
+                            uint32_t yInvocations, uint32_t zInvocations,
+                            const std::vector<VkDescriptorSet> &descriptorSets = {},
+                            const std::vector<void *> &pushConstants = {});
 
     private:
         virtual void createPipelineLayout();
