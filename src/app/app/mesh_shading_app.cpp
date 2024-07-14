@@ -144,7 +144,7 @@ namespace NugieApp
                                      .build();
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
-                                                  "shader/simple.task.spv", "shader/better_cube.mesh.spv", 
+                                                  "shader/simple.task.spv", "shader/tessallation_cube.mesh.spv", 
                                                   "shader/mesh_shade.frag.spv", this->deviceProcedures);
 
         this->meshRenderer->initialize();

@@ -1,0 +1,63 @@
+#version 460
+#extension GL_EXT_mesh_shader : require
+
+layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+layout(triangles, max_vertices = 256, max_primitives = 256) out;
+
+layout(location = 0) out vec4 fragColor[]; 
+
+uint tessellationSize = 5;
+
+vec2 rangeCoord[2] = vec2[] {
+	vec2(-0.5, -0.5),
+	vec2(0.5, 0.5)
+};
+
+void main()
+{
+	uint vertexCount = tessellationSize * tessellationSize;
+	uint triangleCount = pow(2, tessellationSize);
+
+	SetMeshOutputsEXT(vertexCount, triangleCount);
+
+	for (uint i = 0; i < tessellationSize; i++) {
+		for (uint j = 0; j < tessellationSize; j++) {
+			uint idx = i * tessellationSize + j;
+
+			uint xCoord = rangeCoord[0] + i / tessellationSize * (rangeCoord[1] - rangeCoord[0]);
+			uint yCoord = rangeCoord[0] + j / tessellationSize * (rangeCoord[1] - rangeCoord[0]);
+
+			gl_MeshVerticesEXT[idx].gl_Position = vec4(xCoord, yCoord, 0.0, 1.0);
+			fragColor[idx] = vec4(1.0, 1.0, 1.0, 1.0);
+		} 
+	}
+	
+    // gl_MeshVerticesEXT[0].gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    // gl_MeshVerticesEXT[1].gl_Position = vec4(-0.5, 0.5, 0.0, 1.0);
+    // gl_MeshVerticesEXT[2].gl_Position = vec4(0.0, 0.5, 0.0, 1.0);
+    // gl_MeshVerticesEXT[3].gl_Position = vec4(0.5, 0.5, 0.0, 1.0);
+    // gl_MeshVerticesEXT[4].gl_Position = vec4(0.5, 0.0, 0.0, 1.0);
+    // gl_MeshVerticesEXT[5].gl_Position = vec4(0.5, -0.5, 0.0, 1.0);
+    // gl_MeshVerticesEXT[6].gl_Position = vec4(0.0, -0.5, 0.0, 1.0);
+    // gl_MeshVerticesEXT[7].gl_Position = vec4(-0.5, -0.5, 0.0, 1.0);
+    // gl_MeshVerticesEXT[8].gl_Position = vec4(-0.5, 0.0, 0.0, 1.0);
+
+	// fragColor[0] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[1] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[2] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[3] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[4] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[5] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[6] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[7] = vec4(1.0, 1.0, 1.0, 1.0);
+	// fragColor[8] = vec4(1.0, 1.0, 1.0, 1.0);
+
+	gl_PrimitiveTriangleIndicesEXT[0] = uvec3(8, 1, 0);
+	gl_PrimitiveTriangleIndicesEXT[1] = uvec3(1, 2, 0);
+	gl_PrimitiveTriangleIndicesEXT[2] = uvec3(2, 3, 0);
+	gl_PrimitiveTriangleIndicesEXT[3] = uvec3(3, 4, 0);
+	gl_PrimitiveTriangleIndicesEXT[4] = uvec3(4, 5, 0);
+	gl_PrimitiveTriangleIndicesEXT[5] = uvec3(5, 6, 0);
+	gl_PrimitiveTriangleIndicesEXT[6] = uvec3(6, 7, 0);
+	gl_PrimitiveTriangleIndicesEXT[7] = uvec3(7, 8, 0);
+}
