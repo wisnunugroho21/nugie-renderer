@@ -1,13 +1,12 @@
 #version 460
 #extension GL_EXT_mesh_shader : require
 
-layout(local_size_x = 32) in;
+layout(local_size_x = 128) in;
 layout(triangles, max_vertices = 256, max_primitives = 256) out;
 
 layout(location = 0) out vec4 fragColor[]; 
 
-uint tessellationSize = 3;
-uint initialIndex = 0u;
+uint tessellationSize = 7;
 
 vec2 rangeCoord[2] = vec2[] (
 	vec2(-0.5, -0.5),
@@ -21,7 +20,7 @@ void main()
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
-	if (gl_GlobalInvocationID.x < tessellationSize * tessellationSize) {
+	if (gl_GlobalInvocationID.x < vertexCount) {
 		float xCoord = gl_GlobalInvocationID.x % tessellationSize;
 		float yCoord = floor(gl_GlobalInvocationID.x / tessellationSize);
 
@@ -32,16 +31,21 @@ void main()
 		fragColor[gl_GlobalInvocationID.x] = vec4(1.0, 1.0, 1.0, 1.0);
 	}
 
-	if (gl_GlobalInvocationID.x < 8) {
-		switch(gl_GlobalInvocationID.x) {
-			case 0: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex); break;
-			case 1: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex, initialIndex + 1u, initialIndex + tessellationSize + 1u); break;
-			case 2: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
-			case 3: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u, initialIndex + tessellationSize + 2u, initialIndex + tessellationSize + 1u); break;
-			case 4: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u); break;
-			case 5: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * tessellationSize + 2u, initialIndex + 2u * tessellationSize + 1u, initialIndex + tessellationSize + 1u); break;
-			case 6: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize); break;
-			case 7: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * tessellationSize, initialIndex + tessellationSize, initialIndex + tessellationSize + 1u); break;
-		}
+	uint coord = gl_GlobalInvocationID.x / 8u;
+
+	uint xCoord = coord % (tessellationSize / 2);
+	uint yCoord = coord / (tessellationSize / 2);
+
+	uint initialIndex = xCoord * 2 + yCoord * 2 * tessellationSize;
+
+	switch(gl_GlobalInvocationID.x % 8u) {
+		case 0: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex); break;
+		case 1: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex, initialIndex + 1u, initialIndex + tessellationSize + 1u); break;
+		case 2: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
+		case 3: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u, initialIndex + tessellationSize + 2u, initialIndex + tessellationSize + 1u); break;
+		case 4: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u); break;
+		case 5: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * tessellationSize + 2u, initialIndex + 2u * tessellationSize + 1u, initialIndex + tessellationSize + 1u); break;
+		case 6: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize); break;
+		case 7: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * tessellationSize, initialIndex + tessellationSize, initialIndex + tessellationSize + 1u); break;
 	}
 }
