@@ -195,14 +195,24 @@ namespace NugieApp
                            this->meshUniformBuffer->getInfo("camera_transf"))
                 .build();
 
-        this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-                                     .addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(),
+        if (msaaSample == VK_SAMPLE_COUNT_1_BIT) {
+            this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
+                                        .addAttachment(this->renderer->getSwapChain()->getImages(), AttachmentType::OUTPUT_STORED, 
+                                                       this->renderer->getSwapChain()->getImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
+                                                       msaaSample)                                     
+                                        .setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM,
+                                                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
+                                        .build();
+        } else {
+            this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
+                                     .addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getImageFormat(),
                                                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
                                      .setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM,
                                                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-                                     .addResolvedAttachment(this->renderer->getSwapChain()->getswapChainImages(), AttachmentType::OUTPUT_STORED,
-                                                            this->renderer->getSwapChain()->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+                                     .addResolvedAttachment(this->renderer->getSwapChain()->getImages(), AttachmentType::OUTPUT_STORED,
+                                                            this->renderer->getSwapChain()->getImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
                                      .build();
+        }
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
                                                   "shader/mesh_terrain.task.spv", "shader/mesh_terrain.mesh.spv", 
@@ -221,7 +231,7 @@ namespace NugieApp
         this->renderer->resetCommandPool();
 
         SubRenderer::Overwriter(this->device, width, height, imageCount)
-            .addOutsideAttachment(this->renderer->getSwapChain()->getswapChainImages())
+            .addOutsideAttachment(this->renderer->getSwapChain()->getImages())
             .overwrite(this->finalSubRenderer);
 
         this->recordCommand();

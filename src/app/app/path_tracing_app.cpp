@@ -89,7 +89,7 @@ namespace NugieApp {
         for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
-                auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
+                auto swapChainImage = this->renderer->getSwapChain()->getImages()[imageIndex];
 
                 // -------------------------------------------------------------------------------------------------------------------
 
@@ -815,9 +815,9 @@ namespace NugieApp {
         }
 
         this->subRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-            .addAttachment(this->renderer->getSwapChain()->getswapChainImages(), 
+            .addAttachment(this->renderer->getSwapChain()->getImages(), 
                            AttachmentType::OUTPUT_STORED, 
-                           this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+                           this->renderer->getSwapChain()->getImageFormat(), 
                            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
                            VK_SAMPLE_COUNT_1_BIT)
 			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 
