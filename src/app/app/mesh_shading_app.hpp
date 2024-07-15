@@ -13,6 +13,7 @@
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/mesh_shader/mesh_render_system.hpp"
 #include "../utils/transform/transform.hpp"
+#include "../mesh_shading_struct.hpp"
 
 #include <memory>
 #include <vector>

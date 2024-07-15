@@ -7,11 +7,16 @@ layout(local_size_x = 1) in;
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
+layout(set = 0, binding = 0) uniform readonly TerrainSquareBuffer {
+	vec2 minimum;
+    vec2 maximum;
+};
+
 void main()
 {
     taskPayload.tessellationSize = 5;
-    taskPayload.rangeCoordMin = vec2(0.0f, 0.0f);
-    taskPayload.rangeCoordMax = vec2(100.0f, 100.0f);
+    taskPayload.rangeCoordMin = minimum;
+    taskPayload.rangeCoordMax = maximum;
 
     EmitMeshTasksEXT(2, 2, 1);
 }

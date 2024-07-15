@@ -157,8 +157,15 @@ namespace NugieApp
         this->meshUniformBuffer = StackedObjectBuffer::Builder(this->device, 
                                                                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                                                NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                                        .addArrayItem("terrain_square", static_cast<VkDeviceSize>(sizeof(NugieMeshShading::Square)), 1u)
                                         .addArrayItem("camera_transf", static_cast<VkDeviceSize>(sizeof(CameraMatrix)), 1u)
-                                        .build();        
+                                        .build();
+
+        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{100.0f} };
+        
+        for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
+            this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);
+        }       
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
@@ -190,10 +197,12 @@ namespace NugieApp
         this->initCamera(width, height);
 
         this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
-                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
-                .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
-                           this->meshUniformBuffer->getInfo("camera_transf"))
-                .build();
+                                                   NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                                .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
+                                           this->meshUniformBuffer->getInfo("terrain_square"))
+                                .addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
+                                           this->meshUniformBuffer->getInfo("camera_transf"))
+                                .build();
 
         if (msaaSample == VK_SAMPLE_COUNT_1_BIT) {
             this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
@@ -205,13 +214,13 @@ namespace NugieApp
                                         .build();
         } else {
             this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-                                     .addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getImageFormat(),
+                                        .addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getImageFormat(),
                                                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
-                                     .setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM,
-                                                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
-                                     .addResolvedAttachment(this->renderer->getSwapChain()->getImages(), AttachmentType::OUTPUT_STORED,
+                                        .setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM,
+                                                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
+                                        .addResolvedAttachment(this->renderer->getSwapChain()->getImages(), AttachmentType::OUTPUT_STORED,
                                                             this->renderer->getSwapChain()->getImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
-                                     .build();
+                                        .build();
         }
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
