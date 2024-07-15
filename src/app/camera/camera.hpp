@@ -20,7 +20,7 @@ namespace NugieApp {
 
     class Camera {
     public:
-        Camera(uint32_t width, uint32_t height);
+        Camera();
 
         CameraRay getCameraRay() const { return this->cameraRay; }
 
@@ -41,19 +41,20 @@ namespace NugieApp {
         void setAspect(float aspectRatio);
 
         void setOrthographicProjection(float left, float right, float top, float bottom, float near, float far);
+        
         void setPerspectiveProjection(float fovy, float aspectRatio, float near, float far);
 
         void setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 vup = glm::vec3{0.0f, 1.0f, 0.0f});
 
         void setViewTransformation(CameraTransformation cameraTransformation, glm::vec3 vup = glm::vec3{0.0f, 1.0f, 0.0f});
 
-        void setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 vup = glm::vec3{0.0f, 1.0f, 0.0f});        
+        void setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 vup = glm::vec3{0.0f, 1.0f, 0.0f});
+
+        void setViewYXZ(glm::vec3 position, glm::vec2 rotation, glm::vec3 up = glm::vec3{0.0f, 1.0f, 0.0f});        
 
     private:
         CameraRay cameraRay;
         CameraTransformation cameraTransformation;
-
-        uint32_t width, height;
 
         glm::mat4 projectionMatrix{1.0f};
         glm::mat4 viewMatrix{1.0f};

@@ -23,8 +23,7 @@ namespace NugieApp {
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-        this->camera = new Camera(this->renderer->getSwapChain()->getWidth(), 
-                                  this->renderer->getSwapChain()->getHeight());
+        this->camera = new Camera();
 
         this->loadData();
         this->init();

@@ -43,15 +43,18 @@ namespace NugieApp {
 
         NugieVulkan::Window *window = nullptr;
         NugieVulkan::Device *device = nullptr;
-        NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;
+        NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;        
 
-        Camera *camera = nullptr;
         StackedObjectBuffer *meshUniformBuffer = nullptr;
         DescriptorSet *meshDescSet = nullptr;
 
         Renderer *renderer = nullptr;
         SubRenderer *finalSubRenderer = nullptr;        
         MeshRenderSystem *meshRenderer = nullptr;
+
+        Camera *camera = nullptr;
+        KeyboardController *keyboardController = nullptr;
+        MouseController *mouseController = nullptr;
 
         CameraMatrix cameraMatrix;
 

@@ -22,8 +22,9 @@ namespace NugieApp
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         this->deviceProcedures = new NugieVulkan::DeviceProcedures(this->device);
 
-        this->camera = new Camera(this->renderer->getSwapChain()->getWidth(), 
-                                  this->renderer->getSwapChain()->getHeight());
+        this->camera = new Camera();
+        this->mouseController = new MouseController();
+        this->keyboardController = new KeyboardController();
 
         this->loadObjects();
         this->init();
@@ -38,7 +39,10 @@ namespace NugieApp
         delete this->finalSubRenderer;        
         delete this->renderer;
 
+        delete this->keyboardController;
+        delete this->mouseController;
         delete this->camera;
+
         delete this->deviceProcedures;
         delete this->device;
         delete this->window;
@@ -70,11 +74,10 @@ namespace NugieApp
                 uint32_t frameIndex = this->renderer->getFrameIndex();
 
                 if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
-                    
+                    this->meshUniformBuffer->writeValue(frameIndex, "camera_transf", &this->cameraMatrix);
                     this->cameraUpdateCount++;
                 }
-
-                this->meshUniformBuffer->writeValue(frameIndex, "camera_transf", &this->cameraMatrix);
+                
                 this->renderer->submitRenderCommand();
 
                 if (!this->renderer->presentFrame()) {
@@ -107,12 +110,27 @@ namespace NugieApp
         while (!this->window->shouldClose()) {
             this->window->pollEvents();
 
-            // this->cameraMatrix.view = this->camera->getViewMatrix();
-            // this->cameraMatrix.projection = this->camera->getProjectionMatrix();
+            cameraPosition = this->camera->getPosition();
+            cameraRotation = this->camera->getRotation();
+
+            isMousePressed = false;
+            isKeyboardPressed = false;
 
             auto newTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
             oldTime = newTime;
+
+            cameraRotation = this->mouseController->rotateInPlaceXZ(this->window->getWindow(), deltaTime, cameraRotation, &isMousePressed);
+            cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, this->camera->getDirection(), &isKeyboardPressed);
+
+            if (isMousePressed || isKeyboardPressed) {
+                this->camera->setViewYXZ(cameraPosition, cameraRotation, glm::vec3{0.0f, 0.0f, 1.0f});
+
+                this->cameraMatrix.view = this->camera->getViewMatrix();
+                this->cameraMatrix.projection = this->camera->getProjectionMatrix();
+
+                this->cameraUpdateCount = 0u;
+            }
 
             if (t > 1000 && this->frameCount > 0) {
                 newTime = std::chrono::high_resolution_clock::now();
