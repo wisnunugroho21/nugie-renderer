@@ -10,6 +10,11 @@ layout(location = 0) out vec2 textCoord[];
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
 void main()
 {
 	uint tileCount = taskPayload.tessellationSize - 1u;
@@ -47,7 +52,7 @@ void main()
 
 		vec2 position = mix(taskPayload.rangeCoordMin, taskPayload.rangeCoordMax, vertexCoord);
 
-		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = vec4(position, 0.0f, 1.0);
+		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * vec4(position.x, 50.0f, position.y, 1.0f);
 		textCoord[gl_LocalInvocationIndex] = vertexCoord;
 	}
 }

@@ -45,7 +45,7 @@ namespace NugieApp {
 		this->projectionMatrix[3][2] = -(far * near) / (far - near);
     }
 
-    void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, float vfov, glm::vec3 vup) {
+    void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 vup) {
         this->position = position;
 		this->direction = glm::normalize(direction);
 
@@ -84,28 +84,27 @@ namespace NugieApp {
 		this->inverseViewMatrix[3][1] = this->position.y;
 		this->inverseViewMatrix[3][2] = this->position.z;
 
-        float aspectRatio = static_cast<float>(this->width) / static_cast<float>(this->height);
-
-        float theta = glm::radians(vfov);
-        float h = glm::tan(theta / 2.0f);
+        float h = glm::tan(this->fovy / 2.0f);
         float viewportHeight = 2.0f * h;
-        float viewportWidth = aspectRatio * viewportHeight;
+        float viewportWidth = this->aspectRatio * viewportHeight;
 
         this->cameraRay.origin = position;
         this->cameraRay.horizontal = glm::vec3(viewportWidth * u);
         this->cameraRay.vertical = glm::vec3(viewportHeight * v);
-        this->cameraRay.lowerLeftCorner = glm::vec3(
-                position - viewportWidth * u / 2.0f + viewportHeight * v / 2.0f - w);
+        this->cameraRay.lowerLeftCorner = position 
+			- viewportWidth * u / 2.0f 
+			+ viewportHeight * v / 2.0f 
+			- w;
 
         this->cameraTransformation.origin = position;
         this->cameraTransformation.direction = direction;
     }
 
-    void Camera::setViewTransformation(CameraTransformation cameraTransf, float vfov, glm::vec3 vup) {
-        this->setViewDirection(cameraTransf.origin, cameraTransf.direction, vfov, vup);
+    void Camera::setViewTransformation(CameraTransformation cameraTransf, glm::vec3 vup) {
+        this->setViewDirection(cameraTransf.origin, cameraTransf.direction, vup);
     }
 
-    void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, float vfov, glm::vec3 vup) {
-        this->setViewDirection(position, target - direction, vfov, vup);
+    void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 vup) {
+        this->setViewDirection(position, target - position, vup);
     }
 } // namespace nugiEngine

@@ -774,7 +774,15 @@ namespace NugieApp {
     void PathTracingApp::initCamera(uint32_t width, uint32_t height) {
         NugiePathTracing::Ubo ubo{};
 
-        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
+        float near = 0.1f;
+        float far = 2000.0f;
+
+        float theta = glm::radians(40.0f);
+        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+        this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
+        
         CameraRay cameraRay = this->camera->getCameraRay();
 
         this->rayTraceUbo.origin = cameraRay.origin;

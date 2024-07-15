@@ -22,16 +22,24 @@ namespace NugieApp
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
         this->deviceProcedures = new NugieVulkan::DeviceProcedures(this->device);
 
+        this->camera = new Camera(this->renderer->getSwapChain()->getWidth(), 
+                                  this->renderer->getSwapChain()->getHeight());
+
         this->loadObjects();
         this->init();
         this->recordCommand();
     }
 
     MeshShadingApp::~MeshShadingApp() {
+        delete this->meshDescSet;
+        delete this->meshUniformBuffer;
+
         delete this->meshRenderer;        
         delete this->finalSubRenderer;        
         delete this->renderer;
 
+        delete this->camera;
+        delete this->deviceProcedures;
         delete this->device;
         delete this->window;
     }
@@ -45,7 +53,7 @@ namespace NugieApp
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
                
-                this->meshRenderer->render(commandBuffer, 1u, 1u, 1u);
+                this->meshRenderer->render(commandBuffer, 1u, 1u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
                 
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -61,6 +69,12 @@ namespace NugieApp
             if (this->renderer->acquireFrame()) {
                 uint32_t frameIndex = this->renderer->getFrameIndex();
 
+                if (this->cameraUpdateCount < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT) {
+                    
+                    this->cameraUpdateCount++;
+                }
+
+                this->meshUniformBuffer->writeValue(frameIndex, "camera_transf", &this->cameraMatrix);
                 this->renderer->submitRenderCommand();
 
                 if (!this->renderer->presentFrame()) {
@@ -93,6 +107,9 @@ namespace NugieApp
         while (!this->window->shouldClose()) {
             this->window->pollEvents();
 
+            // this->cameraMatrix.view = this->camera->getViewMatrix();
+            // this->cameraMatrix.projection = this->camera->getProjectionMatrix();
+
             auto newTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
             oldTime = newTime;
@@ -119,11 +136,31 @@ namespace NugieApp
     }
 
     void MeshShadingApp::loadObjects() {
-        
+        this->meshUniformBuffer = StackedObjectBuffer::Builder(this->device, 
+                                                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                               NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                                        .addArrayItem("camera_transf", static_cast<VkDeviceSize>(sizeof(CameraMatrix)), 1u)
+                                        .build();        
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
-        
+        glm::vec3 position = glm::vec3(50.0f, 300.0f, 50.0f);
+        glm::vec3 target = glm::vec3(50.0f, 0.0f, 50.0f);
+
+        float near = 0.1f;
+        float far = 2000.0f;
+
+        float theta = glm::radians(45.0f);
+        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+        this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+        this->camera->setViewTarget(position, target, glm::vec3{0.0f, 0.0f, 1.0f});
+
+        glm::mat4 view = this->camera->getViewMatrix();
+        glm::mat4 projection = this->camera->getProjectionMatrix();
+
+        this->cameraMatrix.projection = projection;
+        this->cameraMatrix.view = view;
     }
 
     void MeshShadingApp::init() {
@@ -133,6 +170,12 @@ namespace NugieApp
         VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
         this->initCamera(width, height);
+
+        this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
+                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
+                           this->meshUniformBuffer->getInfo("camera_transf"))
+                .build();
 
         this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
                                      .addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getSwapChainImageFormat(),
@@ -145,7 +188,8 @@ namespace NugieApp
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
                                                   "shader/mesh_terrain.task.spv", "shader/mesh_terrain.mesh.spv", 
-                                                  "shader/mesh_shade.frag.spv", this->deviceProcedures);
+                                                  "shader/mesh_shade.frag.spv", this->deviceProcedures,
+                                                  { this->meshDescSet->getDescSetLayout() });
 
         this->meshRenderer->initialize();
     }

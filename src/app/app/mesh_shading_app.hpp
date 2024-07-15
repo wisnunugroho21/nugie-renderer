@@ -6,7 +6,7 @@
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
-#include "../data/buffer/stacked_array_many_buffer.hpp"
+#include "../data/buffer/stacked_object_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
@@ -45,11 +45,17 @@ namespace NugieApp {
         NugieVulkan::Device *device = nullptr;
         NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;
 
+        Camera *camera = nullptr;
+        StackedObjectBuffer *meshUniformBuffer = nullptr;
+        DescriptorSet *meshDescSet = nullptr;
+
         Renderer *renderer = nullptr;
         SubRenderer *finalSubRenderer = nullptr;        
         MeshRenderSystem *meshRenderer = nullptr;
 
-        uint32_t randomSeed = 0u, spotNumLight = 0u, frameCount = 0;
+        CameraMatrix cameraMatrix;
+
+        uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u, frameCount = 0;
         bool isRendering = true;
     };
 }
