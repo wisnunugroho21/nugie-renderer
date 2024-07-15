@@ -1,0 +1,17 @@
+#version 460
+#extension GL_EXT_mesh_shader : require
+
+#include "struct.glsl"
+
+layout(local_size_x = 1) in;
+
+taskPayloadSharedEXT TaskPayload taskPayload;
+
+void main()
+{
+    taskPayload.tessellationSize = 5;
+    taskPayload.rangeCoordMin = vec2(-0.75f, -0.75f);
+    taskPayload.rangeCoordMax = vec2(0.75f, 0.75f);
+
+    EmitMeshTasksEXT(2, 2, 1);
+}
