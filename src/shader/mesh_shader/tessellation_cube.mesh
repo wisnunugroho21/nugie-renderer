@@ -20,24 +20,24 @@ void main()
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
 	if (gl_LocalInvocationIndex < vertexCount) {
-		vec2 totalSize = realSize * gl_NumWorkGroups.xy;		 
+		vec2 totalSize = realSize * gl_NumWorkGroups.xy;
 
-		float xCoord = gl_LocalInvocationIndex % taskPayload.tessellationSize + gl_WorkGroupID.x * realSize;
-		float yCoord = floor(gl_LocalInvocationIndex / taskPayload.tessellationSize) + gl_WorkGroupID.y * realSize;
+		vec2 coord = vec2(gl_LocalInvocationIndex % taskPayload.tessellationSize, floor(gl_LocalInvocationIndex / taskPayload.tessellationSize));
+		coord = (coord + gl_WorkGroupID.xy * realSize) / totalSize;
+		coord = vec2(coord.x, 1.0f - coord.y);
 
-		float xPosition = taskPayload.rangeCoordMin.x + xCoord / totalSize.x * (taskPayload.rangeCoordMax.x - taskPayload.rangeCoordMin.x);
-		float yPosition = taskPayload.rangeCoordMax.y - yCoord / totalSize.y * (taskPayload.rangeCoordMax.y - taskPayload.rangeCoordMin.y);
+		vec2 position = mix(taskPayload.rangeCoordMin, taskPayload.rangeCoordMax, coord);
 
-		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = vec4(xPosition, yPosition, 0.0f, 1.0);
+		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = vec4(position, 0.0f, 1.0);
 		fragColor[gl_LocalInvocationIndex] = vec4(1.0, 1.0, 1.0, 1.0);
 	}
 
 	if (gl_LocalInvocationIndex < triangleCount) {
-		uint coord = gl_LocalInvocationIndex / 8u;
+		uint idxCoord = gl_LocalInvocationIndex / 8u;
 		uint halfSize = taskPayload.tessellationSize / 2;
 
-		uint xCoord = coord % halfSize;
-		uint yCoord = coord / halfSize;
+		uint xCoord = idxCoord % halfSize;
+		uint yCoord = idxCoord / halfSize;
 
 		uint initialIndex = xCoord * 2u + yCoord * 2u * taskPayload.tessellationSize;
 
