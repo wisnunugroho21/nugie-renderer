@@ -10,8 +10,8 @@ taskPayloadSharedEXT TaskPayload taskPayload;
 void main()
 {
     taskPayload.tessellationSize = 5;
-    taskPayload.rangeCoordMin = vec2(-0.5f, -0.5f);
-    taskPayload.rangeCoordMax = vec2(0.5f, 0.5f);
+    taskPayload.rangeCoordMin = vec2(-0.75f, -0.75f);
+    taskPayload.rangeCoordMax = vec2(0.75f, 0.75f);
 
-    EmitMeshTasksEXT(1, 1, 1);
+    EmitMeshTasksEXT(2, 2, 1);
 }
