@@ -1,31 +1,28 @@
 #version 460
 #extension GL_EXT_mesh_shader : require
 
+#include "struct.glsl"
+
 layout(local_size_x = 32) in;
 layout(triangles, max_vertices = 256, max_primitives = 256) out;
 
 layout(location = 0) out vec4 fragColor[]; 
 
-#define TESSELLATION_SIZE 5
-
-vec2 rangeCoord[2] = vec2[] (
-	vec2(-0.5, -0.5),
-	vec2(0.5, 0.5)
-);
+taskPayloadSharedEXT TaskPayload taskPayload;
 
 void main()
 {
-	uint vertexCount = TESSELLATION_SIZE * TESSELLATION_SIZE;
-	uint triangleCount = 4 * uint(TESSELLATION_SIZE / 2) * (TESSELLATION_SIZE - 1u);
+	uint vertexCount = taskPayload.tessellationSize * taskPayload.tessellationSize;
+	uint triangleCount = 4 * uint(taskPayload.tessellationSize / 2) * (taskPayload.tessellationSize - 1u);
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
 	if (gl_GlobalInvocationID.x < vertexCount) {
-		float xCoord = gl_GlobalInvocationID.x % TESSELLATION_SIZE;
-		float yCoord = floor(gl_GlobalInvocationID.x / TESSELLATION_SIZE);
+		float xCoord = gl_GlobalInvocationID.x % taskPayload.tessellationSize;
+		float yCoord = floor(gl_GlobalInvocationID.x / taskPayload.tessellationSize);
 
-		float xPosition = rangeCoord[0].x + xCoord / (TESSELLATION_SIZE - 1u) * (rangeCoord[1].x - rangeCoord[0].x);
-		float yPosition = rangeCoord[1].y - yCoord / (TESSELLATION_SIZE - 1u) * (rangeCoord[1].y - rangeCoord[0].y);
+		float xPosition = taskPayload.rangeCoordMin.x + xCoord / (taskPayload.tessellationSize - 1u) * (taskPayload.rangeCoordMax.x - taskPayload.rangeCoordMin.x);
+		float yPosition = taskPayload.rangeCoordMax.y - yCoord / (taskPayload.tessellationSize - 1u) * (taskPayload.rangeCoordMax.y - taskPayload.rangeCoordMin.y);
 
 		gl_MeshVerticesEXT[gl_GlobalInvocationID.x].gl_Position = vec4(xPosition, yPosition, 0.0f, 1.0);
 		fragColor[gl_GlobalInvocationID.x] = vec4(1.0, 1.0, 1.0, 1.0);
@@ -34,20 +31,20 @@ void main()
 	if (gl_GlobalInvocationID.x < triangleCount) {
 		uint coord = gl_GlobalInvocationID.x / 8u;
 
-		uint xCoord = coord % (TESSELLATION_SIZE / 2);
-		uint yCoord = coord / (TESSELLATION_SIZE / 2);
+		uint xCoord = coord % (taskPayload.tessellationSize / 2);
+		uint yCoord = coord / (taskPayload.tessellationSize / 2);
 
-		uint initialIndex = xCoord * 2u + yCoord * 2u * TESSELLATION_SIZE;
+		uint initialIndex = xCoord * 2u + yCoord * 2u * taskPayload.tessellationSize;
 
 		switch(gl_GlobalInvocationID.x % 8u) {
-			case 0: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE, initialIndex); break;
-			case 1: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex, initialIndex + 1u, initialIndex + TESSELLATION_SIZE + 1u); break;
-			case 2: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + 1u, initialIndex + 2u); break;
-			case 3: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u, initialIndex + TESSELLATION_SIZE + 2u, initialIndex + TESSELLATION_SIZE + 1u); break;
-			case 4: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE + 2u, initialIndex + 2u * TESSELLATION_SIZE + 2u); break;
-			case 5: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * TESSELLATION_SIZE + 2u, initialIndex + 2u * TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE + 1u); break;
-			case 6: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + 2u * TESSELLATION_SIZE + 1u, initialIndex + 2u * TESSELLATION_SIZE); break;
-			case 7: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * TESSELLATION_SIZE, initialIndex + TESSELLATION_SIZE, initialIndex + TESSELLATION_SIZE + 1u); break;
+			case 0: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex); break;
+			case 1: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex, initialIndex + 1u, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 2: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
+			case 3: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 4: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
+			case 5: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 6: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize); break;
+			case 7: gl_PrimitiveTriangleIndicesEXT[gl_GlobalInvocationID.x] = uvec3(initialIndex + 2u * taskPayload.tessellationSize, initialIndex + taskPayload.tessellationSize, initialIndex + taskPayload.tessellationSize + 1u); break;
 		}
 	}
 }
