@@ -12,21 +12,19 @@ taskPayloadSharedEXT TaskPayload taskPayload;
 
 void main()
 {
-	uint realSize = taskPayload.tessellationSize - 1u;
+	uint tileCount = taskPayload.tessellationSize - 1u;
 	
 	uint vertexCount = taskPayload.tessellationSize * taskPayload.tessellationSize;
-	uint triangleCount = 4 * uint(taskPayload.tessellationSize / 2) * realSize;
+	uint triangleCount = 4 * uint(taskPayload.tessellationSize / 2) * tileCount;
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
 	if (gl_LocalInvocationIndex < vertexCount) {
-		vec2 totalSize = realSize * gl_NumWorkGroups.xy;
+		vec2 vertexCoord = vec2(gl_LocalInvocationIndex % taskPayload.tessellationSize, floor(gl_LocalInvocationIndex / taskPayload.tessellationSize));
+		vertexCoord = (vertexCoord + tileCount * gl_WorkGroupID.xy) / (tileCount * gl_NumWorkGroups.xy);
+		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
-		vec2 coord = vec2(gl_LocalInvocationIndex % taskPayload.tessellationSize, floor(gl_LocalInvocationIndex / taskPayload.tessellationSize));
-		coord = (coord + gl_WorkGroupID.xy * realSize) / totalSize;
-		coord = vec2(coord.x, 1.0f - coord.y);
-
-		vec2 position = mix(taskPayload.rangeCoordMin, taskPayload.rangeCoordMax, coord);
+		vec2 position = mix(taskPayload.rangeCoordMin, taskPayload.rangeCoordMax, vertexCoord);
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = vec4(position, 0.0f, 1.0);
 		fragColor[gl_LocalInvocationIndex] = vec4(1.0, 1.0, 1.0, 1.0);
@@ -36,10 +34,10 @@ void main()
 		uint idxCoord = gl_LocalInvocationIndex / 8u;
 		uint halfSize = taskPayload.tessellationSize / 2;
 
-		uint xCoord = idxCoord % halfSize;
-		uint yCoord = idxCoord / halfSize;
+		uint xIdxCoord = idxCoord % halfSize;
+		uint yIdxCoord = idxCoord / halfSize;
 
-		uint initialIndex = xCoord * 2u + yCoord * 2u * taskPayload.tessellationSize;
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
 
 		switch(gl_LocalInvocationIndex % 8u) {
 			case 0: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex); break;
