@@ -12,7 +12,7 @@ taskPayloadSharedEXT TaskPayload taskPayload;
 
 void main()
 {
-	uint realSize = (taskPayload.tessellationSize - 1u);
+	uint realSize = taskPayload.tessellationSize - 1u;
 	
 	uint vertexCount = taskPayload.tessellationSize * taskPayload.tessellationSize;
 	uint triangleCount = 4 * uint(taskPayload.tessellationSize / 2) * realSize;
@@ -34,9 +34,10 @@ void main()
 
 	if (gl_LocalInvocationIndex < triangleCount) {
 		uint coord = gl_LocalInvocationIndex / 8u;
+		uint halfSize = taskPayload.tessellationSize / 2;
 
-		uint xCoord = coord % (taskPayload.tessellationSize / 2);
-		uint yCoord = coord / (taskPayload.tessellationSize / 2);
+		uint xCoord = coord % halfSize;
+		uint yCoord = coord / halfSize;
 
 		uint initialIndex = xCoord * 2u + yCoord * 2u * taskPayload.tessellationSize;
 
