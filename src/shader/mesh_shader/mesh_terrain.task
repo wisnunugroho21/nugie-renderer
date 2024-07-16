@@ -3,7 +3,7 @@
 
 #include "struct.glsl"
 
-layout(local_size_x = 1) in;
+layout(local_size_x = 32) in;
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
@@ -42,11 +42,25 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
 
 void main()
 {
-    taskPayload.tessellationSize = 5;
-    taskPayload.rangeCoordMin = minimum;
-    taskPayload.rangeCoordMax = maximum;
+	if (gl_LocalInvocationIndex == 0) {
+		vec2 idx = vec2(gl_WorkGroupID.xy);
+		vec2 gSize = vec2(gl_NumWorkGroups.xy);
 
-	uint tessFactor = screenSpaceTessFactor(vec4(minimum.x, 0.0f, minimum.y, 1.0f), vec4(maximum.x, 0.0f, maximum.y, 1.0f));
+		vec2 minCoord = idx / gSize;
+		vec2 maxCoord = (idx + 1.0f) / gSize;
 
-    EmitMeshTasksEXT(tessFactor, tessFactor, 1u);
+		vec2 minPos = minimum + minCoord * (maximum - minimum);
+		vec2 maxPos = minimum + maxCoord * (maximum - minimum);
+
+		taskPayload.tessellationSize = 5;
+		taskPayload.rangeCoordMin = minPos;
+		taskPayload.rangeCoordMax = maxPos;
+
+		uint tessFactor = screenSpaceTessFactor(
+			vec4(minPos.x, 0.0f, minPos.y, 1.0f), 
+			vec4(maxPos.x, 0.0f, maxPos.y, 1.0f)
+		);
+
+		EmitMeshTasksEXT(tessFactor, tessFactor, 1u);
+	}	
 }

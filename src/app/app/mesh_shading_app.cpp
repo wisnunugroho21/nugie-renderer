@@ -62,7 +62,7 @@ namespace NugieApp
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
                
-                this->meshRenderer->render(commandBuffer, 1u, 1u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
+                this->meshRenderer->render(commandBuffer, 8u, 8u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
                 
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -167,8 +167,8 @@ namespace NugieApp
                                         .addArrayItem("camera_transf", static_cast<VkDeviceSize>(sizeof(CameraMatrix)), 1u)
                                         .build();
 
-        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{160.0f} };
-        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 400.0f, 1.0f} };
+        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{1600.0f} };
+        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 200.0f, 1.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);
@@ -177,11 +177,11 @@ namespace NugieApp
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
-        glm::vec3 position = glm::vec3(80.0f, 300.0f, 80.0f);
-        glm::vec3 target = glm::vec3(80.0f, 0.0f, 80.0f);
+        glm::vec3 position = glm::vec3(800.0f, 300.0f, 800.0f);
+        glm::vec3 target = glm::vec3(800.0f, 0.0f, 800.0f);
 
         float near = 0.1f;
-        float far = 2000.0f;
+        float far = 10000.0f;
 
         float theta = glm::radians(45.0f);
         float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
