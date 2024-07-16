@@ -46,7 +46,7 @@ void main()
     taskPayload.rangeCoordMin = minimum;
     taskPayload.rangeCoordMax = maximum;
 
-	uint tessFactor = screenSpaceTessFactor(vec4(maximum.x, 0.0f, maximum.y, 1.0f), vec4(minimum.x, 0.0f, minimum.y, 1.0f));
+	uint tessFactor = screenSpaceTessFactor(vec4(minimum.x, 0.0f, minimum.y, 1.0f), vec4(maximum.x, 0.0f, maximum.y, 1.0f));
 
     EmitMeshTasksEXT(tessFactor, tessFactor, 1u);
 }
