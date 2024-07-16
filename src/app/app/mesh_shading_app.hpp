@@ -36,7 +36,7 @@ namespace NugieApp {
         void renderLoop();
 
     private:
-        void loadObjects();
+        void loadObjects(uint32_t width, uint32_t height);
         void initCamera(uint32_t width, uint32_t height);
 
         void init();

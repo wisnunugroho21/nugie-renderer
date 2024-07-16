@@ -7,10 +7,38 @@ layout(local_size_x = 1) in;
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
-layout(set = 0, binding = 0) uniform readonly TerrainSquareBuffer {
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
+layout(set = 0, binding = 1) uniform readonly TerrainSquareBuffer {
 	vec2 minimum;
     vec2 maximum;
 };
+
+layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
+	vec4 screenSizeFactorEdgeSize;
+};
+
+uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
+	vec4 midPoint = 0.5 * (p0 + p1);
+	float radius = distance(p0, p1) / 2.0;
+
+	vec4 v0 = view * midPoint;
+
+	vec4 clip0 = (projection * (v0 - vec4(radius, vec3(0.0))));
+	vec4 clip1 = (projection * (v0 + vec4(radius, vec3(0.0))));
+
+	clip0 /= clip0.w;
+	clip1 /= clip1.w;
+
+	clip0.xy *= screenSizeFactorEdgeSize.xy;
+	clip1.xy *= screenSizeFactorEdgeSize.xy;
+	
+	float factor = clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0, 8.0);
+    return uint(factor);
+}
 
 void main()
 {
@@ -18,5 +46,7 @@ void main()
     taskPayload.rangeCoordMin = minimum;
     taskPayload.rangeCoordMax = maximum;
 
-    EmitMeshTasksEXT(2, 2, 1);
+	uint tessFactor = screenSpaceTessFactor(vec4(maximum.x, 50.f, maximum.y, 1.0f), vec4(minimum.x, 50.f, minimum.y, 1.0f));
+
+    EmitMeshTasksEXT(tessFactor, tessFactor, 1u);
 }

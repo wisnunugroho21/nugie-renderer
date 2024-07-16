@@ -15,4 +15,8 @@ namespace NugieMeshShading {
         glm::vec2 minimum;
         glm::vec2 maximum;
     };
+
+    struct TessellationData {
+        glm::vec4 screenSizeFactorEdgeSize;
+    };
 }

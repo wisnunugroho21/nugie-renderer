@@ -26,7 +26,12 @@ namespace NugieApp
         this->mouseController = new MouseController();
         this->keyboardController = new KeyboardController();
 
-        this->loadObjects();
+        uint32_t width = this->renderer->getSwapChain()->getWidth();
+        uint32_t height = this->renderer->getSwapChain()->getHeight();
+
+        this->loadObjects(width, height);
+        this->initCamera(width, height);
+
         this->init();
         this->recordCommand();
     }
@@ -153,24 +158,27 @@ namespace NugieApp
         vkDeviceWaitIdle(this->device->getLogicalDevice());
     }
 
-    void MeshShadingApp::loadObjects() {
+    void MeshShadingApp::loadObjects(uint32_t width, uint32_t height) {
         this->meshUniformBuffer = StackedObjectBuffer::Builder(this->device, 
                                                                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                                                NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                                         .addArrayItem("terrain_square", static_cast<VkDeviceSize>(sizeof(NugieMeshShading::Square)), 1u)
+                                        .addArrayItem("tessellation_data", static_cast<VkDeviceSize>(sizeof(NugieMeshShading::TessellationData)), 1u)
                                         .addArrayItem("camera_transf", static_cast<VkDeviceSize>(sizeof(CameraMatrix)), 1u)
                                         .build();
 
-        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{100.0f} };
+        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{160.0f} };
+        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 1.0f, 32.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);
+            this->meshUniformBuffer->writeValue(frameIndex, "tessellation_data", &tessData);
         }       
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
-        glm::vec3 position = glm::vec3(50.0f, 300.0f, 50.0f);
-        glm::vec3 target = glm::vec3(50.0f, 0.0f, 50.0f);
+        glm::vec3 position = glm::vec3(80.0f, 300.0f, 80.0f);
+        glm::vec3 target = glm::vec3(80.0f, 0.0f, 80.0f);
 
         float near = 0.1f;
         float far = 2000.0f;
@@ -192,15 +200,17 @@ namespace NugieApp
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
-        VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
-
-        this->initCamera(width, height);
+        VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();        
 
         this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
                                 .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
+                                           this->meshUniformBuffer->getInfo("camera_transf"))
+                                .addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("terrain_square"))
-                                .addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
+                                .addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
+                                           this->meshUniformBuffer->getInfo("tessellation_data"))
+                                .addBuffer(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("camera_transf"))
                                 .build();
 
@@ -215,11 +225,11 @@ namespace NugieApp
         } else {
             this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
                                         .addAttachment(AttachmentType::KEEPED, this->renderer->getSwapChain()->getImageFormat(),
-                                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
+                                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, msaaSample)
                                         .setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM,
                                                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, msaaSample)
                                         .addResolvedAttachment(this->renderer->getSwapChain()->getImages(), AttachmentType::OUTPUT_STORED,
-                                                            this->renderer->getSwapChain()->getImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+                                                               this->renderer->getSwapChain()->getImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
                                         .build();
         }
         
