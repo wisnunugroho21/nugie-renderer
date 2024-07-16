@@ -38,7 +38,7 @@ namespace NugieVulkan {
         this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
         this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
         this->rasterizationInfo->lineWidth = 1.0f;
-        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_NONE;
         this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         this->rasterizationInfo->depthBiasEnable = VK_FALSE;
         this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional
@@ -148,7 +148,7 @@ namespace NugieVulkan {
         this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
         this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
         this->rasterizationInfo->lineWidth = 1.0f;
-        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_NONE;
         this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         this->rasterizationInfo->depthBiasEnable = VK_FALSE;
         this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional
@@ -225,7 +225,7 @@ namespace NugieVulkan {
         this->rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
         this->rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
         this->rasterizationInfo->lineWidth = 1.0f;
-        this->rasterizationInfo->cullMode = VK_CULL_MODE_BACK_BIT;
+        this->rasterizationInfo->cullMode = VK_CULL_MODE_NONE;
         this->rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         this->rasterizationInfo->depthBiasEnable = VK_FALSE;
         this->rasterizationInfo->depthBiasConstantFactor = 0.0f;  // Optional

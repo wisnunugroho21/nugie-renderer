@@ -62,7 +62,7 @@ namespace NugieApp
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
                
-                this->meshRenderer->render(commandBuffer, 8u, 8u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
+                this->meshRenderer->render(commandBuffer, 2u, 2u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
                 
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -168,7 +168,7 @@ namespace NugieApp
                                         .build();
 
         NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{1600.0f} };
-        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 200.0f, 1.0f} };
+        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 400.0f, 1.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);

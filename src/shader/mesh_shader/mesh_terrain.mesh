@@ -35,13 +35,13 @@ void main()
 
 		switch(gl_LocalInvocationIndex % 8u) {
 			case 0: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex); break;
-			case 1: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex, initialIndex + 1u, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 1: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex); break;
 			case 2: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
-			case 3: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + 2u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 3: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u); break;
 			case 4: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
-			case 5: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + 2u * taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 5: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
 			case 6: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize); break;
-			case 7: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + 2u * taskPayload.tessellationSize, initialIndex + taskPayload.tessellationSize, initialIndex + taskPayload.tessellationSize + 1u); break;
+			case 7: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex + 2u * taskPayload.tessellationSize); break;
 		}
 	}
 
