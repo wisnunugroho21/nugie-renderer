@@ -43,22 +43,19 @@ void main()
 	vec2 idx = vec2(gl_WorkGroupID.xy);
 	vec2 gSize = vec2(gl_NumWorkGroups.xy);
 
-	vec2 minPos = minimum + (idx / gSize) * (maximum - minimum);
-	vec2 maxPos = minimum + ((idx + 1.0f) / gSize) * (maximum - minimum);
+	vec2 minPos = mix(minimum, maximum, idx / gSize);
+	vec2 maxPos = mix(minimum, maximum, (idx + 1.0f) / gSize);
 
 	uint tessFactor = screenSpaceTessFactor(
-		vec4(minPos.x, 0.0f, minPos.y, 1.0f), 
+		vec4(minPos.x, 0.0f, minPos.y, 1.0f),
 		vec4(maxPos.x, 0.0f, maxPos.y, 1.0f)
 	);
 
 	if (gl_LocalInvocationIndex < tessFactor * tessFactor) {
 		vec2 curCoord = vec2(gl_LocalInvocationIndex % tessFactor, floor(gl_LocalInvocationIndex / tessFactor));
-		
-		vec2 minCurPos = minPos + (curCoord / tessFactor) * (maxPos - minPos);
-		vec2 maxCurPos = minPos + ((curCoord + 1.0f) / tessFactor) * (maxPos - minPos);
 
-		taskPayload.rangeCoordMin[gl_LocalInvocationIndex] = minCurPos;
-		taskPayload.rangeCoordMax[gl_LocalInvocationIndex] = maxCurPos;
+		taskPayload.rangeCoordMin[gl_LocalInvocationIndex] = mix(minPos, maxPos, curCoord / tessFactor);
+		taskPayload.rangeCoordMax[gl_LocalInvocationIndex] = mix(minPos, maxPos, (curCoord + 1.0f) / tessFactor);
 	}
 
 	if (gl_LocalInvocationIndex == 0) {

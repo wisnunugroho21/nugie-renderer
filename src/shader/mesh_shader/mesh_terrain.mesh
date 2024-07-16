@@ -20,13 +20,13 @@ void main()
 	uint tileCount = taskPayload.tessellationSize - 1u;
 	
 	uint vertexCount = taskPayload.tessellationSize * taskPayload.tessellationSize;
-	uint triangleCount = 4 * uint(taskPayload.tessellationSize / 2) * tileCount;
+	uint triangleCount = 4u * uint(taskPayload.tessellationSize / 2u) * tileCount;
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
 	if (gl_LocalInvocationIndex < triangleCount) {
 		uint idxCoord = gl_LocalInvocationIndex / 8u;
-		uint halfSize = taskPayload.tessellationSize / 2;
+		uint halfSize = taskPayload.tessellationSize / 2u;
 
 		uint xIdxCoord = idxCoord % halfSize;
 		uint yIdxCoord = idxCoord / halfSize;
