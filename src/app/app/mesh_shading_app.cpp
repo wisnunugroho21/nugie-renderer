@@ -62,7 +62,7 @@ namespace NugieApp
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
                
-                this->meshRenderer->render(commandBuffer, 2u, 2u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
+                this->meshRenderer->render(commandBuffer, 1u, 1u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
                 
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 

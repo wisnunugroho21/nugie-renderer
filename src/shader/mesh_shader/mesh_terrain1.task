@@ -3,7 +3,7 @@
 
 #include "struct.glsl"
 
-layout(local_size_x = 64) in;
+layout(local_size_x = 32) in;
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
@@ -22,8 +22,10 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 };
 
 uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
+	vec4 midPoint = 0.5 * (p0 + p1);
 	float radius = distance(p0, p1) / 2.0;
-	vec4 v0 = view * (0.5 * (p0 + p1));
+
+	vec4 v0 = view * midPoint;
 
 	vec4 clip0 = (projection * (v0 - vec4(radius, vec3(0.0))));
 	vec4 clip1 = (projection * (v0 + vec4(radius, vec3(0.0))));
@@ -40,29 +42,25 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
 
 void main()
 {
-	vec2 idx = vec2(gl_WorkGroupID.xy);
-	vec2 gSize = vec2(gl_NumWorkGroups.xy);
-
-	vec2 minPos = minimum + (idx / gSize) * (maximum - minimum);
-	vec2 maxPos = minimum + ((idx + 1.0f) / gSize) * (maximum - minimum);
-
-	uint tessFactor = screenSpaceTessFactor(
-		vec4(minPos.x, 0.0f, minPos.y, 1.0f), 
-		vec4(maxPos.x, 0.0f, maxPos.y, 1.0f)
-	);
-
-	if (gl_LocalInvocationIndex < tessFactor * tessFactor) {
-		vec2 curCoord = vec2(gl_LocalInvocationIndex % tessFactor, floor(gl_LocalInvocationIndex / tessFactor));
-		
-		vec2 minCurPos = minPos + (curCoord / tessFactor) * (maxPos - minPos);
-		vec2 maxCurPos = minPos + ((curCoord + 1.0f) / tessFactor) * (maxPos - minPos);
-
-		taskPayload.rangeCoordMin[gl_LocalInvocationIndex] = minCurPos;
-		taskPayload.rangeCoordMax[gl_LocalInvocationIndex] = maxCurPos;
-	}
-
 	if (gl_LocalInvocationIndex == 0) {
+		vec2 idx = vec2(gl_WorkGroupID.xy);
+		vec2 gSize = vec2(gl_NumWorkGroups.xy);
+
+		vec2 minCoord = idx / gSize;
+		vec2 maxCoord = (idx + 1.0f) / gSize;
+
+		vec2 minPos = minimum + minCoord * (maximum - minimum);
+		vec2 maxPos = minimum + maxCoord * (maximum - minimum);
+
 		taskPayload.tessellationSize = 5;
-		EmitMeshTasksEXT(tessFactor * tessFactor, 1u, 1u);
+		taskPayload.rangeCoordMin = minPos;
+		taskPayload.rangeCoordMax = maxPos;
+
+		uint tessFactor = screenSpaceTessFactor(
+			vec4(minPos.x, 0.0f, minPos.y, 1.0f), 
+			vec4(maxPos.x, 0.0f, maxPos.y, 1.0f)
+		);
+
+		EmitMeshTasksEXT(tessFactor, tessFactor, 1u);
 	}	
 }

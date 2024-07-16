@@ -46,19 +46,11 @@ void main()
 	}
 
 	if (gl_LocalInvocationIndex < vertexCount) {
-		vec2 vertexCoord = vec2(
-			gl_LocalInvocationIndex % taskPayload.tessellationSize, 
-			floor(gl_LocalInvocationIndex / taskPayload.tessellationSize)
-		);
-
-		vertexCoord = vertexCoord / tileCount;
+		vec2 vertexCoord = vec2(gl_LocalInvocationIndex % taskPayload.tessellationSize, floor(gl_LocalInvocationIndex / taskPayload.tessellationSize));
+		vertexCoord = (vertexCoord + tileCount * gl_WorkGroupID.xy) / (tileCount * gl_NumWorkGroups.xy);
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
-		vec2 position = mix(
-			taskPayload.rangeCoordMin[gl_WorkGroupID.x], 
-			taskPayload.rangeCoordMax[gl_WorkGroupID.x], 
-			vertexCoord
-		);
+		vec2 position = mix(taskPayload.rangeCoordMin, taskPayload.rangeCoordMax, vertexCoord);
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * vec4(position.x, 50.0f, position.y, 1.0f);
 		textCoord[gl_LocalInvocationIndex] = vertexCoord;
