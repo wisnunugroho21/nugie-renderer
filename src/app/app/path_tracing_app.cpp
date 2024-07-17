@@ -307,7 +307,6 @@ namespace NugieApp {
         glm::vec2 cameraRotation;
 
         auto isMousePressed = false, isKeyboardPressed = false;
-        uint32_t t = 0u;
 
         std::thread renderThread(&PathTracingApp::renderLoop, std::ref(*this));
 
@@ -321,9 +320,10 @@ namespace NugieApp {
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
             oldTime = newTime; */
 
-            if (t > 1000 && this->frameCount > 0) {
-                auto newTime = std::chrono::high_resolution_clock::now();
-                auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+            auto newTime = std::chrono::high_resolution_clock::now();
+            auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+
+            if (deltaTime > 1.0f && this->frameCount > 0) {
                 oldFpsTime = newTime;
 
                 std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") +
@@ -331,9 +331,6 @@ namespace NugieApp {
                 glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
                 this->frameCount = 0u;
-                t = 0u;
-            } else {
-                t++;
             }
         }
 

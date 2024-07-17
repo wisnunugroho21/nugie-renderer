@@ -105,8 +105,6 @@ namespace NugieApp
 
         bool isMousePressed = false, isKeyboardPressed = false;
 
-        uint32_t t = 0;
-
         std::thread renderThread(&MeshShadingApp::renderLoop, std::ref(*this));
 
         auto oldTime = std::chrono::high_resolution_clock::now();
@@ -137,18 +135,16 @@ namespace NugieApp
                 this->cameraUpdateCount = 0u;
             }
 
-            if (t > 1000 && this->frameCount > 0) {
-                newTime = std::chrono::high_resolution_clock::now();
-                deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+            newTime = std::chrono::high_resolution_clock::now();
+            deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+
+            if (deltaTime > 1.0f && this->frameCount > 0) {               
                 oldFpsTime = newTime;
 
                 std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") + std::to_string((this->frameCount / deltaTime));
                 glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
                 this->frameCount = 0;
-                t = 0;
-            } else {
-                t++;
             }
         }
 
