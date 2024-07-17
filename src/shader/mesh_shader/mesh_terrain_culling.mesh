@@ -69,7 +69,7 @@ void main()
 
 		vec4 worldPosition = vec4(xzPosition.x, 0.0f, xzPosition.y, 1.0f);
 
-		vec2 worldCoord = (xzPosition - minimum) / (xzPosition - minimum);
+		vec2 worldCoord = (xzPosition - minimum) / (maximum - minimum);
 		worldPosition.y = texture(heightMapTexture, worldCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
