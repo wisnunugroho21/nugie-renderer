@@ -1,5 +1,8 @@
 #version 460
+
 #extension GL_EXT_mesh_shader : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_ballot : require
 
 #include "struct.glsl"
 
@@ -20,6 +23,12 @@ layout(set = 0, binding = 1) uniform readonly TerrainSquareBuffer {
 layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 	vec4 screenSizeFactorEdgeSize;
 };
+
+bool isPointVisible(vec4 screenPosition) {
+  return screenPosition.x >= -screenPosition.w && screenPosition.x <= screenPosition.w
+    && screenPosition.y >= -screenPosition.w && screenPosition.y <= screenPosition.w
+    && screenPosition.z >= 0 && screenPosition.z <= screenPosition.w;
+}
 
 uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
 	float radius = distance(p0, p1) / 2.0;
@@ -51,15 +60,39 @@ void main()
 		vec4(maxPos.x, 0.0f, maxPos.y, 1.0f)
 	);
 
-	if (gl_LocalInvocationIndex < tessFactor * tessFactor) {
-		vec2 curCoord = vec2(gl_LocalInvocationIndex % tessFactor, floor(gl_LocalInvocationIndex / tessFactor));
+	vec2 curCoord = vec2(
+		gl_LocalInvocationIndex % tessFactor, 
+		floor(gl_LocalInvocationIndex / tessFactor)
+	);
 
-		taskPayload.rangeCoordMin[gl_LocalInvocationIndex] = mix(minPos, maxPos, curCoord / tessFactor);
-		taskPayload.rangeCoordMax[gl_LocalInvocationIndex] = mix(minPos, maxPos, (curCoord + 1.0f) / tessFactor);
+	vec2 curMinPos = mix(minPos, maxPos, curCoord / tessFactor);
+	vec2 curMaxPos = mix(minPos, maxPos, (curCoord + 1.0f) / tessFactor);
+
+	mat4 mvp = projection * view;
+  
+	vec4 screenPositionPoint0 = mvp * vec4(curMinPos.x, 0.0f, curMinPos.y, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(curMinPos.x, 0.0f, curMaxPos.y, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(curMaxPos.x, 0.0f, curMinPos.y, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(curMaxPos.x, 0.0f, curMaxPos.y, 1.0f);
+
+	bool isVisible = isPointVisible(screenPositionPoint0)
+		|| isPointVisible(screenPositionPoint1)
+		|| isPointVisible(screenPositionPoint2)
+		|| isPointVisible(screenPositionPoint3);
+
+	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor * tessFactor);
+		
+	if (isVisible) {
+		uint survivingTileIndex = subgroupExclusiveAdd(1u);
+
+		taskPayload.rangeCoordMin[survivingTileIndex] = curMinPos;
+		taskPayload.rangeCoordMax[survivingTileIndex] = curMaxPos;		
 	}
+
+	uint tileCount = subgroupAdd(uint(isVisible));
 
 	if (gl_LocalInvocationIndex == 0) {
 		taskPayload.tessellationSize = 5;
-		EmitMeshTasksEXT(tessFactor * tessFactor, 1u, 1u);
+		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
 }
