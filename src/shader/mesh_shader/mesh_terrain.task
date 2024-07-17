@@ -34,8 +34,8 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
 	float radius = distance(p0, p1) / 2.0;
 	vec4 v0 = view * (0.5 * (p0 + p1));
 
-	vec4 clip0 = (projection * (v0 - vec4(radius, vec3(0.0))));
-	vec4 clip1 = (projection * (v0 + vec4(radius, vec3(0.0))));
+	vec4 clip0 = (projection * (v0 - vec4(radius, radius, 0.0f, 0.0f)));
+	vec4 clip1 = (projection * (v0 + vec4(radius, radius, 0.0f, 0.0f)));
 
 	clip0 /= clip0.w;
 	clip1 /= clip1.w;
@@ -56,8 +56,8 @@ void main()
 	vec2 maxPos = mix(minimum, maximum, (idx + 1.0f) / gSize);
 
 	uint tessFactor = screenSpaceTessFactor(
-		vec4(minPos.x, 0.0f, minPos.y, 1.0f),
-		vec4(maxPos.x, 0.0f, maxPos.y, 1.0f)
+		vec4(minPos.x, 50.0f, minPos.y, 1.0f),
+		vec4(maxPos.x, 50.0f, maxPos.y, 1.0f)
 	);
 
 	vec2 curCoord = vec2(
@@ -70,10 +70,10 @@ void main()
 
 	mat4 mvp = projection * view;
   
-	vec4 screenPositionPoint0 = mvp * vec4(curMinPos.x, 0.0f, curMinPos.y, 1.0f);
-	vec4 screenPositionPoint1 = mvp * vec4(curMinPos.x, 0.0f, curMaxPos.y, 1.0f);
-	vec4 screenPositionPoint2 = mvp * vec4(curMaxPos.x, 0.0f, curMinPos.y, 1.0f);
-	vec4 screenPositionPoint3 = mvp * vec4(curMaxPos.x, 0.0f, curMaxPos.y, 1.0f);
+	vec4 screenPositionPoint0 = mvp * vec4(curMinPos.x, 50.0f, curMinPos.y, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(curMinPos.x, 50.0f, curMaxPos.y, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(curMaxPos.x, 50.0f, curMinPos.y, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(curMaxPos.x, 50.0f, curMaxPos.y, 1.0f);
 
 	bool isVisible = isPointVisible(screenPositionPoint0)
 		|| isPointVisible(screenPositionPoint1)
