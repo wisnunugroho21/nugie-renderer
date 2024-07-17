@@ -23,8 +23,7 @@ namespace NugieApp {
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-        this->camera = new Camera(this->renderer->getSwapChain()->getWidth(), 
-                                  this->renderer->getSwapChain()->getHeight());
+        this->camera = new Camera();
 
         this->loadData();
         this->init();
@@ -90,7 +89,7 @@ namespace NugieApp {
         for (uint32_t imageIndex = 0; imageIndex < imageCount; imageIndex++) {
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
-                auto swapChainImage = this->renderer->getSwapChain()->getswapChainImages()[imageIndex];
+                auto swapChainImage = this->renderer->getSwapChain()->getImages()[imageIndex];
 
                 // -------------------------------------------------------------------------------------------------------------------
 
@@ -308,7 +307,6 @@ namespace NugieApp {
         glm::vec2 cameraRotation;
 
         auto isMousePressed = false, isKeyboardPressed = false;
-        uint32_t t = 0u;
 
         std::thread renderThread(&PathTracingApp::renderLoop, std::ref(*this));
 
@@ -322,9 +320,10 @@ namespace NugieApp {
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldTime).count();
             oldTime = newTime; */
 
-            if (t > 1000 && this->frameCount > 0) {
-                auto newTime = std::chrono::high_resolution_clock::now();
-                auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+            auto newTime = std::chrono::high_resolution_clock::now();
+            auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - oldFpsTime).count();
+
+            if (deltaTime > 1.0f && this->frameCount > 0) {
                 oldFpsTime = newTime;
 
                 std::string appTitle = std::string(APP_TITLE) + std::string(" | FPS: ") +
@@ -332,9 +331,6 @@ namespace NugieApp {
                 glfwSetWindowTitle(this->window->getWindow(), appTitle.c_str());
 
                 this->frameCount = 0u;
-                t = 0u;
-            } else {
-                t++;
             }
         }
 
@@ -774,7 +770,15 @@ namespace NugieApp {
     void PathTracingApp::initCamera(uint32_t width, uint32_t height) {
         NugiePathTracing::Ubo ubo{};
 
-        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
+        float near = 0.1f;
+        float far = 2000.0f;
+
+        float theta = glm::radians(40.0f);
+        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+        this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
+        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
+        
         CameraRay cameraRay = this->camera->getCameraRay();
 
         this->rayTraceUbo.origin = cameraRay.origin;
@@ -808,9 +812,9 @@ namespace NugieApp {
         }
 
         this->subRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
-            .addAttachment(this->renderer->getSwapChain()->getswapChainImages(), 
+            .addAttachment(this->renderer->getSwapChain()->getImages(), 
                            AttachmentType::OUTPUT_STORED, 
-                           this->renderer->getSwapChain()->getSwapChainImageFormat(), 
+                           this->renderer->getSwapChain()->getImageFormat(), 
                            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 
                            VK_SAMPLE_COUNT_1_BIT)
 			.setDepthAttachment(AttachmentType::KEEPED, VK_FORMAT_D16_UNORM, 

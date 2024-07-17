@@ -23,6 +23,11 @@ namespace NugieApp {
         glm::vec4 baseColor;
     };
 
+    struct CameraMatrix {
+        glm::mat4 view{1.0f};
+        glm::mat4 projection{1.0f};
+    };
+
     struct Transformation {
         glm::mat4 worldToObjectMatrix{1.0f};
         glm::mat4 objectToWorldMatrix{1.0f};

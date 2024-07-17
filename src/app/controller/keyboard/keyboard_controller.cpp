@@ -5,11 +5,10 @@ namespace NugieApp {
                                                 glm::vec3 currentCameraDirection, bool *isPressed) const 
     {
         glm::vec3 newCameraPosition = currentCameraPosition;
-        glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
 
-        glm::vec3 forwardDir = glm::normalize(currentCameraDirection);
-        glm::vec3 rightDir = glm::normalize(glm::cross(forwardDir, upVector));
-        glm::vec3 upDir = glm::cross(forwardDir, rightDir);
+        const glm::vec3 forwardDir{glm::normalize(currentCameraDirection)};
+		const glm::vec3 rightDir{forwardDir.z, 0.f, -forwardDir.x};
+		const glm::vec3 upDir{0.0f, 0.0f, 1.0f};
 
         glm::vec3 moveDir{0.0f};
         *isPressed = false;

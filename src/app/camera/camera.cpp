@@ -4,7 +4,7 @@
 #include <limits>
 
 namespace NugieApp {
-    Camera::Camera(uint32_t width, uint32_t height) : width{width}, height{height} {}
+    Camera::Camera() {}
 
     void Camera::setAspect(float aspectRatio) {
 		this->aspectRatio = aspectRatio;
@@ -45,7 +45,7 @@ namespace NugieApp {
 		this->projectionMatrix[3][2] = -(far * near) / (far - near);
     }
 
-    void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, float vfov, glm::vec3 vup) {
+    void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 vup) {
         this->position = position;
 		this->direction = glm::normalize(direction);
 
@@ -84,28 +84,83 @@ namespace NugieApp {
 		this->inverseViewMatrix[3][1] = this->position.y;
 		this->inverseViewMatrix[3][2] = this->position.z;
 
-        float aspectRatio = static_cast<float>(this->width) / static_cast<float>(this->height);
-
-        float theta = glm::radians(vfov);
-        float h = glm::tan(theta / 2.0f);
+        float h = glm::tan(this->fovy / 2.0f);
         float viewportHeight = 2.0f * h;
-        float viewportWidth = aspectRatio * viewportHeight;
+        float viewportWidth = this->aspectRatio * viewportHeight;
 
         this->cameraRay.origin = position;
         this->cameraRay.horizontal = glm::vec3(viewportWidth * u);
         this->cameraRay.vertical = glm::vec3(viewportHeight * v);
-        this->cameraRay.lowerLeftCorner = glm::vec3(
-                position - viewportWidth * u / 2.0f + viewportHeight * v / 2.0f - w);
+        this->cameraRay.lowerLeftCorner = position 
+			- viewportWidth * u / 2.0f 
+			+ viewportHeight * v / 2.0f 
+			- w;
 
         this->cameraTransformation.origin = position;
         this->cameraTransformation.direction = direction;
     }
 
-    void Camera::setViewTransformation(CameraTransformation cameraTransf, float vfov, glm::vec3 vup) {
-        this->setViewDirection(cameraTransf.origin, cameraTransf.direction, vfov, vup);
+    void Camera::setViewTransformation(CameraTransformation cameraTransf, glm::vec3 vup) {
+        this->setViewDirection(cameraTransf.origin, cameraTransf.direction, vup);
     }
 
-    void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, float vfov, glm::vec3 vup) {
-        this->setViewDirection(position, target - direction, vfov, vup);
+    void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 vup) {
+        this->setViewDirection(position, target - position, vup);
     }
+
+	void Camera::setViewYXZ(glm::vec3 position, glm::vec2 rotation, glm::vec3 up) {
+		this->position = position;
+		this->rotation = rotation;
+
+		// this->direction.x = cos(glm::radians(this->rotation.x)) * cos(glm::radians(this->rotation.y));
+		// this->direction.y = sin(glm::radians(this->rotation.y));
+		// this->direction.z = sin(glm::radians(this->rotation.x)) * cos(glm::radians(this->rotation.y));
+
+		const glm::vec3 w{glm::normalize(this->direction)};
+		const glm::vec3 u{glm::normalize(glm::cross(w, up))};
+		const glm::vec3 v{glm::cross(w, u)};
+
+		this->viewMatrix = glm::mat4{1.0f};
+		this->viewMatrix[0][0] = u.x;
+		this->viewMatrix[1][0] = u.y;
+		this->viewMatrix[2][0] = u.z;
+		this->viewMatrix[0][1] = v.x;
+		this->viewMatrix[1][1] = v.y;
+		this->viewMatrix[2][1] = v.z;
+		this->viewMatrix[0][2] = w.x;
+		this->viewMatrix[1][2] = w.y;
+		this->viewMatrix[2][2] = w.z;
+		this->viewMatrix[3][0] = -glm::dot(u, this->position);
+		this->viewMatrix[3][1] = -glm::dot(v, this->position);
+		this->viewMatrix[3][2] = -glm::dot(w, this->position);
+
+		this->inverseViewMatrix = glm::mat4{1.0f};
+		this->inverseViewMatrix[0][0] = u.x;
+		this->inverseViewMatrix[0][1] = u.y;
+		this->inverseViewMatrix[0][2] = u.z;
+		this->inverseViewMatrix[1][0] = v.x;
+		this->inverseViewMatrix[1][1] = v.y;
+		this->inverseViewMatrix[1][2] = v.z;
+		this->inverseViewMatrix[2][0] = w.x;
+		this->inverseViewMatrix[2][1] = w.y;
+		this->inverseViewMatrix[2][2] = w.z;
+		this->inverseViewMatrix[3][0] = this->position.x;
+		this->inverseViewMatrix[3][1] = this->position.y;
+		this->inverseViewMatrix[3][2] = this->position.z;
+
+		float h = glm::tan(this->fovy / 2.0f);
+        float viewportHeight = 2.0f * h;
+        float viewportWidth = this->aspectRatio * viewportHeight;
+
+        this->cameraRay.origin = position;
+        this->cameraRay.horizontal = glm::vec3(viewportWidth * u);
+        this->cameraRay.vertical = glm::vec3(viewportHeight * v);
+        this->cameraRay.lowerLeftCorner = position 
+			- viewportWidth * u / 2.0f 
+			+ viewportHeight * v / 2.0f 
+			- w;
+
+        this->cameraTransformation.origin = position;
+        this->cameraTransformation.direction = direction;
+	}
 } // namespace nugiEngine

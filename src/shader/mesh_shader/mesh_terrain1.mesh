@@ -1,0 +1,58 @@
+#version 460
+#extension GL_EXT_mesh_shader : require
+
+#include "struct.glsl"
+
+layout(local_size_x = 32) in;
+layout(triangles, max_vertices = 256, max_primitives = 256) out;
+
+layout(location = 0) out vec2 textCoord[];
+
+taskPayloadSharedEXT TaskPayload taskPayload;
+
+layout(set = 0, binding = 3) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
+void main()
+{
+	uint tileCount = taskPayload.tessellationSize - 1u;
+	
+	uint vertexCount = taskPayload.tessellationSize * taskPayload.tessellationSize;
+	uint triangleCount = 4 * uint(taskPayload.tessellationSize / 2) * tileCount;
+
+	SetMeshOutputsEXT(vertexCount, triangleCount);	
+
+	if (gl_LocalInvocationIndex < triangleCount) {
+		uint idxCoord = gl_LocalInvocationIndex / 8u;
+		uint halfSize = taskPayload.tessellationSize / 2;
+
+		uint xIdxCoord = idxCoord % halfSize;
+		uint yIdxCoord = idxCoord / halfSize;
+
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+		switch(gl_LocalInvocationIndex % 8u) {
+			case 0: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex); break;
+			case 1: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex); break;
+			case 2: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
+			case 3: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u); break;
+			case 4: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
+			case 5: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
+			case 6: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize); break;
+			case 7: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex + 2u * taskPayload.tessellationSize); break;
+		}
+	}
+
+	if (gl_LocalInvocationIndex < vertexCount) {
+		vec2 vertexCoord = vec2(gl_LocalInvocationIndex % taskPayload.tessellationSize, floor(gl_LocalInvocationIndex / taskPayload.tessellationSize));
+		vertexCoord = (vertexCoord + tileCount * gl_WorkGroupID.xy) / (tileCount * gl_NumWorkGroups.xy);
+		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
+
+		vec2 position = mix(taskPayload.rangeCoordMin, taskPayload.rangeCoordMax, vertexCoord);
+
+		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * vec4(position.x, 50.0f, position.y, 1.0f);
+		textCoord[gl_LocalInvocationIndex] = vertexCoord;
+	}
+}

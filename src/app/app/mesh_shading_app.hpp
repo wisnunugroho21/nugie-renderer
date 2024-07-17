@@ -6,13 +6,14 @@
 #include "../camera/camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
-#include "../data/buffer/stacked_array_many_buffer.hpp"
+#include "../data/buffer/stacked_object_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/mesh_shader/mesh_render_system.hpp"
 #include "../utils/transform/transform.hpp"
+#include "../mesh_shading_struct.hpp"
 
 #include <memory>
 #include <vector>
@@ -35,7 +36,7 @@ namespace NugieApp {
         void renderLoop();
 
     private:
-        void loadObjects();
+        void loadObjects(uint32_t width, uint32_t height);
         void initCamera(uint32_t width, uint32_t height);
 
         void init();
@@ -43,13 +44,22 @@ namespace NugieApp {
 
         NugieVulkan::Window *window = nullptr;
         NugieVulkan::Device *device = nullptr;
-        NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;
+        NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;        
+
+        StackedObjectBuffer *meshUniformBuffer = nullptr;
+        DescriptorSet *meshDescSet = nullptr;
 
         Renderer *renderer = nullptr;
         SubRenderer *finalSubRenderer = nullptr;        
         MeshRenderSystem *meshRenderer = nullptr;
 
-        uint32_t randomSeed = 0u, spotNumLight = 0u, frameCount = 0;
+        Camera *camera = nullptr;
+        KeyboardController *keyboardController = nullptr;
+        MouseController *mouseController = nullptr;
+
+        CameraMatrix cameraMatrix;
+
+        uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u, frameCount = 0;
         bool isRendering = true;
     };
 }
