@@ -1,0 +1,98 @@
+#version 460
+
+#extension GL_EXT_mesh_shader : require
+#extension GL_KHR_shader_subgroup_ballot : require
+
+#include "struct.glsl"
+
+layout(local_size_x = 64) in;
+
+taskPayloadSharedEXT TaskPayload taskPayload;
+
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
+layout(set = 0, binding = 1) uniform readonly TerrainSquareBuffer {
+	vec2 minimum;
+    vec2 maximum;
+};
+
+layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
+	vec4 screenSizeFactorEdgeSize;
+};
+
+bool isPointVisible(vec4 screenPosition) {
+  return screenPosition.x >= -screenPosition.w && screenPosition.x <= screenPosition.w
+    && screenPosition.y >= -screenPosition.w && screenPosition.y <= screenPosition.w
+    && screenPosition.z >= 0 && screenPosition.z <= screenPosition.w;
+}
+
+uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
+	float radius = distance(p0, p1) / 2.0;
+	vec4 v0 = view * (0.5 * (p0 + p1));
+
+	vec4 clip0 = (projection * (v0 - vec4(radius, radius, 0.0f, 0.0f)));
+	vec4 clip1 = (projection * (v0 + vec4(radius, radius, 0.0f, 0.0f)));
+
+	clip0 /= clip0.w;
+	clip1 /= clip1.w;
+
+	clip0.xy *= screenSizeFactorEdgeSize.xy;
+	clip1.xy *= screenSizeFactorEdgeSize.xy;
+	
+	float factor = clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0, 8.0);
+    return uint(factor);
+}
+
+void main()
+{
+	vec2 idx = vec2(gl_WorkGroupID.xy);
+	vec2 gSize = vec2(gl_NumWorkGroups.xy);
+
+	vec2 minPos = mix(minimum, maximum, idx / gSize);
+	vec2 maxPos = mix(minimum, maximum, (idx + 1.0f) / gSize);
+
+	uint tessFactor = screenSpaceTessFactor(
+		vec4(minPos.x, 50.0f, minPos.y, 1.0f),
+		vec4(maxPos.x, 50.0f, maxPos.y, 1.0f)
+	);
+
+	vec2 curCoord = vec2(
+		gl_LocalInvocationIndex % tessFactor, 
+		floor(gl_LocalInvocationIndex / tessFactor)
+	);
+
+	vec2 curMinPos = mix(minPos, maxPos, curCoord / tessFactor);
+	vec2 curMaxPos = mix(minPos, maxPos, (curCoord + 1.0f) / tessFactor);
+
+	mat4 mvp = projection * view;
+  
+	vec4 screenPositionPoint0 = mvp * vec4(curMinPos.x, 50.0f, curMinPos.y, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(curMinPos.x, 50.0f, curMaxPos.y, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(curMaxPos.x, 50.0f, curMinPos.y, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(curMaxPos.x, 50.0f, curMaxPos.y, 1.0f);
+
+	bool isVisible = isPointVisible(screenPositionPoint0)
+		|| isPointVisible(screenPositionPoint1)
+		|| isPointVisible(screenPositionPoint2)
+		|| isPointVisible(screenPositionPoint3);
+
+	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor * tessFactor);
+
+	uvec4 ballout = subgroupBallot(isVisible);
+	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);
+
+	if (isVisible) {
+		taskPayload.rangeCoordMin[survivingTileIndex] = curMinPos;
+		taskPayload.rangeCoordMax[survivingTileIndex] = curMaxPos;
+	}	
+
+	uint tileCount = subgroupBallotBitCount(ballout);
+
+	if (gl_LocalInvocationIndex == 0) {
+		taskPayload.tessellationSize = 5;
+		EmitMeshTasksEXT(tileCount, 1u, 1u);
+	}	
+}
