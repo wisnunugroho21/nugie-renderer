@@ -230,7 +230,7 @@ namespace NugieApp
         }
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
-                                                  "shader/mesh_terrain.task.spv", "shader/mesh_terrain.mesh.spv", 
+                                                  "shader/mesh_terrain_culling.task.spv", "shader/mesh_terrain_culling.mesh.spv", 
                                                   "shader/mesh_shade.frag.spv", this->deviceProcedures,
                                                   { this->meshDescSet->getDescSetLayout() });
 

@@ -51,12 +51,12 @@ void main()
 			floor(gl_LocalInvocationIndex / taskPayload.tessellationSize)
 		);
 
-		vertexCoord = vertexCoord / tileCount;
+		vertexCoord = (vertexCoord + tileCount * gl_WorkGroupID.xy) / (tileCount * gl_NumWorkGroups.xy);
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
 		vec2 position = mix(
-			taskPayload.rangeCoordMin[gl_WorkGroupID.x], 
-			taskPayload.rangeCoordMax[gl_WorkGroupID.x], 
+			taskPayload.rangeCoordMin, 
+			taskPayload.rangeCoordMax, 
 			vertexCoord
 		);
 
