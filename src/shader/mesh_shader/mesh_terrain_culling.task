@@ -51,12 +51,12 @@ void main()
 	vec2 idx = vec2(gl_WorkGroupID.xy);
 	vec2 gSize = vec2(gl_NumWorkGroups.xy);
 
-	vec2 minPos = mix(minimum, maximum, idx / gSize);
-	vec2 maxPos = mix(minimum, maximum, (idx + 1.0f) / gSize);
+	vec2 taskPositionMin = mix(minimum, maximum, idx / gSize);
+	vec2 taskPositionMax = mix(minimum, maximum, (idx + 1.0f) / gSize);
 
 	uint tessFactor = screenSpaceTessFactor(
-		vec4(minPos.x, 50.0f, minPos.y, 1.0f),
-		vec4(maxPos.x, 50.0f, maxPos.y, 1.0f)
+		vec4(taskPositionMin.x, 50.0f, taskPositionMin.y, 1.0f),
+		vec4(taskPositionMax.x, 50.0f, taskPositionMax.y, 1.0f)
 	);
 
 	vec2 curCoord = vec2(
@@ -64,15 +64,15 @@ void main()
 		floor(gl_LocalInvocationIndex / tessFactor)
 	);
 
-	vec2 curMinPos = mix(minPos, maxPos, curCoord / tessFactor);
-	vec2 curMaxPos = mix(minPos, maxPos, (curCoord + 1.0f) / tessFactor);
+	vec2 meshPositionMin = mix(taskPositionMin, taskPositionMax, curCoord / tessFactor);
+	vec2 meshPositionMax = mix(taskPositionMin, taskPositionMax, (curCoord + 1.0f) / tessFactor);
 
 	mat4 mvp = projection * view;
   
-	vec4 screenPositionPoint0 = mvp * vec4(curMinPos.x, 50.0f, curMinPos.y, 1.0f);
-	vec4 screenPositionPoint1 = mvp * vec4(curMinPos.x, 50.0f, curMaxPos.y, 1.0f);
-	vec4 screenPositionPoint2 = mvp * vec4(curMaxPos.x, 50.0f, curMinPos.y, 1.0f);
-	vec4 screenPositionPoint3 = mvp * vec4(curMaxPos.x, 50.0f, curMaxPos.y, 1.0f);
+	vec4 screenPositionPoint0 = mvp * vec4(meshPositionMin.x, 50.0f, meshPositionMin.y, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(meshPositionMin.x, 50.0f, meshPositionMax.y, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(meshPositionMax.x, 50.0f, meshPositionMin.y, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(meshPositionMax.x, 50.0f, meshPositionMax.y, 1.0f);
 
 	bool isVisible = isPointVisible(screenPositionPoint0)
 		|| isPointVisible(screenPositionPoint1)
@@ -85,14 +85,17 @@ void main()
 	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);
 
 	if (isVisible) {
-		taskPayload.rangeCoordMin[survivingTileIndex] = curMinPos;
-		taskPayload.rangeCoordMax[survivingTileIndex] = curMaxPos;
+		taskPayload.meshPositionMin[survivingTileIndex] = meshPositionMin;
+		taskPayload.meshPositionMax[survivingTileIndex] = meshPositionMax;
 	}	
 
 	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0) {
 		taskPayload.tessellationSize = 5;
+		taskPayload.taskPositionMin = taskPositionMin;
+		taskPayload.taskPositionMax = taskPositionMax;
+		
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
 }

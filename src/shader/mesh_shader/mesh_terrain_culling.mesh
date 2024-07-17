@@ -62,14 +62,14 @@ void main()
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
 		vec2 xzPosition = mix(
-			taskPayload.rangeCoordMin[gl_WorkGroupID.x], 
-			taskPayload.rangeCoordMax[gl_WorkGroupID.x], 
+			taskPayload.meshPositionMin[gl_WorkGroupID.x], 
+			taskPayload.meshPositionMax[gl_WorkGroupID.x], 
 			vertexCoord
 		);
 
 		vec4 worldPosition = vec4(xzPosition.x, 0.0f, xzPosition.y, 1.0f);
 
-		vec2 worldCoord = (xzPosition - minimum) / (maximum - minimum);
+		vec2 worldCoord = (xzPosition - taskPayload.taskPositionMin) / (taskPayload.taskPositionMax - taskPayload.taskPositionMin);
 		worldPosition.y = texture(heightMapTexture, worldCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
