@@ -82,12 +82,15 @@ void main()
 
 	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor * tessFactor);
 
-	uint survivingTileIndex = subgroupExclusiveAdd(uint(isVisible));
+	uvec4 ballout = subgroupBallot(isVisible);
+	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);
 
-	taskPayload.rangeCoordMin[survivingTileIndex] = curMinPos;
-	taskPayload.rangeCoordMax[survivingTileIndex] = curMaxPos;
+	if (isVisible) {
+		taskPayload.rangeCoordMin[survivingTileIndex] = curMinPos;
+		taskPayload.rangeCoordMax[survivingTileIndex] = curMaxPos;
+	}	
 
-	uint tileCount = subgroupBallotBitCount(subgroupBallot(isVisible));
+	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0) {
 		taskPayload.tessellationSize = 5;
