@@ -15,6 +15,13 @@ layout(set = 0, binding = 3) uniform readonly CameraTransformationBuffer {
 	mat4 projection;
 };
 
+layout(set = 0, binding = 4) uniform readonly TerrainSquareBuffer {
+	vec2 minimum;
+    vec2 maximum;
+};
+
+layout(set = 0, binding = 5) uniform sampler2D heightMapTexture;
+
 void main()
 {
 	uint tileCount = taskPayload.tessellationSize - 1u;
@@ -54,13 +61,18 @@ void main()
 		vertexCoord = vertexCoord / tileCount;
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
-		vec2 position = mix(
+		vec2 xzPosition = mix(
 			taskPayload.rangeCoordMin[gl_WorkGroupID.x], 
 			taskPayload.rangeCoordMax[gl_WorkGroupID.x], 
 			vertexCoord
 		);
 
-		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * vec4(position.x, 50.0f, position.y, 1.0f);
+		vec4 worldPosition = vec4(xzPosition.x, 0.0f, xzPosition.y, 1.0f);
+
+		vec2 worldCoord = (xzPosition - minimum) / (xzPosition - minimum);
+		worldPosition.y = texture(heightMapTexture, worldCoord).r;
+
+		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
 		textCoord[gl_LocalInvocationIndex] = vertexCoord;
 	}
 }

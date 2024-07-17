@@ -1,5 +1,7 @@
 #include "mesh_shading_app.hpp"
 
+#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -39,6 +41,7 @@ namespace NugieApp
     MeshShadingApp::~MeshShadingApp() {
         delete this->meshDescSet;
         delete this->meshUniformBuffer;
+        delete this->heightMapTexture;
 
         delete this->meshRenderer;        
         delete this->finalSubRenderer;        
@@ -163,13 +166,22 @@ namespace NugieApp
                                         .addArrayItem("camera_transf", static_cast<VkDeviceSize>(sizeof(CameraMatrix)), 1u)
                                         .build();
 
-        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{1600.0f} };
+        uint32_t terrainSize = 1600u;
+        TerrainPoints *terrainPoints = FlatTerrainGeneration(terrainSize, 50.0f).getTerrainPoints();
+
+        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{static_cast<float>(terrainSize)} };
         NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 800.0f, 1.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);
             this->meshUniformBuffer->writeValue(frameIndex, "tessellation_data", &tessData);
-        }       
+        }
+
+        auto commandBuffer = this->renderer->beginRecordTransferCommand();
+        this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());
+
+        commandBuffer->endCommand();
+        this->renderer->submitTransferCommand();
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
@@ -196,7 +208,12 @@ namespace NugieApp
         uint32_t width = this->renderer->getSwapChain()->getWidth();
         uint32_t height = this->renderer->getSwapChain()->getHeight();
         uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
-        VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();        
+        VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
+
+        std::vector<VkDescriptorImageInfo> heightMapInfos;
+        for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
+            heightMapInfos.emplace_back(this->heightMapTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        }        
 
         this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -208,6 +225,10 @@ namespace NugieApp
                                            this->meshUniformBuffer->getInfo("tessellation_data"))
                                 .addBuffer(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("camera_transf"))
+                                .addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
+                                           this->meshUniformBuffer->getInfo("terrain_square"))
+                                .addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
+                                           heightMapInfos)
                                 .build();
 
         if (msaaSample == VK_SAMPLE_COUNT_1_BIT) {
