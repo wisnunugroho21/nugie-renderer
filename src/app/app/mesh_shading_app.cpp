@@ -1,6 +1,6 @@
 #include "mesh_shading_app.hpp"
 
-#include "../data/terrain/terrain_generation/flat_terrain_generation.hpp"
+#include "../data/terrain/terrain_generation/fault_terrain_generation.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -130,7 +130,7 @@ namespace NugieApp
             cameraPosition = this->keyboardController->moveInPlaceXZ(this->window->getWindow(), deltaTime, cameraPosition, this->camera->getDirection(), &isKeyboardPressed);
 
             if (isMousePressed || isKeyboardPressed) {
-                this->camera->setViewYXZ(cameraPosition, cameraRotation, glm::vec3{0.0f, 0.0f, 1.0f});
+                this->camera->setViewYXZ(cameraPosition, cameraRotation, glm::vec3{0.0f, 1.0f, 0.0f});
 
                 this->cameraMatrix.view = this->camera->getViewMatrix();
                 this->cameraMatrix.projection = this->camera->getProjectionMatrix();
@@ -167,7 +167,12 @@ namespace NugieApp
                                         .build();
 
         uint32_t terrainSize = 1600u;
-        TerrainPoints *terrainPoints = FlatTerrainGeneration(terrainSize, 50.0f).getTerrainPoints();
+        uint32_t iterations = 100u;
+        float minHeight = 0.0f;
+        float maxHeight = 300.0f;
+        float filter = 0.2f;
+
+        TerrainPoints *terrainPoints = FaultTerrainGeneration(terrainSize, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
         NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{static_cast<float>(terrainSize)} };
         NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 800.0f, 1.0f} };
@@ -185,8 +190,8 @@ namespace NugieApp
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
-        glm::vec3 position = glm::vec3(800.0f, 300.0f, 800.0f);
-        glm::vec3 target = glm::vec3(800.0f, 0.0f, 800.0f);
+        glm::vec3 position = glm::vec3(0.0f, 600.0f, 0.0f);
+        glm::vec3 target = glm::vec3(1600.0f, 0.0f, 1600.0f);
 
         float near = 0.1f;
         float far = 10000.0f;
@@ -195,7 +200,7 @@ namespace NugieApp
         float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
         this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
-        this->camera->setViewTarget(position, target, glm::vec3{0.0f, 0.0f, 1.0f});
+        this->camera->setViewTarget(position, target, glm::vec3{0.0f, 1.0f, 0.0f});
 
         glm::mat4 view = this->camera->getViewMatrix();
         glm::mat4 projection = this->camera->getProjectionMatrix();
