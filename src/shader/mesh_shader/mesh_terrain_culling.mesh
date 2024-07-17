@@ -15,12 +15,7 @@ layout(set = 0, binding = 3) uniform readonly CameraTransformationBuffer {
 	mat4 projection;
 };
 
-layout(set = 0, binding = 4) uniform readonly TerrainSquareBuffer {
-	vec2 minimum;
-    vec2 maximum;
-};
-
-layout(set = 0, binding = 5) uniform sampler2D heightMapTexture;
+layout(set = 0, binding = 4) uniform sampler2D heightMapTexture;
 
 void main()
 {
@@ -73,6 +68,6 @@ void main()
 		worldPosition.y = texture(heightMapTexture, worldCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
-		textCoord[gl_LocalInvocationIndex] = vertexCoord;
+		textCoord[gl_LocalInvocationIndex] = worldCoord;
 	}
 }

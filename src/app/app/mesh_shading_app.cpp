@@ -225,9 +225,7 @@ namespace NugieApp
                                            this->meshUniformBuffer->getInfo("tessellation_data"))
                                 .addBuffer(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("camera_transf"))
-                                .addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
-                                           this->meshUniformBuffer->getInfo("terrain_square"))
-                                .addImage(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
+                                .addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
                                            heightMapInfos)
                                 .build();
 
