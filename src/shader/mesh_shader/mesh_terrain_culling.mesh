@@ -64,10 +64,10 @@ void main()
 
 		vec4 worldPosition = vec4(xzPosition.x, 0.0f, xzPosition.y, 1.0f);
 
-		vec2 worldCoord = (xzPosition - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
-		worldPosition.y = texture(heightMapTexture, worldCoord).r;
+		vec2 textCoord = (xzPosition - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
+		worldPosition.y = texture(heightMapTexture, textCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
-		textCoord[gl_LocalInvocationIndex] = worldCoord;
+		textCoord[gl_LocalInvocationIndex] = textCoord;
 	}
 }
