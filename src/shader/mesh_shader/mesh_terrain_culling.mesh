@@ -6,7 +6,7 @@
 layout(local_size_x = 32) in;
 layout(triangles, max_vertices = 256, max_primitives = 256) out;
 
-layout(location = 0) out vec2 textCoord[];
+layout(location = 0) out vec2 textCoords[];
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
@@ -56,18 +56,22 @@ void main()
 		vertexCoord = vertexCoord / tileCount;
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
-		vec2 xzPosition = mix(
-			taskPayload.meshGroupPositionMin[gl_WorkGroupID.x], 
-			taskPayload.meshGroupPositionMax[gl_WorkGroupID.x], 
-			vertexCoord
-		);
+		vec4 worldPosition = vec4(
+			mix(
+				taskPayload.meshGroupPositionMin[gl_WorkGroupID.x], 
+				taskPayload.meshGroupPositionMax[gl_WorkGroupID.x], 
+				vertexCoord
+			),
+			0.0f,
+			1.0f
+		);		
 
-		vec4 worldPosition = vec4(xzPosition.x, 0.0f, xzPosition.y, 1.0f);
+		vec2 textCoord = (worldPosition.xy - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
 
-		vec2 textCoord = (xzPosition - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
+		worldPosition.z = worldPosition.y;
 		worldPosition.y = texture(heightMapTexture, textCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
-		textCoord[gl_LocalInvocationIndex] = textCoord;
+		textCoords[gl_LocalInvocationIndex] = textCoord;
 	}
 }

@@ -88,12 +88,12 @@ void main()
 	);
 
 	vec3 meshGroupPositionMin = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor), 0.0f);
-	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);
+	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);	
+
+	vec2 minMaxHeight = minMaxHeightInTexture(meshGroupPositionMin.xy, meshGroupPositionMax.xy, taskGroupPositionMin, taskGroupPositionMax);
 
 	meshGroupPositionMin.z = meshGroupPositionMin.y;
 	meshGroupPositionMax.z = meshGroupPositionMax.y;
-
-	vec2 minMaxHeight = minMaxHeightInTexture(meshGroupPositionMin.xz, meshGroupPositionMax.xz, taskGroupPositionMin, taskGroupPositionMax);
 
 	meshGroupPositionMin.y = minMaxHeight.x;
 	meshGroupPositionMax.y = minMaxHeight.y;
