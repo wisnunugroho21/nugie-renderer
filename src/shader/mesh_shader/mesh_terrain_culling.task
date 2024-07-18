@@ -15,13 +15,15 @@ layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
 };
 
 layout(set = 0, binding = 1) uniform readonly TerrainSquareBuffer {
-	vec2 minimum;
-    vec2 maximum;
+	vec2 totalMinimum;
+    vec2 totalMaximum;
 };
 
 layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 	vec4 screenSizeFactorEdgeSize;
 };
+
+layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
 
 bool isPointVisible(vec4 screenPosition) {
   return screenPosition.x >= -screenPosition.w && screenPosition.x <= screenPosition.w
@@ -46,17 +48,38 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
     return uint(factor);
 }
 
+vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax, vec2 taskGroupPositionMin, vec2 taskGroupPositionMax) {
+	vec2 minMaxHeight = vec2(999999.0f, -999999.0f);
+
+	for (uint meshInvocationIndex = 0u; meshInvocationIndex < 25u; meshInvocationIndex++) {
+		vec2 vertexCoord = vec2(meshInvocationIndex % 5u, floor(meshInvocationIndex / 5u));
+		
+		vertexCoord = vertexCoord / 4u;
+		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
+
+		vec2 xzPosition = mix(meshGroupPositionMin, meshGroupPositionMax, vertexCoord);
+		vec2 worldCoord = (xzPosition - taskGroupPositionMin) / (taskGroupPositionMax - taskGroupPositionMin);
+
+		float curHeight = texture(heightMapTexture, worldCoord).r;
+
+		minMaxHeight.x = (curHeight < minMaxHeight.x) ? curHeight : minMaxHeight.x;
+		minMaxHeight.y = (curHeight > minMaxHeight.y) ? curHeight : minMaxHeight.y;		
+	}
+
+	return minMaxHeight;	
+}
+
 void main()
 {
 	vec2 idx = vec2(gl_WorkGroupID.xy);
 	vec2 gSize = vec2(gl_NumWorkGroups.xy);
 
-	vec2 taskPositionMin = mix(minimum, maximum, idx / gSize);
-	vec2 taskPositionMax = mix(minimum, maximum, (idx + 1.0f) / gSize);
+	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
+	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
 
 	uint tessFactor = screenSpaceTessFactor(
-		vec4(taskPositionMin.x, 50.0f, taskPositionMin.y, 1.0f),
-		vec4(taskPositionMax.x, 50.0f, taskPositionMax.y, 1.0f)
+		vec4(taskGroupPositionMin.x, 0.0f, taskGroupPositionMin.y, 1.0f),
+		vec4(taskGroupPositionMax.x, 0.0f, taskGroupPositionMax.y, 1.0f)
 	);
 
 	vec2 curCoord = vec2(
@@ -64,20 +87,36 @@ void main()
 		floor(gl_LocalInvocationIndex / tessFactor)
 	);
 
-	vec2 meshPositionMin = mix(taskPositionMin, taskPositionMax, curCoord / tessFactor);
-	vec2 meshPositionMax = mix(taskPositionMin, taskPositionMax, (curCoord + 1.0f) / tessFactor);
+	vec3 meshGroupPositionMin = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor), 0.0f);
+	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);
+
+	meshGroupPositionMin.z = meshGroupPositionMin.y;
+	meshGroupPositionMax.z = meshGroupPositionMax.y;
+
+	vec2 minMaxHeight = minMaxHeightInTexture(meshGroupPositionMin.xz, meshGroupPositionMax.xz, taskGroupPositionMin, taskGroupPositionMax);
+
+	meshGroupPositionMin.y = minMaxHeight.x;
+	meshGroupPositionMax.y = minMaxHeight.y;
 
 	mat4 mvp = projection * view;
   
-	vec4 screenPositionPoint0 = mvp * vec4(meshPositionMin.x, 50.0f, meshPositionMin.y, 1.0f);
-	vec4 screenPositionPoint1 = mvp * vec4(meshPositionMin.x, 50.0f, meshPositionMax.y, 1.0f);
-	vec4 screenPositionPoint2 = mvp * vec4(meshPositionMax.x, 50.0f, meshPositionMin.y, 1.0f);
-	vec4 screenPositionPoint3 = mvp * vec4(meshPositionMax.x, 50.0f, meshPositionMax.y, 1.0f);
+	vec4 screenPositionPoint0 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMin.y, meshGroupPositionMin.z, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMin.y, meshGroupPositionMax.z, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMax.y, meshGroupPositionMin.z, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMin.y, meshGroupPositionMin.z, 1.0f);
+	vec4 screenPositionPoint4 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMax.y, meshGroupPositionMax.z, 1.0f);
+	vec4 screenPositionPoint5 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMin.y, meshGroupPositionMax.z, 1.0f);
+	vec4 screenPositionPoint6 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMax.y, meshGroupPositionMin.z, 1.0f);
+	vec4 screenPositionPoint7 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMax.y, meshGroupPositionMax.z, 1.0f);
 
 	bool isVisible = isPointVisible(screenPositionPoint0)
 		|| isPointVisible(screenPositionPoint1)
 		|| isPointVisible(screenPositionPoint2)
-		|| isPointVisible(screenPositionPoint3);
+		|| isPointVisible(screenPositionPoint3)
+		|| isPointVisible(screenPositionPoint4)
+		|| isPointVisible(screenPositionPoint5)
+		|| isPointVisible(screenPositionPoint6)
+		|| isPointVisible(screenPositionPoint7);
 
 	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor * tessFactor);
 
@@ -85,16 +124,16 @@ void main()
 	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);
 
 	if (isVisible) {
-		taskPayload.meshPositionMin[survivingTileIndex] = meshPositionMin;
-		taskPayload.meshPositionMax[survivingTileIndex] = meshPositionMax;
+		taskPayload.meshGroupPositionMin[survivingTileIndex] = meshGroupPositionMin.xz;
+		taskPayload.meshGroupPositionMax[survivingTileIndex] = meshGroupPositionMax.xz;
 	}	
 
 	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0) {
 		taskPayload.tessellationSize = 5;
-		taskPayload.taskPositionMin = taskPositionMin;
-		taskPayload.taskPositionMax = taskPositionMax;
+		taskPayload.taskGroupPositionMin = taskGroupPositionMin;
+		taskPayload.taskGroupPositionMax = taskGroupPositionMax;
 		
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
