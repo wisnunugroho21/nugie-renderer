@@ -53,15 +53,14 @@ namespace NugieApp {
         this->image = new NugieVulkan::Image(this->device, texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT,
                                              VK_FORMAT_R8G8B8A8_SRGB,
                                              VK_IMAGE_TILING_OPTIMAL,
-                                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                             VK_IMAGE_USAGE_SAMPLED_BIT,
+                                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                              VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                                              VK_IMAGE_ASPECT_COLOR_BIT);
 
-        this->image->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED,
-                                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-                                           VK_ACCESS_TRANSFER_WRITE_BIT);
+        this->image->transitionImageLayout(commandBuffer, 
+                                           VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                                           0, VK_ACCESS_TRANSFER_WRITE_BIT);
 
         this->stagingBuffer->copyBufferToImage(commandBuffer, this->image);
     }

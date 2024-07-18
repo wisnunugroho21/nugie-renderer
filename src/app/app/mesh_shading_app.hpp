@@ -9,6 +9,7 @@
 #include "../data/buffer/stacked_object_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
+#include "../data/texture/heightmap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/mesh_shader/mesh_render_system.hpp"
@@ -61,5 +62,7 @@ namespace NugieApp {
 
         uint32_t randomSeed = 0u, spotNumLight = 0u, cameraUpdateCount = 0u, frameCount = 0;
         bool isRendering = true;
+
+        HeightMapTexture *heightMapTexture;
     };
 }

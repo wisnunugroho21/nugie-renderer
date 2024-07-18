@@ -2,8 +2,10 @@
 
 struct TaskPayload {
     uint tessellationSize;
-    vec2 rangeCoordMin[64];
-    vec2 rangeCoordMax[64];
+    vec2 taskGroupPositionMin;
+    vec2 taskGroupPositionMax;
+    vec2 meshGroupPositionMin[64];
+    vec2 meshGroupPositionMax[64];
 };
 
 struct Transformation {
