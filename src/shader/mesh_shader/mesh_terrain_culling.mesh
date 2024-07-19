@@ -15,7 +15,12 @@ layout(set = 0, binding = 4) uniform readonly CameraTransformationBuffer {
 	mat4 projection;
 };
 
-layout(set = 0, binding = 5) uniform sampler2D heightMapTexture;
+layout(set = 0, binding = 5) uniform readonly TerrainSquareBuffer {
+	vec2 totalMinimum;
+    vec2 totalMaximum;
+};
+
+layout(set = 0, binding = 6) uniform sampler2D heightMapTexture;
 
 void main()
 {
@@ -66,7 +71,8 @@ void main()
 			1.0f
 		);		
 
-		vec2 textCoord = (worldPosition.xy - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
+		vec2 textCoord = (worldPosition.xy - totalMinimum) / (totalMaximum - totalMinimum);
+		// vec2 textCoord = (worldPosition.xy - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
 
 		worldPosition.z = worldPosition.y;
 		worldPosition.y = texture(heightMapTexture, textCoord).r;

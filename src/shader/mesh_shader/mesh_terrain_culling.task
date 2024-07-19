@@ -58,7 +58,8 @@ vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax,
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
 		vec2 xzPosition = mix(meshGroupPositionMin, meshGroupPositionMax, vertexCoord);
-		vec2 textCoord = (xzPosition - taskGroupPositionMin) / (taskGroupPositionMax - taskGroupPositionMin);
+		// vec2 textCoord = (xzPosition - taskGroupPositionMin) / (taskGroupPositionMax - taskGroupPositionMin);
+		vec2 textCoord = (xzPosition - totalMinimum) / (totalMaximum - totalMinimum);
 
 		float curHeight = texture(heightMapTexture, textCoord).r;
 
