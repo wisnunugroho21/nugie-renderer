@@ -72,7 +72,6 @@ void main()
 		);		
 
 		vec2 textCoord = (worldPosition.xy - totalMinimum) / (totalMaximum - totalMinimum);
-		// vec2 textCoord = (worldPosition.xy - taskPayload.taskGroupPositionMin) / (taskPayload.taskGroupPositionMax - taskPayload.taskGroupPositionMin);
 
 		worldPosition.z = worldPosition.y;
 		worldPosition.y = texture(heightMapTexture, textCoord).r;
