@@ -65,7 +65,7 @@ namespace NugieApp
 
                 this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
                
-                this->meshRenderer->render(commandBuffer, 8u, 8u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
+                this->meshRenderer->render(commandBuffer, 2u, 2u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
                 
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 
@@ -183,7 +183,8 @@ namespace NugieApp
         }
 
         auto commandBuffer = this->renderer->beginRecordTransferCommand();
-        this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());
+        this->heightMapTexture = new HeightMapMultiTexture(this->device, commandBuffer, terrainPoints->getAll(), 2u);
+        // this->heightMapTexture = new HeightMapTexture(this->device, commandBuffer, terrainPoints->getAll());
 
         commandBuffer->endCommand();
         this->renderer->submitTransferCommand();
@@ -215,10 +216,15 @@ namespace NugieApp
         uint32_t imageCount = static_cast<uint32_t>(this->renderer->getSwapChain()->getImageCount());
         VkSampleCountFlagBits msaaSample = this->device->getMSAASamples();
 
-        std::vector<VkDescriptorImageInfo> heightMapInfos;
+        std::vector<std::vector<VkDescriptorImageInfo>> heightMapInfos;
+        for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
+            heightMapInfos.emplace_back(this->heightMapTexture->getDescriptorInfos(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+        }
+
+        /* std::vector<VkDescriptorImageInfo> heightMapInfos;
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             heightMapInfos.emplace_back(this->heightMapTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-        }        
+        } */        
 
         this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -228,13 +234,13 @@ namespace NugieApp
                                            this->meshUniformBuffer->getInfo("terrain_square"))
                                 .addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("tessellation_data"))
-                                .addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TASK_BIT_EXT, 
+                                .addManyImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TASK_BIT_EXT, 
                                            heightMapInfos)
                                 .addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("camera_transf"))
                                 .addBuffer(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("terrain_square"))
-                                .addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
+                                .addManyImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
                                            heightMapInfos)
                                 .build();
 

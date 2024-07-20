@@ -23,7 +23,7 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 	vec4 screenSizeFactorEdgeSize;
 };
 
-layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
+layout(set = 0, binding = 3) uniform sampler2D heightMapTexture[64];
 
 bool isPointVisible(vec4 screenPosition) {
   return screenPosition.x >= -screenPosition.w && screenPosition.x <= screenPosition.w
@@ -48,7 +48,7 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
     return uint(factor);
 }
 
-vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax, vec2 taskGroupPositionMin, vec2 taskGroupPositionMax) {
+vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax, vec2 taskGroupPositionMin, vec2 taskGroupPositionMax, uint taskGroupTotalIdx) {
 	vec2 minMaxHeight = vec2(999999.0f, -999999.0f);
 
 	for (uint meshInvocationIndex = 0u; meshInvocationIndex < 25u; meshInvocationIndex++) {
@@ -58,10 +58,9 @@ vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax,
 		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
 		vec2 xzPosition = mix(meshGroupPositionMin, meshGroupPositionMax, vertexCoord);
-		// vec2 textCoord = (xzPosition - taskGroupPositionMin) / (taskGroupPositionMax - taskGroupPositionMin);
-		vec2 textCoord = (xzPosition - totalMinimum) / (totalMaximum - totalMinimum);
+		vec2 textCoord = (xzPosition - taskGroupPositionMin) / (taskGroupPositionMax - taskGroupPositionMin);
 
-		float curHeight = texture(heightMapTexture, textCoord).r;
+		float curHeight = texture(heightMapTexture[taskGroupTotalIdx], textCoord).r;
 
 		minMaxHeight.x = (curHeight < minMaxHeight.x) ? curHeight : minMaxHeight.x;
 		minMaxHeight.y = (curHeight > minMaxHeight.y) ? curHeight : minMaxHeight.y;		
@@ -72,11 +71,13 @@ vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax,
 
 void main()
 {
-	vec2 idx = vec2(gl_WorkGroupID.xy);
-	vec2 gSize = vec2(gl_NumWorkGroups.xy);
+	vec2 taskGroupIdx = vec2(gl_WorkGroupID.xy);
+	vec2 taskGroupNum = vec2(gl_NumWorkGroups.xy);
 
-	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
-	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
+	uint taskGroupTotalIdx = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
+
+	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, taskGroupIdx / taskGroupNum);
+	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (taskGroupIdx + 1.0f) / taskGroupNum);
 
 	uint tessFactor = screenSpaceTessFactor(
 		vec4(taskGroupPositionMin.x, 0.0f, taskGroupPositionMin.y, 1.0f),
@@ -91,7 +92,13 @@ void main()
 	vec3 meshGroupPositionMin = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor), 0.0f);
 	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);	
 
-	vec2 minMaxHeight = minMaxHeightInTexture(meshGroupPositionMin.xy, meshGroupPositionMax.xy, taskGroupPositionMin, taskGroupPositionMax);
+	vec2 minMaxHeight = minMaxHeightInTexture(
+		meshGroupPositionMin.xy, 
+		meshGroupPositionMax.xy, 
+		taskGroupPositionMin, 
+		taskGroupPositionMax,
+		taskGroupTotalIdx
+	);
 
 	meshGroupPositionMin.z = meshGroupPositionMin.y;
 	meshGroupPositionMax.z = meshGroupPositionMax.y;
@@ -133,6 +140,8 @@ void main()
 
 	if (gl_LocalInvocationIndex == 0) {
 		taskPayload.tessellationSize = 5;
+		taskPayload.taskGroupTotalIdx = taskGroupTotalIdx;
+
 		taskPayload.taskGroupPositionMin = taskGroupPositionMin;
 		taskPayload.taskGroupPositionMax = taskGroupPositionMax;
 		
