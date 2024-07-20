@@ -48,7 +48,7 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
     return uint(factor);
 }
 
-vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax, vec2 taskGroupPositionMin, vec2 taskGroupPositionMax) {
+vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax) {
 	vec2 minMaxHeight = vec2(999999.0f, -999999.0f);
 
 	for (uint meshInvocationIndex = 0u; meshInvocationIndex < 25u; meshInvocationIndex++) {
@@ -90,7 +90,7 @@ void main()
 	vec3 meshGroupPositionMin = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor), 0.0f);
 	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);	
 
-	vec2 minMaxHeight = minMaxHeightInTexture(meshGroupPositionMin.xy, meshGroupPositionMax.xy, taskGroupPositionMin, taskGroupPositionMax);
+	vec2 minMaxHeight = minMaxHeightInTexture(meshGroupPositionMin.xy, meshGroupPositionMax.xy);
 
 	meshGroupPositionMin.z = meshGroupPositionMin.y;
 	meshGroupPositionMax.z = meshGroupPositionMax.y;
