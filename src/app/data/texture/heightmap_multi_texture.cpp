@@ -35,14 +35,14 @@ namespace NugieApp {
                 this->stagingBuffers.emplace_back(
                     new NugieVulkan::Buffer(this->device,
                                             sizeof(float),
-                                            splitSize * splitSize,
+                                            (splitSize + 1u) * (splitSize + 1u),
                                             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                             VMA_MEMORY_USAGE_AUTO,
                                             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT)
                 );
 
                 this->images.emplace_back(
-                    new NugieVulkan::Image(this->device, splitSize, splitSize, 1u, VK_SAMPLE_COUNT_1_BIT, 
+                    new NugieVulkan::Image(this->device, (splitSize + 1u), (splitSize + 1u), 1u, VK_SAMPLE_COUNT_1_BIT, 
                                            VK_FORMAT_R32_SFLOAT, VK_IMAGE_TILING_OPTIMAL, 
                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
                                            VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -50,8 +50,8 @@ namespace NugieApp {
 
                 newHeightPoints.clear();
                 
-                for (uint32_t y = 0; y < splitSize; y++) {
-                    for (size_t x = 0; x < splitSize; x++) {
+                for (uint32_t y = 0; y <= splitSize; y++) {
+                    for (size_t x = 0; x <= splitSize; x++) {
                         uint32_t totalIdx = x 
                             + y * splitSize
                             + xSplitIdx * splitSize
