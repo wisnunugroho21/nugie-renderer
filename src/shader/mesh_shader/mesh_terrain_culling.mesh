@@ -59,7 +59,6 @@ void main()
 		);
 
 		vertexCoord = vertexCoord / tileCount;
-		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
 		vec4 worldPosition = vec4(
 			mix(
