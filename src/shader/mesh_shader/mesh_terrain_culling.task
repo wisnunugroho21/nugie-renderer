@@ -92,39 +92,20 @@ void main()
 	vec3 meshGroupPositionMin = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor), 0.0f);
 	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);	
 
-	vec2 minMaxHeight = minMaxHeightInTexture(
-		meshGroupPositionMin.xy, 
-		meshGroupPositionMax.xy, 
-		taskGroupPositionMin, 
-		taskGroupPositionMax,
-		taskGroupTotalIdx
-	);
-
 	meshGroupPositionMin.z = meshGroupPositionMin.y;
 	meshGroupPositionMax.z = meshGroupPositionMax.y;
 
-	meshGroupPositionMin.y = minMaxHeight.x;
-	meshGroupPositionMax.y = minMaxHeight.y;
-
 	mat4 mvp = projection * view;
   
-	vec4 screenPositionPoint0 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMin.y, meshGroupPositionMin.z, 1.0f);
-	vec4 screenPositionPoint1 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMin.y, meshGroupPositionMax.z, 1.0f);
-	vec4 screenPositionPoint2 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMax.y, meshGroupPositionMin.z, 1.0f);
-	vec4 screenPositionPoint3 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMin.y, meshGroupPositionMin.z, 1.0f);
-	vec4 screenPositionPoint4 = mvp * vec4(meshGroupPositionMin.x, meshGroupPositionMax.y, meshGroupPositionMax.z, 1.0f);
-	vec4 screenPositionPoint5 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMin.y, meshGroupPositionMax.z, 1.0f);
-	vec4 screenPositionPoint6 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMax.y, meshGroupPositionMin.z, 1.0f);
-	vec4 screenPositionPoint7 = mvp * vec4(meshGroupPositionMax.x, meshGroupPositionMax.y, meshGroupPositionMax.z, 1.0f);
+	vec4 screenPositionPoint0 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMin.z, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMax.z, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(meshGroupPositionMax.x, 0.0, meshGroupPositionMin.z, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(meshGroupPositionMax.x, 0.0, meshGroupPositionMax.z, 1.0f);
 
 	bool isVisible = isPointVisible(screenPositionPoint0)
 		|| isPointVisible(screenPositionPoint1)
 		|| isPointVisible(screenPositionPoint2)
-		|| isPointVisible(screenPositionPoint3)
-		|| isPointVisible(screenPositionPoint4)
-		|| isPointVisible(screenPositionPoint5)
-		|| isPointVisible(screenPositionPoint6)
-		|| isPointVisible(screenPositionPoint7);
+		|| isPointVisible(screenPositionPoint3);
 
 	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor * tessFactor);
 
