@@ -52,10 +52,8 @@ vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax)
 	vec2 minMaxHeight = vec2(999999.0f, -999999.0f);
 
 	for (uint meshInvocationIndex = 0u; meshInvocationIndex < 25u; meshInvocationIndex++) {
-		vec2 vertexCoord = vec2(meshInvocationIndex % 5u, floor(meshInvocationIndex / 5u));
-		
+		vec2 vertexCoord = vec2(meshInvocationIndex % 5u, floor(meshInvocationIndex / 5u));		
 		vertexCoord = vertexCoord / 4u;
-		vertexCoord = vec2(vertexCoord.x, 1.0f - vertexCoord.y);
 
 		vec2 xzPosition = mix(meshGroupPositionMin, meshGroupPositionMax, vertexCoord);
 		vec2 textCoord = (xzPosition - totalMinimum) / (totalMaximum - totalMinimum);
@@ -87,18 +85,15 @@ void main()
 		floor(gl_LocalInvocationIndex / tessFactor)
 	);
 
-	vec3 meshGroupPositionMin = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor), 0.0f);
-	vec3 meshGroupPositionMax = vec3(mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor), 0.0f);	
-
-	meshGroupPositionMin.z = meshGroupPositionMin.y;
-	meshGroupPositionMax.z = meshGroupPositionMax.y;
+	vec2 meshGroupPositionMin = mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor);
+	vec2 meshGroupPositionMax = mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / tessFactor);
 
 	mat4 mvp = projection * view;
   
-	vec4 screenPositionPoint0 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMin.z, 1.0f);
-	vec4 screenPositionPoint1 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMax.z, 1.0f);
-	vec4 screenPositionPoint2 = mvp * vec4(meshGroupPositionMax.x, 0.0, meshGroupPositionMin.z, 1.0f);
-	vec4 screenPositionPoint3 = mvp * vec4(meshGroupPositionMax.x, 0.0, meshGroupPositionMax.z, 1.0f);
+	vec4 screenPositionPoint0 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMin.y, 1.0f);
+	vec4 screenPositionPoint1 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMax.y, 1.0f);
+	vec4 screenPositionPoint2 = mvp * vec4(meshGroupPositionMax.x, 0.0, meshGroupPositionMin.y, 1.0f);
+	vec4 screenPositionPoint3 = mvp * vec4(meshGroupPositionMax.x, 0.0, meshGroupPositionMax.y, 1.0f);
 
 	bool isVisible = isPointVisible(screenPositionPoint0)
 		|| isPointVisible(screenPositionPoint1)
@@ -111,8 +106,8 @@ void main()
 	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);
 
 	if (isVisible) {
-		taskPayload.meshGroupPositionMin[survivingTileIndex] = meshGroupPositionMin.xz;
-		taskPayload.meshGroupPositionMax[survivingTileIndex] = meshGroupPositionMax.xz;
+		taskPayload.meshGroupPositionMin[survivingTileIndex] = meshGroupPositionMin;
+		taskPayload.meshGroupPositionMax[survivingTileIndex] = meshGroupPositionMax;
 	}	
 
 	uint tileCount = subgroupBallotBitCount(ballout);
