@@ -4,7 +4,7 @@
 #include "struct.glsl"
 
 layout(local_size_x = 32) in;
-layout(triangles, max_vertices = 256, max_primitives = 256) out;
+layout(triangles, max_vertices = 25, max_primitives = 32) out;
 
 layout(location = 0) out vec2 textCoords[];
 
