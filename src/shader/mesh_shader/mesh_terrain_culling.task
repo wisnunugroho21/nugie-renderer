@@ -113,10 +113,7 @@ void main()
 	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0) {
-		taskPayload.tessellationSize = 5;
-		taskPayload.taskGroupPositionMin = taskGroupPositionMin;
-		taskPayload.taskGroupPositionMax = taskGroupPositionMax;
-		
+		taskPayload.tessellationSize = 5;				
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
 }
