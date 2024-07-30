@@ -26,9 +26,9 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
 
 bool isPointVisible(vec4 screenPosition) {
-  return screenPosition.x >= -screenPosition.w && screenPosition.x <= screenPosition.w
-    && screenPosition.y >= -screenPosition.w && screenPosition.y <= screenPosition.w
-    && screenPosition.z >= 0 && screenPosition.z <= screenPosition.w;
+  return screenPosition.x >= -screenPosition.w || screenPosition.x <= screenPosition.w
+    || screenPosition.y >= -screenPosition.w || screenPosition.y <= screenPosition.w
+    || screenPosition.z >= 0 || screenPosition.z <= screenPosition.w;
 }
 
 uvec2 screenSpaceTessFactor(vec4 p0, vec4 p1) {
