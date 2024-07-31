@@ -116,7 +116,7 @@ void main()
 
 	uint tileCount = subgroupBallotBitCount(ballout);
 
-	if (gl_LocalInvocationIndex == 0) {
+	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
 		taskPayload.tessellationSize = 5;				
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
