@@ -167,15 +167,15 @@ namespace NugieApp
                                         .build();
 
         uint32_t terrainSize = 1600u;
-        uint32_t iterations = 100u;
+        uint32_t iterations = 200u;
         float minHeight = 0.0f;
-        float maxHeight = 300.0f;
-        float filter = 0.2f;
+        float maxHeight = 1000.0f;
+        float filter = 0.8f;
 
         TerrainPoints *terrainPoints = FaultTerrainGeneration(terrainSize, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
-        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{static_cast<float>(terrainSize)} };
-        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 800.0f, 1.0f} };
+        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{16000.0f} };
+        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 1000.0f, 1.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);
@@ -191,7 +191,7 @@ namespace NugieApp
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
         glm::vec3 position = glm::vec3(0.0f, 600.0f, 0.0f);
-        glm::vec3 target = glm::vec3(1600.0f, 0.0f, 1600.0f);
+        glm::vec3 target = glm::vec3(16000.0f, 0.0f, 16000.0f);
 
         float near = 0.1f;
         float far = 10000.0f;
@@ -258,7 +258,7 @@ namespace NugieApp
         }
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
-                                                  "shader/mesh_terrain_culling.task.spv", "shader/mesh_terrain_culling.mesh.spv", 
+                                                  "shader/mesh_terrain_culling_64.task.spv", "shader/mesh_terrain_culling.mesh.spv", 
                                                   "shader/mesh_shade.frag.spv", this->deviceProcedures,
                                                   { this->meshDescSet->getDescSetLayout() });
 
