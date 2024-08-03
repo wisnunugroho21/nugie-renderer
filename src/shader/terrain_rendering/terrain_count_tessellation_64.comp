@@ -17,7 +17,7 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 };
 
 layout(set = 0, binding = 3) buffer writeonly TerrainTessellationBuffer {
-    uvec2 tessFactors[32];
+    uint tessFactors[64];
 };
 
 void main() {
@@ -41,11 +41,6 @@ void main() {
 
 	clip0.xy *= screenSizeFactorEdgeSize.xy;
 	clip1.xy *= screenSizeFactorEdgeSize.xy;
-
-	vec4 dst = abs(clip1 - clip0);
 	
-	float xFactor = clamp(dst.x / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0f, 8.0f);
-	float yFactor = clamp(dst.y / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0f, 4.0f);
-
-    tessFactors[gl_LocalInvocationIndex] = uvec2(xFactor, yFactor);
+	tessFactors[gl_LocalInvocationIndex] = uint(clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0f, 8.0f));
 }

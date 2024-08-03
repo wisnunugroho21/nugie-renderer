@@ -281,7 +281,7 @@ namespace NugieApp
                                         .build();
         }
 
-        this->terrainCountTessRenderer = new ComputeRenderSystem(this->device, "shader/terrain_count_tessellation.comp.spv", { this->meshCountTessDescSet->getDescSetLayout() });
+        this->terrainCountTessRenderer = new ComputeRenderSystem(this->device, "shader/terrain_count_tessellation_64.comp.spv", { this->meshCountTessDescSet->getDescSetLayout() });
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
                                                   "shader/terrain_rendering_64.task.spv", "shader/terrain_rendering.mesh.spv", 

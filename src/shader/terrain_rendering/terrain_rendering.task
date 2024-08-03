@@ -24,7 +24,7 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 };
 
 layout(set = 0, binding = 3) buffer readonly TerrainTessellationBuffer {
-    uint tessFactors[64];
+    uvec2 tessFactors[32];
 };
 
 layout(set = 0, binding = 4) uniform sampler2D heightMapTexture;
@@ -83,10 +83,7 @@ void main()
 	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
 	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
 
-	uvec2 tessFactor = screenSpaceTessFactor(
-		vec4(taskGroupPositionMin.x, 0.0f, taskGroupPositionMin.y, 1.0f),
-		vec4(taskGroupPositionMax.x, 0.0f, taskGroupPositionMax.y, 1.0f)
-	);
+	uvec2 tessFactor = tessFactors[gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y];
 
 	vec2 curCoord = vec2(
 		gl_LocalInvocationIndex % tessFactor.x, 
