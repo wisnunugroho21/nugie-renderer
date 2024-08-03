@@ -1,0 +1,46 @@
+#version 460
+
+layout (local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
+	mat4 view;
+	mat4 projection;
+};
+
+layout(set = 0, binding = 1) uniform readonly TerrainSquareBuffer {
+	vec2 totalMinimum;
+    vec2 totalMaximum;
+};
+
+layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
+	vec4 screenSizeFactorEdgeSize;
+};
+
+layout(set = 0, binding = 3) buffer writeonly TerrainTessellationBuffer {
+    uint tessFactors[64];
+};
+
+void main() {
+    vec2 idx = vec2(gl_LocalInvocationID.xy);
+	vec2 gSize = vec2(gl_WorkGroupSize.xy);
+
+	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
+	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
+
+    vec4 p0 = vec4(taskGroupPositionMin.x, 0.0f, taskGroupPositionMin.y, 1.0f);
+    vec4 p1 = vec4(taskGroupPositionMax.x, 0.0f, taskGroupPositionMax.y, 1.0f);
+
+    float radius = distance(p0, p1) / 2.0f;
+	vec4 v0 = view * (0.5f * (p0 + p1));
+
+	vec4 clip0 = (projection * (v0 - vec4(radius, radius, 0.0f, 0.0f)));
+	vec4 clip1 = (projection * (v0 + vec4(radius, radius, 0.0f, 0.0f)));
+
+	clip0 /= clip0.w;
+	clip1 /= clip1.w;
+
+	clip0.xy *= screenSizeFactorEdgeSize.xy;
+	clip1.xy *= screenSizeFactorEdgeSize.xy;
+	
+	tessFactors[gl_LocalInvocationIndex] = uint(clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0f, 8.0f));
+}

@@ -7,12 +7,14 @@
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/stacked_object_buffer.hpp"
+#include "../data/buffer/stacked_array_buffer.hpp"
 #include "../data/descSet/descriptor_set.hpp"
 #include "../data/texture/texture.hpp"
 #include "../data/texture/heightmap_texture.hpp"
 #include "../renderer/renderer.hpp"
 #include "../renderer_sub/sub_renderer.hpp"
 #include "../renderer_system/mesh_shader/mesh_render_system.hpp"
+#include "../renderer_system/compute_render_system.hpp"
 #include "../utils/transform/transform.hpp"
 #include "../mesh_shading_struct.hpp"
 
@@ -48,11 +50,16 @@ namespace NugieApp {
         NugieVulkan::DeviceProcedures *deviceProcedures = nullptr;        
 
         StackedObjectBuffer *meshUniformBuffer = nullptr;
+        StackedArrayBuffer *meshStorageBuffer = nullptr;
+
+        DescriptorSet *meshCountTessDescSet = nullptr;
         DescriptorSet *meshDescSet = nullptr;
 
         Renderer *renderer = nullptr;
-        SubRenderer *finalSubRenderer = nullptr;        
+        SubRenderer *finalSubRenderer = nullptr;
+
         MeshRenderSystem *meshRenderer = nullptr;
+        ComputeRenderSystem *terrainCountTessRenderer = nullptr;
 
         Camera *camera = nullptr;
         KeyboardController *keyboardController = nullptr;

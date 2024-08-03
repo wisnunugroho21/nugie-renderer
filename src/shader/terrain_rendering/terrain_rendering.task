@@ -5,7 +5,7 @@
 
 #include "struct.glsl"
 
-layout(local_size_x = 64) in;
+layout(local_size_x = 32) in;
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 
@@ -23,18 +23,19 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 	vec4 screenSizeFactorEdgeSize;
 };
 
-layout(set = 0, binding = 3) uniform sampler2D heightMapTexture;
+layout(set = 0, binding = 3) buffer readonly TerrainTessellationBuffer {
+    uint tessFactors[64];
+};
+
+layout(set = 0, binding = 4) uniform sampler2D heightMapTexture;
 
 bool isPointVisible(vec4 screenPosition) {
-  return screenPosition.x >= -screenPosition.w 
-  	|| screenPosition.x <= screenPosition.w
-    || screenPosition.y >= -screenPosition.w 
-	|| screenPosition.y <= screenPosition.w
-    || screenPosition.z >= 0 
-	|| screenPosition.z <= screenPosition.w;
+  return screenPosition.x >= -screenPosition.w || screenPosition.x <= screenPosition.w
+    || screenPosition.y >= -screenPosition.w || screenPosition.y <= screenPosition.w
+    || screenPosition.z >= 0 || screenPosition.z <= screenPosition.w;
 }
 
-uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
+uvec2 screenSpaceTessFactor(vec4 p0, vec4 p1) {
 	float radius = distance(p0, p1) / 2.0;
 	vec4 v0 = view * (0.5 * (p0 + p1));
 
@@ -46,9 +47,13 @@ uint screenSpaceTessFactor(vec4 p0, vec4 p1) {
 
 	clip0.xy *= screenSizeFactorEdgeSize.xy;
 	clip1.xy *= screenSizeFactorEdgeSize.xy;
+
+	vec4 dst = abs(clip1 - clip0);
 	
-	float factor = clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0, 8.0);
-    return uint(factor);
+	float xFactor = clamp(dst.x / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0, 8.0);
+	float yFactor = clamp(dst.y / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0, 4.0);
+
+    return uvec2(xFactor, yFactor);
 }
 
 vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax) {
@@ -78,14 +83,14 @@ void main()
 	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
 	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
 
-	uint tessFactor = screenSpaceTessFactor(
+	uvec2 tessFactor = screenSpaceTessFactor(
 		vec4(taskGroupPositionMin.x, 0.0f, taskGroupPositionMin.y, 1.0f),
 		vec4(taskGroupPositionMax.x, 0.0f, taskGroupPositionMax.y, 1.0f)
 	);
 
 	vec2 curCoord = vec2(
-		gl_LocalInvocationIndex % tessFactor, 
-		floor(gl_LocalInvocationIndex / tessFactor)
+		gl_LocalInvocationIndex % tessFactor.x, 
+		floor(gl_LocalInvocationIndex / tessFactor.x)
 	);
 
 	vec2 meshGroupPositionMin = mix(taskGroupPositionMin, taskGroupPositionMax, curCoord / tessFactor);
@@ -103,7 +108,7 @@ void main()
 		|| isPointVisible(screenPositionPoint2)
 		|| isPointVisible(screenPositionPoint3);
 
-	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor * tessFactor);
+	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor.x * tessFactor.y);
 
 	uvec4 ballout = subgroupBallot(isVisible);
 	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);

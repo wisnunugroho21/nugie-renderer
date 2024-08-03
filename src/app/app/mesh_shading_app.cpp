@@ -40,10 +40,16 @@ namespace NugieApp
 
     MeshShadingApp::~MeshShadingApp() {
         delete this->meshDescSet;
-        delete this->meshUniformBuffer;
+        delete this->meshCountTessDescSet;
+        
         delete this->heightMapTexture;
 
-        delete this->meshRenderer;        
+        delete this->meshUniformBuffer;
+        delete this->meshStorageBuffer;
+
+        delete this->meshRenderer;
+        delete this->terrainCountTessRenderer;
+
         delete this->finalSubRenderer;        
         delete this->renderer;
 
@@ -63,10 +69,10 @@ namespace NugieApp
             for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
                 auto commandBuffer = this->renderer->beginRecordRenderCommand(frameIndex, imageIndex);
 
-                this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);
-               
-                this->meshRenderer->render(commandBuffer, 8u, 8u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });
-                
+                this->terrainCountTessRenderer->render(commandBuffer, 1u, 1u, 1u, { this->meshCountTessDescSet->getDescriptorSets(frameIndex) });
+
+                this->finalSubRenderer->beginRenderPass(commandBuffer, imageIndex);               
+                this->meshRenderer->render(commandBuffer, 8u, 8u, 1u, { this->meshDescSet->getDescriptorSets(frameIndex) });                
                 this->finalSubRenderer->endRenderPass(commandBuffer);
 
                 commandBuffer->endCommand();
@@ -166,6 +172,10 @@ namespace NugieApp
                                         .addArrayItem("camera_transf", static_cast<VkDeviceSize>(sizeof(CameraMatrix)), 1u)
                                         .build();
 
+        this->meshStorageBuffer = StackedArrayBuffer::Builder(this->device, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
+                                        .addArrayItem("tess_factors", static_cast<VkDeviceSize>(sizeof(uint32_t)), 64u)
+                                        .build();
+
         uint32_t terrainSize = 1600u;
         uint32_t iterations = 200u;
         float minHeight = 0.0f;
@@ -218,7 +228,19 @@ namespace NugieApp
         std::vector<VkDescriptorImageInfo> heightMapInfos;
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             heightMapInfos.emplace_back(this->heightMapTexture->getDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-        }        
+        }
+
+        this->meshCountTessDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
+                                                   NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
+                                .addBuffer(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                                           this->meshUniformBuffer->getInfo("camera_transf"))
+                                .addBuffer(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                                           this->meshUniformBuffer->getInfo("terrain_square"))
+                                .addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                                           this->meshUniformBuffer->getInfo("tessellation_data"))
+                                .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT,
+                                           this->meshStorageBuffer->getInfo("tess_factors"))
+                                .build();        
 
         this->meshDescSet = DescriptorSet::Builder(this->device, this->renderer->getDescriptorPool(),
                                                    NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT)
@@ -228,15 +250,17 @@ namespace NugieApp
                                            this->meshUniformBuffer->getInfo("terrain_square"))
                                 .addBuffer(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("tessellation_data"))
-                                .addImage(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TASK_BIT_EXT, 
+                                .addBuffer(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_EXT,
+                                           this->meshStorageBuffer->getInfo("tess_factors"))
+                                .addImage(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TASK_BIT_EXT, 
                                            heightMapInfos)
-                                .addBuffer(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
-                                           this->meshUniformBuffer->getInfo("camera_transf"))
                                 .addBuffer(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
+                                           this->meshUniformBuffer->getInfo("camera_transf"))
+                                .addBuffer(6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT,
                                            this->meshUniformBuffer->getInfo("terrain_square"))
-                                .addImage(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
+                                .addImage(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_MESH_BIT_EXT, 
                                            heightMapInfos)
-                                .build();
+                                .build();        
 
         if (msaaSample == VK_SAMPLE_COUNT_1_BIT) {
             this->finalSubRenderer = SubRenderer::Builder(this->device, width, height, imageCount)
@@ -256,12 +280,15 @@ namespace NugieApp
                                                                this->renderer->getSwapChain()->getImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
                                         .build();
         }
+
+        this->terrainCountTessRenderer = new ComputeRenderSystem(this->device, "shader/terrain_count_tessellation.comp.spv", { this->meshCountTessDescSet->getDescSetLayout() });
         
         this->meshRenderer = new MeshRenderSystem(this->device, this->finalSubRenderer->getRenderPass(), 
-                                                  "shader/mesh_terrain_culling_64.task.spv", "shader/mesh_terrain_culling.mesh.spv", 
-                                                  "shader/mesh_shade.frag.spv", this->deviceProcedures,
+                                                  "shader/terrain_rendering_64.task.spv", "shader/terrain_rendering.mesh.spv", 
+                                                  "shader/terrain_rendering.frag.spv", this->deviceProcedures,
                                                   { this->meshDescSet->getDescSetLayout() });
 
+        this->terrainCountTessRenderer->initialize();
         this->meshRenderer->initialize();
     }
 
