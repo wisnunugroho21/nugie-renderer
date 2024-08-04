@@ -87,26 +87,25 @@ void main()
 	vec2 meshGroupPositionMax = mix(taskGroupPositionMin, taskGroupPositionMax, (curCoord + 1.0f) / TILE_COUNT);
 
 	uvec2 uCurCoord = uvec2(curCoord);
-	uvec2 tileCoord;
 
-	tileCoord.x = (uCurCoord.x < HALF_TILE_COUNT) 
+	uint xTileCoord = (uCurCoord.x < HALF_TILE_COUNT) 
 		? uCurCoord.x % HALF_TILE_COUNT
-		: HALF_TILE_COUNT - (uCurCoord.x % HALF_TILE_COUNT) - 1u;
+		: HALF_TILE_COUNT - (uCurCoord.x) % HALF_TILE_COUNT - 1u;
 
-	tileCoord.y = (uCurCoord.y < HALF_TILE_COUNT) 
+	uint yTileCoord = (uCurCoord.y < HALF_TILE_COUNT) 
 		? uCurCoord.y % HALF_TILE_COUNT
 		: HALF_TILE_COUNT - (uCurCoord.y % HALF_TILE_COUNT) - 1u;
 
 	uint tessellationSize;
-	if (tileCoord.x == 3u && tileCoord.y == 3u) {
+	if (xTileCoord == 3u && yTileCoord == 3u) {
 		tessellationSize = 9u;
 	}
 
-	else if ((tileCoord.x == 2u && tileCoord.y >= 2u) || (tileCoord.x >= 2u && tileCoord.y == 2u)) {
+	else if ((xTileCoord == 2u && yTileCoord >= 2u) || (xTileCoord >= 2u && yTileCoord == 2u)) {
 		tessellationSize = 7u;
 	}
 
-	else if ((tileCoord.x == 1u && tileCoord.y >= 1u) || (tileCoord.x >= 1u && tileCoord.y == 1u)) {
+	else if ((xTileCoord == 1u && yTileCoord >= 1u) || (xTileCoord >= 1u && yTileCoord == 1u)) {
 		tessellationSize = 5u;
 	}
 

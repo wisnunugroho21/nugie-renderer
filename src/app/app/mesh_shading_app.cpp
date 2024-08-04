@@ -174,7 +174,7 @@ namespace NugieApp
 
         TerrainPoints *terrainPoints = FaultTerrainGeneration(terrainSize, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
-        NugieMeshShading::Square terrainSquare { glm::vec2{-1.0f}, glm::vec2{1.0f} };
+        NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{1600.0f} };
         NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 1000.0f, 1.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
@@ -190,8 +190,8 @@ namespace NugieApp
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
-        glm::vec3 position = glm::vec3(0.0f, 4.0f, 0.0f);
-        glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
+        glm::vec3 position = glm::vec3(800.0f, 50.0f, 800.0f);
+        glm::vec3 target = glm::vec3(800.0f, 0.0f, 1600.0f);
 
         float near = 0.1f;
         float far = 10000.0f;
