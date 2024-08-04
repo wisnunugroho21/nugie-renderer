@@ -169,7 +169,7 @@ namespace NugieApp
         uint32_t terrainSize = 1600u;
         uint32_t iterations = 200u;
         float minHeight = 0.0f;
-        float maxHeight = 1000.0f;
+        float maxHeight = 100.0f;
         float filter = 0.8f;
 
         TerrainPoints *terrainPoints = FaultTerrainGeneration(terrainSize, iterations, minHeight, maxHeight, filter).getTerrainPoints();
@@ -190,7 +190,7 @@ namespace NugieApp
     }
 
     void MeshShadingApp::initCamera(uint32_t width, uint32_t height) {
-        glm::vec3 position = glm::vec3(800.0f, 50.0f, 800.0f);
+        glm::vec3 position = glm::vec3(800.0f, 150.0f, 800.0f);
         glm::vec3 target = glm::vec3(800.0f, 0.0f, 1600.0f);
 
         float near = 0.1f;

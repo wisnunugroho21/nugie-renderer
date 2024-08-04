@@ -74,7 +74,7 @@ void main()
 		vec2 textCoord = (worldPosition.xy - totalMinimum) / (totalMaximum - totalMinimum);
 
 		worldPosition.z = worldPosition.y;
-		worldPosition.y = 0.0f; // texture(heightMapTexture, textCoord).r;
+		worldPosition.y = texture(heightMapTexture, textCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
 		textCoords[gl_LocalInvocationIndex] = textCoord;
