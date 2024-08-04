@@ -113,7 +113,7 @@ void main()
 		tessellationSize = 3u;
 	}
 
-	/* mat4 mvp = projection * view;
+	mat4 mvp = projection * view;
   
 	vec4 screenPositionPoint0 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMin.y, 1.0f);
 	vec4 screenPositionPoint1 = mvp * vec4(meshGroupPositionMin.x, 0.0, meshGroupPositionMax.y, 1.0f);
@@ -137,16 +137,11 @@ void main()
 
 	uint tileCount = subgroupBallotBitCount(ballout);
 
-	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
-		taskPayload.tessellationSize = 5;				
-		EmitMeshTasksEXT(tileCount, 1u, 1u);
-	} */
-
 	taskPayload.tessellationSize[gl_LocalInvocationIndex] = tessellationSize;
 	taskPayload.meshGroupPositionMin[gl_LocalInvocationIndex] = meshGroupPositionMin;
 	taskPayload.meshGroupPositionMax[gl_LocalInvocationIndex] = meshGroupPositionMax;
 
-	if (gl_LocalInvocationIndex == 0) {
-		EmitMeshTasksEXT(64u, 1u, 1u);
+	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
+		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
 }
