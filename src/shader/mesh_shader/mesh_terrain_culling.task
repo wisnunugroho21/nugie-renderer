@@ -73,7 +73,7 @@ vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax)
 
 void main()
 {
-	vec2 idx = vec2(gl_WorkGroupID.xy);
+	/* vec2 idx = vec2(gl_WorkGroupID.xy);
 	vec2 gSize = vec2(gl_NumWorkGroups.xy);
 
 	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
@@ -114,10 +114,20 @@ void main()
 		taskPayload.meshGroupPositionMax[survivingTileIndex] = meshGroupPositionMax;
 	}	
 
-	uint tileCount = subgroupBallotBitCount(ballout);
+	uint tileCount = subgroupBallotBitCount(ballout); 
 
 	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
 		taskPayload.tessellationSize = 5;				
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
-	}	
+
+		EmitMeshTasksEXT(tileCount, 1u, 1u);
+	} 
+
+	taskPayload.tessellationSize[gl_LocalInvocationIndex] = 3;
+	taskPayload.meshGroupPositionMin[gl_LocalInvocationIndex] = meshGroupPositionMin;
+	taskPayload.meshGroupPositionMax[gl_LocalInvocationIndex] = meshGroupPositionMax;
+
+	if (gl_LocalInvocationIndex == 0) {
+		EmitMeshTasksEXT(64u, 1u, 1u);
+	} */
 }
