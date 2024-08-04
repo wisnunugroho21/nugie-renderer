@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_KHR_shader_subgroup_shuffle : require
+
 layout (local_size_x = 8, local_size_y = 8) in;
 
 layout(set = 0, binding = 0) uniform readonly CameraTransformationBuffer {
@@ -18,6 +20,7 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 
 layout(set = 0, binding = 3) buffer writeonly TerrainTessellationBuffer {
     uint tessFactors[64];
+	uvec4 crackOptims[64];
 };
 
 void main() {
@@ -42,5 +45,37 @@ void main() {
 	clip0.xy *= screenSizeFactorEdgeSize.xy;
 	clip1.xy *= screenSizeFactorEdgeSize.xy;
 	
-	tessFactors[gl_LocalInvocationIndex] = uint(clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0f, 8.0f));
+	uint tessFactor = uint(clamp(distance(clip0, clip1) / screenSizeFactorEdgeSize.z * screenSizeFactorEdgeSize.w, 1.0f, 8.0f));
+	uvec4 crackOptim;
+
+	uint leftTessFactor = subgroupShuffle(
+		tessFactor, 
+		(gl_SubgroupID % 8u == 0u) ? gl_SubgroupID : gl_SubgroupID - 1u
+	);
+
+	crackOptim.x = (tessFactor > leftTessFactor) ? 1024u : 0u;
+
+	uint rightTessFactor = subgroupShuffle(
+		tessFactor, 
+		(gl_SubgroupID % 8u == 7u) ? gl_SubgroupID : gl_SubgroupID + 1u
+	);
+
+	crackOptim.y = (tessFactor > rightTessFactor) ? 1024u : 0u;
+
+	uint upTessFactor = subgroupShuffle(
+		tessFactor, 
+		(gl_SubgroupID < 8u) ? gl_SubgroupID : gl_SubgroupID - 8u
+	);
+
+	crackOptim.z = (tessFactor > upTessFactor) ? 1024u : 0u;
+
+	uint downTessFactor = subgroupShuffle(
+		tessFactor, 
+		(gl_SubgroupID > 55u) ? gl_SubgroupID : gl_SubgroupID + 8u
+	);
+
+	crackOptim.w = (tessFactor > downTessFactor) ? 1024u : 0u;
+
+	tessFactors[gl_LocalInvocationIndex] = tessFactor;
+	crackOptims[gl_LocalInvocationIndex] = crackOptim;
 }

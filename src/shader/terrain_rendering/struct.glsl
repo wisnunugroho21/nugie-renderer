@@ -2,6 +2,7 @@
 
 struct TaskPayload {
     uint tessellationSize;
+    uvec4 crackOptims;
     vec2 meshGroupPositionMin[64];
     vec2 meshGroupPositionMax[64];
 };

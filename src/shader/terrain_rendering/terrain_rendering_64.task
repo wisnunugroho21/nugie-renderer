@@ -25,6 +25,7 @@ layout(set = 0, binding = 2) uniform readonly TessellationDataBuffer {
 
 layout(set = 0, binding = 3) buffer readonly TerrainTessellationBuffer {
     uint tessFactors[64];
+	uvec4 crackOptims[64];
 };
 
 layout(set = 0, binding = 4) uniform sampler2D heightMapTexture;
@@ -81,8 +82,9 @@ void main()
 
 	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
 	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
-
-	uint tessFactor = tessFactors[gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y];
+	
+	uint tileIdx = gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y;
+	uint tessFactor = tessFactors[tileIdx];
 
 	vec2 curCoord = vec2(
 		gl_LocalInvocationIndex % tessFactor, 
@@ -117,7 +119,8 @@ void main()
 	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
-		taskPayload.tessellationSize = 5;				
+		taskPayload.tessellationSize = 5;
+		taskPayload.uvec4 crackOptims = crackOptims[tileIdx];				
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
 }
