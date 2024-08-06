@@ -229,8 +229,6 @@ bool hitGeometryBvh(vec3 rayOrigin, vec3 rayDirection, uint firstBvhIndex,
             uvec4 curNodeIndex = geometryBvhNodeIndexes[currentNode - 1u + firstBvhIndex];
 
             if (curNodeIndex.z > 0u) {
-                Triangle triangle;
-
                 switch (curNodeIndex.w) {
                     case 1u:
                         if (hitTriangle(triangles[curNodeIndex.z - 1u + firstGeometryIndex], 
