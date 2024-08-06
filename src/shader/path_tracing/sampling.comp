@@ -7,8 +7,8 @@ layout (local_size_x = 8, local_size_y = 4) in;
 layout (set = 0, binding = 0, rgba32f) writeonly uniform image2D resultImage;
 
 layout (set = 0, binding = 1) buffer SamplingBuffer {
-    vec4 results[];
-} samplingBuffer;
+    vec4 samplingResultCountdowns[];
+};
 
 layout (set = 0, binding = 2) buffer readonly IntegratorTotalRadianceIsRayBounceBuffer {
     vec4 integratorTotalRadianceIsRayBounces[];
@@ -21,18 +21,18 @@ void main() {
     vec4 totalRadianceIsRayBounce = integratorTotalRadianceIsRayBounces[bufferIndex];
 
     if (totalRadianceIsRayBounce.w < 0.5f) {
-        vec4 samplingResult = samplingBuffer.results[bufferIndex];
+        vec4 samplingResultCountdown = samplingResultCountdowns[bufferIndex];
 
         vec3 totalColor =
-            (clamp(totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResult.xyz * samplingResult.w)
-            / (samplingResult.w + 1.0f);
+            (clamp(totalRadianceIsRayBounce.xyz, 0.0f, 1.0f) + samplingResultCountdown.xyz * samplingResultCountdown.w)
+            / (samplingResultCountdown.w + 1.0f);
 
-        samplingResult.xyz = totalColor;
+        samplingResultCountdown.xyz = totalColor;
 
-        samplingResult.w = samplingResult.w + 1.0;
-        samplingResult.w = (samplingResult.w < 0.0f) ? 0.0f : samplingResult.w;
+        samplingResultCountdown.w = floor(samplingResultCountdown.w + 1.0);
+        samplingResultCountdown.w = (samplingResultCountdown.w < 0.0f) ? 0.0f : samplingResultCountdown.w;
 
-        samplingBuffer.results[bufferIndex] = samplingResult;
+        samplingResultCountdowns[bufferIndex] = samplingResultCountdown;
         imageStore(resultImage, pixelCoord, vec4(totalColor, 1.0f));
     }
 }

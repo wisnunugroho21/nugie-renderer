@@ -757,8 +757,8 @@ namespace NugieApp {
 
         for (auto &&resultImage: this->resultImages) {
             resultImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                               0, VK_ACCESS_SHADER_WRITE_BIT);
+                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                               0, 0);
         }
 
         this->rayTraceStorageBuffer->initializeValue(commandBuffer);
