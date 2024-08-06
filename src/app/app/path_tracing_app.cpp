@@ -94,7 +94,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
+                this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 4, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -105,7 +105,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->rayIntersectRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -123,7 +123,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->indirectRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->indirectRayHitRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                      {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -136,7 +136,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->lightRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->lightRayHitRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                   {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_radiance_illuminate",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -145,7 +145,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->missRayRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->missRayRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                               {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_radiance_miss",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -160,7 +160,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->directRayGenRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->directRayGenRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -178,7 +178,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->rayIntersectRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -190,7 +190,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->directRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->directRayHitRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_radiance_pdf",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -204,7 +204,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-                this->integratorRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->integratorRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                  {this->integratorDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_radiance_bounce",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -214,9 +214,8 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->samplingRenderer->render(commandBuffer, width / 8, height / 8, 1,
-                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
-
+                this->samplingRenderer->render(commandBuffer, width / 8, height / 4, 1,
+                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});
                 
                 // -------------------------------------------------------------------------------------------------------------------
 
