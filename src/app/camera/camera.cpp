@@ -83,25 +83,6 @@ namespace NugieApp {
 		this->inverseViewMatrix[3][0] = this->position.x;
 		this->inverseViewMatrix[3][1] = this->position.y;
 		this->inverseViewMatrix[3][2] = this->position.z;
-
-        float h = glm::tan(this->fovy / 2.0f);
-        float viewportHeight = 2.0f * h;
-        float viewportWidth = this->aspectRatio * viewportHeight;
-
-        this->cameraRay.origin = position;
-        this->cameraRay.horizontal = glm::vec3(viewportWidth * u);
-        this->cameraRay.vertical = glm::vec3(viewportHeight * v);
-        this->cameraRay.lowerLeftCorner = position 
-			- viewportWidth * u / 2.0f 
-			+ viewportHeight * v / 2.0f 
-			- w;
-
-        this->cameraTransformation.origin = position;
-        this->cameraTransformation.direction = direction;
-    }
-
-    void Camera::setViewTransformation(CameraTransformation cameraTransf, glm::vec3 vup) {
-        this->setViewDirection(cameraTransf.origin, cameraTransf.direction, vup);
     }
 
     void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 vup) {
@@ -147,20 +128,5 @@ namespace NugieApp {
 		this->inverseViewMatrix[3][0] = this->position.x;
 		this->inverseViewMatrix[3][1] = this->position.y;
 		this->inverseViewMatrix[3][2] = this->position.z;
-
-		float h = glm::tan(this->fovy / 2.0f);
-        float viewportHeight = 2.0f * h;
-        float viewportWidth = this->aspectRatio * viewportHeight;
-
-        this->cameraRay.origin = position;
-        this->cameraRay.horizontal = glm::vec3(viewportWidth * u);
-        this->cameraRay.vertical = glm::vec3(viewportHeight * v);
-        this->cameraRay.lowerLeftCorner = position 
-			- viewportWidth * u / 2.0f 
-			+ viewportHeight * v / 2.0f 
-			- w;
-
-        this->cameraTransformation.origin = position;
-        this->cameraTransformation.direction = direction;
 	}
 } // namespace nugiEngine

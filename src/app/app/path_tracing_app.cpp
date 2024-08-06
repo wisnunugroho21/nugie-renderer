@@ -23,7 +23,8 @@ namespace NugieApp {
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-        this->camera = new Camera();
+        this->camera = new PathTracingCamera(this->renderer->getSwapChain()->getWidth(), 
+                                             this->renderer->getSwapChain()->getHeight());
 
         this->loadData();
         this->init();
@@ -776,9 +777,7 @@ namespace NugieApp {
         float theta = glm::radians(40.0f);
         float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
-        this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
-        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
-        
+        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
         CameraRay cameraRay = this->camera->getCameraRay();
 
         this->rayTraceUbo.origin = cameraRay.origin;
