@@ -5,7 +5,7 @@
 
 #include "struct.glsl"
 
-layout(local_size_x = 32) in;
+layout(local_size_x = 64) in;
 
 taskPayloadSharedEXT TaskPayload taskPayload;
 

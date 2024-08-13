@@ -175,7 +175,7 @@ namespace NugieApp
         TerrainPoints *terrainPoints = FaultTerrainGeneration(terrainSize, iterations, minHeight, maxHeight, filter).getTerrainPoints();
 
         NugieMeshShading::Square terrainSquare { glm::vec2{0.0f}, glm::vec2{16000.0f} };
-        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 1000.0f, 1.0f} };
+        NugieMeshShading::TessellationData tessData { glm::vec4{width, height, 400.0f, 1.0f} };
         
         for (uint32_t frameIndex = 0; frameIndex < NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT; frameIndex++) {
             this->meshUniformBuffer->writeValue(frameIndex, "terrain_square", &terrainSquare);
