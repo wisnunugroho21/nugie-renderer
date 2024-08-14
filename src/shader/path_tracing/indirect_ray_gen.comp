@@ -2,7 +2,7 @@
 
 #include "struct.glsl"
 
-layout (local_size_x = 8, local_size_y = 8) in;
+layout (local_size_x = 8, local_size_y = 4) in;
 
 layout (set = 0, binding = 0) uniform readonly GlobalUniform {
     vec3 origin;

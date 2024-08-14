@@ -23,7 +23,8 @@ namespace NugieApp {
         this->device = new NugieVulkan::Device(this->window);
         this->renderer = new Renderer(this->window, this->device, NugieVulkan::Device::MAX_FRAMES_IN_FLIGHT);
 
-        this->camera = new Camera();
+        this->camera = new PathTracingCamera(this->renderer->getSwapChain()->getWidth(), 
+                                             this->renderer->getSwapChain()->getHeight());
 
         this->loadData();
         this->init();
@@ -93,7 +94,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 8, 1,
+                this->indirectRayGenRenderer->render(commandBuffer, width / 8, height / 4, 1,
                                                      {this->indirectRayGenDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -104,7 +105,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->rayIntersectRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -122,7 +123,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->indirectRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->indirectRayHitRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                      {this->indirectRayHitDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -135,7 +136,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->lightRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->lightRayHitRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                   {this->lightRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "light_radiance_illuminate",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -144,7 +145,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->missRayRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->missRayRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                               {this->missRayDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "miss_radiance_miss",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -159,7 +160,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->directRayGenRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->directRayGenRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->directRayGenDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -177,7 +178,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
 
-                this->rayIntersectRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->rayIntersectRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->rayIntersectDescSet->getDescriptorSets(frameIndex)}, {});
 
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, std::vector<std::string>{ 
@@ -189,7 +190,7 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->directRayHitRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->directRayHitRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                    {this->directRayHitDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "direct_radiance_pdf",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -203,7 +204,7 @@ namespace NugieApp {
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT,
                                                               VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-                this->integratorRenderer->render(commandBuffer, width * height  / 64, 1, 1,
+                this->integratorRenderer->render(commandBuffer, width * height / 32, 1, 1,
                                                  {this->integratorDescSet->getDescriptorSets(frameIndex)}, {});
                 this->rayTraceStorageBuffer->transitionBuffer(commandBuffer, frameIndex, "integrator_radiance_bounce",
                                                               VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -213,9 +214,8 @@ namespace NugieApp {
 
                 // -------------------------------------------------------------------------------------------------------------------
 
-                this->samplingRenderer->render(commandBuffer, width / 8, height / 8, 1,
-                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});                
-
+                this->samplingRenderer->render(commandBuffer, width / 8, height / 4, 1,
+                                               {this->samplingDescSet->getDescriptorSets(frameIndex)}, {});
                 
                 // -------------------------------------------------------------------------------------------------------------------
 
@@ -757,8 +757,8 @@ namespace NugieApp {
 
         for (auto &&resultImage: this->resultImages) {
             resultImage->transitionImageLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
-                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                               0, VK_ACCESS_SHADER_WRITE_BIT);
+                                               VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                               0, 0);
         }
 
         this->rayTraceStorageBuffer->initializeValue(commandBuffer);
@@ -776,9 +776,7 @@ namespace NugieApp {
         float theta = glm::radians(40.0f);
         float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
-        this->camera->setPerspectiveProjection(theta, aspectRatio, near, far);
-        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
-        
+        this->camera->setViewDirection(glm::vec3{278.0f, 278.0f, -800.0f}, glm::vec3{0.0f, 0.0f, 1.0f}, 40.0f);
         CameraRay cameraRay = this->camera->getCameraRay();
 
         this->rayTraceUbo.origin = cameraRay.origin;

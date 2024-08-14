@@ -4,7 +4,7 @@
 #include "../../vulkan/device/device.hpp"
 #include "../../vulkan/buffer/buffer.hpp"
 #include "../path_tracing_struct.hpp"
-#include "../camera/camera.hpp"
+#include "../camera/path_tracing_camera.hpp"
 #include "../controller/keyboard/keyboard_controller.hpp"
 #include "../controller/mouse/mouse_controller.hpp"
 #include "../data/buffer/stacked_object_buffer.hpp"
@@ -53,7 +53,7 @@ namespace NugieApp {
         NugieVulkan::Window *window = nullptr;
         NugieVulkan::Device *device = nullptr;
 
-        Camera *camera = nullptr;
+        PathTracingCamera *camera = nullptr;
         Renderer *renderer = nullptr;
 
 #ifdef USE_RASTER
