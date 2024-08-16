@@ -121,6 +121,6 @@ void main()
 	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
 		taskPayload.tessellationSize = 5;
 		taskPayload.crackOptims = crackOptims[tileIdx];				
-		EmitMeshTasksEXT(tileCount, 1u, 1u);
+		EmitMeshTasksEXT(1u, 1u, 1u);
 	}	
 }

@@ -22,6 +22,194 @@ layout(set = 0, binding = 6) uniform readonly TerrainSquareBuffer {
 
 layout(set = 0, binding = 7) uniform sampler2D heightMapTexture;
 
+uvec3 normalTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 8u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u);
+		case 6: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize);
+		case 7: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 leftCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 7u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex, initialIndex + 2u * tessellationSize);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u);
+		case 6: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 topCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 7u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex, initialIndex + 2u);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize);
+		case 6: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 rightCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 7u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize);
+		case 6: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 bottomCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 7u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u, initialIndex + 2u * tessellationSize);
+		case 6: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 leftTopCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 6u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex, initialIndex + 2u * tessellationSize);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex, initialIndex + 2u);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 topRightCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 6u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex, initialIndex + 2u);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 1u, initialIndex + 2u * tessellationSize);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 rightBottomCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 6u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u, initialIndex + 2u * tessellationSize);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 bottomLeftCrackTileIndexing(uint tessellationSize, uint initialIndex) {
+	switch(gl_LocalInvocationIndex % 6u) {
+		case 0: return uvec3(initialIndex + tessellationSize + 1u, initialIndex, initialIndex + 2u * tessellationSize);
+		case 1: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex);
+		case 2: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u);
+		case 3: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u);
+		case 4: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + tessellationSize + 2u, initialIndex + 2u * tessellationSize + 2u);
+		case 5: return uvec3(initialIndex + tessellationSize + 1u, initialIndex + 2u * tessellationSize + 2u, initialIndex + 2u * tessellationSize);
+	}
+}
+
+uvec3 normalIndexing(uint tessellationSize, uint localInvocationIndex) {
+	uint idxCoord = gl_LocalInvocationIndex / 8u;
+	uint halfSize = taskPayload.tessellationSize / 2u;
+
+	uint xIdxCoord = idxCoord % halfSize;
+	uint yIdxCoord = idxCoord / halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+	return normalTileIndexing(tessellationSize, initialIndex);
+}
+
+uvec3 leftCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
+	localInvocationIndex += (localInvocationIndex >= 14) ? 2u : 0u;
+	uint idxCoord = localInvocationIndex / ((localInvocationIndex >= 14) ? 8u : 7u);
+
+	uint halfSize = taskPayload.tessellationSize / 2u;
+
+	uint xIdxCoord = idxCoord / halfSize;
+	uint yIdxCoord = idxCoord % halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+	if (localInvocationIndex < 14) {
+		return leftCrackTileIndexing(tessellationSize, initialIndex);
+	}
+
+	return normalTileIndexing(tessellationSize, initialIndex);
+}
+
+uvec3 topCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
+	localInvocationIndex += (localInvocationIndex >= 14) ? 2u : 0u;
+	uint idxCoord = localInvocationIndex / ((localInvocationIndex >= 14) ? 8u : 7u);
+
+	uint halfSize = taskPayload.tessellationSize / 2u;
+
+	uint xIdxCoord = idxCoord % halfSize;
+	uint yIdxCoord = idxCoord / halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+	if (localInvocationIndex < 14) {
+		return topCrackTileIndexing(tessellationSize, initialIndex);
+	}
+
+	return normalTileIndexing(tessellationSize, initialIndex);
+}
+
+uvec3 rightCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
+	uint idxCoord = (localInvocationIndex - ((localInvocationIndex < 16) ? 0u : 2u)) 
+		/ ((localInvocationIndex < 16) ? 8u : 7u);
+
+	uint halfSize = taskPayload.tessellationSize / 2u;
+
+	uint xIdxCoord = idxCoord / halfSize;
+	uint yIdxCoord = idxCoord % halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+	if (localInvocationIndex < 16) {
+		return normalTileIndexing(tessellationSize, initialIndex);
+	}
+
+	return rightCrackTileIndexing(tessellationSize, initialIndex);
+}
+
+uvec3 bottomCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
+	uint idxCoord = (localInvocationIndex - ((localInvocationIndex < 16) ? 0u : 2u)) 
+		/ ((localInvocationIndex < 16) ? 8u : 7u);
+
+	uint halfSize = taskPayload.tessellationSize / 2u;
+
+	uint xIdxCoord = idxCoord % halfSize;
+	uint yIdxCoord = idxCoord / halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+	if (localInvocationIndex < 16) {
+		return normalTileIndexing(tessellationSize, initialIndex);
+	}
+
+	return bottomCrackTileIndexing(tessellationSize, initialIndex);
+}
+
 void main()
 {
 	uint tileCount = taskPayload.tessellationSize - 1u;
@@ -31,25 +219,8 @@ void main()
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
-	if (gl_LocalInvocationIndex < triangleCount) {
-		uint idxCoord = gl_LocalInvocationIndex / 8u;
-		uint halfSize = taskPayload.tessellationSize / 2u;
-
-		uint xIdxCoord = idxCoord % halfSize;
-		uint yIdxCoord = idxCoord / halfSize;
-
-		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
-
-		switch(gl_LocalInvocationIndex % 8u) {
-			case 0: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex); break;
-			case 1: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex); break;
-			case 2: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
-			case 3: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u); break;
-			case 4: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
-			case 5: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
-			case 6: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize); break;
-			case 7: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex + 2u * taskPayload.tessellationSize); break;
-		}
+	if (gl_LocalInvocationIndex < triangleCount - 2u) {
+		gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = bottomCrackIndexing(taskPayload.tessellationSize, gl_LocalInvocationIndex);
 	}
 
 	if (gl_LocalInvocationIndex < vertexCount) {
@@ -73,7 +244,7 @@ void main()
 		vec2 textCoord = (worldPosition.xy - totalMinimum) / (totalMaximum - totalMinimum);
 
 		worldPosition.z = worldPosition.y;
-		worldPosition.y = texture(heightMapTexture, textCoord).r;
+		worldPosition.y = 0.0f; //texture(heightMapTexture, textCoord).r;
 
 		gl_MeshVerticesEXT[gl_LocalInvocationIndex].gl_Position = (projection * view) * worldPosition;
 		textCoords[gl_LocalInvocationIndex] = textCoord;

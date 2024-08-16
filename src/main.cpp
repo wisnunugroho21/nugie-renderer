@@ -7,7 +7,7 @@
 
 int main(int argc, char const *argv[])
 {
-    NugieApp::PathTracingApp app{};
+    NugieApp::MeshShadingApp app{};
 
     try {
         app.run();
