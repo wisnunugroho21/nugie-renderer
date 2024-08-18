@@ -31,6 +31,7 @@ bool isPointVisible(vec4 screenPosition) {
     || screenPosition.z >= 0 || screenPosition.z <= screenPosition.w;
 }
 
+/* Abandoned
 uvec2 screenSpaceTessFactor(vec4 p0, vec4 p1) {
 	float radius = distance(p0, p1) / 2.0;
 	vec4 v0 = view * (0.5 * (p0 + p1));
@@ -69,7 +70,7 @@ vec2 minMaxHeightInTexture(vec2 meshGroupPositionMin, vec2 meshGroupPositionMax)
 	}
 
 	return minMaxHeight;	
-}
+} */
 
 void main()
 {
@@ -79,10 +80,7 @@ void main()
 	vec2 taskGroupPositionMin = mix(totalMinimum, totalMaximum, idx / gSize);
 	vec2 taskGroupPositionMax = mix(totalMinimum, totalMaximum, (idx + 1.0f) / gSize);
 
-	uvec2 tessFactor = screenSpaceTessFactor(
-		vec4(taskGroupPositionMin.x, 0.0f, taskGroupPositionMin.y, 1.0f),
-		vec4(taskGroupPositionMax.x, 0.0f, taskGroupPositionMax.y, 1.0f)
-	);
+	uvec2 tessFactor = uvec2(TILE_FACTOR_X, TILE_FACTOR_Y);
 
 	vec2 curCoord = vec2(
 		gl_LocalInvocationIndex % tessFactor.x, 
@@ -104,8 +102,6 @@ void main()
 		|| isPointVisible(screenPositionPoint2)
 		|| isPointVisible(screenPositionPoint3);
 
-	isVisible = isVisible && gl_LocalInvocationIndex < (tessFactor.x * tessFactor.y);
-
 	uvec4 ballout = subgroupBallot(isVisible);
 	uint survivingTileIndex = subgroupBallotExclusiveBitCount(ballout);
 
@@ -117,7 +113,6 @@ void main()
 	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
-		taskPayload.tessellationSize = 5;				
 		EmitMeshTasksEXT(tileCount, 1u, 1u);
 	}	
 }

@@ -24,47 +24,45 @@ layout(set = 0, binding = 6) uniform sampler2D heightMapTexture;
 
 void main()
 {
-	uint tileCount = taskPayload.tessellationSize - 1u;
+	uint tileCount = TESSELLATION_SIZE - 1u;
 	
-	uint vertexCount = taskPayload.tessellationSize * taskPayload.tessellationSize;
-	uint triangleCount = 4u * uint(taskPayload.tessellationSize / 2u) * tileCount;
+	uint vertexCount = TESSELLATION_SIZE * TESSELLATION_SIZE;
+	uint triangleCount = 4u * uint(TESSELLATION_SIZE / 2u) * tileCount;
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
 	if (gl_LocalInvocationIndex < triangleCount) {
 		uint idxCoord = gl_LocalInvocationIndex / 8u;
-		uint halfSize = taskPayload.tessellationSize / 2u;
+		uint halfSize = TESSELLATION_SIZE / 2u;
 
 		uint xIdxCoord = idxCoord % halfSize;
 		uint yIdxCoord = idxCoord / halfSize;
 
-		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * TESSELLATION_SIZE;
 
 		switch(gl_LocalInvocationIndex % 8u) {
-			case 0: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex); break;
-			case 1: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex); break;
-			case 2: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 1u, initialIndex + 2u); break;
-			case 3: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u); break;
-			case 4: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize + 2u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
-			case 5: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 2u); break;
-			case 6: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize + 1u, initialIndex + 2u * taskPayload.tessellationSize); break;
-			case 7: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + taskPayload.tessellationSize + 1u, initialIndex + taskPayload.tessellationSize, initialIndex + 2u * taskPayload.tessellationSize); break;
+			case 0: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE, initialIndex); break;
+			case 1: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + 1u, initialIndex); break;
+			case 2: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + 1u, initialIndex + 2u); break;
+			case 3: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE + 2u, initialIndex + 2u); break;
+			case 4: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE + 2u, initialIndex + 2u * TESSELLATION_SIZE + 2u); break;
+			case 5: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + 2u * TESSELLATION_SIZE + 1u, initialIndex + 2u * TESSELLATION_SIZE + 2u); break;
+			case 6: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + 2u * TESSELLATION_SIZE + 1u, initialIndex + 2u * TESSELLATION_SIZE); break;
+			case 7: gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = uvec3(initialIndex + TESSELLATION_SIZE + 1u, initialIndex + TESSELLATION_SIZE, initialIndex + 2u * TESSELLATION_SIZE); break;
 		}
 	}
 
 	if (gl_LocalInvocationIndex < vertexCount) {
 		vec2 vertexCoord = vec2(
-			gl_LocalInvocationIndex % taskPayload.tessellationSize, 
-			floor(gl_LocalInvocationIndex / taskPayload.tessellationSize)
+			gl_LocalInvocationIndex % TESSELLATION_SIZE, 
+			floor(gl_LocalInvocationIndex / TESSELLATION_SIZE)
 		);
-
-		vertexCoord = vertexCoord / tileCount;
 
 		vec4 worldPosition = vec4(
 			mix(
 				taskPayload.meshGroupPositionMin[gl_WorkGroupID.x], 
 				taskPayload.meshGroupPositionMax[gl_WorkGroupID.x], 
-				vertexCoord
+				vertexCoord / tileCount
 			),
 			0.0f,
 			1.0f

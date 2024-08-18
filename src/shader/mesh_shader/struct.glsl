@@ -1,7 +1,11 @@
-// ------------- Struct ------------- 
+// ------------- Struct -------------
+
+#define TILE_FACTOR 8u
+#define TILE_FACTOR_X 8u
+#define TILE_FACTOR_Y 4u
+#define TESSELLATION_SIZE 5u
 
 struct TaskPayload {
-    uint tessellationSize;
     vec2 meshGroupPositionMin[64];
     vec2 meshGroupPositionMax[64];
 };

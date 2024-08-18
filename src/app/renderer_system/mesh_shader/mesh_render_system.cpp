@@ -33,7 +33,7 @@ namespace NugieApp {
         rasterizationInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         rasterizationInfo->depthClampEnable = VK_FALSE;
         rasterizationInfo->rasterizerDiscardEnable = VK_FALSE;
-        rasterizationInfo->polygonMode = VK_POLYGON_MODE_LINE;
+        rasterizationInfo->polygonMode = VK_POLYGON_MODE_FILL;
         rasterizationInfo->lineWidth = 1.0f;
         rasterizationInfo->cullMode = VK_CULL_MODE_NONE;
         rasterizationInfo->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
