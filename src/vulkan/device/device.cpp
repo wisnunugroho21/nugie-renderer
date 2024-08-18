@@ -230,10 +230,11 @@ namespace NugieVulkan {
         deviceFeatures.multiDrawIndirect = VK_TRUE;
 
         createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.pNext = &meshShaderFeatures;
 
 #ifdef __APPLE__
         this->deviceExtensions.emplace_back("VK_KHR_portability_subset");
+#else
+        this->deviceExtensions.emplace_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
 #endif
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
