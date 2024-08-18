@@ -142,7 +142,7 @@ uvec3 leftCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
 	uint halfSize = taskPayload.tessellationSize / 2u;
 	uint invcIdxThreshold = (8u * halfSize) - halfSize;
 
-	uint idxCoord = (localInvocationIndex + ((localInvocationIndex >= invcIdxThreshold) ? 2u : 0u)) 
+	uint idxCoord = (localInvocationIndex + ((localInvocationIndex >= invcIdxThreshold) ? halfSize : 0u)) 
 		/ ((localInvocationIndex >= invcIdxThreshold) ? 8u : 7u);
 
 	uint xIdxCoord = idxCoord / halfSize;
@@ -159,7 +159,7 @@ uvec3 topCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
 	uint halfSize = taskPayload.tessellationSize / 2u;
 	uint invcIdxThreshold = (8u * halfSize) - halfSize;
 	
-	uint idxCoord = (localInvocationIndex + ((localInvocationIndex >= invcIdxThreshold) ? 2u : 0u)) 
+	uint idxCoord = (localInvocationIndex + ((localInvocationIndex >= invcIdxThreshold) ? halfSize : 0u)) 
 		/ ((localInvocationIndex >= invcIdxThreshold) ? 8u : 7u);	
 
 	uint xIdxCoord = idxCoord % halfSize;
@@ -206,6 +206,78 @@ uvec3 bottomCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
 		: bottomCrackTileIndexing(tessellationSize, initialIndex);
 }
 
+uvec3 leftTopCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
+	uint halfSize = taskPayload.tessellationSize / 2u;
+
+	if (localInvocationIndex < 6) {
+		return uvec3(0u); 
+
+		uint idxCoord = localInvocationIndex / 6u;
+
+		uint xIdxCoord = idxCoord % halfSize;
+		uint yIdxCoord = idxCoord / halfSize;
+
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+		return leftTopCrackTileIndexing(tessellationSize, initialIndex);
+	}
+
+	else if (localInvocationIndex >= 6 && localInvocationIndex < 7 * (halfSize - 1u) + 6u) {
+		return uvec3(0u); 
+
+		uint idxCoord = (localInvocationIndex + 1u) / 7u;
+
+		uint xIdxCoord = idxCoord % halfSize;
+		uint yIdxCoord = idxCoord / halfSize;
+
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+		return topCrackTileIndexing(tessellationSize, initialIndex);
+	}
+
+	else if (localInvocationIndex >= 7 * (halfSize - 1u) + 6u && localInvocationIndex < 7 * 2 * (halfSize - 1u) + 6u) {
+		return uvec3(0u); 
+
+		uint idxCoord = (localInvocationIndex + 1u) / 7u;
+
+		uint xIdxCoord = idxCoord / halfSize - 1u;
+		uint yIdxCoord = idxCoord % halfSize + 1u;
+
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+		return leftCrackTileIndexing(tessellationSize, initialIndex);
+	}
+
+	uint idxCoord = (localInvocationIndex + 7u) / 8u;
+
+	uint xIdxCoord = idxCoord % halfSize;
+	uint yIdxCoord = idxCoord / halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+	return normalTileIndexing(tessellationSize, initialIndex);
+
+	/* else if ((localInvocationIndex - (7 * (halfSize - 1u) + 6u)) % (7 + 8 * (halfSize - 1)) < 7) {
+		uint idxCoord = (localInvocationIndex - (7 * (halfSize - 1u) + 6u)) / 7u;
+
+		uint xIdxCoord = idxCoord % halfSize;
+		uint yIdxCoord = idxCoord / halfSize;
+
+		uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+		return leftCrackTileIndexing(tessellationSize, initialIndex);
+	} */	
+
+	/* uint idxCoord = (localInvocationIndex + 2u) / 8u;
+
+	uint xIdxCoord = idxCoord % halfSize;
+	uint yIdxCoord = idxCoord / halfSize;
+
+	uint initialIndex = xIdxCoord * 2u + yIdxCoord * 2u * taskPayload.tessellationSize;
+
+	return normalTileIndexing(tessellationSize, initialIndex); */
+}
+
 /* uvec3 leftTopCrackIndexing(uint tessellationSize, uint localInvocationIndex) {
 	uint halfSize = taskPayload.tessellationSize / 2u;
 	uint idxCoord = (localInvocationIndex < 6)
@@ -243,8 +315,8 @@ void main()
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);	
 
-	if (gl_LocalInvocationIndex < triangleCount - 3u) {
-		gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = bottomCrackIndexing(taskPayload.tessellationSize, gl_LocalInvocationIndex);
+	if (gl_LocalInvocationIndex < triangleCount - 7) {
+		gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationIndex] = leftTopCrackIndexing(taskPayload.tessellationSize, gl_LocalInvocationIndex);
 	}
 
 	if (gl_LocalInvocationIndex < vertexCount) {

@@ -119,7 +119,7 @@ void main()
 	uint tileCount = subgroupBallotBitCount(ballout);
 
 	if (gl_LocalInvocationIndex == 0 && tileCount > 0u) {
-		taskPayload.tessellationSize = 5;
+		taskPayload.tessellationSize = 7;
 		taskPayload.crackOptims = crackOptims[tileIdx];				
 		EmitMeshTasksEXT(1u, 1u, 1u);
 	}	
