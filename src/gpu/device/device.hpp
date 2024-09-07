@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../window/main/window.hpp"
+#include "../../window/window.hpp"
 
 // std lib headers
 #include <string>

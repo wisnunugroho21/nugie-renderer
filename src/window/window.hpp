@@ -4,7 +4,7 @@
 #include <cstdint>
 
 namespace NugieDisplay {
-    enum class KeyMap {
+    enum KeyMap {
         KEY_A,
         KEY_D,
         KEY_W,

@@ -1,17 +1,13 @@
 #pragma once
 
 #include "glfw_window.hpp"
+#include "../vulkan_window.hpp"
 
 namespace NugieDisplay {
-    class GlfwVulkanWindow : GlfwWindow {
+    class GlfwVulkanWindow : GlfwWindow, VulkanWindow {
     public:
-        GlfwVulkanWindow(uint32_t width, uint32_t height, std::string name);
+        GlfwVulkanWindow(uint32_t width, uint32_t height, std::string name, VkInstance instance);
 
-        VkSurfaceKHR getSurface() const { return this->surface; }
-
-        void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
-
-    private:
-        VkSurfaceKHR surface;
+        void createWindowSurface(VkInstance instance);
     };
 }

@@ -2,7 +2,6 @@
 
 #include "../device/device.hpp"
 #include "../image/image.hpp"
-#include "../renderpass/renderpass.hpp"
 
 // vulkan headers
 #include <vulkan/vulkan.h>

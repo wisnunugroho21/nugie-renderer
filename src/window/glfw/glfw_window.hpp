@@ -3,7 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include "../main/window.hpp"
+#include "../window.hpp"
 
 
 namespace NugieDisplay {
