@@ -214,11 +214,6 @@ namespace NugieVulkan {
             queueCreateInfos.emplace_back(queueCreateInfo);
         }
 
-        VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
-        meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
-        meshShaderFeatures.meshShader = true;
-        meshShaderFeatures.taskShader = true;
-
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
@@ -235,6 +230,13 @@ namespace NugieVulkan {
         this->deviceExtensions.emplace_back("VK_KHR_portability_subset");
 #else
         this->deviceExtensions.emplace_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+
+        VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
+        meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
+        meshShaderFeatures.meshShader = true;
+        meshShaderFeatures.taskShader = true;
+
+        createInfo.pNext = &meshShaderFeatures;
 #endif
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
