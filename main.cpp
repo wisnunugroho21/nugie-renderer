@@ -52,7 +52,7 @@ private:
 
     std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
 
-    wgpu::RequiredLimits Application::GetRequiredLimits();    
+    wgpu::RequiredLimits GetRequiredLimits();    
     wgpu::TextureView GetNextSurfaceTextureView();
 
     void InitializeBuffers();
