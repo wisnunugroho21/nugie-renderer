@@ -32,7 +32,7 @@ if (NOT EMSCRIPTEN)
 else()
     # Emscripten has built-in support for GLFW but requires the `-sUSE_GLFW=3` link option:
     add_library(lib/glfw INTERFACE)
-    target_link_options(lib/glfw INTERFACE -sUSE_GLFW=3)
+    target_link_options(glfw INTERFACE -sUSE_GLFW=3)
 endif()
 
 # Include webgpu directory, to define the 'webgpu' target
@@ -42,5 +42,5 @@ add_subdirectory(lib/glfw3webgpu)
 # The application's binary must find wgpu.dll or libwgpu.so at runtime,
 # so we automatically copy it (it's called WGPU_RUNTIME_LIB in general)
 # next to the binary.
-target_link_libraries(App PRIVATE lib/glfw lib/webgpu lib/glfw3webgpu)
+target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
 target_copy_webgpu_binaries(App)
