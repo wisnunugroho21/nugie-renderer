@@ -41,7 +41,8 @@ private:
     wgpu::TextureFormat surfaceFormat = wgpu::TextureFormat::Undefined;
 
     wgpu::Buffer vertexBuffer;
-    uint32_t vertexCount;
+    wgpu::Buffer indexBuffer;
+    uint32_t indexCount;
 
     wgpu::Instance instance;
     wgpu::Adapter adapter;
@@ -114,32 +115,42 @@ wgpu::TextureView Application::GetNextSurfaceTextureView() {
 }
 
 void Application::InitializeBuffers() {
-    // Vertex buffer data
-    // There are 2 floats per vertex, one for x and one for y.
-    std::vector<float> vertexData = {
-        // Define a first triangle:
-        -0.5, -0.5,
-        +0.5, -0.5,
-        +0.0, +0.5,
+    // Define point data
+    // The de-duplicated list of point positions
+    std::vector<float> pointData = {
+        -0.5, -0.5, // Point #0 (A)
+        +0.5, -0.5, // Point #1
+        +0.5, +0.5, // Point #2 (C)
+        -0.5, +0.5, // Point #3
+    };
 
-        // Add a second triangle:
-        -0.55f, -0.5,
-        -0.05f, +0.5,
-        -0.55f, +0.5
+    // Define index data
+    // This is a list of indices referencing positions in the pointData
+    std::vector<uint16_t> indexData = {
+        0, 1, 2, // Triangle #0 connects points #0, #1 and #2
+        0, 2, 3  // Triangle #1 connects points #0, #2 and #3
     };
 
     // We will declare vertexCount as a member of the Application class
-    vertexCount = static_cast<uint32_t>(vertexData.size() / 2);
+    indexCount = static_cast<uint32_t>(indexData.size());
 
     // Create vertex buffer
     wgpu::BufferDescriptor bufferDesc;
-    bufferDesc.size = vertexData.size() * sizeof(float);
+    bufferDesc.size = pointData.size() * sizeof(float);
     bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex; // Vertex usage here!
     bufferDesc.mappedAtCreation = false;
     vertexBuffer = device.createBuffer(bufferDesc);
 
     // Upload geometry data to the buffer
-    queue.writeBuffer(vertexBuffer, 0, vertexData.data(), bufferDesc.size);
+    queue.writeBuffer(vertexBuffer, 0, pointData.data(), bufferDesc.size);
+
+    // Create index buffer
+    bufferDesc.size = indexData.size() * sizeof(uint16_t);
+    bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index; // Index usage here!
+    indexBuffer = device.createBuffer(bufferDesc);
+    
+    // Upload geometry data to the buffer
+    queue.writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
 }
 
 void Application::InitializePipeline() {
@@ -349,6 +360,7 @@ bool Application::Initialize() {
 
 void Application::Terminate() {
     // Move all the release/destroy/terminate calls here
+    indexBuffer.release();
     vertexBuffer.release();
     pipeline.release();
     
@@ -405,9 +417,12 @@ void Application::MainLoop() {
 
     // Set vertex buffer while encoding the render pass
     renderPass.setVertexBuffer(0, vertexBuffer, 0, vertexBuffer.getSize());
+    
+    // Set index buffer while encoding the render pass
+    renderPass.setIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16, 0, indexBuffer.getSize());
 
     // We use the `vertexCount` variable instead of hard-coding the vertex count
-    renderPass.draw(vertexCount, 1, 0, 0);
+    renderPass.drawIndexed(indexCount, 1, 0, 0, 0);
 
     renderPass.end();
     renderPass.release();
