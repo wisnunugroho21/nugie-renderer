@@ -1,4 +1,9 @@
-add_executable(App main.cpp)
+add_executable(App	
+    src/device/device.cpp
+    src/render/basic/basic_render.cpp
+    src/apps/app.cpp
+    main.cpp
+)
 
 cmake_minimum_required(VERSION 3.0...3.25)
 project(
