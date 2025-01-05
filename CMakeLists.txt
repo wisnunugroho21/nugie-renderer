@@ -1,6 +1,7 @@
 add_executable(App	
     src/device/device.cpp
-    src/render/basic/basic_render.cpp
+    src/render/basic/basic_render_system.cpp
+    src/render/renderer.cpp
     src/apps/app.cpp
     main.cpp
 )

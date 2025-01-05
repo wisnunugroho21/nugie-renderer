@@ -3,8 +3,7 @@
 #include <vector>
 #include <memory>
 
-#include "../device/device.hpp"
-#include "../render/render.hpp"
+#include "../render/renderer.hpp"
 
 namespace nugie {
     class Application {
@@ -14,6 +13,6 @@ namespace nugie {
 
     private:
         std::unique_ptr<Device> device;
-        std::vector<std::shared_ptr<Renderer>> renderers;
+        std::unique_ptr<Renderer> renderers;
     };
 }
