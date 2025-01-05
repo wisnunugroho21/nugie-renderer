@@ -47,9 +47,6 @@ namespace nugie {
         bufferDesc.size = pointData.size() * sizeof(float);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex; // Vertex usage here!
         bufferDesc.mappedAtCreation = false;
-
-        device->createBuffer(bufferDesc);
-        
         vertexBuffer = device->createBuffer(bufferDesc);
 
         // Upload geometry data to the buffer
