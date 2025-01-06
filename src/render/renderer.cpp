@@ -11,7 +11,7 @@ namespace nugie {
 
     void Renderer::render(Device* device) {
         for (auto &&renderSystem : this->renderSystems) {
-            for (auto &&mesh : this->meshes) {
+            for (auto &&mesh : this->meshBuffers) {
                 renderSystem->render(device, mesh);
             }
         }
@@ -64,8 +64,8 @@ namespace nugie {
         // Upload geometry data to the buffer
         device->getQueue().writeBuffer(indexBuffer->getNative(), 0, indexData.data(), bufferDesc.size);
 
-        meshes.clear();
-        meshes.emplace_back(Mesh{
+        meshBuffers.clear();
+        meshBuffers.emplace_back(MeshBuffer{
             .vertexBuffer = this->vertexBuffer->createChildBuffer(ULLONG_MAX),
             .indexBuffer = this->indexBuffer->createChildBuffer(ULLONG_MAX),
             .indexCount = static_cast<uint32_t>(indexData.size())

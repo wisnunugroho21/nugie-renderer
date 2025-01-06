@@ -7,7 +7,7 @@ namespace nugie {
     public:
         void initialize(Device* device) override;
 
-        void render(Device* device, Mesh mesh) override;
+        void render(Device* device, MeshBuffer meshBuffer) override;
 
         void destroy() override;
 

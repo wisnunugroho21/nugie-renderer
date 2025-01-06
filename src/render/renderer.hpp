@@ -20,7 +20,7 @@ namespace nugie {
         std::vector<RenderSystem*> renderSystems;
 
         MasterBuffer *vertexBuffer, *indexBuffer;
-        std::vector<Mesh> meshes;
+        std::vector<MeshBuffer> meshBuffers;
 
         void initializeBuffers(Device* device);
     };

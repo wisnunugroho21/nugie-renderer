@@ -125,7 +125,7 @@ namespace nugie {
         this->initializePipeline(device);
     }
 
-    void BasicRenderSystem::render(Device* device, Mesh mesh) {
+    void BasicRenderSystem::render(Device* device, MeshBuffer meshBuffer) {
         // Create some CPU-side data buffer (of size 16 bytes)
         std::vector<uint8_t> numbers(16);
         for (uint8_t i = 0; i < 16; ++i) numbers[i] = i;
@@ -164,15 +164,15 @@ namespace nugie {
         renderPass.setPipeline(this->pipeline);
 
         // Set vertex buffer while encoding the render pass
-        BufferInfo bufferInfo = mesh.vertexBuffer.getInfo();
+        BufferInfo bufferInfo = meshBuffer.vertexBuffer.getInfo();
         renderPass.setVertexBuffer(0, bufferInfo.buffer, bufferInfo.offset, bufferInfo.size);
         
         // Set index buffer while encoding the render pass
-        bufferInfo = mesh.indexBuffer.getInfo();
+        bufferInfo = meshBuffer.indexBuffer.getInfo();
         renderPass.setIndexBuffer(bufferInfo.buffer, wgpu::IndexFormat::Uint16, bufferInfo.offset, bufferInfo.size);
 
         // We use the `vertexCount` variable instead of hard-coding the vertex count
-        renderPass.drawIndexed(mesh.indexCount, 1, 0, 0, 0);
+        renderPass.drawIndexed(meshBuffer.indexCount, 1, 0, 0, 0);
 
         renderPass.end();
         renderPass.release();
