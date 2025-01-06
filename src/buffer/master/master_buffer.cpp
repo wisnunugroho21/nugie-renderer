@@ -24,6 +24,10 @@ namespace nugie {
         return this->buffer.getSize();
     }
 
+    void MasterBuffer::write(void* data, size_t size, uint64_t offset) {
+        device->getQueue().writeBuffer(this->buffer, offset, data, size);
+    }
+
     void MasterBuffer::release() {
         this->buffer.release();
     }

@@ -1,11 +1,13 @@
 #pragma once
 
-#include "buffer/child/child_buffer.hpp"
 #include <vector>
+#include "glm/vec4.hpp"
+
+#include "buffer/child/child_buffer.hpp"
 
 namespace nugie {
     struct Mesh {
-        std::vector<float> positionVertices;
+        std::vector<glm::vec4> positionVertices;
         std::vector<uint16_t> indices;
     };
 

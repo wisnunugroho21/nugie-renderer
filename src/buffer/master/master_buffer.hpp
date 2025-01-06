@@ -21,6 +21,8 @@ namespace nugie {
 
         uint64_t getSize();
 
+        void write(void* data, size_t size, uint64_t offset);
+
         void release();
 
     private:

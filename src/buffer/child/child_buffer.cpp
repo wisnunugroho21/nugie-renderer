@@ -8,4 +8,8 @@ namespace nugie {
             .size = this->size
         };
     }
+
+    void ChildBuffer::write(void* data) {
+        this->master->write(data, this->size, this->offset);
+    }
 }

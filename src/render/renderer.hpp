@@ -12,6 +12,8 @@ namespace nugie {
 
         void initialize(Device* device);
 
+        void load(std::vector<Mesh> meshes);
+
         void render(Device* device);
 
         void destroy();

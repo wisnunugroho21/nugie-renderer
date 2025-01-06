@@ -11,6 +11,23 @@ namespace nugie {
         }
     }
 
+    void Renderer::load(std::vector<Mesh> meshes) {
+        meshBuffers.clear();
+
+        for (auto &&mesh : meshes) {
+            MeshBuffer meshBuffer{
+                .vertexBuffer = this->vertexBuffer->createChildBuffer(mesh.positionVertices.size() * sizeof(glm::vec4)),
+                .indexBuffer = this->indexBuffer->createChildBuffer(mesh.indices.size() * sizeof(uint16_t)),
+                .indexCount = static_cast<uint32_t>(mesh.indices.size())
+            };
+
+            meshBuffer.vertexBuffer.write(mesh.positionVertices.data());
+            meshBuffer.indexBuffer.write(mesh.indices.data());
+
+            meshBuffers.emplace_back(meshBuffer);
+        }
+    }
+
     void Renderer::render(Device* device) {
         wgpu::CommandEncoderDescriptor commandEncoderDesc{};
         commandEncoderDesc.nextInChain = nullptr;
@@ -52,37 +69,14 @@ namespace nugie {
     }
 
     void Renderer::initializeBuffers(Device* device) {
-        std::vector<glm::vec4> vertices = {
-            glm::vec4{ -0.5, -0.5, 1.0, 1.0 },
-            glm::vec4{ +0.5, -0.5, 1.0, 1.0 },
-            glm::vec4{ +0.5, +0.5, 1.0, 1.0 },
-            glm::vec4{ -0.5, +0.5, 1.0, 1.0 }
-        };
-
-        std::vector<uint16_t> indices = {
-            0, 1, 2,
-            0, 2, 3 
-        };
-
         wgpu::BufferDescriptor bufferDesc;
-        bufferDesc.size = vertices.size() * sizeof(glm::vec4);
+        bufferDesc.size = 25 * sizeof(glm::vec4);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
         bufferDesc.mappedAtCreation = false;
         vertexBuffer = device->createMasterBuffer(bufferDesc);
 
-        device->getQueue().writeBuffer(vertexBuffer->getNative(), 0, vertices.data(), bufferDesc.size);
-
-        bufferDesc.size = indices.size() * sizeof(uint16_t);
+        bufferDesc.size = 50 * sizeof(uint16_t);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
         indexBuffer = device->createMasterBuffer(bufferDesc);
-        
-        device->getQueue().writeBuffer(indexBuffer->getNative(), 0, indices.data(), bufferDesc.size);
-
-        meshBuffers.clear();
-        meshBuffers.emplace_back(MeshBuffer{
-            .vertexBuffer = this->vertexBuffer->createChildBuffer(ULLONG_MAX),
-            .indexBuffer = this->indexBuffer->createChildBuffer(ULLONG_MAX),
-            .indexCount = static_cast<uint32_t>(indices.size())
-        });
     }
 }
