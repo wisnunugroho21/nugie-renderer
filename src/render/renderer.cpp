@@ -10,11 +10,36 @@ namespace nugie {
     }
 
     void Renderer::render(Device* device) {
+        wgpu::CommandEncoderDescriptor commandEncoderDesc = {};
+        commandEncoderDesc.nextInChain = nullptr;
+        commandEncoderDesc.label = "Frame Command Encoder";
+
+        // Get the command encoder
+        wgpu::CommandEncoder commandEncoder = device->createCommandEncoder(commandEncoderDesc);
+        if (!commandEncoder) return;
+
+        // Get the next target texture view
+        wgpu::TextureView surfaceTextureView = device->getNextSurfaceTextureView();
+        if (!surfaceTextureView) return;
+
         for (auto &&renderSystem : this->renderSystems) {
-            for (auto &&mesh : this->meshBuffers) {
-                renderSystem->render(device, mesh);
+            for (auto &&meshBuffer : this->meshBuffers) {
+                renderSystem->render(commandEncoder, surfaceTextureView, meshBuffer);
             }
         }
+
+        wgpu::CommandBufferDescriptor cmdBufferDescriptor{};
+        cmdBufferDescriptor.nextInChain = nullptr;
+        cmdBufferDescriptor.label = "Command Buffer";
+
+        wgpu::CommandBuffer commandBuffer = commandEncoder.finish(cmdBufferDescriptor);
+        commandEncoder.release();
+
+        device->getQueue().submit(1, &commandBuffer); 
+        commandBuffer.release();
+        
+        device->getSurface().present();
+        surfaceTextureView.release();
     }
 
     void Renderer::destroy() {

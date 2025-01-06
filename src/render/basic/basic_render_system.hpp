@@ -7,7 +7,7 @@ namespace nugie {
     public:
         void initialize(Device* device) override;
 
-        void render(Device* device, MeshBuffer meshBuffer) override;
+        void render(wgpu::CommandEncoder commandEncoder, wgpu::TextureView surfaceTextureView, MeshBuffer meshBuffer) override;
 
         void destroy() override;
 

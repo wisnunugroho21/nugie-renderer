@@ -27,7 +27,7 @@ namespace nugie {
 
         wgpu::ShaderModule shaderModule = device->createShaderModule(shaderDesc);
 
-        wgpu::RenderPipelineDescriptor pipelineDesc;
+        wgpu::RenderPipelineDescriptor pipelineDesc{};
 
         // We do not use any vertex buffer for this first simplistic example
         wgpu::VertexAttribute positionAttrib;
@@ -125,23 +125,9 @@ namespace nugie {
         this->initializePipeline(device);
     }
 
-    void BasicRenderSystem::render(Device* device, MeshBuffer meshBuffer) {
-        // Create some CPU-side data buffer (of size 16 bytes)
-        std::vector<uint8_t> numbers(16);
-        for (uint8_t i = 0; i < 16; ++i) numbers[i] = i;
-        // `numbers` now contains [ 0, 1, 2, ... ]
-
-        wgpu::CommandEncoderDescriptor encoderDesc = {};
-        encoderDesc.nextInChain = nullptr;
-        encoderDesc.label = "My command encoder";
-        wgpu::CommandEncoder encoder = device->createCommandEncoder(encoderDesc);
-
-        // Get the next target texture view
-        wgpu::TextureView targetView = device->getNextSurfaceTextureView();
-        if (!targetView) return;
-
+    void BasicRenderSystem::render(wgpu::CommandEncoder commandEncoder, wgpu::TextureView surfaceTextureView, MeshBuffer meshBuffer) {
         wgpu::RenderPassColorAttachment renderPassColorAttachment = {};
-        renderPassColorAttachment.view = targetView;
+        renderPassColorAttachment.view = surfaceTextureView;
         renderPassColorAttachment.resolveTarget = nullptr;
         renderPassColorAttachment.loadOp = wgpu::LoadOp::Clear;
         renderPassColorAttachment.storeOp = wgpu::StoreOp::Store;
@@ -158,7 +144,7 @@ namespace nugie {
         renderPassDesc.depthStencilAttachment = nullptr;
         renderPassDesc.timestampWrites = nullptr;
 
-        wgpu::RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
+        wgpu::RenderPassEncoder renderPass = commandEncoder.beginRenderPass(renderPassDesc);
 
         // Select which render pipeline to use
         renderPass.setPipeline(this->pipeline);
@@ -176,18 +162,6 @@ namespace nugie {
 
         renderPass.end();
         renderPass.release();
-
-        wgpu::CommandBufferDescriptor cmdBufferDescriptor = {};
-        cmdBufferDescriptor.nextInChain = nullptr;
-        cmdBufferDescriptor.label = "Command buffer";
-        wgpu::CommandBuffer command = encoder.finish(cmdBufferDescriptor);
-        encoder.release();
-
-        device->getQueue().submit(1, &command); 
-        command.release();
-
-        targetView.release();
-        device->getSurface().present();
     }
 
     void BasicRenderSystem::destroy() {
