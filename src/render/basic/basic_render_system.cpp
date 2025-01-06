@@ -1,13 +1,14 @@
 #include "basic_render_system.hpp"
 
+#include "glm/vec4.hpp"
 #include "../renderer.hpp"
 
 namespace nugie {
     void BasicRenderSystem::initializePipeline(Device* device) {
         const char* shaderSource = R"(
             @vertex
-            fn vs_main(@location(0) in_vertex_position: vec2f) -> @builtin(position) vec4f {
-                return vec4f(in_vertex_position, 0.0, 1.0);
+            fn vs_main(@location(0) in_vertex_position: vec4f) -> @builtin(position) vec4f {
+                return in_vertex_position;
             }
 
             @fragment
@@ -28,13 +29,13 @@ namespace nugie {
 
         wgpu::VertexAttribute positionAttrib{};
         positionAttrib.shaderLocation = 0;
-        positionAttrib.format = wgpu::VertexFormat::Float32x2;
+        positionAttrib.format = wgpu::VertexFormat::Float32x4;
         positionAttrib.offset = 0;
 
         wgpu::VertexBufferLayout vertexBufferLayout{};
         vertexBufferLayout.attributeCount = 1;
         vertexBufferLayout.attributes = &positionAttrib;
-        vertexBufferLayout.arrayStride = 2 * sizeof(float);
+        vertexBufferLayout.arrayStride = sizeof(glm::vec4);
         vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
 
         wgpu::BlendState blendState{};
@@ -42,8 +43,8 @@ namespace nugie {
         blendState.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
         blendState.color.operation = wgpu::BlendOperation::Add;
 
-        blendState.alpha.srcFactor = wgpu::BlendFactor::Zero;
-        blendState.alpha.dstFactor = wgpu::BlendFactor::One;
+        blendState.alpha.srcFactor = wgpu::BlendFactor::One;
+        blendState.alpha.dstFactor = wgpu::BlendFactor::Zero;
         blendState.alpha.operation = wgpu::BlendOperation::Add;
 
         wgpu::ColorTargetState colorTarget{};

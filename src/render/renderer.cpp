@@ -1,5 +1,7 @@
 #include "renderer.hpp"
 
+#include "glm/vec4.hpp"
+
 namespace nugie {
     void Renderer::initialize(Device* device) {
         this->initializeBuffers(device);
@@ -50,37 +52,37 @@ namespace nugie {
     }
 
     void Renderer::initializeBuffers(Device* device) {
-        std::vector<float> pointData = {
-            -0.5, -0.5,
-            +0.5, -0.5, 
-            +0.5, +0.5,
-            -0.5, +0.5, 
+        std::vector<glm::vec4> vertices = {
+            glm::vec4{ -0.5, -0.5, 1.0, 1.0 },
+            glm::vec4{ +0.5, -0.5, 1.0, 1.0 },
+            glm::vec4{ +0.5, +0.5, 1.0, 1.0 },
+            glm::vec4{ -0.5, +0.5, 1.0, 1.0 }
         };
 
-        std::vector<uint16_t> indexData = {
+        std::vector<uint16_t> indices = {
             0, 1, 2,
             0, 2, 3 
         };
 
         wgpu::BufferDescriptor bufferDesc;
-        bufferDesc.size = pointData.size() * sizeof(float);
+        bufferDesc.size = vertices.size() * sizeof(glm::vec4);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex;
         bufferDesc.mappedAtCreation = false;
         vertexBuffer = device->createMasterBuffer(bufferDesc);
 
-        device->getQueue().writeBuffer(vertexBuffer->getNative(), 0, pointData.data(), bufferDesc.size);
+        device->getQueue().writeBuffer(vertexBuffer->getNative(), 0, vertices.data(), bufferDesc.size);
 
-        bufferDesc.size = indexData.size() * sizeof(uint16_t);
+        bufferDesc.size = indices.size() * sizeof(uint16_t);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
         indexBuffer = device->createMasterBuffer(bufferDesc);
         
-        device->getQueue().writeBuffer(indexBuffer->getNative(), 0, indexData.data(), bufferDesc.size);
+        device->getQueue().writeBuffer(indexBuffer->getNative(), 0, indices.data(), bufferDesc.size);
 
         meshBuffers.clear();
         meshBuffers.emplace_back(MeshBuffer{
             .vertexBuffer = this->vertexBuffer->createChildBuffer(ULLONG_MAX),
             .indexBuffer = this->indexBuffer->createChildBuffer(ULLONG_MAX),
-            .indexCount = static_cast<uint32_t>(indexData.size())
+            .indexCount = static_cast<uint32_t>(indices.size())
         });
     }
 }

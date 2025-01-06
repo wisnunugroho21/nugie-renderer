@@ -46,9 +46,12 @@ endif()
 # Include webgpu directory, to define the 'webgpu' target
 add_subdirectory(lib/webgpu)
 add_subdirectory(lib/glfw3webgpu)
+add_subdirectory(lib/glm)
+
+target_include_directories(App PRIVATE lib/tinyobjloader)
 
 # The application's binary must find wgpu.dll or libwgpu.so at runtime,
 # so we automatically copy it (it's called WGPU_RUNTIME_LIB in general)
 # next to the binary.
-target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
+target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu glm::glm)
 target_copy_webgpu_binaries(App)
