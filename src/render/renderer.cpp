@@ -11,8 +11,9 @@ namespace nugie {
 
     void Renderer::render(Device* device) {
         for (auto &&renderSystem : this->renderSystems) {
-            renderSystem->render(device, this->vertexBuffer, 
-                this->indexBuffer, this->indexCount);
+            for (auto &&mesh : this->meshes) {
+                renderSystem->render(device, mesh);
+            }
         }
     }
 
@@ -20,6 +21,9 @@ namespace nugie {
         for (auto &&renderSystem : this->renderSystems) {
             renderSystem->destroy();
         }
+        
+        delete this->vertexBuffer;
+        delete this->indexBuffer;
     }
 
     void Renderer::initializeBuffers(Device* device) {
@@ -40,24 +44,31 @@ namespace nugie {
         };
 
         // We will declare vertexCount as a member of the Application class
-        indexCount = static_cast<uint32_t>(indexData.size());
+        // uint32_t indexCount = static_cast<uint32_t>(indexData.size());
 
         // Create vertex buffer
         wgpu::BufferDescriptor bufferDesc;
         bufferDesc.size = pointData.size() * sizeof(float);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Vertex; // Vertex usage here!
         bufferDesc.mappedAtCreation = false;
-        vertexBuffer = device->createBuffer(bufferDesc);
+        vertexBuffer = device->createMasterBuffer(bufferDesc);
 
         // Upload geometry data to the buffer
-        device->getQueue().writeBuffer(vertexBuffer, 0, pointData.data(), bufferDesc.size);
+        device->getQueue().writeBuffer(vertexBuffer->getNative(), 0, pointData.data(), bufferDesc.size);
 
         // Create index buffer
         bufferDesc.size = indexData.size() * sizeof(uint16_t);
         bufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index; // Index usage here!
-        indexBuffer = device->createBuffer(bufferDesc);
+        indexBuffer = device->createMasterBuffer(bufferDesc);
         
         // Upload geometry data to the buffer
-        device->getQueue().writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
+        device->getQueue().writeBuffer(indexBuffer->getNative(), 0, indexData.data(), bufferDesc.size);
+
+        meshes.clear();
+        meshes.emplace_back(Mesh{
+            .vertexBuffer = this->vertexBuffer->createChildBuffer(ULLONG_MAX),
+            .indexBuffer = this->indexBuffer->createChildBuffer(ULLONG_MAX),
+            .indexCount = static_cast<uint32_t>(indexData.size())
+        });
     }
 }

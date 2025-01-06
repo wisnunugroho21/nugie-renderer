@@ -73,6 +73,10 @@ namespace nugie {
         return this->device.createCommandEncoder(desc);
     }
 
+    MasterBuffer* Device::createMasterBuffer(wgpu::BufferDescriptor desc) {
+        return new MasterBuffer(this, desc);
+    }
+
     bool Device::initialize(const char* appTitle, int width, int height) {
         // We create a descriptor
         wgpu::InstanceDescriptor instanceDesc = {};

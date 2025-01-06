@@ -4,7 +4,11 @@
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
 
+#include "../buffer/master/master_buffer.hpp"
+
 namespace nugie {
+    class MasterBuffer;
+    
     class Device {
     public:
         Device();
@@ -35,6 +39,10 @@ namespace nugie {
         wgpu::ComputePipeline createComputePipeline(wgpu::ComputePipelineDescriptor desc);
 
         wgpu::CommandEncoder createCommandEncoder(wgpu::CommandEncoderDescriptor desc);
+
+        // ================================ Nugie Creation Function ================================
+
+        MasterBuffer* createMasterBuffer(wgpu::BufferDescriptor desc);
 
         // ================================ Lifecycle Function ================================
 

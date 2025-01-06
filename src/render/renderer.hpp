@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../buffer/master/master_buffer.hpp"
+#include "../buffer/child/child_buffer.hpp"
+#include "../struct.hpp"
 #include "render_system.hpp"
 
 namespace nugie {
@@ -16,8 +19,8 @@ namespace nugie {
     private:
         std::vector<RenderSystem*> renderSystems;
 
-        wgpu::Buffer vertexBuffer, indexBuffer;
-        uint32_t indexCount;
+        MasterBuffer *vertexBuffer, *indexBuffer;
+        std::vector<Mesh> meshes;
 
         void initializeBuffers(Device* device);
     };

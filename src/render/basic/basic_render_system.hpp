@@ -7,13 +7,13 @@ namespace nugie {
     public:
         void initialize(Device* device) override;
 
-        void render(Device* device, wgpu::Buffer vertexBuffer, 
-            wgpu::Buffer indexBuffer, uint32_t indexCount) override;
+        void render(Device* device, Mesh mesh) override;
 
         void destroy() override;
 
     private:
         wgpu::RenderPipeline pipeline;
+        wgpu::Buffer uniform;
         
         void initializePipeline(Device* device);
     };

@@ -1,5 +1,7 @@
 add_executable(App	
     src/device/device.cpp
+    src/buffer/master/master_buffer.cpp
+    src/buffer/child/child_buffer.cpp
     src/render/basic/basic_render_system.cpp
     src/render/renderer.cpp
     src/apps/app.cpp
@@ -14,7 +16,7 @@ project(
 )
 
 set_target_properties(App PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     COMPILE_WARNING_AS_ERROR ON

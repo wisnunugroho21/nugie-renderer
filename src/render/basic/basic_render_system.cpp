@@ -1,5 +1,7 @@
 #include "basic_render_system.hpp"
 
+#include "../renderer.hpp"
+
 namespace nugie {
     void BasicRenderSystem::initializePipeline(Device* device) {
         const char* shaderSource = R"(
@@ -10,7 +12,7 @@ namespace nugie {
 
             @fragment
             fn fs_main() -> @location(0) vec4f {
-                return vec4f(0.0, 0.4, 1.0, 1.0);
+                return vec4f(1.0, 0.0, 0.0, 1.0);
             }
         )";
 
@@ -123,9 +125,7 @@ namespace nugie {
         this->initializePipeline(device);
     }
 
-    void BasicRenderSystem::render(Device* device, wgpu::Buffer vertexBuffer, 
-            wgpu::Buffer indexBuffer, uint32_t indexCount) 
-    {
+    void BasicRenderSystem::render(Device* device, Mesh mesh) {
         // Create some CPU-side data buffer (of size 16 bytes)
         std::vector<uint8_t> numbers(16);
         for (uint8_t i = 0; i < 16; ++i) numbers[i] = i;
@@ -145,7 +145,7 @@ namespace nugie {
         renderPassColorAttachment.resolveTarget = nullptr;
         renderPassColorAttachment.loadOp = wgpu::LoadOp::Clear;
         renderPassColorAttachment.storeOp = wgpu::StoreOp::Store;
-        renderPassColorAttachment.clearValue = wgpu::Color{ 0.9, 0.1, 0.2, 1.0 };
+        renderPassColorAttachment.clearValue = wgpu::Color{ 0.0, 0.0, 0.0, 0.0 };
 
     #ifndef WEBGPU_BACKEND_WGPU
         renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
@@ -164,13 +164,15 @@ namespace nugie {
         renderPass.setPipeline(this->pipeline);
 
         // Set vertex buffer while encoding the render pass
-        renderPass.setVertexBuffer(0, vertexBuffer, 0, vertexBuffer.getSize());
+        BufferInfo bufferInfo = mesh.vertexBuffer.getInfo();
+        renderPass.setVertexBuffer(0, bufferInfo.buffer, bufferInfo.offset, bufferInfo.size);
         
         // Set index buffer while encoding the render pass
-        renderPass.setIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16, 0, indexBuffer.getSize());
+        bufferInfo = mesh.indexBuffer.getInfo();
+        renderPass.setIndexBuffer(bufferInfo.buffer, wgpu::IndexFormat::Uint16, bufferInfo.offset, bufferInfo.size);
 
         // We use the `vertexCount` variable instead of hard-coding the vertex count
-        renderPass.drawIndexed(indexCount, 1, 0, 0, 0);
+        renderPass.drawIndexed(mesh.indexCount, 1, 0, 0, 0);
 
         renderPass.end();
         renderPass.release();
