@@ -40,6 +40,12 @@ namespace nugie {
 
         wgpu::CommandEncoder createCommandEncoder(wgpu::CommandEncoderDescriptor desc);
 
+        wgpu::BindGroupLayout createBindGroupLayout(wgpu::BindGroupLayoutDescriptor desc);
+
+        wgpu::PipelineLayout createPipelineLayout(wgpu::PipelineLayoutDescriptor desc);
+
+        wgpu::BindGroup createBindGroup(wgpu::BindGroupDescriptor desc);
+
         // ================================ Nugie Creation Function ================================
 
         MasterBuffer* createMasterBuffer(wgpu::BufferDescriptor desc);

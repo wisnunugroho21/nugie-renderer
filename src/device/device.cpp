@@ -73,6 +73,18 @@ namespace nugie {
         return this->device.createCommandEncoder(desc);
     }
 
+    wgpu::BindGroupLayout Device::createBindGroupLayout(wgpu::BindGroupLayoutDescriptor desc) {
+        return this->device.createBindGroupLayout(desc);
+    }
+
+    wgpu::PipelineLayout Device::createPipelineLayout(wgpu::PipelineLayoutDescriptor desc) {
+        return this->device.createPipelineLayout(desc);
+    }
+
+    wgpu::BindGroup Device::createBindGroup(wgpu::BindGroupDescriptor desc) {
+        return this->device.createBindGroup(desc);
+    }
+
     MasterBuffer* Device::createMasterBuffer(wgpu::BufferDescriptor desc) {
         return new MasterBuffer(this, desc);
     }
