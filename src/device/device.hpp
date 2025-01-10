@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NUGIE_DEVICE_HPP
+#define NUGIE_DEVICE_HPP
 
 #include <webgpu/webgpu.hpp>
 #include <GLFW/glfw3.h>
@@ -79,3 +80,5 @@ namespace nugie {
         std::unique_ptr<wgpu::ErrorCallback> uncapturedErrorCallbackHandle;
     };
 }
+
+#endif

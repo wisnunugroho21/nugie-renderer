@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NUGIE_CHILD_BUFFER_HPP
+#define NUGIE_CHILD_BUFFER_HPP
 
 #include "../master/master_buffer.hpp"
 
@@ -35,3 +36,5 @@ namespace nugie {
         uint64_t offset;
     };
 }
+
+#endif

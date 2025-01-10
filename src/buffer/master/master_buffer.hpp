@@ -1,4 +1,5 @@
-#pragma once
+#ifndef NUGIE_MASTER_BUFFER_HPP
+#define NUGIE_MASTER_BUFFER_HPP
 
 #include <memory>
 #include "../../device/device.hpp"
@@ -32,3 +33,5 @@ namespace nugie {
         wgpu::Buffer buffer;
     };
 }
+
+#endif
