@@ -5,10 +5,6 @@
 #include <iostream>
 
 namespace nugie {
-    Device::Device() {
-
-    }
-    
     Device::Device(const char* appTitle, int width, int height) {
         this->initialize(appTitle, width, height);
     }

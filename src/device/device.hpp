@@ -12,7 +12,6 @@ namespace nugie {
     
     class Device {
     public:
-        Device();
         Device(const char* appTitle, int width, int height);
 
         ~Device();
