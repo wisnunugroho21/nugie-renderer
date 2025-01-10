@@ -9,9 +9,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include "src/camera/camera.hpp"
 #include "src/device/device.hpp"
 #include "src/buffer/master/master_buffer.hpp"
 #include "src/buffer/child/child_buffer.hpp"
+
+nugie::Camera* camera;
+nugie::Device* device;
 
 nugie::MasterBuffer* vertexBuffer;
 nugie::MasterBuffer* uniformBuffer;
@@ -33,6 +37,18 @@ wgpu::BindGroupLayout objectBindGroupLayout;
 
 wgpu::BindGroup sceneBindGroup;
 wgpu::BindGroup objectBindGroup;
+
+// settings
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
+
+// camera
+float lastX = SCR_WIDTH / 2.0f;
+float lastY = SCR_HEIGHT / 2.0f;
+bool firstMouse = true;
+
+// timing
+float deltaTime = 0;
 
 const char* shaderSource = R"(
     struct SceneUniform {
@@ -402,9 +418,54 @@ void createObjectBindGroup(nugie::Device* device, nugie::BufferInfo modelTransfo
     objectBindGroup = device->createBindGroup(bindGroupDesc);
 }
 
-int main (int, char**) {
-    nugie::Device *device = new nugie::Device("Nugie Renderer", 800, 600);
+// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// ---------------------------------------------------------------------------------------------------------
+void processInput(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera->processKeyboard(nugie::CameraMovement::FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera->processKeyboard(nugie::CameraMovement::BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera->processKeyboard(nugie::CameraMovement::LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera->processKeyboard(nugie::CameraMovement::RIGHT, deltaTime);
+}
+
+// glfw: whenever the mouse moves, this callback is called
+// -------------------------------------------------------
+void mouseCallback(GLFWwindow* /* window */, double xposIn, double yposIn)
+{
+    float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);
+
+    if (firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+
+    lastX = xpos;
+    lastY = ypos;
+
+    camera->processMouseMovement(xoffset, yoffset);
+}
+
+// glfw: whenever the mouse scroll wheel scrolls, this callback is called
+// ----------------------------------------------------------------------
+void scrollCallback(GLFWwindow* /* window */, double /* xoffset */, double yoffset)
+{
+    camera->processMouseScroll(static_cast<float>(yoffset));
+}
+
+int main (int, char**) {
     std::vector<glm::vec4> vertices {
         glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f },  
         glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f },
@@ -477,6 +538,9 @@ int main (int, char**) {
         12, 15, 7
     };
 
+    camera = new nugie::Camera(glm::vec3(0.0f, 0.0f,  3.0f));
+    device = new nugie::Device("Nugie Renderer", 800, 600);
+
     createVertexBuffer(device, vertices.size());
     createIndexBuffer(device, indices.size());
     createUniformBuffer(device, 512);
@@ -511,34 +575,22 @@ int main (int, char**) {
 
     // ================================================================
 
-    glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  3.0f);
-    glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-    glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
-
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-
-    float deltaTime = 0.0f;	// Time between current frame and last frame
     float lastFrame = 0.0f; // Time of last frame
+
+    glfwSetCursorPosCallback(device->getWindow(), mouseCallback);
+    glfwSetScrollCallback(device->getWindow(), scrollCallback);
 
     while(device->isRunning()) {
         device->poolEvents();
 
-        float currentFrame = glfwGetTime();
+        float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        float cameraSpeed = 2.5f * deltaTime; // adjust accordingly
+        processInput(device->getWindow());
 
-        if (glfwGetKey(device->getWindow(), GLFW_KEY_W) == GLFW_PRESS)
-            cameraPos += cameraSpeed * cameraFront;
-        if (glfwGetKey(device->getWindow(), GLFW_KEY_S) == GLFW_PRESS)
-            cameraPos -= cameraSpeed * cameraFront;
-        if (glfwGetKey(device->getWindow(), GLFW_KEY_A) == GLFW_PRESS)
-            cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-        if (glfwGetKey(device->getWindow(), GLFW_KEY_D) == GLFW_PRESS)
-            cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-
-        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        glm::mat4 view = camera->getViewMatrix();
         glm::mat4 cameraTrans = projection * view;
 
         cameraTransformBuffer.write(&cameraTrans);
@@ -629,6 +681,7 @@ int main (int, char**) {
     delete vertexBuffer;
 
     delete device;
+    delete camera;
 
     return 0;
 }

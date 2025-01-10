@@ -146,6 +146,7 @@ namespace nugie {
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         this->window = glfwCreateWindow(width, height, appTitle, nullptr, nullptr);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
         // Get the surface
         this->surface = glfwGetWGPUSurface(this->instance, window);
