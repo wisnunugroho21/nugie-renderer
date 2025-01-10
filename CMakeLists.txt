@@ -1,4 +1,5 @@
-add_executable(App	
+add_executable(App
+    src/camera/camera.cpp
     src/device/device.cpp
     src/buffer/master/master_buffer.cpp
     src/buffer/child/child_buffer.cpp
