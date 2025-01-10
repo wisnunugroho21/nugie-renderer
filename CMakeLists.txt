@@ -2,9 +2,6 @@ add_executable(App
     src/device/device.cpp
     src/buffer/master/master_buffer.cpp
     src/buffer/child/child_buffer.cpp
-    src/render/basic/basic_render_system.cpp
-    src/render/renderer.cpp
-    src/apps/app.cpp
     main.cpp
 )
 
@@ -47,11 +44,12 @@ endif()
 add_subdirectory(lib/webgpu)
 add_subdirectory(lib/glfw3webgpu)
 add_subdirectory(lib/glm)
+add_subdirectory(lib/tinyobjloader)
 
-target_include_directories(App PRIVATE lib/tinyobjloader)
+target_include_directories(App PRIVATE lib/stb)
 
 # The application's binary must find wgpu.dll or libwgpu.so at runtime,
 # so we automatically copy it (it's called WGPU_RUNTIME_LIB in general)
 # next to the binary.
-target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu glm::glm)
+target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu glm::glm tinyobjloader)
 target_copy_webgpu_binaries(App)
