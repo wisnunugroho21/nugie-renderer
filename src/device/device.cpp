@@ -57,6 +57,22 @@ namespace nugie {
         return this->device.createTexture(desc);
     }
 
+    wgpu::Sampler Device::createSampler(wgpu::SamplerDescriptor desc) {
+        return this->device.createSampler(desc);
+    }
+
+    wgpu::BindGroupLayout Device::createBindGroupLayout(wgpu::BindGroupLayoutDescriptor desc) {
+        return this->device.createBindGroupLayout(desc);
+    }
+
+    wgpu::PipelineLayout Device::createPipelineLayout(wgpu::PipelineLayoutDescriptor desc) {
+        return this->device.createPipelineLayout(desc);
+    }
+
+    wgpu::BindGroup Device::createBindGroup(wgpu::BindGroupDescriptor desc) {
+        return this->device.createBindGroup(desc);
+    }
+
     wgpu::ShaderModule Device::createShaderModule(wgpu::ShaderModuleDescriptor desc) {
         return this->device.createShaderModule(desc);
     }
@@ -73,16 +89,8 @@ namespace nugie {
         return this->device.createCommandEncoder(desc);
     }
 
-    wgpu::BindGroupLayout Device::createBindGroupLayout(wgpu::BindGroupLayoutDescriptor desc) {
-        return this->device.createBindGroupLayout(desc);
-    }
-
-    wgpu::PipelineLayout Device::createPipelineLayout(wgpu::PipelineLayoutDescriptor desc) {
-        return this->device.createPipelineLayout(desc);
-    }
-
-    wgpu::BindGroup Device::createBindGroup(wgpu::BindGroupDescriptor desc) {
-        return this->device.createBindGroup(desc);
+    wgpu::RenderBundleEncoder Device::createRenderBundleEncoder(wgpu::RenderBundleEncoderDescriptor desc) {
+        return this->device.createRenderBundleEncoder(desc);
     }
 
     MasterBuffer* Device::createMasterBuffer(wgpu::BufferDescriptor desc) {

@@ -18,6 +18,8 @@ namespace nugie {
 
         // ================================ Getter Function ================================
 
+        GLFWwindow* getWindow() { return this->window; }
+
         wgpu::Queue getQueue() { return this->queue; }
 
         wgpu::TextureFormat getSurfaceFormat() { return this->surfaceFormat; }
@@ -32,6 +34,14 @@ namespace nugie {
 
         wgpu::Texture createTexture(wgpu::TextureDescriptor desc) ;
 
+        wgpu::Sampler createSampler(wgpu::SamplerDescriptor desc);
+
+        wgpu::BindGroupLayout createBindGroupLayout(wgpu::BindGroupLayoutDescriptor desc);
+
+        wgpu::PipelineLayout createPipelineLayout(wgpu::PipelineLayoutDescriptor desc);
+
+        wgpu::BindGroup createBindGroup(wgpu::BindGroupDescriptor desc);
+
         wgpu::ShaderModule createShaderModule(wgpu::ShaderModuleDescriptor desc) ;
 
         wgpu::RenderPipeline createRenderPipeline(wgpu::RenderPipelineDescriptor desc);
@@ -40,11 +50,7 @@ namespace nugie {
 
         wgpu::CommandEncoder createCommandEncoder(wgpu::CommandEncoderDescriptor desc);
 
-        wgpu::BindGroupLayout createBindGroupLayout(wgpu::BindGroupLayoutDescriptor desc);
-
-        wgpu::PipelineLayout createPipelineLayout(wgpu::PipelineLayoutDescriptor desc);
-
-        wgpu::BindGroup createBindGroup(wgpu::BindGroupDescriptor desc);
+        wgpu::RenderBundleEncoder createRenderBundleEncoder(wgpu::RenderBundleEncoderDescriptor desc);
 
         // ================================ Nugie Creation Function ================================
 
