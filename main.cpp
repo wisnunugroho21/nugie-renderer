@@ -60,7 +60,7 @@ const char* shaderSource = R"(
     }
 
     struct VertexInput {
-        @location(0) position: vec4f,
+        @location(0) position: vec3f,
         @location(1) uv: vec2f
     }
 
@@ -77,7 +77,7 @@ const char* shaderSource = R"(
     @vertex
     fn vertexMain(input: VertexInput) -> VertexOutput {
         var output: VertexOutput;
-        output.position = sceneUniform.cameraTransform * objectUniform.modelTransform * input.position;
+        output.position = sceneUniform.cameraTransform * objectUniform.modelTransform * vec4f(input.position, 1.0);
         output.uv = input.uv;
 
         return output;
@@ -86,6 +86,18 @@ const char* shaderSource = R"(
     @fragment
     fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
         return textureSample(objectTexture, objectSampler, uv);
+    }
+
+    @fragment
+    fn fragmentMain_(@location(0) uv: vec2f) -> @location(0) vec4f {
+        var lightColor: vec3f = vec3f(1.0, 1.0, 1.0);
+        var objectColor: vec3f = vec3f(1.0, 0.5, 0.31);
+        var ambientStrength: f32 = 0.1;
+
+        var ambient: vec3f = ambientStrength * lightColor;
+
+        var result: vec3f = ambient * objectColor;
+        return vec4f(result, 1.0);
     }
 )";
 
@@ -286,7 +298,7 @@ void createPipeline(nugie::Device* device) {
 
     wgpu::VertexAttribute positionAttrib{};
     positionAttrib.shaderLocation = 0;
-    positionAttrib.format = wgpu::VertexFormat::Float32x4;
+    positionAttrib.format = wgpu::VertexFormat::Float32x3;
     positionAttrib.offset = 0;
 
     wgpu::VertexAttribute textCoordAttrib{};
@@ -297,7 +309,7 @@ void createPipeline(nugie::Device* device) {
     wgpu::VertexBufferLayout vertexBufferLayouts[2];
     vertexBufferLayouts[0].attributeCount = 1;
     vertexBufferLayouts[0].attributes = &positionAttrib;
-    vertexBufferLayouts[0].arrayStride = sizeof(glm::vec4);
+    vertexBufferLayouts[0].arrayStride = sizeof(glm::vec3);
     vertexBufferLayouts[0].stepMode = wgpu::VertexStepMode::Vertex;
 
     vertexBufferLayouts[1].attributeCount = 1;
@@ -466,30 +478,30 @@ void scrollCallback(GLFWwindow* /* window */, double /* xoffset */, double yoffs
 }
 
 int main (int, char**) {
-    std::vector<glm::vec4> vertices {
-        glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f },  
-        glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f },
+    std::vector<glm::vec3> vertices {
+        glm::vec3{ -0.5f, -0.5f, -0.5f },  
+        glm::vec3{ -0.5f, -0.5f, -0.5f },
 
-        glm::vec4{  0.5f, -0.5f, -0.5f, 1.0f }, 
-        glm::vec4{  0.5f, -0.5f, -0.5f, 1.0f },
-        glm::vec4{  0.5f, -0.5f, -0.5f, 1.0f },
+        glm::vec3{  0.5f, -0.5f, -0.5f }, 
+        glm::vec3{  0.5f, -0.5f, -0.5f },
+        glm::vec3{  0.5f, -0.5f, -0.5f },
 
-        glm::vec4{  0.5f,  0.5f, -0.5f, 1.0f },
+        glm::vec3{  0.5f,  0.5f, -0.5f },
 
-        glm::vec4{ -0.5f,  0.5f, -0.5f, 1.0f },
-        glm::vec4{ -0.5f,  0.5f, -0.5f, 1.0f },
+        glm::vec3{ -0.5f,  0.5f, -0.5f },
+        glm::vec3{ -0.5f,  0.5f, -0.5f },
 
-        glm::vec4{ -0.5f, -0.5f,  0.5f, 1.0f },
+        glm::vec3{ -0.5f, -0.5f,  0.5f },
 
-        glm::vec4{  0.5f, -0.5f,  0.5f, 1.0f },
-        glm::vec4{  0.5f, -0.5f,  0.5f, 1.0f },
+        glm::vec3{  0.5f, -0.5f,  0.5f },
+        glm::vec3{  0.5f, -0.5f,  0.5f },
 
-        glm::vec4{  0.5f,  0.5f,  0.5f, 1.0f },
-        glm::vec4{  0.5f,  0.5f,  0.5f, 1.0f },
+        glm::vec3{  0.5f,  0.5f,  0.5f },
+        glm::vec3{  0.5f,  0.5f,  0.5f },
 
-        glm::vec4{ -0.5f,  0.5f,  0.5f, 1.0f },
-        glm::vec4{ -0.5f,  0.5f,  0.5f, 1.0f },
-        glm::vec4{ -0.5f,  0.5f,  0.5f, 1.0f }
+        glm::vec3{ -0.5f,  0.5f,  0.5f },
+        glm::vec3{ -0.5f,  0.5f,  0.5f },
+        glm::vec3{ -0.5f,  0.5f,  0.5f }
     };
 
     std::vector<glm::vec2> textCoords {
@@ -580,6 +592,8 @@ int main (int, char**) {
 
     glfwSetCursorPosCallback(device->getWindow(), mouseCallback);
     glfwSetScrollCallback(device->getWindow(), scrollCallback);
+
+    // glm::vec3 lightPos{1.2f, 1.0f, 2.0f};
 
     while(device->isRunning()) {
         device->poolEvents();
