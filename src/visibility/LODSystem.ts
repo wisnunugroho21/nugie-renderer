@@ -23,8 +23,10 @@ export interface LODGroupDef {
 export class LODLibrary {
   readonly groups: Required<LODGroupDef>[] = [];
 
+  /** Create a library that validates levels against the mesh records in `meshes`. */
   constructor(private meshes: { get(id: number): MeshRecord }) {}
 
+  /** Register a LOD group and return its id. Throws if levels are empty, not strictly decreasing in size, or differ in deformation capability. */
   create(def: LODGroupDef): number {
     if (def.levels.length === 0) throw new Error('A LOD group needs at least one level');
     for (let i = 1; i < def.levels.length; i++) {
@@ -87,8 +89,10 @@ export class LODSystem {
   /** Hysteresis state: current level per ENTITY index (survives slot swaps in the RenderWorld). */
   private levelOf = new Int8Array(0);
 
+  /** Create a selector over a library of LOD groups. */
   constructor(private library: LODLibrary) {}
 
+  /** Choose a level for every visible object in a LOD group (writing `rw.meshId`), cull those below the cull size, and return the surviving visible set. */
   select(rw: RenderWorld, visible: VisibleSet, fovY: number, camPos: ArrayLike<number>): VisibleSet {
     const t0 = performance.now();
     this.counts.fill(0); this.culled = 0; this.evaluated = 0;

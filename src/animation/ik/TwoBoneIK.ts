@@ -9,6 +9,7 @@ const qB = new Float32Array(4), qBModel = new Float32Array(4), qNewModelB = new 
 const qRootLocalConj = new Float32Array(4);
 const vChild = new Float32Array(3), vBend = new Float32Array(3);
 
+/** Quaternion conjugate of a[ao..] into `o`. */
 const conj = (o: Float32Array, a: ArrayLike<number>, ao = 0) => { o[0] = -a[ao]; o[1] = -a[ao + 1]; o[2] = -a[ao + 2]; o[3] = a[ao + 3]; };
 
 /** vBend = component of v perpendicular to unit axis d; returns false if (nearly) parallel. */
@@ -38,12 +39,15 @@ export class TwoBoneIK implements PoseConstraint {
   private tmp = new Xform();
   private parentRot = new Float32Array(4);
 
+  /** Analytic solver for the chain root -> mid -> end (e.g. hip -> knee -> ankle) in `layout`. */
   constructor(private layout: PoseLayout, readonly root: number, readonly mid: number, readonly end: number) {
     assertChain(layout, [root, mid, end], 'TwoBoneIK');
   }
 
+  /** Add the joints this solver rotates (root and mid) to `out`. */
   collectNodes(out: Set<number>): void { out.add(this.root); out.add(this.mid); }
 
+  /** Bend the chain so `end` reaches `target` (model space), with `pole` selecting the bend direction; blends into `pose` by `weight`. */
   apply(pose: Pose): void {
     if (this.weight <= 0) return;
     const { layout, A, B, C, tmp } = this;

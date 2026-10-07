@@ -75,6 +75,7 @@ export const lightsDemo: Demo = (ctx) => {
   }
   ctx.orbit.distance = 20; ctx.orbit.pitch = 0.6; ctx.orbit.autoRotate = 0;
 
+  // Per-frame update: orbit the point lights and sweep the spot lights.
   return (t) => {
     points.forEach((e, i) => {
       const a = t * 0.4 + i / n * 6.283, r = 3 + (i % 3) * 2;

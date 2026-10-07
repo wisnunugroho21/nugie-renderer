@@ -40,6 +40,7 @@ export class ClusterGrid {
   /** Dispatches issued (diagnostics / tests). */
   dispatches = 0;
 
+  /** Create the compute pipeline, parameter buffer and overflow counter for clustered light assignment (screen tiles x exponential depth slices). */
   constructor(private gpu: GPUContext, private scene: SceneResources, readonly config: ClusterConfig = { ...DEFAULT_CLUSTER_CONFIG }) {
     registerEngineShaderChunks(gpu.resources.shaders);
     this.params = gpu.resources.buffers.create('ClusterParams', PARAMS_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
@@ -53,6 +54,7 @@ export class ClusterGrid {
   /** Buffers for inspection by tests / tools. */
   get buffers(): { grid: GPUBuffer; indices: GPUBuffer; overflow: GPUBuffer } { return { grid: this.grid!, indices: this.indices!, overflow: this.overflowBuf }; }
 
+  /** Total clusters (tiles x tiles x slices) in the current grid. */
   get clusterCount(): number { return this.dims[0] * this.dims[1] * this.dims[2]; }
 
   /** (Re)allocate the grid for a render-target size. */

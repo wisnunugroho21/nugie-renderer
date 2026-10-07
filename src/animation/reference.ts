@@ -7,6 +7,7 @@ export interface RefVertex { position: number[]; normal: number[]; tangent: numb
 
 export interface RefMorph { position?: Float32Array; normal?: Float32Array; tangent?: Float32Array; }
 
+/** Normalise a 3-vector (returned unchanged when it has zero length). */
 function norm(v: number[]): number[] { const l = Math.hypot(v[0], v[1], v[2]); return l > 0 ? [v[0] / l, v[1] / l, v[2] / l] : v; }
 
 /** m: column-major 4x4 at offset `o` of `mats`; transforms a point (w=1) or direction (w=0). */
@@ -18,6 +19,7 @@ function xform(mats: Float32Array, o: number, v: number[], w: number): number[] 
   ];
 }
 
+/** CPU reference of the shader's `deformVertex`: apply morph targets (weighted deltas) then linear-blend skinning to one vertex. Used by tests and GPU self-tests. */
 export function deformVertexRef(
   vertex: number, base: RefVertex,
   morph: { targets: RefMorph[]; weights: ArrayLike<number> } | null,
@@ -38,6 +40,7 @@ export function deformVertexRef(
     if (t[0] || t[1] || t[2]) t = norm(t);
   }
   if (skin) {
+    /** Linear-blend-skinning of vector `v` (position when w = 1, direction when w = 0) by the vertex's four weighted joint matrices. */
     const acc = (v: number[], w: number) => {
       const out = [0, 0, 0];
       for (let k = 0; k < 4; k++) {

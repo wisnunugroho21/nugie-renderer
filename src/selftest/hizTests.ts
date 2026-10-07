@@ -12,6 +12,7 @@ struct VSOut { @builtin(position) p: vec4<f32>, @location(0) uv: vec2<f32> };
   return fract(in.uv.x * 7.3 + in.uv.y * 3.1) * 0.9 + 0.05;
 }`;
 
+/** Read mip `mip` of an r32float texture back to the CPU. */
 async function readR32(gpu: GPUContext, tex: GPUTexture, mip: number): Promise<{ w: number; h: number; px: Float32Array }> {
   const w = Math.max(1, tex.width >> mip), h = Math.max(1, tex.height >> mip), bpr = Math.ceil(w * 4 / 256) * 256;
   const buf = gpu.resources.buffers.create('hiz-readback', bpr * h, GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC);
@@ -24,6 +25,7 @@ async function readR32(gpu: GPUContext, tex: GPUTexture, mip: number): Promise<{
   return { w, h, px };
 }
 
+/** Hi-Z pyramid vs the CPU max-reduction for even and odd sizes. */
 export function hizTests(gpu: GPUContext): SelfTest[] {
   return [{
     name: 'hi-z: pyramid equals the CPU max-reduction at every mip (odd and even sizes)',

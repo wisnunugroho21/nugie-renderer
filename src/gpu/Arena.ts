@@ -10,6 +10,7 @@ export class Arena {
   used = 0;
   private capacity: number;
 
+  /** Create the arena with room for `initialCapacity` elements of `elementBytes` bytes each. */
   constructor(
     private device: GPUDevice, private buffers: BufferManager, readonly label: string, private usage: GPUBufferUsageFlags,
     readonly elementBytes: number, initialCapacity: number,
@@ -18,10 +19,12 @@ export class Arena {
     this.buffer = this.make();
   }
 
+  /** Allocate the backing GPU buffer for the current capacity. */
   private make(): GPUBuffer {
     return this.buffers.create(this.label, this.capacity * this.elementBytes, this.usage | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC);
   }
 
+  /** Elements that fit before the next growth. */
   get capacityElements(): number { return this.capacity; }
 
   /** Reserve `count` elements; returns the element offset. */
@@ -33,10 +36,12 @@ export class Arena {
     return off;
   }
 
+  /** Upload `data` at element offset `elementOffset` (a range previously returned by `alloc`). */
   write(elementOffset: number, data: ArrayBufferView): void {
     this.device.queue.writeBuffer(this.buffer, elementOffset * this.elementBytes, data.buffer, data.byteOffset, data.byteLength);
   }
 
+  /** Double the capacity until `need` fits, copy the old contents on the GPU, destroy the old buffer and bump `generation`. */
   private grow(need: number): void {
     const old = this.buffer, oldBytes = this.used * this.elementBytes;
     while (this.capacity < need) this.capacity *= 2;

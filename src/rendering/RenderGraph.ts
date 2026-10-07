@@ -21,10 +21,13 @@ export class RenderGraph {
   culled: string[] = [];
   private compiled: PassDesc[] = [];
 
+  /** Remove all passes (call at the start of every frame). */
   reset(): void { this.passes.length = 0; this.order.length = 0; this.culled.length = 0; this.compiled.length = 0; }
 
+  /** Declare a pass for this frame. */
   addPass(p: PassDesc): void { this.passes.push(p); }
 
+  /** Derive pass order from the declared reads / writes (a stable topological sort), drop passes nothing depends on, and throw on cycles. Returns the names of culled passes. */
   compile(): string[] {
     const n = this.passes.length;
     // dependency edges (a -> b means a must run before b), derived from declaration order per resource
@@ -48,6 +51,7 @@ export class RenderGraph {
     });
     // cull: keep side-effect passes and everything they (transitively) depend on
     const keep = new Array<boolean>(n).fill(false);
+    /** Keep pass `i` and, recursively, every pass it depends on. */
     const mark = (i: number): void => { if (keep[i]) return; keep[i] = true; deps[i].forEach(mark); };
     this.passes.forEach((p, i) => { if (p.sideEffect) mark(i); });
     // a pass with outputs that some kept pass reads is already kept through deps; passes with no outputs are only kept if sideEffect
@@ -70,5 +74,6 @@ export class RenderGraph {
     return (this.order = out.map((p) => p.name));
   }
 
+  /** Run the compiled passes in order, recording into `enc`. */
   execute(enc: GPUCommandEncoder): void { for (const p of this.compiled) p.execute(enc); }
 }

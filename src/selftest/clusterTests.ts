@@ -9,6 +9,7 @@ import { Rng, readBuffer, type SelfTest } from './harness';
 
 interface Setup { grid: ClusterGrid; lights: LightData; view: ArrayLike<number>; proj: ArrayLike<number>; w: number; h: number; near: number; far: number }
 
+/** Create a cluster grid over `nLights` random point / spot lights (plus a few global ones) and run the GPU assignment once. */
 function setup(gpu: GPUContext, nLights: number, max: number, seed: number): Setup {
   const rng = new Rng(seed), w = 640, h = 360, near = 0.1, far = 100;
   const scene = new SceneResources(gpu, createBindLayouts(gpu.device));
@@ -45,6 +46,7 @@ function cpuMembers(s: Setup, c: number, grow: number): number[] {
     for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
   }
   const out: number[] = [], f = s.lights.data, v = s.view;
+  /** Transform a point by the view matrix. */
   const tp = (x: number, y: number, z: number, w: number) => [0, 1, 2].map((r) => v[r] * x + v[4 + r] * y + v[8 + r] * z + v[12 + r] * w);
   for (let i = s.lights.globalCount; i < s.lights.count; i++) {
     const o = i * 24;
@@ -62,6 +64,7 @@ function cpuMembers(s: Setup, c: number, grow: number): number[] {
   return out;
 }
 
+/** GPU light-cluster assignment vs a CPU reference, and list overflow accounting. */
 export function clusterTests(gpu: GPUContext): SelfTest[] {
   return [
     {

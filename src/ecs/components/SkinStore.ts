@@ -21,11 +21,13 @@ export class SkinStore extends ComponentStore {
   private linkInst = new Int32Array(256);
   private linkCount = 0;
 
+  /** Grow the owner -> instance id and dependency-list head arrays. */
   protected grow(n: number): void {
     this.instanceId = growI32(this.instanceId, n, -1);
     this.head = growI32(this.head, n, -1);
   }
 
+  /** Remove the owner's skeleton instance and notify `onRemove` (so its joint range can be released). */
   protected reset(i: number): void {
     const id = this.instanceId[i];
     if (id >= 0) {
@@ -37,6 +39,7 @@ export class SkinStore extends ComponentStore {
     }
   }
 
+  /** Attach a skeleton instance to the skinned-mesh `owner` entity. Returns the instance id and links every joint entity to it for dirty tracking. */
   add(owner: number, inst: SkeletonInstance): number {
     this.ensureCapacity(owner + 1);
     for (const j of inst.jointEntities) this.ensureCapacity(j + 1);
@@ -52,6 +55,7 @@ export class SkinStore extends ComponentStore {
     return id;
   }
 
+  /** Record that skeleton instance `id` depends on `entity` (prepends to the entity's intrusive linked list). */
   private link(entity: number, id: number): void {
     if (this.linkCount === this.linkNext.length) {
       const n = this.linkCount * 2;
@@ -76,6 +80,7 @@ export class SkinStore extends ComponentStore {
     }
   }
 
+  /** The skeleton instance owned by entity `owner`, if any. */
   get(owner: number): SkeletonInstance | undefined {
     const id = owner < this.instanceId.length ? this.instanceId[owner] : -1;
     return id >= 0 ? this.instances[id] : undefined;

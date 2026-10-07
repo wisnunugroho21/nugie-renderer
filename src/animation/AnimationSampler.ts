@@ -29,6 +29,7 @@ export function slerpInto(out: Float32Array, o: number, a: Float32Array, ao: num
   out[o] = s0 * a[ao] + s1 * bx; out[o + 1] = s0 * a[ao + 1] + s1 * by; out[o + 2] = s0 * a[ao + 2] + s1 * bz; out[o + 3] = s0 * a[ao + 3] + s1 * bw;
 }
 
+/** Normalise the quaternion stored at `out[o..o+3]` in place. */
 function normalizeQuat(out: Float32Array, o: number): void {
   const l = Math.hypot(out[o], out[o + 1], out[o + 2], out[o + 3]) || 1;
   out[o] /= l; out[o + 1] /= l; out[o + 2] /= l; out[o + 3] /= l;
@@ -45,6 +46,7 @@ export function sampleChannel(
 ): number {
   const n = times.length;
   const cubic = interpolation === 'CUBICSPLINE';
+  /** Offset of keyframe `key`'s value (cubic-spline channels store in-tangent, value, out-tangent per key). */
   const valueAt = (key: number) => (cubic ? key * 3 + 1 : key) * stride;
   if (n === 0) return -1;
   const k = findKey(times, t, hint);

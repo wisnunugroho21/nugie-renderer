@@ -48,6 +48,7 @@ export const materialsDemo: Demo = (ctx) => {
     values: { speed: 3, tint: [0.2, 1, 0.6, 1] },
   });
 
+  /** Add an object (mesh + material at a position, uniform or per-axis scale, optionally static) with unit-cube bounds; returns its entity index. */
   const spawn = (mesh: number, mat: number, x: number, y: number, z: number, s: number | [number, number, number], isStatic = false) => {
     const i = entityIndex(world.create());
     world.transforms.add(i, x, y, z);
@@ -79,6 +80,7 @@ export const materialsDemo: Demo = (ctx) => {
 
   ctx.orbit.distance = 13; ctx.orbit.pitch = 0.45; ctx.orbit.autoRotate = 0.15;
   const q = Quat.create();
+  // Per-frame update: spin the custom-material sphere and the glass cubes, move the lamp in a circle.
   return (t) => {
     Quat.fromAxisAngle(q, 0, 1, 0, t * 0.7);
     world.transforms.setRotation(pulseObj, q[0], q[1], q[2], q[3]);

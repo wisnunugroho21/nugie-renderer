@@ -34,6 +34,7 @@ export class Inertializer {
   private x0t: Float32Array; private v0t: Float32Array; private x0r: Float32Array; private v0r: Float32Array;
   private vel = new Float32Array(3);
 
+  /** Create an inertializer for `layout`; `halfLife` (seconds) sets how fast a switch offset decays. */
   constructor(private layout: PoseLayout, halfLife = 0.1) {
     this.halfLife = halfLife; this.y = (2 * Math.LN2) / Math.max(halfLife, 1e-4);
     const n = layout.nodeCount;

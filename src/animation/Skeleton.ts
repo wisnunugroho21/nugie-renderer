@@ -7,6 +7,7 @@ import type { GLTFAsset, SkinAsset } from '../assets/AssetTypes';
 export class SkeletonAsset {
   readonly jointCount: number;
 
+  /** `jointNodes` = source node of each joint, `inverseBind` = 16 floats per joint, `parent` = parent joint index (or -1). */
   constructor(
     readonly name: string,
     /** Node index (in the source asset) of each joint. */
@@ -20,6 +21,7 @@ export class SkeletonAsset {
     if (inverseBind.length !== this.jointCount * 16) throw new Error('inverseBind must hold 16 floats per joint');
   }
 
+  /** Build a skeleton from a glTF skin; each joint's parent is its nearest ancestor that is also a joint. */
   static fromSkin(skin: SkinAsset, asset: GLTFAsset): SkeletonAsset {
     const jointNodes = Int32Array.from(skin.joints);
     const indexOf = new Map<number, number>();
@@ -43,6 +45,7 @@ export class SkeletonInstance {
   /** Needs its joint matrices recomputed. */
   dirty = true;
 
+  /** A runtime skeleton: shared asset + the skinned mesh's owner entity and one entity index per joint. */
   constructor(
     readonly skeleton: SkeletonAsset,
     /** Entity INDEX of the skinned mesh node: its world matrix is the model space the matrices are relative to. */
@@ -53,5 +56,6 @@ export class SkeletonInstance {
     if (jointEntities.length !== skeleton.jointCount) throw new Error('jointEntities must match the skeleton joint count');
   }
 
+  /** Number of joints. */
   get jointCount(): number { return this.skeleton.jointCount; }
 }

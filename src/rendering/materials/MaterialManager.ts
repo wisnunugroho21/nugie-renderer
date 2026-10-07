@@ -28,6 +28,7 @@ export interface PassTarget {
 }
 
 export class MaterialError extends Error {
+  /** `details` lists the individual validation problems (appended to the message). */
   constructor(message: string, readonly details: string[] = []) { super(message + (details.length ? `: ${details.join('; ')}` : '')); }
 }
 
@@ -72,6 +73,7 @@ export class MaterialManager {
   private sortIds = new Map<string, number>();
   private defaults!: { white: TextureRef; flatNormal: TextureRef };
 
+  /** Create the shared material / parameter buffers, the 1x1 default textures, the default PBR material and the error material. */
   constructor(private device: GPUDevice, private res: GPUResources, private layouts: BindLayouts) {
     registerEngineShaderChunks(res.shaders);
     this.createDefaultTextures();
@@ -112,6 +114,7 @@ export class MaterialManager {
     return m.id;
   }
 
+  /** Register a custom WGSL material (validated first; throws MaterialError). Returns its id. Parameters are read through generated `param_<name>(base)` accessors. */
   createCustom(desc: CustomMaterialDesc): number {
     const vs = desc.vertexEntry ?? 'vs_main', fs = desc.fragmentEntry ?? 'fs_main';
     const errors = validateCustomShader(desc.wgsl, vs, fs, desc.depthEntry ? [desc.depthEntry] : []);
@@ -146,6 +149,7 @@ export class MaterialManager {
     return m.id;
   }
 
+  /** Create the bright fallback material shown when a custom shader fails to build. */
   private createErrorMaterial(): number {
     this.customSources.set('error', ERROR_SOURCE);
     const m = this.newMaterial({
@@ -159,6 +163,7 @@ export class MaterialManager {
     return m.id;
   }
 
+  /** Allocate a material record (growing the shared buffer if needed) and add it to the registry. */
   private newMaterial(p: Omit<Material, 'id' | 'textures' | 'paramBase' | 'paramCount' | 'paramSchema' | 'version' | 'failed' | 'pipelineSortId'>): Material {
     const id = this.materials.length;
     if (id >= this.recCap) this.growRecords(id + 1);
@@ -193,6 +198,7 @@ export class MaterialManager {
     this.writeRecord(id, { ...this.readBack(id), ...desc });
   }
 
+  /** Bind `tex` (or null = default) to texture slot `slot` of material `id`; toggles the normal-map shader variant when the normal slot changes. */
   setTexture(id: number, slot: number, tex: TextureRef | null): void {
     const m = this.materials[id];
     this.setTextureRaw(m, slot, tex);
@@ -260,8 +266,11 @@ export class MaterialManager {
     return this.res.pipelines.getRender(key, () => this.createPipeline(m, target, key, deformMask));
   }
 
+  /** True when the pass follows a depth prepass for this material (so it only shades pixels whose depth matches). */
   private prepassed(m: Material, t: PassTarget): boolean { return !!t.depthEqual && m.queue !== 'transparent'; }
+  /** Depth writes are disabled after a prepass; otherwise the material's own setting. */
   private depthWrite(m: Material, t: PassTarget): boolean { return this.prepassed(m, t) ? false : m.state.depthWrite; }
+  /** 'equal' after a prepass; otherwise the material's own comparison. */
   private depthCompare(m: Material, t: PassTarget): GPUCompareFunction { return this.prepassed(m, t) ? 'equal' : m.state.depthCompare; }
 
   private prepassPipelines = new Map<string, GPURenderPipeline>();
@@ -317,6 +326,7 @@ export class MaterialManager {
     return p;
   }
 
+  /** The cache key identifying the pipeline for (material, pass target, deform variant). */
   pipelineKey(m: Material, target: PassTarget, deformMask = 0): PipelineKey {
     return {
       shader: ShaderManager.key(m.shaderId, featureDefines(m.features | deformFeatures(deformMask))),
@@ -329,6 +339,7 @@ export class MaterialManager {
     };
   }
 
+  /** Build the WebGPU pipeline descriptor for the material in `target` (shader variant, standard vertex layout, depth state). */
   private pipelineDescriptor(m: Material, key: PipelineKey, target: PassTarget, deformMask: number): GPURenderPipelineDescriptor {
     const source = m.shaderId === 'pbr' ? PBR_SOURCE : this.customSources.get(m.shaderId)!;
     const module = this.res.shaders.get(m.shaderId, source, featureDefines(m.features | deformFeatures(deformMask)));
@@ -365,6 +376,7 @@ export class MaterialManager {
     return jobs.length;
   }
 
+  /** Create the render pipeline; custom shaders are wrapped in a validation error scope so a bad shader marks its materials `failed` (drawn with the error material) instead of crashing. */
   private createPipeline(m: Material, target: PassTarget, key: PipelineKey, deformMask: number): GPURenderPipeline {
     const guard = m.kind === 'custom';
     if (guard) this.device.pushErrorScope('validation');
@@ -384,7 +396,9 @@ export class MaterialManager {
   // ---------------------------------------------------------------- queries
 
   get(id: number): Material { return this.materials[id]; }
+  /** Number of materials (including the built-in default and error materials). */
   get count(): number { return this.materials.length; }
+  /** The custom-parameter layout (names, offsets) of material `id`'s shader, if it has one. */
   paramLayout(id: number): ParamLayout | undefined { return this.layouts_.get(this.materials[id].shaderId); }
 
   // ---------------------------------------------------------------- internals
@@ -397,8 +411,10 @@ export class MaterialManager {
     m.pipelineSortId = id;
   }
 
+  /** Store the texture reference without touching versions or shader features. */
   private setTextureRaw(m: Material, slot: number, tex: TextureRef | null): void { m.textures[slot] = tex; }
 
+  /** Read a PBR material's numeric parameters back from the CPU copy of the material buffer. */
   private readBack(id: number): PBRMaterialDesc {
     const o = id * RECORD_WORDS, f = this.recF32;
     return {
@@ -407,6 +423,7 @@ export class MaterialManager {
     };
   }
 
+  /** Write a material's PBR parameters and flags into its 64-byte record in the shared buffer and extend the dirty range. */
   private writeRecord(id: number, d: PBRMaterialDesc, extraFlags = 0): void {
     const m = this.materials[id];
     const o = id * RECORD_WORDS, f = this.recF32, u = this.recU32;
@@ -425,6 +442,7 @@ export class MaterialManager {
     this.recDirtyMax = Math.max(this.recDirtyMax, id);
   }
 
+  /** Reserve `vec4s` vec4 slots in the shared custom-parameter buffer (growing it, and bumping `generation`, if needed); returns the base index. */
   private allocParams(vec4s: number): number {
     const base = this.paramUsedVec4;
     if (base + vec4s > this.paramCapVec4) {
@@ -441,6 +459,7 @@ export class MaterialManager {
     return base;
   }
 
+  /** Double the material record capacity, recreate the GPU buffer and re-upload all records. */
   private growRecords(needed: number): void {
     let cap = this.recCap;
     while (cap < needed) cap *= 2;
@@ -453,18 +472,23 @@ export class MaterialManager {
     this.recDirtyMin = 0; this.recDirtyMax = Math.max(0, this.materials.length - 1);
   }
 
+  /** Allocate the GPU storage buffer for the material records. */
   private makeMaterialBuffer(): GPUBuffer {
     return this.res.buffers.create('MaterialBuffer', this.recCap * RECORD_WORDS * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
   }
+  /** Allocate the GPU storage buffer for custom material parameters. */
   private makeParamBuffer(): GPUBuffer {
     return this.res.buffers.create('CustomMaterialParameterBuffer', this.paramCapVec4 * 16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
   }
+  /** Create both shared material buffers. */
   private allocateBuffers(): void {
     this.materialBuffer = this.makeMaterialBuffer();
     this.paramBuffer = this.makeParamBuffer();
   }
 
+  /** Create the 1x1 white and flat-normal textures bound to unused material slots. */
   private createDefaultTextures(): void {
+    /** Create a 1x1 RGBA texture of the given colour. */
     const mk = (id: string, rgba: [number, number, number, number]): TextureRef => {
       const tex = this.res.textures.create({
         label: id, size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,

@@ -28,6 +28,7 @@ export interface TransitionDef {
   interruptible?: boolean;
 }
 
+/** Smoothstep ease used for transition blend weights. */
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
 /**
@@ -63,6 +64,7 @@ export class StateMachine {
   private dTo = new RootDelta();
   private dZero = new RootDelta();
 
+  /** Create a state machine over `states` and `transitions` starting in state `entry`. */
   constructor(layout: Pose['layout'], rest: Pose, readonly states: StateDef[], readonly transitions: TransitionDef[], entry = 0) {
     if (states.length === 0) throw new Error('State machine needs at least one state');
     this.current = entry;
@@ -70,14 +72,17 @@ export class StateMachine {
     this.snapshot = new Pose(layout); this.last = rest.clone();
   }
 
+  /** Name of the active state (the target state while a transition is running). */
   get currentName(): string { return this.states[this.transitioning ? this.to : this.current].name; }
 
+  /** Playback speed of a state: its base speed times an optional parameter multiplier. */
   private speedOf(s: StateDef, params: AnimationParams): number {
     let v = s.speed ?? 1;
     if (s.speedParam !== undefined) v *= params.values[s.speedParam];
     return v;
   }
 
+  /** Find the first transition whose source, exit time and conditions match and start it (consuming any trigger conditions). */
   private evaluateTransitions(params: AnimationParams): void {
     if (this.transitioning && this.nonInterruptible) return;
     const src = this.transitioning ? this.to : this.current;
@@ -98,6 +103,7 @@ export class StateMachine {
     }
   }
 
+  /** Begin transition `t`: switch immediately when it has no duration, otherwise start a cross-fade (an interrupted fade blends from a snapshot of what was on screen). */
   private start(t: TransitionDef): void {
     const dur = t.duration ?? 0;
     if (dur <= 0) {
@@ -131,6 +137,7 @@ export class StateMachine {
 
   private tmp = { u: 0, wrapped: false };
 
+  /** Evaluate transitions, advance the active state(s), blend the pose and root delta during a cross-fade, and write the result to `out` / `rootOut`. */
   update(dt: number, ctx: MotionContext, out: Pose, rootOut: RootDelta): void {
     rootOut.reset();
     const params = ctx.params;

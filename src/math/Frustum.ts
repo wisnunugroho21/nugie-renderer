@@ -6,8 +6,10 @@
 export class Frustum {
   readonly planes = new Float32Array(24);
 
+  /** Extract the six clip planes from a column-major view-projection matrix (planes are normalised, normals point inward). */
   setFromViewProjection(m: ArrayLike<number>): this {
     const p = this.planes;
+    /** Store the normalised plane (row3 + s * row) at slot `idx`. */
     const plane = (idx: number, s: number, row: number) => {
       // plane = row3 + s*row_k (row_k = (m[k], m[4+k], m[8+k], m[12+k]))
       const a = m[3] + s * m[row], b = m[7] + s * m[4 + row], c = m[11] + s * m[8 + row], d = m[15] + s * m[12 + row];

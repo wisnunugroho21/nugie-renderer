@@ -9,6 +9,7 @@ const tmpOut = new Float32Array(6);
 export class BoundsSystem {
   boundsUpdated = 0;
 
+  /** Create the system over the transform and bounds stores. */
   constructor(private transforms: TransformStore, private bounds: BoundsStore) {}
 
   /** `changed` = indices from TransformSystem.updated. */

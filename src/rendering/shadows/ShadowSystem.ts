@@ -73,6 +73,7 @@ export class ShadowSystem {
   private signature = '';
   private frameData = new Float32Array(FRAME_FLOATS);
 
+  /** Allocate one depth-array texture (`cascades + spots + 6 per point light` layers), a view / frame uniform per layer and publish the textures to the scene bind group. */
   constructor(
     private gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources,
     private meshes: MeshManager, private materials: MaterialManager, readonly config: ShadowConfig = { ...DEFAULT_SHADOW_CONFIG },
@@ -153,6 +154,7 @@ export class ShadowSystem {
     if (this.layers.length) this.gpu.device.queue.writeBuffer(this.matricesBuffer, 0, this.matrices);
   }
 
+  /** Register shadow layer `index` with its light view-projection matrix and an empty caster batch list. */
   private addLayer(index: number, vp: Float32Array): void {
     this.matrices.set(vp, index * 16);
     this.layers.push({ index, vp, batches: new BatchList(), count: 0 });

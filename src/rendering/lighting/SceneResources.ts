@@ -72,6 +72,7 @@ export class SceneResources {
   private f32 = new Float32Array(this.uniformData);
   private u32 = new Uint32Array(this.uniformData);
 
+  /** Create the scene bind group's buffers, 1x1 default textures (so every binding is always valid) and the LTC lookup table. */
   constructor(private gpu: GPUContext, private layouts: BindLayouts) {
     const { resources: r } = gpu;
     const S = GPUBufferUsage.STORAGE, D = GPUBufferUsage.COPY_DST;
@@ -85,8 +86,10 @@ export class SceneResources {
     this.shadowMap = shadow.createView({ dimension: '2d-array' });
     this.dummyShadowView = this.shadowMap;
     this.shadowSampler = r.samplers.get({ compare: 'less', magFilter: 'linear', minFilter: 'linear' });
+    /** A 1x1 black cube-map view used until a real environment is set. */
     const cube = () => r.textures.create({ label: 'env-default', size: [1, 1, 6], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }).createView({ dimension: 'cube' });
     this.envIrradiance = cube(); this.envSpecular = cube();
+    /** A 1x1 default 2D texture view. */
     const tex2 = (label: string) => r.textures.create({ label, size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING }).createView();
     this.brdfLut = tex2('brdf-default'); this.ltcMagnitude = tex2('ltc-mag-default');
     // LTC inverse-matrix table (offline fit, tools/fitLTC.ts): rgb = (ia, ib, ic)
@@ -108,6 +111,7 @@ export class SceneResources {
   /** Invalidate the bind group (call after replacing any resource). */
   invalidate(): void { this.bg = null; this.shadowBg = null; this.volumeBg = null; }
 
+  /** The scene bind group (group 1), created lazily and rebuilt after any resource changed. */
   get bindGroup(): GPUBindGroup {
     if (this.bg) return this.bg;
     this.generation++;
@@ -128,6 +132,7 @@ export class SceneResources {
     return (this.volumeBg ??= this.makeBindGroup(`scene-volumepass-bg:${this.generation}`, this.shadowMap, this.dummyFogView));
   }
 
+  /** Create the scene bind group from the current resources (`shadowView` / `fogView` are overridable for off-screen passes). */
   private makeBindGroup(label: string, shadowView: GPUTextureView, fogView: GPUTextureView = this.fogVolume): GPUBindGroup {
     return this.gpu.device.createBindGroup({
       label, layout: this.layouts.scene,
@@ -161,6 +166,7 @@ export class SceneResources {
     this.invalidate();
   }
 
+  /** Use `lut` as the split-sum BRDF lookup table and rebuild the bind group. */
   setBrdfLut(lut: GPUTexture): void { this.brdfLut = lut.createView(); this.invalidate(); }
 
   /** Bind a baked environment (null restores the 1x1 defaults) and the shared BRDF LUT. */
@@ -171,6 +177,7 @@ export class SceneResources {
       this.env = { enabled: true, intensity, rotation, mipCount: env.specularMipCount };
     } else {
       const { r } = { r: this.gpu.resources };
+      /** A 1x1 black cube-map view used until a real environment is set. */
       const cube = () => r.textures.create({ label: 'env-default', size: [1, 1, 6], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }).createView({ dimension: 'cube' });
       this.envIrradiance = cube(); this.envSpecular = cube();
       this.env = { enabled: false, intensity: 1, rotation: 0, mipCount: 1 };

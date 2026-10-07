@@ -14,6 +14,7 @@ export class MorphData {
   activeStates = 0;
   activeTargets = 0;
 
+  /** Make sure the packed pool can hold `words` words (doubling). */
   ensure(words: number): void {
     if (words <= this.pool.length) return;
     let c = this.pool.length;
@@ -60,10 +61,12 @@ export class RenderWorld {
   /** Slots whose transform was refreshed by the last extraction (sparse GPU upload). */
   changedSlots: number[] = [];
 
+  /** Grow every per-object array to hold `n` renderables (doubling); new LOD group slots are -1. */
   ensureCapacity(n: number): void {
     if (n <= this.capacity) return;
     let c = Math.max(64, this.capacity);
     while (c < n) c *= 2;
+    /** Return a copy of typed array `a` with room for `c` objects (`per` elements each). */
     const g = <T extends Float32Array | Int32Array | Uint32Array>(a: T, per: number): T => {
       const o = new (a.constructor as new (n: number) => T)(c * per); o.set(a); return o;
     };
@@ -76,6 +79,7 @@ export class RenderWorld {
     this.capacity = c;
   }
 
+  /** A convenient (allocating) view of renderable `i`, for tests and diagnostics. */
   get(i: number): RenderObject {
     return {
       entityId: this.entityIndex[i], meshId: this.meshId[i], materialId: this.materialId[i],

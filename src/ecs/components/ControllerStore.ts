@@ -12,9 +12,12 @@ export class ControllerStore extends ComponentStore {
   /** Updating can be paused without detaching. */
   enabled = new Uint8Array(0);
 
+  /** Grow the `enabled` flag array. */
   protected grow(n: number): void { const e = new Uint8Array(n); e.set(this.enabled); this.enabled = e; }
+  /** Drop the controller and instance references. */
   protected reset(i: number): void { this.controller[i] = undefined; this.instance[i] = undefined; this.enabled[i] = 0; }
 
+  /** Attach an animation controller driving the nodes described by `instance`; enabled by default. */
   add(i: number, instance: AnimatedInstance, controller: AnimationController): void {
     this.ensureCapacity(i + 1);
     this.has.set(i);

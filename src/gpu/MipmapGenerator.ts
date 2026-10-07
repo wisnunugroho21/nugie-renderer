@@ -6,6 +6,7 @@ import mipmapShader from '../shaders/mipmap.wgsl?raw';
  * sRGB formats are filtered in LINEAR space: sampling decodes sRGB, the render target re-encodes.
  */
 export class MipmapGenerator {
+  /** Create a generator that caches its pipeline and sampler in `res`. */
   constructor(private device: GPUDevice, private res: GPUResources) {}
 
   /** Texture needs TEXTURE_BINDING | RENDER_ATTACHMENT usage and `mipLevelCount` levels. */

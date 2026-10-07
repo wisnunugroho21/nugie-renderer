@@ -44,6 +44,7 @@ export class World {
     return store;
   }
 
+  /** Create an entity. Add components through the stores, using `entityIndex(entity)` as the key. */
   create(): Entity {
     const e = this.entities.create();
     const i = entityIndex(e);
@@ -52,6 +53,7 @@ export class World {
     return e;
   }
 
+  /** Destroy an entity and remove all its components. Returns false if the handle is stale. */
   destroy(e: Entity): boolean {
     if (!this.entities.isAlive(e)) return false;
     const i = entityIndex(e);
@@ -60,5 +62,6 @@ export class World {
     return this.entities.destroy(e);
   }
 
+  /** True if the entity handle is still valid. */
   isAlive(e: Entity): boolean { return this.entities.isAlive(e); }
 }

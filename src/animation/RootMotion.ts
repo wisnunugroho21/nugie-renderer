@@ -21,6 +21,7 @@ export function twistY(twist: Float32Array, q: ArrayLike<number>, qo = 0): void 
   twist[0] = 0; twist[1] = y / l; twist[2] = 0; twist[3] = w / l;
 }
 
+/** Quaternion product out[o..] = a[ao..] * b[bo..] on packed arrays. */
 function mul(out: Float32Array, o: number, a: ArrayLike<number>, ao: number, b: ArrayLike<number>, bo: number): void {
   const ax = a[ao], ay = a[ao + 1], az = a[ao + 2], aw = a[ao + 3], bx = b[bo], by = b[bo + 1], bz = b[bo + 2], bw = b[bo + 3];
   out[o] = aw * bx + ax * bw + ay * bz - az * by;

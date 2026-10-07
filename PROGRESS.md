@@ -3,7 +3,7 @@
 Source of truth: `IMPLEMENTATION_PLAN.md` (original lives in the Downloads folder). This file tracks status,
 decisions and measured results. A phase is "done" only when its acceptance criteria + tests/benchmarks pass.
 
-Run: `npm run dev` (app at `/`, scenes via `?scene=materials|gltf`, benchmarks at `/bench.html`) ·
+Run: `npm run dev` (demos at `/` with `?scene=<name>`, starter game at `/game.html`, benchmarks at `/bench.html`, GPU self-tests at `/selftest.html`) ·
 `npm test` · `npm run typecheck` · `npm run bench` (CPU benchmarks).
 
 ## Status
@@ -61,6 +61,32 @@ Run: `npm run dev` (app at `/`, scenes via `?scene=materials|gltf`, benchmarks a
 | 44 | Geometry optimisation: Forsyth vertex-cache reordering, fetch reordering, quadric edge-collapse simplification (boundary protected, flip rejection), automatic LOD chains (`/?scene=lod&auto=1`), meshlets with bounds + normal cones | DONE - 11 tests (ACMR 3.00 shuffled -> 0.68 optimised (row-major grid: 1.01), 32 ms for 20k triangles, silhouette error, meshlet coverage / cone culling safety); GPU meshlet culling deferred |
 | 28C | Volumetric fog: froxel volume (8 px tiles x 48 exponential slices, rgba16f 3D), height-exponential density, directional + ranged lights (shadow-mapped, clustered), Henyey-Greenstein phase, ambient in-scatter; applied to meshes and sky with one lookup (`?fog=<density>`) | DONE - 2 GPU self-tests vs analytic transmittance / in-scatter (<= 3.5e-3) |
 | 64 | Advanced optimisation: async pipeline warm-up (`renderer.warmup()` / `?warmup=1`: shared pipelines deduplicated, 220 material x variant jobs -> 12 compiles in ~0.6 s, no first-use hitch), bind-group cache keys unique per renderer / material manager (fixes stale resources when several renderers share one device), `@invariant` depth for prepass equality, GPU-driven culling / LOD / occlusion (phases 34-40), cluster + froxel work on the GPU | DONE - measured in Benchmarks B / C / G |
+
+## Code review and restructuring (October 2026)
+
+Review pass over the modules, typecheck, 437 unit tests and the 34 GPU self-tests all green afterwards. Changes:
+
+* **`Engine`** (`src/app/Engine.ts`) now owns the GPU context, ECS world, every per-frame system, the render extraction, culling and the
+  renderer, and runs a frame in the right order (`Engine.frame`). `main.ts` shrank from 137 to ~35 lines; the HUD text (`app/Hud.ts`),
+  URL switches (`app/urlSettings.ts`) and the demo registry (`demos/index.ts`) moved out of it. Games use `engine.spawnObject`,
+  `engine.spawnLight`, `engine.start(update)` and can add their own systems with `engine.addSystem(system, phase)`.
+* `src/index.ts` is the public API barrel; `src/game/` + `game.html` is a compile-checked starter game.
+* `Renderer.render()` (a 245-line function) is split into `uploadFrameData`, `buildBatches`, `recordPasses` and one `add*Pass` /
+  `drawGeometry` / `drawExtras` method per pass, with a reused `FrameState` for the data they share. Behaviour is unchanged.
+* `bench/main.ts` suite dispatch is a table instead of five copies of the same boilerplate.
+* Every function, method and named helper now has a doc comment; stale comments were corrected.
+* **Bugs fixed:**
+  * The render pipeline layout counted 4 scene + 8 object storage buffers in the *compute* stage (12), which fails on GPUs whose
+    per-stage limit is 10 (device creation succeeded, then every pipeline was invalid). The object group is now vertex-only; the
+    compute-visible variant (`BindLayouts.objectCompute`) is used only by the GPU self-tests.
+  * `RendererStats.reset()` wiped `cpu.extraction`, which the caller measures *before* `render()`; it is now preserved.
+  * `WorkerPool.terminate()` left in-flight and queued job promises pending forever; they are now rejected.
+  * `Application.stop()` did not cancel the pending animation frame (a quick stop/start could run two loops) and the resize observer
+    was never released (`dispose()` added).
+* **Found, not changed** (see also the list below): `DynamicBufferAllocator` offsets already returned in a frame change if the buffer
+  grows later in the same frame (only on the growth frame, only for ring regions other than 0); `GPUCuller.prepare` allocates small
+  typed arrays every frame; objects without a bounds component get an infinite AABB, which the static BVH cannot represent (give
+  static objects bounds).
 
 ## Conventions (documented decisions)
 

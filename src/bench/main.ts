@@ -15,8 +15,10 @@ import { runAnimBench, formatAnimRows, type AnimBenchConfig, type AnimBenchRow }
 interface Row { mode: string; draws: number; pipelineSw: number; materialSw: number; meshSw: number; cpuTotalMs: number; cpuEncodeMs: number; cpuSortMs: number; cpuBatchMs: number; submitToDoneMs: number; }
 
 const out = document.getElementById('out')!;
+/** Append a line to the page's output element. */
 const log = (s: string) => { out.textContent += '\n' + s; };
 
+/** Benchmark A: draw `count` objects (`materials` x `meshes` variants) under each batching mode and measure CPU phases and submit-to-done latency. */
 async function benchmarkA(count: number, materials: number, meshes: number, frames: number): Promise<Row[]> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const gpu = await GPUContext.create(canvas);
@@ -30,7 +32,9 @@ async function benchmarkA(count: number, materials: number, meshes: number, fram
   const ts = new TransformSystem(world.transforms), bs = new BoundsSystem(world.transforms, world.bounds);
   const ex = new RenderExtractor(world, ts), rw = new RenderWorld();
   const side = Math.ceil(Math.cbrt(count));
-  let seed = 12345; const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  let seed = 12345;
+  /** Deterministic pseudo-random number in [0, 1) (LCG). */
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
   for (let i = 0; i < count; i++) {
     const e = entityIndex(world.create());
     world.transforms.add(e, (i % side) * 1.2, (Math.floor(i / side) % side) * 1.2, Math.floor(i / (side * side)) * 1.2);
@@ -65,8 +69,10 @@ async function benchmarkA(count: number, materials: number, meshes: number, fram
   return rows;
 }
 
+/** Format Benchmark A rows as a text table with the CPU speed-up versus the unsorted baseline. */
 function table(rows: Row[]): string {
   const base = rows[0];
+  /** Format a number with 3 decimals, right-aligned to 8 characters. */
   const f = (n: number) => n.toFixed(3).padStart(8);
   let s = 'mode        draws  pipeSw  matSw  meshSw  cpuTotal  encode    sort   batch  submit→done  (cpu speedup vs unsorted)\n';
   for (const r of rows) {
@@ -76,6 +82,7 @@ function table(rows: Row[]): string {
   return s;
 }
 
+/** Run all animation benchmark groups (skinning crowds, morph targets, skin + morph) on one GPU context. */
 async function animSuite(): Promise<Record<string, AnimBenchRow[]>> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const gpu = await GPUContext.create(canvas);
@@ -107,51 +114,62 @@ async function animSuite(): Promise<Record<string, AnimBenchRow[]>> {
   return results;
 }
 
+/** Publish results for automated readers (`window.__benchResults`) and flag the page title as finished. */
+function finish(results: unknown): void {
+  (window as unknown as { __benchResults: unknown }).__benchResults = results;
+  document.title = 'DONE';
+}
+
+/** Benchmark A (default suite): draw-submission strategies on 10k objects. */
+async function runDrawSubmissionSuite(): Promise<void> {
+  const results: Record<string, Row[]> = {};
+  const cfgs: [string, number, number, number][] = [
+    ['A1: 10,000 cubes, 1 material, 1 mesh', 10000, 1, 1],
+    ['A2: 10,000 objects, 8 materials, 2 meshes', 10000, 8, 2],
+  ];
+  for (const [name, n, m, k] of cfgs) {
+    log(`\n== ${name} ==`);
+    results[name] = await benchmarkA(n, m, k, 60);
+    log(table(results[name]));
+  }
+  finish(results);
+}
+
+/** Benchmark suites selectable with `?suite=<name>`; each logs its table and publishes its rows. */
+const SUITES: Record<string, (canvas: HTMLCanvasElement, params: URLSearchParams) => Promise<void>> = {
+  /** Benchmark C: clustered vs naive light loop for growing light counts. */
+  async lights(canvas, params) {
+    const dense = params.get('dense') === '1';
+    const rows = await runLightBench(canvas, dense ? [256, 1024] : [16, 64, 256, 1024, 4096], 30, dense ? 6000 : 400, dense);
+    log('== C: fragment-bound lighting (point lights, range 5, 60x60 floor + 400 spheres) ==');
+    log('lights  mode          gpu ms (submit->done)  cpu ms  clusters');
+    for (const r of rows) log(`${String(r.lights).padStart(6)}  ${r.mode.padEnd(12)}  ${r.gpuMs.toFixed(2).padStart(10)}  ${r.cpuMs.toFixed(2).padStart(10)}  ${r.clusters}`);
+    finish(rows);
+  },
+  /** Benchmark B: GPU time per pass with every feature enabled (timestamp queries). */
+  async passes(canvas) {
+    const rows = await runPassBench(canvas);
+    log('== B: GPU time per pass (timestamp queries; sun + spot shadows, 512 clustered lights, IBL, fog, 3000 spheres) ==');
+    for (const r of rows) log(r.config.padEnd(30) + ' total ' + r.totalMs.toFixed(2).padStart(6) + ' ms   ' + r.passes.map(([k, v]) => k + ' ' + v.toFixed(2)).join('  '));
+    finish(rows);
+  },
+  /** Benchmark G: CPU vs GPU-driven frustum / Hi-Z culling on a heavily occluded scene. */
+  async cull(canvas, params) {
+    const rows = await runCullBench(canvas, Number(params.get('n') ?? 20000));
+    log('== G: GPU-driven visibility (CPU culling disabled; GPU latency = submit->done) ==');
+    for (const r of rows) log(`${r.scene.padEnd(40)} ${r.mode.padEnd(8)} gpu ${r.gpuMs.toFixed(2).padStart(8)} ms  cpu ${r.cpuMs.toFixed(2).padStart(6)} ms  draws ${r.drawn}  GPU passes ${r.passMs.toFixed(2)} ms`);
+    finish(rows);
+  },
+  /** Benchmarks D-F: skinning and morphing. */
+  async anim() { finish(await animSuite()); },
+};
+
 (async () => {
   try {
-    if (new URLSearchParams(location.search).get('suite') === 'lights') {
-      const dense = new URLSearchParams(location.search).get('dense') === '1';
-      const rows = await runLightBench(document.getElementById('canvas') as HTMLCanvasElement, dense ? [256, 1024] : [16, 64, 256, 1024, 4096], 30, dense ? 6000 : 400, dense);
-      log('== C: fragment-bound lighting (point lights, range 5, 60x60 floor + 400 spheres) ==');
-      log('lights  mode          gpu ms (submit->done)  cpu ms  clusters');
-      for (const r of rows) log(`${String(r.lights).padStart(6)}  ${r.mode.padEnd(12)}  ${r.gpuMs.toFixed(2).padStart(10)}  ${r.cpuMs.toFixed(2).padStart(10)}  ${r.clusters}`);
-      (window as unknown as { __benchResults: unknown }).__benchResults = rows;
-      document.title = 'DONE';
-      return;
-    }
-    if (new URLSearchParams(location.search).get('suite') === 'passes') {
-      const rows = await runPassBench(document.getElementById('canvas') as HTMLCanvasElement);
-      log('== B: GPU time per pass (timestamp queries; sun + spot shadows, 512 clustered lights, IBL, fog, 3000 spheres) ==');
-      for (const r of rows) log(r.config.padEnd(30) + ' total ' + r.totalMs.toFixed(2).padStart(6) + ' ms   ' + r.passes.map(([k, v]) => k + ' ' + v.toFixed(2)).join('  '));
-      (window as unknown as { __benchResults: unknown }).__benchResults = rows;
-      document.title = 'DONE';
-      return;
-    }
-    if (new URLSearchParams(location.search).get('suite') === 'cull') {
-      const rows = await runCullBench(document.getElementById('canvas') as HTMLCanvasElement, Number(new URLSearchParams(location.search).get('n') ?? 20000));
-      log('== G: GPU-driven visibility (CPU culling disabled; GPU latency = submit->done) ==');
-      for (const r of rows) log(`${r.scene.padEnd(40)} ${r.mode.padEnd(8)} gpu ${r.gpuMs.toFixed(2).padStart(8)} ms  cpu ${r.cpuMs.toFixed(2).padStart(6)} ms  draws ${r.drawn}  GPU passes ${r.passMs.toFixed(2)} ms`);
-      (window as unknown as { __benchResults: unknown }).__benchResults = rows;
-      document.title = 'DONE';
-      return;
-    }
-    if (new URLSearchParams(location.search).get('suite') === 'anim') {
-      (window as unknown as { __benchResults: unknown }).__benchResults = await animSuite();
-      document.title = 'DONE';
-      return;
-    }
-    const results: Record<string, Row[]> = {};
-    const cfgs: [string, number, number, number][] = [
-      ['A1: 10,000 cubes, 1 material, 1 mesh', 10000, 1, 1],
-      ['A2: 10,000 objects, 8 materials, 2 meshes', 10000, 8, 2],
-    ];
-    for (const [name, n, m, k] of cfgs) {
-      log(`\n== ${name} ==`);
-      results[name] = await benchmarkA(n, m, k, 60);
-      log(table(results[name]));
-    }
-    (window as unknown as { __benchResults: unknown }).__benchResults = results;
-    document.title = 'DONE';
+    const params = new URLSearchParams(location.search);
+    const suite = SUITES[params.get('suite') ?? ''];
+    if (suite) await suite(document.getElementById('canvas') as HTMLCanvasElement, params);
+    else await runDrawSubmissionSuite();
   } catch (e) {
     log('ERROR: ' + String(e));
     document.title = 'FAILED';

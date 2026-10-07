@@ -38,6 +38,17 @@ describe('WorkerPool', () => {
   });
 });
 
+describe('WorkerPool.terminate', () => {
+  it('rejects in-flight and queued jobs instead of leaving their promises pending', async () => {
+    const pool = new WorkerPool(() => fakeWorker([]), 1);
+    const running = pool.run({ value: 1 });
+    const queued = pool.run({ value: 2 });
+    pool.terminate();
+    await expect(running).rejects.toThrow('terminated');
+    await expect(queued).rejects.toThrow('terminated');
+  });
+});
+
 describe('FrameBudgetQueue', () => {
   it('runs by priority within the budget, always progresses, and supports cancellation', () => {
     let t = 0;

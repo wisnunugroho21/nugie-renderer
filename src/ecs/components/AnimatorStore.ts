@@ -16,14 +16,17 @@ export class AnimatorStore extends ComponentStore {
   /** Per-animator, per-channel key hints (sequential playback fast-path). */
   hints: (Int32Array | undefined)[] = [];
 
+  /** Grow the per-entity playback arrays. */
   protected grow(n: number): void {
     this.clip = growI32(this.clip, n); this.time = growF32(this.time, n); this.speed = growF32(this.speed, n); this.flags = growU8(this.flags, n);
   }
+  /** Drop the animator's instance / pose / hints and zero its playback state. */
   protected reset(i: number): void {
     this.instance[i] = undefined; this.pose[i] = undefined; this.hints[i] = undefined;
     this.clip[i] = 0; this.time[i] = 0; this.speed[i] = 0; this.flags[i] = 0;
   }
 
+  /** Attach a single-clip animator: starts looping at speed 1 on `clip` (not yet playing until the Playing flag is set by `Animator.play`). */
   add(i: number, instance: AnimatedInstance, clip = 0): void {
     this.ensureCapacity(i + 1);
     this.has.set(i);

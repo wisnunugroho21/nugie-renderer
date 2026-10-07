@@ -8,6 +8,7 @@ export class RadixSorter {
   private b = new Uint32Array(0);
   private hist = new Uint32Array(256 * 8);
 
+  /** Return object indices 0..count-1 ordered by the 64-bit key (hi, lo): LSD radix sort, or a comparison sort for small counts. The result is only valid until the next call. */
   sort(count: number, hi: Uint32Array, lo: Uint32Array): Uint32Array {
     if (this.a.length < count) {
       const n = Math.max(count, this.a.length * 2, 1024);

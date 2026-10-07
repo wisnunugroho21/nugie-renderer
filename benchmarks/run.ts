@@ -3,6 +3,7 @@ import { World } from '../src/ecs/World';
 import { entityIndex } from '../src/ecs/Entity';
 import { TransformSystem } from '../src/ecs/systems/TransformSystem';
 
+/** Build 100 hierarchies of 100 entities (10,000 transforms), computed once, for the transform benchmarks. */
 function forest() {
   const w = new World();
   const idx: number[] = [];
@@ -36,7 +37,10 @@ import { Mat4 } from '../src/math/Mat4';
 import { RenderFlags } from '../src/ecs/components/MeshRendererStore';
 {
   const N = 100000;
-  let seed = 99; const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  let seed = 99;
+  /** Deterministic pseudo-random number in [0, 1) (LCG), so every run benchmarks the same scene. */
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  /** Build a render world of N objects with random bounds, flagged static or dynamic. */
   const makeWorld = (staticFlag: number) => {
     const rw = new RenderWorld(); rw.ensureCapacity(N); rw.count = N;
     for (let i = 0; i < N; i++) {
@@ -73,7 +77,10 @@ import { MotionMatcher } from '../src/animation/motionmatching/MotionMatcher';
 {
   const layout = new PoseLayout(3, undefined, [-1, 0, 0]);
   const rest = new Pose(layout); rest.t.set([-0.15, 0, 0], 3); rest.t.set([0.15, 0, 0], 6);
-  let seed = 3; const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  let seed = 3;
+  /** Deterministic pseudo-random number in [0, 1) (LCG). */
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  /** Generate clip `i`: 301 keys of root translation / rotation plus two foot channels with a random walking motion. */
   const randomClip = (i: number): AnimationClip => {
     const K = 301, times = new Float32Array(K), rt = new Float32Array(K * 3), rr = new Float32Array(K * 4), fl = new Float32Array(K * 3), fr = new Float32Array(K * 3);
     const vx = (rnd() - 0.5) * 4, vz = rnd() * 4, yaw = (rnd() - 0.5) * 2, ph = rnd() * 6, hz = 1 + rnd() * 2;

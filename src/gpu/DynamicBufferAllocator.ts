@@ -40,6 +40,7 @@ export class DynamicBufferAllocator {
   private head = 0;
   private started = false;
 
+  /** Allocate the CPU shadow region and the GPU ring (`frames` regions of `capacity` bytes) described by `opts`. */
   constructor(
     private device: GPUDevice,
     private buffers: BufferManager,
@@ -54,10 +55,12 @@ export class DynamicBufferAllocator {
     this.buffer = this.createGPUBuffer();
   }
 
+  /** Create the GPU buffer holding all `frames` regions. */
   private createGPUBuffer(): GPUBuffer {
     return this.buffers.create(this.opts.label, this.capacity * this.frames, this.opts.usage | GPUBufferUsage.COPY_DST);
   }
 
+  /** Advance to the next ring region and reset the bump pointer and per-frame counters. Call once per frame before allocating. */
   beginFrame(): void {
     if (this.started) this.frame = (this.frame + 1) % this.frames;
     this.started = true;
@@ -78,7 +81,9 @@ export class DynamicBufferAllocator {
 
   /** CPU views onto this frame's region, indexed by (absoluteOffset - regionStart). */
   localOffset(absolute: number): number { return absolute - this.frame * this.capacity; }
+  /** Float32 view of the CPU shadow of the current region. */
   get float32(): Float32Array { return this.f32View; }
+  /** Uint32 view of the CPU shadow of the current region. */
   get uint32(): Uint32Array { return this.u32View; }
 
   /** Allocate and copy `data` in one call. */
@@ -97,6 +102,10 @@ export class DynamicBufferAllocator {
     this.totalBytesUploaded += this.head;
   }
 
+  /**
+   * Double the per-frame capacity until `required` bytes fit, keeping the CPU contents and recreating the GPU buffer.
+   * Note: offsets already returned in the same frame (for ring regions other than 0) shift when the capacity changes, so size `capacity` for the expected load.
+   */
   private grow(required: number): void {
     let cap = this.capacity;
     while (cap < required) cap *= 2;
@@ -114,4 +123,5 @@ export class DynamicBufferAllocator {
   }
 }
 
+/** Round `v` up to a multiple of `a`. */
 export function alignUp(v: number, a: number): number { return Math.ceil(v / a) * a; }

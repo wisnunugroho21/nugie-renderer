@@ -31,6 +31,7 @@ export class Environment {
   readonly sourceView: GPUTextureView;
   readonly irradianceView: GPUTextureView;
   readonly specularView: GPUTextureView;
+  /** Wraps the source environment cube, its diffuse irradiance cube and its GGX-prefiltered specular cube (with `specularMipCount` roughness levels). */
   constructor(
     readonly source: GPUTexture, readonly irradiance: GPUTexture, readonly specular: GPUTexture,
     readonly specularMipCount: number,
@@ -51,11 +52,13 @@ export class IBLBaker {
   private sampler: GPUSampler;
   private lut: GPUTexture | null = null;
 
+  /** Create the baker and its shared linear sampler. */
   constructor(private gpu: GPUContext) {
     registerEngineShaderChunks(gpu.resources.shaders);
     this.sampler = gpu.resources.samplers.get({ magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
   }
 
+  /** Lazily create and cache the compute pipeline `id` built from WGSL `src`. */
   private pipeline(id: string, src: string): GPUComputePipeline {
     let p = this.pipelines.get(id);
     if (!p) {
@@ -65,6 +68,7 @@ export class IBLBaker {
     return p;
   }
 
+  /** Run one compute pass over a `w` x `h` x `layers` grid (8x8 workgroups) with the given bind-group entries. */
   private dispatch(enc: GPUCommandEncoder, p: GPUComputePipeline, entries: GPUBindGroupEntry[], w: number, h: number, layers: number): void {
     const pass = enc.beginComputePass();
     pass.setPipeline(p);
@@ -73,10 +77,12 @@ export class IBLBaker {
     pass.end();
   }
 
+  /** Create an rgba16float cube texture usable as storage, sampled and copy source / destination. */
   private cube(label: string, size: number, mips: number): GPUTexture {
     return this.gpu.resources.textures.create({ label, size: [size, size, 6], format: 'rgba16float', mipLevelCount: mips, usage: SRC_USAGE });
   }
 
+  /** A 2D-array view of one mip of `t` for storage writes. */
   private storageView(t: GPUTexture, mip: number): GPUTextureView {
     return t.createView({ dimension: '2d-array', baseMipLevel: mip, mipLevelCount: 1 });
   }

@@ -22,7 +22,9 @@ export async function runLightBench(canvas: HTMLCanvasElement, counts: number[] 
   const mat = renderer.materials.createPBR({ baseColor: [0.8, 0.8, 0.8, 1], roughness: 0.45, metallic: 0 });
   const world = new World();
   const ts = new TransformSystem(world.transforms), ex = new RenderExtractor(world, ts), rw = new RenderWorld();
-  let seed = 7; const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  let seed = 7;
+  /** Deterministic pseudo-random number in [0, 1) (LCG). */
+  const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
   const g = entityIndex(world.create());
   world.transforms.add(g, 0, 0, 0); world.transforms.setScale(g, 70, 1, 70);
   world.meshRenderers.add(g, plane, mat);

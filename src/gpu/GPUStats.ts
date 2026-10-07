@@ -21,5 +21,6 @@ export class GPUStats {
   bindGroupHits = 0;
   bindGroupMisses = 0;
 
+  /** A plain copy of every counter (for logging / benchmarks). */
   snapshot(): Record<string, number> { return { ...this } as unknown as Record<string, number>; }
 }

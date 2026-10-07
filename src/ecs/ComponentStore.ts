@@ -18,10 +18,12 @@ export abstract class ComponentStore {
     this.has.ensure(c);
   }
 
+  /** Resize every typed array of the concrete store to `newCapacity` entity slots, preserving existing data. */
   protected abstract grow(newCapacity: number): void;
   /** Called when the owning entity is destroyed or the component is removed. */
   protected abstract reset(index: number): void;
 
+  /** Detach this component from entity `index` (no-op if absent) and reset its data. */
   remove(index: number): void {
     if (!this.has.has(index)) return;
     this.has.clear(index);
@@ -29,15 +31,19 @@ export abstract class ComponentStore {
   }
 }
 
+/** Return a Float32Array of `n * perItem` elements holding the old contents. */
 export function growF32(a: Float32Array, n: number, perItem = 1) {
   const o = new Float32Array(n * perItem); o.set(a); return o;
 }
+/** Return an Int32Array of `n` elements holding the old contents; new slots are set to `fill` when given. */
 export function growI32(a: Int32Array, n: number, fill?: number) {
   const o = new Int32Array(n); if (fill !== undefined) o.fill(fill); o.set(a); return o;
 }
+/** Return a Uint8Array of `n` elements holding the old contents. */
 export function growU8(a: Uint8Array, n: number) {
   const o = new Uint8Array(n); o.set(a); return o;
 }
+/** Return a Uint32Array of `n` elements holding the old contents. */
 export function growU32(a: Uint32Array, n: number) {
   const o = new Uint32Array(n); o.set(a); return o;
 }

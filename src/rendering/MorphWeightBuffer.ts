@@ -17,10 +17,12 @@ export class MorphWeightBuffer {
     this.buffer = this.make();
   }
 
+  /** Allocate the GPU storage buffer for the current capacity. */
   private make(): GPUBuffer {
     return this.buffers.create('MorphWeightBuffer', this.capacity * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
   }
 
+  /** Upload the changed morph-state ranges (coalescing overlaps); when the pool outgrew the buffer, reallocate and upload everything. */
   sync(rw: RenderWorld): void {
     this.uploadBytes = 0; this.uploadRanges = 0;
     const m = rw.morph;
@@ -46,6 +48,7 @@ export class MorphWeightBuffer {
     this.write(m.pool, s, e);
   }
 
+  /** Upload words [from, to) of `src` to the same position in the GPU buffer. */
   private write(src: Uint32Array, from: number, to: number): void {
     this.device.queue.writeBuffer(this.buffer, from * 4, src.buffer, src.byteOffset + from * 4, (to - from) * 4);
     this.uploadBytes += (to - from) * 4; this.uploadRanges++;

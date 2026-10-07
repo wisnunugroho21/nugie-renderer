@@ -35,6 +35,7 @@ export class VisibilitySystem {
   /** Per-slot byte: 1 if static (BVH-managed). */
   private isStatic = new Uint8Array(0);
 
+  /** Compute this frame's visible set for `rw.camera` with the configured strategy; the returned object is reused between calls. */
   update(rw: RenderWorld): VisibleSet {
     const r = this.result;
     if (this.mode === 'none') {
@@ -69,6 +70,7 @@ export class VisibilitySystem {
     return r;
   }
 
+  /** Rebuild the static-object BVH and the static / dynamic id lists after the set of renderables changed. */
   private rebuild(rw: RenderWorld): void {
     const n = rw.count;
     if (this.isStatic.length < n) this.isStatic = new Uint8Array(Math.max(n, this.isStatic.length * 2));
@@ -85,5 +87,6 @@ export class VisibilitySystem {
     this.bvhRebuilds++;
   }
 
+  /** Number of BVH nodes (0 when no BVH exists). */
   get bvhNodes(): number { return this.bvh?.nodeCount ?? 0; }
 }

@@ -14,12 +14,14 @@ export class HiZ {
   private downPipe: GPUComputePipeline;
   private mipViews: GPUTextureView[] = [];
 
+  /** Create the two compute pipelines (copy depth to mip 0, then max-downsample). */
   constructor(private gpu: GPUContext) {
     const { device, resources: r } = gpu;
     this.initPipe = device.createComputePipeline({ label: 'hiz-init', layout: 'auto', compute: { module: r.shaders.get('hiz-init', initSrc), entryPoint: 'main' } });
     this.downPipe = device.createComputePipeline({ label: 'hiz-down', layout: 'auto', compute: { module: r.shaders.get('hiz-down', downSrc), entryPoint: 'main' } });
   }
 
+  /** (Re)create the pyramid texture and per-mip views for a `width` x `height` depth buffer; no-op when unchanged. */
   resize(width: number, height: number): void {
     if (width === this.width && height === this.height && this.texture) return;
     if (this.texture) this.gpu.resources.textures.destroy(this.texture);

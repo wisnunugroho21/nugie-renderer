@@ -5,7 +5,9 @@ import { StreamPolicy, mipBytes, type StreamConfig, type StreamEntry } from './S
 
 export interface MipImage { width: number; height: number; data: Uint8Array; }
 
+/** 8-bit sRGB value -> linear light in [0, 1]. */
 const toLinear = (v: number): number => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+/** Linear light in [0, 1] -> 8-bit sRGB value. */
 const toSrgb = (c: number): number => Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055));
 const LUT = Float32Array.from({ length: 256 }, (_, i) => toLinear(i));
 
@@ -31,7 +33,9 @@ export function buildMipChain(rgba: Uint8Array, width: number, height: number, s
 
 /** A texture whose resident mip range changes over time. Materials hold this object as their TextureRef. */
 export class StreamedTexture implements TextureRef {
+  /** Wraps the current GPU texture / view for `entry`; `gpuTexture` and `currentView` are replaced whenever the resident range changes. */
   constructor(readonly id: string, readonly entry: StreamEntry, readonly mips: MipImage[], readonly format: GPUTextureFormat, public gpuTexture: GPUTexture, public currentView: GPUTextureView) {}
+  /** The view materials bind (always the latest resident mip range). */
   get view(): GPUTextureView { return this.currentView; }
   /** Finest resident level. */
   get residentLevel(): number { return this.entry.resident; }
@@ -49,6 +53,7 @@ export class TextureStreamer {
   /** Stats of the last update(). */
   stats = { uploadedBytes: 0, changes: 0, residentBytes: 0 };
 
+  /** Create a streamer; `config` overrides the default memory / upload budgets. */
   constructor(private gpu: GPUContext, config?: Partial<StreamConfig>) {
     this.policy = new StreamPolicy(config ? { ...new StreamPolicy().config, ...config } : undefined);
   }
@@ -67,6 +72,7 @@ export class TextureStreamer {
   /** Report the on-screen extent (pixels) a texture can cover this frame. */
   touch(t: StreamedTexture, pixels: number): void { this.policy.touch(t.entry.id, pixels); }
 
+  /** Start a frame: forget last frame's on-screen coverage. */
   beginFrame(): void { this.policy.beginFrame(); }
 
   /** Apply the policy's plan for this frame. */

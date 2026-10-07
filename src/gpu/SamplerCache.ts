@@ -4,8 +4,10 @@ import type { GPUStats } from './GPUStats';
 export class SamplerCache {
   private cache = new Map<string, GPUSampler>();
 
+  /** Create an empty cache bound to `device`. */
   constructor(private device: GPUDevice, private stats: GPUStats) {}
 
+  /** Canonical string for a sampler descriptor (defaults filled in), used for deduplication. */
   static key(d: GPUSamplerDescriptor): string {
     return [
       d.addressModeU ?? 'clamp-to-edge', d.addressModeV ?? 'clamp-to-edge', d.addressModeW ?? 'clamp-to-edge',
@@ -14,6 +16,7 @@ export class SamplerCache {
     ].join('|');
   }
 
+  /** Return a shared sampler matching `desc`, creating it on first use. */
   get(desc: GPUSamplerDescriptor = {}): GPUSampler {
     const key = SamplerCache.key(desc);
     let s = this.cache.get(key);

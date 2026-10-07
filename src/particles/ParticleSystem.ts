@@ -59,6 +59,7 @@ export class ParticlePool {
   private paramU32: Uint32Array;
   private paramF32: Float32Array;
 
+  /** Allocate the pool's GPU buffers (particle state, ping-pong alive lists, dead stack, counters, emitters, spawn requests, indirect args) sized for `config.maxCount`. */
   constructor(readonly system: ParticleSystem, readonly config: ParticlePoolConfig, readonly id: number) {
     const { resources: res, device } = system.gpu;
     const N = config.maxCount;
@@ -91,6 +92,7 @@ export class ParticlePool {
     // A buffer cannot be INDIRECT and writable storage in the same synchronization scope. simulate/emit never touch the
     // args, so they bind a dummy at slot 8; only finalize (which writes the args) gets the real buffer.
     const dummy = res.buffers.create(`${label}:ArgsDummy`, 64, S);
+    /** Create the simulation bind group, using `args` as the indirect-args binding. */
     const make = (args: GPUBuffer, tag: string) => device.createBindGroup({
       label: `${label}:${tag}`, layout: system.simLayout,
       entries: [this.params, this.emitterBuf, this.particles, this.aliveA, this.aliveB, this.deadList, this.counters, this.requestBuf, args]
@@ -235,6 +237,7 @@ export class ParticleSystem {
   readonly simLayout: GPUBindGroupLayout;
   private spriteDefault: TextureRef | null = null;
 
+  /** Create the system and the shared bind-group layout of the simulation kernels; pipelines are created per pool. */
   constructor(readonly gpu: GPUContext, readonly layouts: BindLayouts, readonly meshes: MeshManager, readonly target: { colorFormat: GPUTextureFormat; depthFormat: GPUTextureFormat; sampleCount: number }) {
     const { device, resources: res } = gpu;
     registerEngineShaderChunks(res.shaders);
@@ -280,11 +283,13 @@ export class ParticleSystem {
     return (this.spriteDefault = { id: 'particle-soft-disc', view: tex.createView() });
   }
 
+  /** Create a pool of GPU particles with exactly one rendering mode (`billboard` or `mesh`) and return it; add emitters to it with `pool.addEmitter`. */
   createPool(config: ParticlePoolConfig): ParticlePool {
     if (!config.billboard === !config.mesh) throw new Error('A particle pool needs exactly one of `billboard` or `mesh`');
     const { device, resources: res } = this.gpu;
     const pool = new ParticlePool(this, config, this.pools.length);
     const V = GPUShaderStage.VERTEX, F = GPUShaderStage.FRAGMENT;
+    /** Read-only storage binding visible to the given shader stages. */
     const ro = (binding: number, vis: number): GPUBindGroupLayoutEntry => ({ binding, visibility: vis, buffer: { type: 'read-only-storage' } });
     const common: GPUBindGroupLayoutEntry[] = [ro(0, V), ro(1, V), ro(2, V), ro(3, V), { binding: 4, visibility: V | F, buffer: { type: 'uniform' } }];
     const isBillboard = !!config.billboard;
@@ -329,7 +334,10 @@ export class ParticleSystem {
     return pool;
   }
 
+  /** CPU step for all pools (decide how many particles each emitter spawns this frame, upload emitter data). */
   update(dt: number, time: number): void { for (const p of this.pools) p.update(dt, time); }
+  /** Record every pool's emit / simulate / compact compute passes. */
   encodeCompute(enc: GPUCommandEncoder): void { for (const p of this.pools) p.encodeCompute(enc); }
+  /** Record every pool's indirect draw into the main render pass. */
   encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void { for (const p of this.pools) p.encodeDraw(pass, frameBG); }
 }

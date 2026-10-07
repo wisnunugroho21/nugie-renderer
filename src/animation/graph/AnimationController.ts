@@ -26,6 +26,7 @@ class Layer {
   readonly reference?: Pose;
   readonly scratch: Pose;
   readonly delta: Pose | null;
+  /** Create runtime state for one layer: its weight, blend mode, bone mask and scratch poses. */
   constructor(readonly def: LayerDef, layout: PoseLayout) {
     this.weight = def.weight ?? 1; this.mode = def.mode ?? 'override'; this.mask = def.mask; this.reference = def.additiveReference;
     this.scratch = new Pose(layout);
@@ -54,6 +55,7 @@ export class AnimationController {
   private rawDelta = new RootDelta();
   private layerDelta = new RootDelta();
 
+  /** Build a controller from at least one layer (layer 0 is the base). `rootNode` (-1 = none) is the node whose motion is extracted as root motion. */
   constructor(readonly layout: PoseLayout, readonly rest: Pose, readonly params: AnimationParams, layers: LayerDef[], readonly rootNode = -1) {
     if (layers.length === 0) throw new Error('AnimationController needs at least one layer');
     this.pose = rest.clone();
@@ -72,11 +74,16 @@ export class AnimationController {
     this.animatedNodes = Int32Array.from(set);
   }
 
+  /** Current blend weight of layer `index`. */
   layerWeight(index: number): number { return this.layers[index].weight; }
+  /** Set layer `index`'s blend weight, clamped to [0, 1]. */
   setLayerWeight(index: number, w: number): void { this.layers[index].weight = Math.min(1, Math.max(0, w)); }
+  /** Index of the layer called `name`, or -1. */
   layerIndex(name: string): number { return this.layers.findIndex((l) => l.def.name === name); }
+  /** The state machine of layer `layer` (default: the base layer). */
   stateMachine(layer = 0): StateMachine { return this.layers[layer].def.stateMachine; }
 
+  /** Advance all layers by `dt`: evaluate each state machine, blend / add upper layers over the base pose, apply the root-motion policy, then run the IK constraints. */
   update(dt: number): void {
     const L = this.layers, pose = this.pose;
     // base layer (root motion is taken from the base layer only)

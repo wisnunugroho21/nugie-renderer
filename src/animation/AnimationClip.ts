@@ -3,6 +3,7 @@ import { sampleChannel } from './AnimationSampler';
 import type { Pose, PoseLayout } from './Pose';
 
 export class AnimationChannel {
+  /** One animated property of one node: keyframe `times` and `values` (`stride` floats per key, 3x for cubic-spline tangents) with an interpolation mode. */
   constructor(
     readonly node: number,
     readonly path: AnimationPath,
@@ -24,6 +25,7 @@ export class AnimationClip {
   /** Parallel to animatedNodes: AnimatedPath bits actually animated for that node (only those are written to the ECS). */
   readonly nodeMask: Uint8Array;
 
+  /** Build a clip from channels; `duration` defaults to the last keyframe time. Precomputes the animated node list and per-node path masks. */
   constructor(readonly name: string, readonly channels: AnimationChannel[], duration?: number) {
     this.duration = duration ?? channels.reduce((d, c) => Math.max(d, c.times.length ? c.times[c.times.length - 1] : 0), 0);
     this.animatedNodes = Int32Array.from(new Set(channels.map((c) => c.node)));
@@ -34,6 +36,7 @@ export class AnimationClip {
     for (const c of channels) this.nodeMask[slot.get(c.node)!] |= bit[c.path];
   }
 
+  /** Rebuild a clip from plain serialisable data. */
   static fromData(d: AnimationClipData): AnimationClip {
     return new AnimationClip(d.name, d.channels.map((c) => new AnimationChannel(c.node, c.path, c.interpolation, c.times, c.values, c.stride)), d.duration);
   }

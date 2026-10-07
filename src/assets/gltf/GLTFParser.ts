@@ -41,6 +41,7 @@ export function parseGLB(data: ArrayBuffer | Uint8Array): ParsedGLB {
 /** Resolves external resources (.gltf with separate .bin files / images). */
 export type ResourceResolver = (uri: string) => Promise<Uint8Array>;
 
+/** Decode a `data:` URI (base64 or percent-encoded) into bytes. */
 export function decodeDataURI(uri: string): Uint8Array {
   const comma = uri.indexOf(',');
   if (!uri.startsWith('data:') || comma < 0) throw new GLTFError('Malformed data URI');

@@ -19,11 +19,13 @@ export class RenderExtractor {
   removed = 0;
   matricesCopied = 0;
 
+  /** Create an extractor reading `world`; `transformSystem.updated` says which matrices changed. */
   constructor(private world: World, private transformSystem: TransformSystem) {}
 
   /** Entity index owning slot (for picking/debug). */
   slotForEntity(index: number): number { return index < this.slotOf.length ? this.slotOf[index] : -1; }
 
+  /** Synchronise `rw` with the ECS: add / remove renderables (swap-remove), refresh morph and skin state, copy changed matrices and bounds, extract lights and select the camera (`activeCamera`, or the first camera entity). */
   extract(rw: RenderWorld, aspect: number, activeCamera = -1): void {
     const w = this.world;
     const t = w.transforms, mr = w.meshRenderers;
@@ -36,6 +38,7 @@ export class RenderExtractor {
       this.slotOf = s;
     }
     const slotOf = this.slotOf;
+    /** An entity is drawn when it has a transform and a mesh renderer and is not hidden. */
     const eligible = (i: number) => t.has.has(i) && mr.has.has(i) && (mr.flags[i] & RenderFlags.Hidden) === 0;
 
     // 1. Removals (swap-remove, walk backwards so swapped-in slots are re-checked correctly).
@@ -132,6 +135,7 @@ export class RenderExtractor {
     rw.structureVersion += this.added + this.removed > 0 ? 1 : 0;
   }
 
+  /** Copy entity `e`'s world matrix and bounds into slot `s` (objects without bounds get an infinite sphere so they are never culled) and flag the slot for upload. */
   private copyTransform(rw: RenderWorld, s: number, e: number): void {
     const t = this.world.transforms, b = this.world.bounds;
     const src = t.worldMatrices;
@@ -150,6 +154,7 @@ export class RenderExtractor {
   }
 }
 
+/** Normalise a 3-vector (zero vectors are returned unscaled). */
 function norm3(x: number, y: number, z: number): [number, number, number] {
   const l = Math.hypot(x, y, z) || 1;
   return [x / l, y / l, z / l];

@@ -5,8 +5,10 @@ import { BitSet } from '../../core/BitSet';
 export class ParticleEmitterSystem {
   activeEmitters = 0;
 
+  /** Create the system for `world`. */
   constructor(private world: World) {}
 
+  /** Push each bound entity's world matrix and enabled flag into its particle pool emitter. */
   update(): void {
     const w = this.world, s = w.particleEmitters, m = w.transforms.worldMatrices;
     this.activeEmitters = 0;

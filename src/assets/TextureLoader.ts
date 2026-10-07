@@ -19,6 +19,7 @@ export class TextureLoader {
   uploads = 0;
   decodeMs = 0;
 
+  /** Create a loader on `gpu`; `resolveUri` fetches external image files (embedded images need none). */
   constructor(private gpu: GPUContext, private resolveUri?: UriResolver) {
     this.mips = new MipmapGenerator(gpu.device, gpu.resources);
   }
@@ -31,6 +32,7 @@ export class TextureLoader {
     return p;
   }
 
+  /** Decode the image bytes with `createImageBitmap` (no colour-space conversion, no premultiply) and upload them as a mip-mapped texture. */
   private async loadImpl(id: string, image: ImageAsset, srgb: boolean): Promise<TextureRef> {
     const bytes = image.data ?? (image.uri && this.resolveUri ? await this.resolveUri(image.uri) : undefined);
     if (!bytes) throw new Error(`Image '${image.name}' has no data and cannot be resolved`);

@@ -47,6 +47,7 @@ export class GPUCuller {
   private pf = new Float32Array(this.pdata);
   private pu = new Uint32Array(this.pdata);
 
+  /** Create the culling pipeline, per-phase parameter buffers and initial working buffers. */
   constructor(private gpu: GPUContext) {
     const { device, resources: r } = gpu;
     this.params = [0, 1, 2].map((i) => r.buffers.create(`GPUCullParams${i}`, PARAMS_FLOATS * 4, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST));
@@ -55,6 +56,7 @@ export class GPUCuller {
     this.ensure(1024, 1024, 64, 64);
   }
 
+  /** Grow (by doubling) the sphere, culled-instance, batch, and indirect-argument buffers so they hold the requested counts. */
   private ensure(instances: number, dst: number, batches: number, virtuals: number): void {
     const { resources: r } = this.gpu, S = GPUBufferUsage.STORAGE, D = GPUBufferUsage.COPY_DST;
     if (instances > this.instCap) {
@@ -134,6 +136,7 @@ export class GPUCuller {
     if (batchCount > 0) { q.writeBuffer(this.batchFirst, 0, first); q.writeBuffer(this.batchInfo, 0, info); q.writeBuffer(this.thresholds, 0, Float32Array.from(thr)); q.writeBuffer(this.argsBuffer, 0, args); }
   }
 
+  /** Record one culling dispatch (`phase` 0 = single pass, 1 = last frame's visible set, 2 = the rest, tested against the Hi-Z pyramid `hiz`) into `enc`. */
   encode(
     enc: GPUCommandEncoder, srcBuffer: GPUBuffer, srcBase: number, planes: ArrayLike<number>, viewProj: ArrayLike<number>,
     hiz: { view: GPUTextureView; width: number; height: number; mips: number } | null, timestampWrites?: GPUComputePassTimestampWrites,

@@ -23,6 +23,7 @@ function cubeTexelDir(face: number, x: number, y: number, size: number): number[
   const l = Math.hypot(d[0], d[1], d[2]);
   return d.map((c) => c / l);
 }
+/** CPU reference of the procedural sky colour for direction `d` (gradient plus sun disc). */
 function skyColor(p: SkyParams, d: number[]): number[] {
   const t = d[1] >= 0 ? Math.pow(d[1], 0.5) : Math.pow(-d[1], 0.5);
   const to = d[1] >= 0 ? p.zenith : p.ground;
@@ -61,6 +62,7 @@ async function sampleCube(gpu: GPUContext, cube: GPUTextureView, dirs: Float32Ar
   return new Float32Array(await readBuffer(device, outB, dirs.byteLength));
 }
 
+/** Sky parameters producing a constant colour `c` in every direction (for energy-conservation checks). */
 const flatSky = (c: [number, number, number]): SkyParams => ({ zenith: c, horizon: c, ground: c, sunDirection: [0, 1, 0], sunColor: [0, 0, 0], sunAngularRadius: 0 });
 
 // CPU reference of ibl_brdf.wgsl (double precision).
@@ -87,6 +89,7 @@ export function brdfRef(NoV: number, rough: number): [number, number] {
   return [A / N, B / N];
 }
 
+/** Image-based lighting checks: BRDF LUT, sky cube, irradiance / specular prefilter, and HDR orientation. */
 export function iblTests(gpu: GPUContext): SelfTest[] {
   return [
     {
@@ -169,6 +172,7 @@ export function iblTests(gpu: GPUContext): SelfTest[] {
         if (!(irr[0] < irr[4] + 1e-6 || irr[4] < irr[0])) throw new Error('unexpected');
         // sample the horizon band: mirror mip sees a sharp transition, rough mip blurs it
         const around = (m: number) => { const a: number[] = []; for (let i = 0; i < 16; i++) { const y = -0.4 + i * 0.05; a.push(Math.sqrt(1 - y * y), y, 0, m); } return new Float32Array(a); };
+        /** Min / max channel value of the specular mip `m` around the sample directions. */
         const range = async (m: number) => { const s = await sampleCube(gpu, env.specularView, around(m)); let lo = 9, hi = -9; for (let i = 0; i < 16; i++) { lo = Math.min(lo, s[i * 4 + 2]); hi = Math.max(hi, s[i * 4 + 2]); } return hi - lo; };
         const sharp = await range(0), blurry = await range(5);
         if (!(blurry < sharp * 0.8)) throw new Error(`mip0 range ${sharp}, mip5 range ${blurry}`);
@@ -184,6 +188,7 @@ export function iblTests(gpu: GPUContext): SelfTest[] {
         const parsed = parseRGBE(encodeRGBE({ width: W, height: H, data }, true));
         const env = new IBLBaker(gpu).fromEquirect(parsed.width, parsed.height, parsed.data, 64);
         const out = await sampleCube(gpu, env.sourceView, new Float32Array([0, 1, 0, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0]));
+        /** Red / green channel of pixel `i`. */
         const r = (i: number) => out[i * 4], g = (i: number) => out[i * 4 + 1];
         if (!(r(0) < 0.1 && r(1) > 0.9 && Math.abs(r(2) - 0.5) < 0.05)) throw new Error(`latitude: +Y ${r(0)}, -Y ${r(1)}, +X ${r(2)}`);
         // +X is atan2(0, 1) = 0 -> u = 0.5; +Z is atan2(1, 0) = PI/2 -> u = 0.75; -X wraps to u = 0 or 1

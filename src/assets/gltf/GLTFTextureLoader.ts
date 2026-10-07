@@ -6,6 +6,7 @@ const FILTER_NEAREST = 9728, FILTER_LINEAR = 9729;
 const NEAREST_MIPMAP_NEAREST = 9984, LINEAR_MIPMAP_NEAREST = 9985, NEAREST_MIPMAP_LINEAR = 9986, LINEAR_MIPMAP_LINEAR = 9987;
 const WRAP_CLAMP = 33071, WRAP_MIRROR = 33648;
 
+/** Map a glTF wrap constant to a WebGPU address mode (default: repeat). */
 function wrap(w: number | undefined): GPUAddressMode {
   return w === WRAP_CLAMP ? 'clamp-to-edge' : w === WRAP_MIRROR ? 'mirror-repeat' : 'repeat';
 }
@@ -26,6 +27,7 @@ export function toSamplerDescriptor(s?: { magFilter?: number; minFilter?: number
   return { magFilter: mag, minFilter: min, mipmapFilter: mip, addressModeU: wrap(s?.wrapS), addressModeV: wrap(s?.wrapT) };
 }
 
+/** Collect the document's images as bytes (embedded in a bufferView or data URI) or external URIs, with their MIME types. */
 export function loadImages(doc: GLTFDocument): ImageAsset[] {
   return (doc.json.images ?? []).map((img, i) => {
     const name = img.name ?? `image${i}`;
@@ -41,6 +43,7 @@ export function loadImages(doc: GLTFDocument): ImageAsset[] {
   });
 }
 
+/** Infer an image MIME type from a URI's extension (PNG by default). */
 function guessMime(uri?: string): string {
   if (!uri) return 'image/png';
   if (/\.jpe?g($|\?)/i.test(uri)) return 'image/jpeg';
@@ -57,8 +60,10 @@ export class TextureUseRegistry {
   readonly uses: TextureUse[] = [];
   private index = new Map<string, number>();
 
+  /** Create a registry over `doc`; `warn` collects problems. */
   constructor(private doc: GLTFDocument, private warn: (m: string) => void) {}
 
+  /** Return the id of the (image, sRGB flag, sampler) texture use for glTF texture `textureIndex`, creating it on first use. Undefined (with a warning) if the texture has no image. */
   resolve(textureIndex: number, srgb: boolean): number | undefined {
     const tex = this.doc.json.textures?.[textureIndex];
     if (!tex || tex.source === undefined) { this.warn(`texture ${textureIndex} has no image source`); return undefined; }

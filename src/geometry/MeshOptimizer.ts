@@ -30,6 +30,7 @@ const LAST_TRI_SCORE = 0.75;
 const VALENCE_BOOST_SCALE = 2.0;
 const VALENCE_BOOST_POWER = 0.5;
 
+/** Forsyth score of a vertex: high while it sits near the front of the post-transform cache and while few triangles still need it. */
 function vertexScore(cachePos: number, liveTris: number): number {
   if (liveTris === 0) return -1;
   let score = 0;
@@ -58,6 +59,7 @@ export function optimizeVertexCache(indices: Uint32Array, vertexCount: number): 
 
   const out = new Uint32Array(indices.length);
   let outN = 0, cache: number[] = [], scan = 0;
+  /** Fallback when the cache holds no candidate: the best-scoring remaining triangle (scanning from the first unfinished one). */
   const bestOverall = (): number => {
     let best = -1, bs = -Infinity;
     while (scan < triCount && done[scan]) scan++;
@@ -136,13 +138,16 @@ export function simplify(positions: Float32Array, indices: Uint32Array, targetIn
   const alive = new Uint8Array(nt).fill(1);
   // per-vertex quadric (10 coefficients of the symmetric 4x4)
   const Q = new Float64Array(nv * 10);
+  /** Add the weighted plane quadric (a, b, c, d) to vertex `v`. */
   const addPlane = (v: number, a: number, b: number, c: number, d: number, w: number): void => {
     const o = v * 10;
     Q[o] += w * a * a; Q[o + 1] += w * a * b; Q[o + 2] += w * a * c; Q[o + 3] += w * a * d;
     Q[o + 4] += w * b * b; Q[o + 5] += w * b * c; Q[o + 6] += w * b * d;
     Q[o + 7] += w * c * c; Q[o + 8] += w * c * d; Q[o + 9] += w * d * d;
   };
+  /** Coordinate `k` of vertex `v`'s position. */
   const P = (v: number, k: number) => positions[v * 3 + k];
+  /** Unit normal and plane offset (nx, ny, nz, d) of triangle `t`. */
   const triNormal = (t: number): [number, number, number, number] => {
     const a = tris[t * 3], b = tris[t * 3 + 1], c = tris[t * 3 + 2];
     const ux = P(b, 0) - P(a, 0), uy = P(b, 1) - P(a, 1), uz = P(b, 2) - P(a, 2), vx = P(c, 0) - P(a, 0), vy = P(c, 1) - P(a, 1), vz = P(c, 2) - P(a, 2);
@@ -159,6 +164,7 @@ export function simplify(positions: Float32Array, indices: Uint32Array, targetIn
   }
   // boundary protection: edges used by exactly one triangle get a plane through the edge perpendicular to the face
   const edgeCount = new Map<number, number>();
+  /** Order-independent key of the edge between vertices a and b. */
   const ekey = (a: number, b: number) => (a < b ? a * nv + b : b * nv + a);
   for (let t = 0; t < nt; t++) for (let k = 0; k < 3; k++) { const key = ekey(tris[t * 3 + k], tris[t * 3 + (k + 1) % 3]); edgeCount.set(key, (edgeCount.get(key) ?? 0) + 1); }
   for (let t = 0; t < nt; t++) {
@@ -176,6 +182,7 @@ export function simplify(positions: Float32Array, indices: Uint32Array, targetIn
       addPlane(a, px, py, pz, d, w); addPlane(b, px, py, pz, d, w);
     }
   }
+  /** Quadric error of placing a vertex at (x, y, z) given the quadric stored at offset `o`. */
   const evalQ = (q: ArrayLike<number>, o: number, x: number, y: number, z: number): number =>
     q[o] * x * x + 2 * q[o + 1] * x * y + 2 * q[o + 2] * x * z + 2 * q[o + 3] * x +
     q[o + 4] * y * y + 2 * q[o + 5] * y * z + 2 * q[o + 6] * y +
@@ -194,9 +201,13 @@ export function simplify(positions: Float32Array, indices: Uint32Array, targetIn
   // priority queue of edges with lazy invalidation
   interface Edge { a: number; b: number; cost: number; x: number; y: number; z: number; va: number; vb: number }
   const heap: Edge[] = [];
+  /** Restore the min-heap property by sifting entry `i` up. */
   const up = (i: number) => { while (i > 0) { const p = (i - 1) >> 1; if (heap[p].cost <= heap[i].cost) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  /** Restore the min-heap property by sifting entry `i` down. */
   const down = (i: number) => { for (;;) { let m = i; const l = 2 * i + 1, r = l + 1; if (l < heap.length && heap[l].cost < heap[m].cost) m = l; if (r < heap.length && heap[r].cost < heap[m].cost) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } };
+  /** Insert an edge candidate into the cost-ordered heap. */
   const push = (e: Edge) => { heap.push(e); up(heap.length - 1); };
+  /** Remove and return the cheapest edge candidate. */
   const pop = (): Edge => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; down(0); } return top; };
   const version = new Uint32Array(nv);
   const redirect = new Int32Array(nv).map((_, i) => i);   // collapsed vertex -> survivor
@@ -216,6 +227,7 @@ export function simplify(positions: Float32Array, indices: Uint32Array, targetIn
     // reject if any surviving triangle around either vertex would flip or degenerate
     const nx = e.x, ny = e.y, nz = e.z;
     let ok = true;
+    /** Reject the collapse if it would flip (or nearly degenerate) any surviving triangle around vertex `v`. */
     const check = (v: number): void => {
       for (const t of vertTris[v]) {
         if (!alive[t]) continue;

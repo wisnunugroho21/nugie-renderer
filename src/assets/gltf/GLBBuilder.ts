@@ -48,11 +48,16 @@ export class GLBBuilder {
     return this.json.accessors.length - 1;
   }
 
+  /** Append a glTF node object and return its index. */
   node(n: Record<string, unknown>): number { (this.json.nodes ??= []).push(n); return this.json.nodes.length - 1; }
+  /** Append a glTF mesh object and return its index. */
   mesh(m: Record<string, unknown>): number { (this.json.meshes ??= []).push(m); return this.json.meshes.length - 1; }
+  /** Append a glTF material object and return its index. */
   material(m: Record<string, unknown>): number { (this.json.materials ??= []).push(m); return this.json.materials.length - 1; }
+  /** Add root nodes to scene 0. */
   addToScene(...nodes: number[]): void { this.json.scenes[0].nodes.push(...nodes); }
 
+  /** Concatenate all accumulated buffer parts into the single GLB binary chunk. */
   private binary(): Uint8Array {
     const out = new Uint8Array(this.length);
     let o = 0;

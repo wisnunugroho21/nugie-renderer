@@ -17,16 +17,20 @@ export class BatchList {
   /** Which queue each batch belongs to (0 opaque, 1 alphaMask, 2 transparent). */
   queue = new Uint8Array(64);
 
+  /** Empty the list (capacity is kept). */
   reset(): void { this.count = 0; }
 
+  /** Append a batch: `n` instances starting at `first`, drawn with `mesh` + `material` from queue `q` (0 opaque, 1 alpha-mask, 2 transparent). */
   push(material: number, mesh: number, first: number, n: number, q: number): void {
     if (this.count === this.materialId.length) this.grow();
     const i = this.count++;
     this.materialId[i] = material; this.meshId[i] = mesh; this.firstInstance[i] = first; this.instanceCount[i] = n; this.queue[i] = q;
   }
 
+  /** Double the capacity of every column. */
   private grow(): void {
     const n = this.materialId.length * 2;
+    /** Return a copy of typed array `a` with the doubled length. */
     const g = <T extends Int32Array | Uint32Array | Uint8Array>(a: T): T => {
       const o = new (a.constructor as new (n: number) => T)(n); o.set(a); return o;
     };
