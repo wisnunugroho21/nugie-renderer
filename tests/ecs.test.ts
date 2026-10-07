@@ -196,3 +196,15 @@ describe('BoundsSystem', () => {
     expect(w.bounds.world[a * 6]).toBeCloseTo(-1.5);
   });
 });
+
+describe('TransformStore.setRotation', () => {
+  it('stores unit quaternions (identity for zero input)', async () => {
+    const { TransformStore } = await import('../src/ecs/components/TransformStore');
+    const t = new TransformStore();
+    t.add(0);
+    t.setRotation(0, 0, 2, 0, 2);
+    expect(Math.hypot(t.rotationX[0], t.rotationY[0], t.rotationZ[0], t.rotationW[0])).toBeCloseTo(1, 6);
+    t.setRotation(0, 0, 0, 0, 0);
+    expect([t.rotationX[0], t.rotationY[0], t.rotationZ[0], t.rotationW[0]]).toEqual([0, 0, 0, 1]);
+  });
+});

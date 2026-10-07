@@ -77,6 +77,9 @@ export class TransformStore extends ComponentStore {
     this.positionX[i] = x; this.positionY[i] = y; this.positionZ[i] = z; this.markDirty(i);
   }
   setRotation(i: number, x: number, y: number, z: number, w: number): void {
+    // Non-unit quaternions would scale / shear the world matrix: always store a unit quaternion (identity for a zero input).
+    const l = Math.hypot(x, y, z, w);
+    if (l > 0) { const k = 1 / l; x *= k; y *= k; z *= k; w *= k; } else { x = y = z = 0; w = 1; }
     this.rotationX[i] = x; this.rotationY[i] = y; this.rotationZ[i] = z; this.rotationW[i] = w; this.markDirty(i);
   }
   setScale(i: number, x: number, y: number, z: number): void {

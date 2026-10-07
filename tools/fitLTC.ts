@@ -154,4 +154,4 @@ writeFileSync(new URL('../src/rendering/lighting/ltcTable.ts', import.meta.url),
 export const LTC_SIZE = ${SIZE};
 export const LTC_TABLE: readonly number[] = [${Array.from(table, num).join(',')}];
 `);
-console.log(`\nwrote table, worst fit error ${worstErr.toExponential(2)}`);
+console.log(`\nwrote table, worst relative fit error ${worstErr.toFixed(3)}`);
