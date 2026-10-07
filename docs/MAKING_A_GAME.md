@@ -223,7 +223,7 @@ Same mesh + same material objects are automatically **instanced** into one draw 
 world.lights.add(e, LightType.Point, r, g, b, intensity, range);   // Directional | Point | Spot | Ambient | Area
 world.lights.innerCone[e] = 0.2; world.lights.outerCone[e] = 0.5;  // spot, radians
 world.lights.addArea(e, width, height, r, g, b, intensity);        // rectangular area light (LTC specular)
-world.lights.castShadow[e] = 1;                                    // sun: 4 cascades, spot: 1 map, point: cube map
+world.lights.castShadow[e] = 1;                                    // sun: 4 blended cascades, spot: 1 map, point / area: cube map
 ```
 
 Hundreds to thousands of point/spot lights are fine (clustered shading); budgets: 8 spot and 2 point shadow casters, one cascaded sun (`renderer.shadows.config`).
@@ -311,7 +311,7 @@ Keep game code out of the renderer folders: write systems as functions that run 
 ## 8. Known limitations (see `PROGRESS.md` for the full list)
 
 * No built-in input, physics, audio or UI.
-* Transparent objects and particles are not fogged; area lights do not cast shadows; cascades are not blended.
+* Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).
 * glTF: one UV set, no Draco/meshopt/KTX2; each material has one sampler.
 * Needs a device exposing at least 10 vertex-stage storage buffers for skinning/morphing (most desktop GPUs do).

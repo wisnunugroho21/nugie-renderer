@@ -50,14 +50,14 @@ fn shadePunctual(light: Light, s: SurfaceInfo, P: vec3<f32>) -> vec3<f32> {
 // ---- Shadows ------------------------------------------------------------------------------------------------------
 // light.spot.z = first shadow-map layer (< 0: none). Directional: cascaded (layer + cascade); spot: one layer.
 // light.up holds per-cascade texel world sizes (directional) or tan(half fov) in .x (spot) for the normal offset.
-fn sampleShadowLayer(layer: u32, P: vec3<f32>, N: vec3<f32>, texelWorld: f32) -> f32 {
+fn sampleShadowLayer(layer: u32, P: vec3<f32>, N: vec3<f32>, texelWorld: f32, softness: f32) -> f32 {
   let Pn = P + N * (texelWorld * scene.shadow.z);
   let c = shadowMatrices[layer] * vec4<f32>(Pn, 1.0);
   let ndc = c.xyz / c.w;
   let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || ndc.z > 1.0 || ndc.z < 0.0) { return 1.0; }
   let refDepth = ndc.z - scene.shadowParams.y;
-  let step = scene.shadow.y / scene.shadowParams.x;
+  let step = scene.shadow.y * softness / scene.shadowParams.x;
   var sum = 0.0;
   for (var dy = -1; dy <= 1; dy = dy + 1) {
     for (var dx = -1; dx <= 1; dx = dx + 1) {
@@ -75,11 +75,20 @@ fn shadowVisibility(light: Light, P: vec3<f32>, N: vec3<f32>, viewZ: f32) -> f32
     var c = 0u;
     while (c < n && viewZ > scene.cascadeSplits[c]) { c = c + 1u; }
     if (c >= n) { return 1.0; }
-    return sampleShadowLayer(base + c, P, N, light.up[c]);
+    // blend into the next cascade (or fade to unshadowed past the last one) over the final 10% of this cascade's range
+    var vis = sampleShadowLayer(base + c, P, N, light.up[c], 1.0);
+    let split = scene.cascadeSplits[c];
+    let t = clamp((viewZ - split * 0.9) / (split * 0.1), 0.0, 1.0);
+    if (t > 0.0) {
+      if (c + 1u < n) { vis = mix(vis, sampleShadowLayer(base + c + 1u, P, N, light.up[c + 1u], 1.0), t); }
+      else { vis = mix(vis, 1.0, t); }
+    }
+    return vis;
   }
   let dist = distance(P, light.positionRange.xyz);
   var layer = base;
-  if (u32(light.directionType.w + 0.5) == LIGHT_POINT) {
+  let kind = u32(light.directionType.w + 0.5);
+  if (kind == LIGHT_POINT || kind == LIGHT_AREA) {
     // cube shadow: six 2D layers (+X -X +Y -Y +Z -Z); pick the face of the major axis of the light -> point vector
     let d = P - light.positionRange.xyz;
     let a = abs(d);
@@ -89,7 +98,14 @@ fn shadowVisibility(light: Light, P: vec3<f32>, N: vec3<f32>, viewZ: f32) -> f32
     else { face = select(5u, 4u, d.z >= 0.0); }
     layer = base + face;
   }
-  return sampleShadowLayer(layer, P, N, 2.0 * dist * light.up.x / scene.shadowParams.x);
+  if (kind == LIGHT_AREA) {
+    // area light: the cube map is rendered from the light centre; the penumbra widens with the light's size relative to the distance
+    // (tan(half fov) lives in spot.y because the up / right vectors are the rectangle's axes)
+    let extent = max(light.right.w, light.up.w);
+    let soft = 1.0 + clamp(extent / max(dist, 0.5), 0.0, 2.0) * 3.0;
+    return sampleShadowLayer(layer, P, N, 2.0 * dist * light.spot.y / scene.shadowParams.x, soft);
+  }
+  return sampleShadowLayer(layer, P, N, 2.0 * dist * light.up.x / scene.shadowParams.x, 1.0);
 }
 
 // Cluster lookup: tile from the fragment pixel, exponential depth slice from the view-space depth (clip.w).

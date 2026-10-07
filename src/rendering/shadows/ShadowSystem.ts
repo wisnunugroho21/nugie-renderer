@@ -19,7 +19,7 @@ export interface ShadowConfig {
   mapSize: number;
   cascades: number;
   maxSpotShadows: number;
-  /** Point lights with shadows (each takes 6 layers). */
+  /** Point and area lights with shadows (each takes 6 layers). */
   maxPointShadows: number;
   /** Cascades cover [camera near, min(camera far, shadowDistance)]. */
   shadowDistance: number;
@@ -113,7 +113,7 @@ export class ShadowSystem {
       const type = f[o + 11];
       if (type === GPU_LIGHT_TYPE.directional && sun < 0) sun = i;
       else if (type === GPU_LIGHT_TYPE.spot) spots.push(i);
-      else if (type === GPU_LIGHT_TYPE.point) points.push(i);
+      else if (type === GPU_LIGHT_TYPE.point || type === GPU_LIGHT_TYPE.area) points.push(i);   // area lights shadow like a cube map from their centre
     }
     let sig = this.enabled ? 'on' : 'off';
     if (sun >= 0) {
@@ -145,7 +145,8 @@ export class ShadowSystem {
       const o = li * LIGHT_FLOATS, layer = c.cascades + c.maxSpotShadows + k * 6;
       const res = fitPoint([f[o], f[o + 1], f[o + 2]], f[o + 3]);
       res.faces.forEach((vp, face) => this.addLayer(layer + face, vp));
-      f[o + 14] = layer; f[o + 20] = res.tanHalfFov;
+      f[o + 14] = layer;
+      if (f[o + 11] === GPU_LIGHT_TYPE.area) f[o + 13] = res.tanHalfFov; else f[o + 20] = res.tanHalfFov;   // area lights use up / right as axes: tan goes to spot.y
       sig += `|p${li}:${layer}:${res.tanHalfFov.toFixed(4)}`;
     });
     if (sig !== this.signature) { this.signature = sig; L.version++; }

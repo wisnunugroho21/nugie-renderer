@@ -54,6 +54,7 @@ export const lightsDemo: Demo = (ctx) => {
       world.transforms.add(e, x, y, z);
       world.transforms.setRotation(e, -Math.SQRT1_2, 0, 0, Math.SQRT1_2);   // face down
       world.lights.addArea(e, 4, 2, r, g, b, 6);
+      if (params.get('areashadow') === '1') world.lights.castShadow[e] = 1;
     });
   }
   // Shadows: a sun (cascaded) plus shadow-casting spots; ?shadows=0 disables.

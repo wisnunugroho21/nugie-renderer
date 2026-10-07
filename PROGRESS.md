@@ -203,8 +203,8 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 - KTX2 / Basis / BC / ETC2 / ASTC (Phase 15 "later"): textures are decoded PNG/JPEG via `createImageBitmap`.
 - glTF: TEXCOORD_1+, COLOR_0, KHR_texture_transform, KHR_draco/meshopt are not supported (warned or rejected when required).
 - Material has ONE sampler (last texture's sampler wins); per-texture samplers would need bindless-style tricks.
-- Shadows: at most 8 spot and 2 point shadow casters (config), cascades are not blended, casters are culled with a linear per-layer test, spot shadows use a fixed bias set.
-- Area lights: LTC fit tail over-estimates (specular up to 1.35x the quadrature reference in far tails); no shadows from area lights.
+- Shadows: at most 8 spot and 2 point shadow casters (config), casters are culled with a linear per-layer test, spot shadows use a fixed bias set. Cascades blend over the last 10% of each range (and fade out past the last); area lights shadow as a cube map from their centre (shares the 2 point/area budget; penumbra width grows with light size, not a true area-light penumbra).
+- Area lights: LTC fit tail over-estimates (specular up to 1.35x the quadrature reference in far tails); shadows are an approximation from the centre point.
 - Fog: no temporal reprojection / noise (froxel grid is 8 px x 48 slices), area lights do not scatter; transparent objects and particles are not fogged.
 - GPU culling: spheres only; transparent batches stay on the CPU path; the in-frame `hiz` mode cannot be combined with GPU LOD (depth mismatch), use `hiz2`; GPU LOD has no hysteresis.
 - Meshlets are built and cone-culled on the CPU only (no GPU meshlet pipeline); LOD generation keeps the original normals / UVs of the surviving vertices.
