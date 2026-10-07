@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   // --- entities
   engine.spawnObject({
     mesh: planeMesh, material: floorMat, scale: [40, 1, 40],
-    flags: RenderFlags.Static | RenderFlags.ReceiveShadow, bounds: [-0.5, 0, -0.5, 0.5, 0, 0.5],   // the plane mesh is flat in XZ
+    flags: RenderFlags.Static | RenderFlags.ReceiveShadow,   // bounds default to the mesh's own
   });
   const player = engine.spawnObject({ mesh: cubeMesh, material: playerMat, position: [0, 0.5, 0] });
   engine.spawnLight({ type: LightType.Directional, rotation: [-0.5, 0.2, 0.1, 0.84], color: [1, 0.95, 0.85], intensity: 3, castShadow: true });

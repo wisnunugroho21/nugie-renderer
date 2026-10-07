@@ -14,6 +14,7 @@ import { VisibilitySystem } from '../visibility/VisibilitySystem';
 import { TextureLoader } from '../assets/TextureLoader';
 import { RenderFlags } from '../ecs/components/MeshRendererStore';
 import { LightType } from '../ecs/components/LightStore';
+import { BitSet } from '../core/BitSet';
 import type { GPUContext } from '../gpu/GPUContext';
 
 /** Options for {@link Engine.create}. Every field is optional. */
@@ -49,7 +50,7 @@ export interface SpawnObjectOptions {
   rotation?: readonly [number, number, number, number];
   /** `RenderFlags` bit set (default: casts + receives shadows). */
   flags?: number;
-  /** Local AABB used for culling (default: the unit cube, matching the built-in primitives). */
+  /** Local AABB used for culling (default: the mesh's own bounds). */
   bounds?: LocalBounds;
 }
 
@@ -82,8 +83,6 @@ export interface EngineSystem {
  *  - `afterTransforms`: after world matrices and bounds are up to date, before render data is extracted (read final positions here)
  */
 export type SystemPhase = 'beforeAnimation' | 'afterTransforms';
-
-const UNIT_CUBE_BOUNDS: LocalBounds = [-0.5, -0.5, -0.5, 0.5, 0.5, 0.5];
 
 /**
  * The one object a game needs: it owns the GPU context, the frame loop, the ECS {@link World}, every per-frame system
@@ -126,6 +125,13 @@ export class Engine {
   /** Called at the end of every frame (the demo HUD hooks in here). */
   onFrameEnd: ((dt: number, time: number) => void) | null = null;
 
+  /**
+   * Give every mesh renderer that has no bounds component the bounds of its mesh. Without bounds an object can never be culled and
+   * (if static) cannot live in the BVH, so this is on by default. Skinned / morphed meshes are skipped: their bind-pose bounds are
+   * not valid once they deform (glTF instantiation adds padded bounds for them; add your own for hand-made ones).
+   */
+  autoBounds = true;
+  private boundsScanVersion = -1;
   private readonly freezeAfter: number;
   private readonly systems: Record<SystemPhase, EngineSystem[]> = { beforeAnimation: [], afterTransforms: [] };
 
@@ -175,7 +181,7 @@ export class Engine {
     }
     if (o.rotation) w.transforms.setRotation(e, o.rotation[0], o.rotation[1], o.rotation[2], o.rotation[3]);
     w.meshRenderers.add(e, o.mesh, o.material, o.flags ?? (RenderFlags.CastShadow | RenderFlags.ReceiveShadow));
-    const b = o.bounds ?? UNIT_CUBE_BOUNDS;
+    const b = o.bounds ?? this.renderer.meshes.get(o.mesh).bounds;
     w.bounds.add(e, b[0], b[1], b[2], b[3], b[4], b[5]);
     return e;
   }
@@ -194,6 +200,23 @@ export class Engine {
     if (o.outerCone !== undefined) w.lights.outerCone[e] = o.outerCone;
     if (o.castShadow) w.lights.castShadow[e] = 1;
     return e;
+  }
+
+  /** Add mesh-derived bounds to renderers without any (see `autoBounds`) and compute their world bounds immediately. */
+  private addMissingBounds(): void {
+    const w = this.world, mr = w.meshRenderers;
+    if (mr.version === this.boundsScanVersion) return;
+    this.boundsScanVersion = mr.version;
+    const added: number[] = [];
+    BitSet.forEachAnd([mr.has, w.transforms.has], (i) => {
+      if (w.bounds.has.has(i)) return;
+      const rec = this.renderer.meshes.get(mr.meshId[i]);
+      if (!rec || rec.deformMask !== 0) return;
+      const b = rec.bounds;
+      w.bounds.add(i, b[0], b[1], b[2], b[3], b[4], b[5]);
+      added.push(i);
+    });
+    if (added.length) this.boundsSystem.update(added);
   }
 
   /** Register a custom per-frame system (e.g. physics sync, AI, a new feature) to run at the given phase of every frame. */
@@ -223,6 +246,7 @@ export class Engine {
     renderer.particles?.update(Math.min(dt, 0.1), time);
     this.ribbonEmitters.update();                        // trail heads follow their entities
     for (const rs of renderer.ribbonSystems) rs.update(time);
+    if (this.autoBounds) this.addMissingBounds();
     for (const sys of this.systems.afterTransforms) sys.update(dt, time);
 
     const e0 = performance.now();

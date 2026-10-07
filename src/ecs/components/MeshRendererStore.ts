@@ -15,6 +15,8 @@ export class MeshRendererStore extends ComponentStore {
   materialId = new Int32Array(0);
   flags = new Uint32Array(0);
   /** Entity index owning this renderer's morph weights (-1 = none). Multi-primitive meshes share their node's state. */
+  /** Incremented every time a renderer is added (lets systems rescan only when something new appeared). */
+  version = 0;
   morphOwner = new Int32Array(0);
   /** Entity index owning this renderer's skin/skeleton instance (-1 = none). */
   skinOwner = new Int32Array(0);
@@ -31,6 +33,7 @@ export class MeshRendererStore extends ComponentStore {
   add(i: number, meshId: number, materialId: number, flags: number = RenderFlags.CastShadow | RenderFlags.ReceiveShadow): void {
     this.ensureCapacity(i + 1);
     this.has.set(i);
+    this.version++;
     this.meshId[i] = meshId; this.materialId[i] = materialId; this.flags[i] = flags;
     this.morphOwner[i] = -1; this.skinOwner[i] = -1;
   }

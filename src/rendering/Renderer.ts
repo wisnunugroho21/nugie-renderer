@@ -144,7 +144,7 @@ export class Renderer {
     this.joints = new JointMatrixBuffer(device, r.buffers);
     this.morphWeights = new MorphWeightBuffer(device, r.buffers);
     this.instanceAlloc = new DynamicBufferAllocator(device, r.buffers, {
-      // 768 = lcm(48-byte instance record, 256-byte storage alignment): every frame region starts at an
+      // 768 = lcm(48-byte instance record, 256-byte storage alignment): every allocation starts at an
       // exact multiple of the record size, so `firstInstance = byteOffset / INSTANCE_BYTES` is always integral.
       label: 'InstanceBuffer', usage: GPUBufferUsage.STORAGE, capacity: 768 * 400, frames: 3, alignment: 768,
     });

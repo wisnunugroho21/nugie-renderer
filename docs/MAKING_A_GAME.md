@@ -110,7 +110,7 @@ const playerMat = renderer.materials.createPBR({ baseColor: [0.9, 0.35, 0.2, 1],
 
 // entities
 engine.spawnObject({ mesh: planeMesh, material: floorMat, scale: [40, 1, 40],
-  flags: RenderFlags.Static | RenderFlags.ReceiveShadow, bounds: [-0.5, 0, -0.5, 0.5, 0, 0.5] });   // the plane is flat in XZ
+  flags: RenderFlags.Static | RenderFlags.ReceiveShadow });   // bounds default to the mesh's own
 const player = engine.spawnObject({ mesh: cubeMesh, material: playerMat, position: [0, 0.5, 0] });
 engine.spawnLight({ type: LightType.Directional, rotation: [-0.5, 0.2, 0.1, 0.84], intensity: 3, castShadow: true });
 
@@ -193,7 +193,7 @@ world.transforms.setScale(e, sx, sy, sz);
 world.transforms.setRotation(e, qx, qy, qz, qw);            // quaternion, normalised for you
 world.transforms.setParent(child, parent);                  // hierarchies
 world.meshRenderers.add(e, meshId, materialId, flags);      // RenderFlags: CastShadow | ReceiveShadow | Static | Hidden
-world.bounds.add(e, minX, minY, minZ, maxX, maxY, maxZ);    // local-space AABB (needed for culling; objects without it are never culled)
+world.bounds.add(e, minX, minY, minZ, maxX, maxY, maxZ);    // local-space AABB (optional: `engine.autoBounds`, on by default, gives bounds-less renderers their mesh's bounds; skinned / morphed meshes need explicit padded bounds)
 ```
 
 Same mesh + same material objects are automatically **instanced** into one draw call; `Static` objects skip per-frame work (a static

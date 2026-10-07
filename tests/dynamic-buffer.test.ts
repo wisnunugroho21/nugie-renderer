@@ -27,11 +27,21 @@ describe('DynamicBufferAllocator', () => {
     expect(res.stats.buffers).toBe(1);
     expect(alloc.growths).toBe(0);
   });
-  it('ring: each frame uses its own region, wrapping after N frames', () => {
-    const { alloc } = setup(1024);
-    const offs: number[] = [];
-    for (let f = 0; f < 4; f++) { alloc.beginFrame(); offs.push(alloc.allocate(16)); }
-    expect(offs).toEqual([0, 1024, 2048, 0]);
+  it('ring: each frame uses its own GPU buffer, wrapping after N frames', () => {
+    const { alloc, res } = setup(1024);
+    const gens: number[] = [];
+    for (let f = 0; f < 4; f++) { alloc.beginFrame(); expect(alloc.allocate(16)).toBe(0); gens.push(alloc.generation); }
+    expect(new Set(gens.slice(0, 3)).size).toBe(3);
+    expect(gens[3]).toBe(gens[0]);
+    expect(res.stats.buffers).toBe(3);
+  });
+  it('growing mid-frame keeps earlier offsets valid in every ring slot', () => {
+    const { alloc } = setup(256);
+    alloc.beginFrame(); alloc.beginFrame();            // second ring slot
+    const first = alloc.write(new Float32Array([5, 6, 7, 8]));
+    alloc.allocate(5000);
+    expect(alloc.float32[first / 4 + 1]).toBe(6);       // same offset still addresses the same data
+    expect(alloc.growths).toBe(1);
   });
   it('aligns allocations', () => {
     const { alloc } = setup(4096);
@@ -56,7 +66,7 @@ describe('DynamicBufferAllocator', () => {
     const o = alloc.write(new Float32Array([1, 2, 3, 4]));
     const gen = alloc.generation;
     alloc.allocate(1000);
-    expect(alloc.generation).toBe(gen + 1);
+    expect(alloc.generation).not.toBe(gen);
     expect(alloc.float32[alloc.localOffset(o) / 4 + 2]).toBe(3);
     expect(res.stats.buffers).toBe(1); // old buffer destroyed
   });

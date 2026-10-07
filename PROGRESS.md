@@ -83,10 +83,11 @@ Review pass over the modules, typecheck, 437 unit tests and the 34 GPU self-test
   * `WorkerPool.terminate()` left in-flight and queued job promises pending forever; they are now rejected.
   * `Application.stop()` did not cancel the pending animation frame (a quick stop/start could run two loops) and the resize observer
     was never released (`dispose()` added).
-* **Found, not changed** (see also the list below): `DynamicBufferAllocator` offsets already returned in a frame change if the buffer
-  grows later in the same frame (only on the growth frame, only for ring regions other than 0); `GPUCuller.prepare` allocates small
-  typed arrays every frame; objects without a bounds component get an infinite AABB, which the static BVH cannot represent (give
-  static objects bounds).
+* **Follow-up fixes:** `DynamicBufferAllocator` now keeps one GPU buffer per ring slot, so offsets handed out earlier in a frame stay
+  valid when the buffer grows (`generation` is a unique buffer id, so bind-group keys also differ per slot). `GPUCuller.prepare` no
+  longer allocates per frame (reused scratch arrays, single pass per table) and its compute bind groups are cached. Renderers without
+  bounds get their mesh's bounds automatically (`Engine.autoBounds`; `spawnObject` defaults to mesh bounds), so static objects always
+  fit the BVH; deforming meshes still need explicit padded bounds.
 
 ## Conventions (documented decisions)
 
