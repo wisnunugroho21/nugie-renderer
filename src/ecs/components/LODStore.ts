@@ -1,0 +1,15 @@
+import { ComponentStore, growI32 } from '../ComponentStore';
+
+/** Assigns an entity's MeshRenderer to a LOD group (see LODLibrary). The mesh in MeshRenderer is the level-0 mesh. */
+export class LODStore extends ComponentStore {
+  group = new Int32Array(0);
+
+  protected grow(n: number): void { this.group = growI32(this.group, n, -1); }
+  protected reset(i: number): void { this.group[i] = -1; }
+
+  add(i: number, group: number): void {
+    this.ensureCapacity(i + 1);
+    this.has.set(i);
+    this.group[i] = group;
+  }
+}

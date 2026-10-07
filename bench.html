@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGPU Renderer Benchmarks</title>
+    <style>
+      html, body { margin: 0; background: #111; color: #9f9; font: 13px monospace; }
+      canvas { width: 640px; height: 360px; display: block; }
+      pre { padding: 8px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="640" height="360"></canvas>
+    <pre id="out">running…</pre>
+    <script type="module" src="/src/bench/main.ts"></script>
+  </body>
+</html>
