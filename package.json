@@ -1,5 +1,5 @@
 {
-  "name": "webgpu-renderer",
+  "name": "nugie-renderer",
   "private": false,
   "version": "0.1.0",
   "type": "module",
@@ -20,7 +20,7 @@
     "vitest": "^5.0.3"
   },
   "description": "WebGPU renderer with an ECS runtime: PBR, clustered lighting, shadows, fog, GPU-driven culling, animation, particles, glTF",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "sideEffects": false,
   "main": "./dist/index.js",
   "module": "./dist/index.js",
