@@ -100,5 +100,5 @@ export interface GLTFAnimation {
 
 export interface GLTFSkin { name?: string; inverseBindMatrices?: number; skeleton?: number; joints: number[]; }
 
-export const enum ComponentType { Int8 = 5120, Uint8 = 5121, Int16 = 5122, Uint16 = 5123, Uint32 = 5125, Float32 = 5126 }
-export const enum PrimitiveMode { Points = 0, Lines = 1, LineLoop = 2, LineStrip = 3, Triangles = 4, TriangleStrip = 5, TriangleFan = 6 }
+export enum ComponentType { Int8 = 5120, Uint8 = 5121, Int16 = 5122, Uint16 = 5123, Uint32 = 5125, Float32 = 5126 }
+export enum PrimitiveMode { Points = 0, Lines = 1, LineLoop = 2, LineStrip = 3, Triangles = 4, TriangleStrip = 5, TriangleFan = 6 }

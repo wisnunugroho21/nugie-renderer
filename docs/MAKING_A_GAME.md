@@ -14,6 +14,8 @@ game, ~70 lines) and the scenes in [`src/demos/`](../src/demos).
 
 ---
 
+> To use the renderer from a separate game project as an npm package, see **Using it as an npm package** in the README.
+
 ## 1. Run it
 
 ```bash

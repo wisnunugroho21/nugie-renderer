@@ -2,7 +2,7 @@ import { ComponentStore, growF32, growI32, growU8 } from '../ComponentStore';
 import type { AnimatedInstance } from '../../animation/Animator';
 import type { Pose } from '../../animation/Pose';
 
-export const enum AnimatorFlags { Playing = 1, Loop = 2, Finished = 4 }
+export enum AnimatorFlags { Playing = 1, Loop = 2, Finished = 4 }
 
 /** Per-entity playback state (SoA). The clips/binding live in the shared AnimatedInstance. */
 export class AnimatorStore extends ComponentStore {

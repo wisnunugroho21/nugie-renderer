@@ -1,6 +1,6 @@
 {
   "name": "webgpu-renderer",
-  "private": true,
+  "private": false,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "bench": "tsx benchmarks/run.ts"
+    "bench": "tsx benchmarks/run.ts",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
+    "prepack": "npm run typecheck && npm test && npm run build:lib"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.74",
@@ -16,5 +18,42 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
     "vitest": "^5.0.3"
+  },
+  "description": "WebGPU renderer with an ECS runtime: PBR, clustered lighting, shadows, fog, GPU-driven culling, animation, particles, glTF",
+  "license": "UNLICENSED",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "keywords": [
+    "webgpu",
+    "renderer",
+    "ecs",
+    "gltf",
+    "game"
+  ],
+  "peerDependencies": {
+    "@webgpu/types": ">=0.1.40"
+  },
+  "peerDependenciesMeta": {
+    "@webgpu/types": {
+      "optional": true
+    }
   }
 }

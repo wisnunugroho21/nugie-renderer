@@ -1,6 +1,6 @@
 import { ComponentStore, growF32, growU8 } from '../ComponentStore';
 
-export const enum LightType { Directional = 0, Point = 1, Spot = 2, Ambient = 3, Area = 4 }
+export enum LightType { Directional = 0, Point = 1, Spot = 2, Ambient = 3, Area = 4 }
 
 /** Light parameters; position/direction come from the entity's transform. */
 export class LightStore extends ComponentStore {

@@ -1,7 +1,7 @@
 import { ComponentStore, growI32, growU32 } from '../ComponentStore';
 
 /** Per-renderer bit flags (combine with `|`). */
-export const enum RenderFlags {
+export enum RenderFlags {
   None = 0,
   CastShadow = 1 << 0,
   ReceiveShadow = 1 << 1,

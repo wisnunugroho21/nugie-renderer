@@ -23,8 +23,8 @@ engine.start((time, dt) => {                                      // your gamepl
 ## Requirements
 
 * A current Node.js LTS (build tooling only)
-* A browser with **WebGPU**: recent Chrome or Edge (desktop). The GPU must expose at least **10 storage buffers per shader stage**
-  (every mainstream desktop GPU does).
+* A browser with **WebGPU**: recent Chrome or Edge (desktop). The engine works within WebGPU's default limit of 8 storage buffers per
+  shader stage (the vertex stage uses 6).
 
 ## Quick start
 
@@ -51,6 +51,35 @@ Demo URL switches: `env=sky`, `hdr=<url>`, `envI=<intensity>`, `sky=0`, `fog=<de
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests (Vitest, Node, no GPU needed) |
 | `npm run bench` | CPU micro-benchmarks (transform update, culling, motion matching) |
+
+## Using it as an npm package
+
+The renderer builds as an ES-module library (`dist/`, one file per source module, with `.d.ts` files, WGSL shaders inlined and the
+geometry worker emitted as an asset).
+
+```bash
+# in this repo: build and pack (prepack runs typecheck + tests + build:lib)
+npm pack                                   # -> webgpu-renderer-0.1.0.tgz
+
+# in your game project (Vite + TypeScript)
+npm install ../webgpu-renderer/webgpu-renderer-0.1.0.tgz     # or: npm install ../webgpu-renderer   /   a git URL / registry name
+```
+
+```ts
+import { Engine, LightType, createCube } from 'webgpu-renderer';          // the public API (src/index.ts)
+import { Mat4 } from 'webgpu-renderer/math/Mat4';                          // any module can be deep-imported (no barrel needed)
+```
+
+* **Bundler:** use **Vite** (or another bundler that understands `new Worker(new URL(...), import.meta.url)`); the worker used for
+  `generateLODChainAsync` is emitted next to the library files and picked up by your build.
+* **Types:** TypeScript 5.x needs `"types": ["@webgpu/types"]` in your tsconfig (`npm i -D @webgpu/types`; it is an optional peer
+  dependency). Recent TypeScript versions already ship WebGPU types. Use `"moduleResolution": "Bundler"`; `isolatedModules` is fine.
+* **Publishing:** `package.json` is no longer `private` and has `"license": "UNLICENSED"` as a placeholder - choose your license and
+  name (`@yourscope/webgpu-renderer`), then `npm version patch && npm publish` (or publish to a private registry / GitHub Packages).
+* **Developing both at once:** `npm link` in this repo and `npm link webgpu-renderer` in the game, then `npm run build:lib` after
+  engine changes (or point the game at the source with a Vite alias to `../webgpu-renderer/src/index.ts`).
+* Verified: a separate Vite + TypeScript project installed from the packed tarball compiles under `isolatedModules`, builds, and runs
+  the starter game (shadows, sky lighting) with no GPU errors.
 
 ## Making a game
 

@@ -33,7 +33,10 @@ export type { ShadowConfig } from './rendering/shadows/ShadowSystem';
 export type { Environment } from './rendering/lighting/IBL';
 export { VisibilitySystem, type CullMode } from './visibility/VisibilitySystem';
 export { LODLibrary, type LODGroupDef } from './visibility/LODSystem';
-export { generateLODChain } from './geometry/LODGenerator';
+export { generateLODChain, simplifyMesh } from './geometry/LODGenerator';
+export { generateLODChainAsync } from './workers/GeometryJobs';
+export { WorkerPool } from './workers/WorkerPool';
+export { FrameBudgetQueue } from './workers/FrameBudgetQueue';
 
 // --- assets -----------------------------------------------------------------------------------------------------------
 export { loadGLTF } from './assets/gltf/GLTFLoader';
