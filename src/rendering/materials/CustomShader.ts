@@ -48,7 +48,7 @@ export function generateParamAccessors(layout: ParamLayout): string {
     const sw = COMP.slice(c, c + e.size).join('');
     const ty = e.type === 'f32' ? 'f32' : `vec${e.size}<f32>`;
     const access = e.type === 'vec4' ? '' : `.${sw}`;
-    src += `fn param_${e.name}(base: u32) -> ${ty} { return customParams[base + ${slot}u]${access}; }\n`;
+    src += `fn param_${e.name}(base: u32) -> ${ty} { return paramVec4(base + ${slot}u)${access}; }\n`;
   }
   return src;
 }

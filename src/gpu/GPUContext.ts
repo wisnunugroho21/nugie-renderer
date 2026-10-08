@@ -1,7 +1,7 @@
 import { GPUResources } from './GPUResources';
 
-/** Vertex-stage storage buffers the engine binds (materials, params, transforms, instances, joints, morph weights, skin, 3 morph deltas). */
-export const MIN_VERTEX_STORAGE_BUFFERS = 10;
+/** Vertex-stage storage buffers the engine binds: transforms, instances, joints, morph weights, deform arena (skin + morph deltas), materials (records + custom parameters). */
+export const MIN_VERTEX_STORAGE_BUFFERS = 6;
 
 export class GPUContext {
   adapter!: GPUAdapter;
@@ -30,11 +30,12 @@ export class GPUContext {
     for (const f of ['timestamp-query', 'float32-filterable', 'indirect-first-instance'] as GPUFeatureName[]) {
       if (adapter.features.has(f)) features.push(f);
     }
-    // Skinning/morphing read several storage buffers in the vertex stage (see common.wgsl group 3).
-    const wanted = Math.min(adapter.limits.maxStorageBuffersPerShaderStage, 12);
+    // The vertex stage reads 6 storage buffers (object group: 5, materials: 1) and the busiest compute pass (GPU culling) 8: the default
+    // limit of 8 is enough, so it is requested explicitly (and any adapter that supports WebGPU can run the engine).
+    const wanted = Math.min(adapter.limits.maxStorageBuffersPerShaderStage, 8);
     const requiredLimits: Record<string, number> = { maxStorageBuffersPerShaderStage: wanted };
     const vertexLimit = (adapter.limits as unknown as Record<string, number>).maxStorageBuffersInVertexStage;
-    if (vertexLimit !== undefined) requiredLimits.maxStorageBuffersInVertexStage = Math.min(vertexLimit, 12);
+    if (vertexLimit !== undefined) requiredLimits.maxStorageBuffersInVertexStage = Math.min(vertexLimit, 8);
     requiredLimits.maxStorageBufferBindingSize = Math.min(adapter.limits.maxStorageBufferBindingSize, 1 << 30);
     requiredLimits.maxBufferSize = Math.min(adapter.limits.maxBufferSize, 1 << 30);
     if (wanted < MIN_VERTEX_STORAGE_BUFFERS) console.warn('Adapter exposes only ' + wanted + ' storage buffers per stage; skinning/morphing need ' + MIN_VERTEX_STORAGE_BUFFERS + '.');

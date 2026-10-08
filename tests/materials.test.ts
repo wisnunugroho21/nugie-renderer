@@ -64,9 +64,9 @@ describe('custom parameter layout', () => {
   });
   it('generates accessors with correct swizzles', () => {
     const src = generateParamAccessors(layoutParams([{ name: 'a', type: 'f32' }, { name: 'b', type: 'vec2' }, { name: 'c', type: 'vec3' }]));
-    expect(src).toContain('fn param_a(base: u32) -> f32 { return customParams[base + 0u].x; }');
-    expect(src).toContain('fn param_b(base: u32) -> vec2<f32> { return customParams[base + 0u].zw; }');
-    expect(src).toContain('fn param_c(base: u32) -> vec3<f32> { return customParams[base + 1u].xyz; }');
+    expect(src).toContain('fn param_a(base: u32) -> f32 { return paramVec4(base + 0u).x; }');
+    expect(src).toContain('fn param_b(base: u32) -> vec2<f32> { return paramVec4(base + 0u).zw; }');
+    expect(src).toContain('fn param_c(base: u32) -> vec3<f32> { return paramVec4(base + 1u).xyz; }');
   });
 });
 
@@ -88,11 +88,11 @@ describe('custom shader validation (cannot bypass resource ownership)', () => {
 });
 
 describe('MaterialManager', () => {
-  it('PBR and emissive materials share ONE material buffer (+ one param buffer)', () => {
+  it('PBR, emissive and custom-parameter data share ONE material buffer', () => {
     const { mm, res } = fake();
     for (let i = 0; i < 100; i++) mm.createPBR({ roughness: i / 100 });
     for (let i = 0; i < 100; i++) mm.createPBR({ emissive: [1, 0.5, 0], emissiveStrength: 10 });
-    expect(res.stats.buffers).toBe(2);
+    expect(res.stats.buffers).toBe(1);
   });
 
   it('writes records in the documented 64-byte layout', () => {
@@ -136,16 +136,18 @@ describe('MaterialManager', () => {
     expect(() => mm.createCustom({ name: 'bad', wgsl: '@group(0) @binding(0) var<uniform> u: f32;' })).toThrow(MaterialError);
   });
 
-  it('custom parameters land in the shared param buffer at paramBase', () => {
+  it('custom parameters land in the param region of the shared material buffer at paramBase', () => {
     const { mm, writes } = fake();
     const wgsl = '@vertex fn vs_main(in: VertexInput) -> @builtin(position) vec4<f32> { return vec4<f32>(0.0); }\n@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }';
     const p = [{ name: 'speed', type: 'f32' as const }, { name: 'color', type: 'vec3' as const }];
     const a = mm.createCustom({ name: 'a', wgsl, params: p, values: { speed: 2, color: [1, 2, 3] } });
     const b = mm.createCustom({ name: 'b', wgsl, params: p, values: { speed: 5, color: [4, 5, 6] } });
     mm.flush();
-    const w = writes.find((x) => x.buffer.label === 'CustomMaterialParameterBuffer')!;
+    // parameters are written (as one range) into the region that follows the 64 material records of the single MaterialBuffer
+    const w = writes.find((x) => x.buffer.label === 'MaterialBuffer' && x.offset >= 64 * 64)!;
     const all = f32(w.data);
-    const base = (id: number) => mm.get(id).paramBase * 4;
+    const regionStart = 64 * 64, first = (w.offset - regionStart) / 4;   // float index of the first written param float
+    const base = (id: number) => mm.get(id).paramBase * 4 - first;
     expect(all[base(a)]).toBe(2); expect(Array.from(all.slice(base(a) + 4, base(a) + 7))).toEqual([1, 2, 3]);
     expect(all[base(b)]).toBe(5);
     expect(mm.get(a).paramBase).not.toBe(mm.get(b).paramBase);

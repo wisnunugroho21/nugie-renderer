@@ -346,7 +346,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).
 * glTF: one UV set, no Draco/meshopt/KTX2; each material has one sampler.
-* Needs a device exposing at least 10 storage buffers per shader stage for skinning/morphing (most desktop GPUs do).
+* Works within WebGPU's default limit of 8 storage buffers per shader stage (the vertex stage uses 6).
 
 ---
 
@@ -355,7 +355,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 | Symptom | Likely cause |
 |---|---|
 | "WebGPU is not supported in this browser." | Use a recent desktop Chrome / Edge; some browsers hide WebGPU behind a flag |
-| Blank screen, errors in the console starting with `The number of storage buffers …` | The GPU / driver exposes fewer than 10 storage buffers per stage |
+| Blank screen, errors in the console starting with `The number of storage buffers …` | The GPU / driver exposes fewer than 8 storage buffers per stage (the WebGPU default) |
 | Object not drawn | Missing `world.transforms.add` or `world.meshRenderers.add`; `RenderFlags.Hidden` set; the camera is inside / behind it; the camera entity has no `world.cameras` component |
 | Object disappears at screen edges or while moving | Its `bounds` are too small (or it is flagged `Static` but moved) |
 | Object is black or has no shadow | No light (the fallback sun is used only with zero lights); `castShadow` not set on the light, or `RenderFlags.CastShadow` / `ReceiveShadow` missing on the object |

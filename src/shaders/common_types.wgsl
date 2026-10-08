@@ -56,7 +56,7 @@ struct MaterialRecord {
   occlusionStrength: f32,
   alphaCutoff: f32,
   flags: u32,
-  paramBase: u32,              // offset (in vec4s) into customParams
+  paramBase: u32,              // absolute vec4 index of this material's custom parameters (see paramVec4)
   _pad: u32,
 };
 

@@ -327,10 +327,7 @@ export class Renderer {
         { binding: 1, resource: { buffer: instBuf } },
         { binding: 2, resource: { buffer: this.joints.buffer } },
         { binding: 3, resource: { buffer: this.morphWeights.buffer } },
-        { binding: 4, resource: { buffer: m.skin.buffer } },
-        { binding: 5, resource: { buffer: m.morphPosition.buffer } },
-        { binding: 6, resource: { buffer: m.morphNormal.buffer } },
-        { binding: 7, resource: { buffer: m.morphTangent.buffer } },
+        { binding: 4, resource: { buffer: m.deform.buffer } },
       ],
     }));
   }

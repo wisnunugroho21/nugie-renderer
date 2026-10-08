@@ -38,8 +38,8 @@ const ALPHA_BLEND: GPUBlendState = {
 };
 
 /**
- * Shared material runtime. Every material (PBR, emissive, custom) is one 64-byte record in ONE
- * shared MaterialBuffer; custom parameters live in ONE shared CustomMaterialParameterBuffer.
+ * Shared material runtime. Every material (PBR, emissive, custom) is one 64-byte record in ONE shared MaterialBuffer; custom
+ * parameters live in the same buffer, in a region after the records (viewed as vec4s: see `paramVec4` in common_funcs.wgsl).
  * Material id == record index. Per-material GPU state is only a (cached) bind group of textures.
  */
 export class MaterialManager {
@@ -53,7 +53,6 @@ export class MaterialManager {
   readonly errorMaterial: number;
 
   materialBuffer!: GPUBuffer;
-  paramBuffer!: GPUBuffer;
 
   private recCap = 64;
   private recBuf = new ArrayBuffer(this.recCap * RECORD_WORDS * 4);
@@ -231,7 +230,7 @@ export class MaterialManager {
     }
     if (this.paramDirtyMax >= 0) {
       const first = this.paramDirtyMin, last = this.paramDirtyMax;
-      this.device.queue.writeBuffer(this.paramBuffer, first * 16, this.paramF32.buffer, first * 16, (last - first + 1) * 16);
+      this.device.queue.writeBuffer(this.materialBuffer, this.recCap * RECORD_WORDS * 4 + first * 16, this.paramF32.buffer, first * 16, (last - first + 1) * 16);
       this.uploadedBytes += (last - first + 1) * 16;
       this.paramDirtyMin = Infinity; this.paramDirtyMax = -1;
     }
@@ -245,10 +244,9 @@ export class MaterialManager {
       label: key, layout: this.layouts.material,
       entries: [
         { binding: 0, resource: { buffer: this.materialBuffer } },
-        { binding: 1, resource: { buffer: this.paramBuffer } },
-        { binding: 2, resource: this.res.samplers.get(m.samplerDesc) },
+        { binding: 1, resource: this.res.samplers.get(m.samplerDesc) },
         ...m.textures.map((t, s) => ({
-          binding: 3 + s,
+          binding: 2 + s,
           resource: (t ?? (s === TextureSlot.Normal ? this.defaults.flatNormal : this.defaults.white)).view,
         })),
       ],
@@ -436,7 +434,7 @@ export class MaterialManager {
     const hasEmissive = em[0] > 0 || em[1] > 0 || em[2] > 0;
     u[o + 13] = (m.doubleSided ? MaterialRecordFlags.DoubleSided : 0) | (hasEmissive ? MaterialRecordFlags.Emissive : 0) | extraFlags
       | (m.kind === 'custom' ? MaterialRecordFlags.Custom : 0);
-    u[o + 14] = m.paramBase;
+    u[o + 14] = m.kind === 'custom' ? this.recCap * 4 + m.paramBase : 0;   // absolute vec4 index: the param region follows the records
     u[o + 15] = 0;
     this.recDirtyMin = Math.min(this.recDirtyMin, id);
     this.recDirtyMax = Math.max(this.recDirtyMax, id);
@@ -450,10 +448,11 @@ export class MaterialManager {
       while (cap < base + vec4s) cap *= 2;
       const n = new Float32Array(cap * 4); n.set(this.paramF32);
       this.paramF32 = n; this.paramCapVec4 = cap;
-      this.res.buffers.destroy(this.paramBuffer);
-      this.paramBuffer = this.makeParamBuffer();
+      this.res.buffers.destroy(this.materialBuffer);
+      this.materialBuffer = this.makeMaterialBuffer();
       this.generation++;
-      this.paramDirtyMin = 0; this.paramDirtyMax = Math.max(0, base - 1); // re-upload existing data
+      this.paramDirtyMin = 0; this.paramDirtyMax = Math.max(0, base - 1);   // re-upload existing parameters
+      this.recDirtyMin = 0; this.recDirtyMax = Math.max(0, this.materials.length - 1);   // ... and the records of the new buffer
     }
     this.paramUsedVec4 = base + vec4s;
     return base;
@@ -469,21 +468,19 @@ export class MaterialManager {
     this.res.buffers.destroy(this.materialBuffer);
     this.materialBuffer = this.makeMaterialBuffer();
     this.generation++;
+    // the parameter region starts after the records, so it moves: re-point every custom material and re-upload everything
+    for (const m of this.materials) if (m.kind === 'custom') this.recU32[m.id * RECORD_WORDS + 14] = this.recCap * 4 + m.paramBase;
     this.recDirtyMin = 0; this.recDirtyMax = Math.max(0, this.materials.length - 1);
+    if (this.paramUsedVec4 > 0) { this.paramDirtyMin = 0; this.paramDirtyMax = this.paramUsedVec4 - 1; }
   }
 
-  /** Allocate the GPU storage buffer for the material records. */
+  /** Allocate the single GPU storage buffer: material records followed by the custom-parameter region. */
   private makeMaterialBuffer(): GPUBuffer {
-    return this.res.buffers.create('MaterialBuffer', this.recCap * RECORD_WORDS * 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    return this.res.buffers.create('MaterialBuffer', this.recCap * RECORD_WORDS * 4 + this.paramCapVec4 * 16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
   }
-  /** Allocate the GPU storage buffer for custom material parameters. */
-  private makeParamBuffer(): GPUBuffer {
-    return this.res.buffers.create('CustomMaterialParameterBuffer', this.paramCapVec4 * 16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-  }
-  /** Create both shared material buffers. */
+  /** Create the shared material buffer. */
   private allocateBuffers(): void {
     this.materialBuffer = this.makeMaterialBuffer();
-    this.paramBuffer = this.makeParamBuffer();
   }
 
   /** Create the 1x1 white and flat-normal textures bound to unused material slots. */

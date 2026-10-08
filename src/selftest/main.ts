@@ -129,9 +129,7 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
       { binding: 0, resource: { buffer: vinBuf } }, { binding: 1, resource: { buffer: voutBuf } }, { binding: 2, resource: { buffer: params } }] });
     const bgObj = device.createBindGroup({ layout: layouts.objectCompute, entries: [
       { binding: 0, resource: { buffer: dummy } }, { binding: 1, resource: { buffer: instBuf } }, { binding: 2, resource: { buffer: joints.buffer } },
-      { binding: 3, resource: { buffer: morphW.buffer } }, { binding: 4, resource: { buffer: meshes.skin.buffer } },
-      { binding: 5, resource: { buffer: meshes.morphPosition.buffer } }, { binding: 6, resource: { buffer: meshes.morphNormal.buffer } },
-      { binding: 7, resource: { buffer: meshes.morphTangent.buffer } }] });
+      { binding: 3, resource: { buffer: morphW.buffer } }, { binding: 4, resource: { buffer: meshes.deform.buffer } }] });
     const emptyBG = device.createBindGroup({ layout: empty, entries: [] });
     device.pushErrorScope('validation');
     const enc = device.createCommandEncoder();

@@ -26,9 +26,9 @@ export interface MeshRecord {
   /** Local-space (bind pose) AABB: minXYZ, maxXYZ. */
   bounds: Float32Array;
   deformMask: number;
-  /** Element offset into the shared skin-data buffer (16 B / vertex). */
+  /** Element offset (16 B elements) of this mesh's skin data in the shared deform arena: 1 element per vertex. */
   skinBase: number;
-  /** Element offset into the shared morph delta buffers (16 B / vertex / target; layout target-major). */
+  /** Element offset of this mesh's morph deltas in the deform arena: 3 elements (position, normal, tangent delta) per vertex per target, target-major. */
   morphBase: number;
   morphTargetCount: number;
   /** Largest possible vertex displacement from morphing (sum over targets of max |delta|); 0 if none. */
@@ -57,29 +57,24 @@ export function packSkinData(joints: Uint16Array, weights: Float32Array): Uint32
 }
 
 /**
- * All meshes live in shared arenas: ONE vertex buffer, ONE index buffer (uint32), ONE skin-data buffer and three
- * morph-delta buffers (position / normal / tangent). Meshes are uploaded once and never re-uploaded.
+ * All meshes live in shared arenas: ONE vertex buffer, ONE index buffer (uint32) and ONE deform arena that holds skin weights and
+ * morph deltas (position / normal / tangent interleaved per vertex per target). Meshes are uploaded once and never re-uploaded.
  */
 export class MeshManager {
   private vertices: Arena;
   private indices: Arena;
-  readonly skin: Arena;
-  readonly morphPosition: Arena;
-  readonly morphNormal: Arena;
-  readonly morphTangent: Arena;
+  /** Skin data and morph deltas of every mesh (16-byte elements; see common_bind_object.wgsl `deformData`). */
+  readonly deform: Arena;
   uploadedBytes = 0;
 
   private meshes: MeshRecord[] = [];
 
-  /** Create the shared vertex / index arenas and the skin and morph-delta arenas. */
+  /** Create the shared vertex / index arenas and the deform arena. */
   constructor(device: GPUDevice, buffers: BufferManager, initialVertices = 1 << 16, initialIndices = 1 << 18) {
     const storage = GPUBufferUsage.STORAGE;
     this.vertices = new Arena(device, buffers, 'mesh-vertices', GPUBufferUsage.VERTEX | storage, STANDARD_VERTEX_STRIDE, initialVertices);
     this.indices = new Arena(device, buffers, 'mesh-indices', GPUBufferUsage.INDEX | storage, 4, initialIndices);
-    this.skin = new Arena(device, buffers, 'SkinDataBuffer', storage, 16, 1024);
-    this.morphPosition = new Arena(device, buffers, 'MorphPositionDeltaBuffer', storage, 16, 1024);
-    this.morphNormal = new Arena(device, buffers, 'MorphNormalDeltaBuffer', storage, 16, 1024);
-    this.morphTangent = new Arena(device, buffers, 'MorphTangentDeltaBuffer', storage, 16, 1024);
+    this.deform = new Arena(device, buffers, 'DeformDataBuffer', storage, 16, 2048);
   }
 
   /** The shared vertex buffer (all meshes live in it). */
@@ -88,8 +83,7 @@ export class MeshManager {
   get indexBuffer(): GPUBuffer { return this.indices.buffer; }
   /** Sum of all arena generations: changes whenever ANY shared buffer is reallocated. */
   get generation(): number {
-    return this.vertices.generation + this.indices.generation + this.skin.generation + this.morphPosition.generation
-      + this.morphNormal.generation + this.morphTangent.generation;
+    return this.vertices.generation + this.indices.generation + this.deform.generation;
   }
   /** Number of meshes created. */
   get count(): number { return this.meshes.length; }
@@ -113,28 +107,28 @@ export class MeshManager {
     if (deform?.joints0 && deform.weights0) {
       if (deform.joints0.length !== vcount * 4 || deform.weights0.length !== vcount * 4) throw new Error(`Mesh '${name}': skin data does not match vertex count`);
       const packed = packSkinData(deform.joints0, deform.weights0);
-      skinBase = this.skin.alloc(vcount);
-      this.skin.write(skinBase, packed);
+      skinBase = this.deform.alloc(vcount);
+      this.deform.write(skinBase, packed);
       this.uploadedBytes += packed.byteLength;
       deformMask |= DeformMask.Skin;
     }
     if (deform?.morphTargets?.length) {
       targets = deform.morphTargets.length;
-      const total = targets * vcount;
-      // All three delta arenas allocate in lockstep so one `morphBase` indexes them all.
-      morphBase = this.morphPosition.alloc(total);
-      if (this.morphNormal.alloc(total) !== morphBase || this.morphTangent.alloc(total) !== morphBase) throw new Error('Morph arenas out of lockstep');
+      morphBase = this.deform.alloc(targets * vcount * 3);
       deform.morphTargets.forEach((t, k) => {
-        const off = morphBase + k * vcount;
+        // interleaved per vertex: position delta, normal delta, tangent delta (missing attributes stay zero)
+        const v4 = new Float32Array(vcount * 12);
         let disp = 0;
-        for (const [arena, src] of [[this.morphPosition, t.position], [this.morphNormal, t.normal], [this.morphTangent, t.tangent]] as const) {
-          if (!src) continue; // zero deltas: arena memory is zero-initialised
-          const v4 = new Float32Array(vcount * 4);
-          for (let i = 0; i < vcount; i++) { v4[i * 4] = src[i * 3]; v4[i * 4 + 1] = src[i * 3 + 1]; v4[i * 4 + 2] = src[i * 3 + 2]; }
-          arena.write(off, v4);
-          this.uploadedBytes += v4.byteLength;
-          if (arena === this.morphPosition) for (let i = 0; i < vcount; i++) disp = Math.max(disp, Math.hypot(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]));
-        }
+        [t.position, t.normal, t.tangent].forEach((src, slot) => {
+          if (!src) return;
+          for (let i = 0; i < vcount; i++) {
+            const o = (i * 3 + slot) * 4;
+            v4[o] = src[i * 3]; v4[o + 1] = src[i * 3 + 1]; v4[o + 2] = src[i * 3 + 2];
+            if (slot === 0) disp = Math.max(disp, Math.hypot(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]));
+          }
+        });
+        this.deform.write(morphBase + k * vcount * 3, v4);
+        this.uploadedBytes += v4.byteLength;
         maxDisp += disp;
       });
       deformMask |= DeformMask.Morph;

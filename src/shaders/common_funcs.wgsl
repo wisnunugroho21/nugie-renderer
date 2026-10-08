@@ -32,10 +32,10 @@ fn deformVertex(inst: Instance, vertexIndex: u32, position: vec3<f32>, normal: v
     for (var k = 0u; k < inst.morphTargetCount; k = k + 1u) {
       let targetIdx = morphWeights[inst.morphWeightOffset + k * 2u];
       let w = bitcast<f32>(morphWeights[inst.morphWeightOffset + k * 2u + 1u]);
-      let idx = inst.morphBase + targetIdx * inst.vertexCount + local;
-      p = p + morphPositions[idx].xyz * w;
-      n = n + morphNormals[idx].xyz * w;
-      t = t + morphTangents[idx].xyz * w;
+      let idx = inst.morphBase + (targetIdx * inst.vertexCount + local) * 3u;
+      p = p + bitcast<vec4<f32>>(deformData[idx]).xyz * w;
+      n = n + bitcast<vec4<f32>>(deformData[idx + 1u]).xyz * w;
+      t = t + bitcast<vec4<f32>>(deformData[idx + 2u]).xyz * w;
     }
     n = normalize(n);
     if (dot(t, t) > 0.0) { t = normalize(t); }
@@ -43,7 +43,7 @@ fn deformVertex(inst: Instance, vertexIndex: u32, position: vec3<f32>, normal: v
 
   if HAS_SKINNING {
     if (inst.jointCount > 0u) {
-      let sd = skinData[inst.skinBase + local];
+      let sd = deformData[inst.skinBase + local];
       let skin =
           jointMatrices[inst.jointOffset + skinJoint(sd.x, false)] * skinWeight(sd.z, false)
         + jointMatrices[inst.jointOffset + skinJoint(sd.x, true)] * skinWeight(sd.z, true)

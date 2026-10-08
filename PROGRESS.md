@@ -220,7 +220,7 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 - Animated bounds are conservative padding (skin: 0.5 x extent; morph: sum of max displacements). Per-animation / joint bounds later.
 - Morph delta arenas always hold position+normal+tangent per target (zeros if absent): 3x memory; optimize if profiling says so.
 - Skinned meshes support 4 influences on the GPU (JOINTS_1/WEIGHTS_1 are parsed + kept in assets, not yet uploaded).
-- Device must expose >= 10 vertex-stage storage buffers (engine requests up to 12; warns otherwise).
+- Storage-buffer budget: the vertex stage binds 6 storage buffers (transforms, instances, joints, morph weights, one deform arena for skin + morph deltas, one material buffer holding records + custom parameters); the busiest compute pass (GPU culling) binds 8. The engine runs within WebGPU's default limit of 8 per stage (verified by requesting exactly 8).
 - No 2D blend trees yet (plan: "later"); 1D trees nest, so 2D locomotion can be composed from them.
 - Motion matching inertializes translation/rotation only (not scale/morph); root velocity is not smoothed at a switch.
 - No animation graph demo scene yet (all behaviour covered by unit tests + ECS integration tests).
