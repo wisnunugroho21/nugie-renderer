@@ -89,6 +89,27 @@ Review pass over the modules, typecheck, 437 unit tests and the 34 GPU self-test
   bounds get their mesh's bounds automatically (`Engine.autoBounds`; `spawnObject` defaults to mesh bounds), so static objects always
   fit the BVH; deforming meshes still need explicit padded bounds.
 
+## Storage-buffer budget and arena guard (October 2026)
+
+* **Vertex stage: 10 -> 6 storage buffers.** `deformData` is ONE arena for all skin weights and morph deltas (skin: 1 element per
+  vertex at `skinBase`; morph: position / normal / tangent delta interleaved, 3 elements per vertex per target at `morphBase`, read as
+  raw `vec4<u32>` and bit-cast, so no bit pattern is ever interpreted as a float). The material buffer holds the 64-byte records AND the
+  custom parameters (a region after the records; `paramBase` is an absolute vec4 index; `paramVec4(i)` views a record as four vec4s,
+  so `param_<name>()` accessors in custom shaders are unchanged). Object group = transforms, instances, joints, morph weights,
+  deform data; material group = materials, sampler, 5 textures.
+* The engine now runs within WebGPU's default limit of 8 storage buffers per stage; `GPUContext` requests exactly 8 and warns below 6.
+  The GPU self-test, demos, fog, shadows and GPU culling all pass on a device capped at 8.
+* **Consequences to keep in mind:** a merged buffer is one binding, so it is bound by `maxStorageBufferBindingSize` (128 MB default);
+  growing the material records moves the parameter region (every custom record is re-pointed and everything re-uploaded, bind groups
+  rebuilt); the GPU culling pass uses all 8 of its storage bindings (merge `batchInfo` / `batchFirst` / `thresholds` before adding a
+  ninth).
+* **`Arena` size guard:** each arena reads the device limits (`maxBufferSize`, and `maxStorageBufferBindingSize` for storage arenas).
+  Growth never doubles past the limit, a request that cannot fit throws `ArenaCapacityError` (arena label, requested vs allowed bytes),
+  and a warning is logged once above 80% of the limit. `Arena.ensureRoom(count)` checks without consuming.
+* **`MeshManager.create` is all-or-nothing:** it validates the input and reserves room in the vertex, index and deform arenas before
+  allocating from any of them, so a failure leaves no half-created mesh and no wasted space.
+* Tests: `tests/arena.test.ts` (limits, errors, capped doubling, warning, atomic mesh creation), updated `tests/materials.test.ts`.
+
 ## Conventions (documented decisions)
 
 - Column-major matrices, column vectors, right-handed, camera looks down -Z.

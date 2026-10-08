@@ -165,6 +165,11 @@ const meshId = renderer.meshes.create('name', meshData);   // MeshData = { verti
 
 Built-ins: `createCube`, `createPlane`, `createUVSphere(segments, rings)` in `src/rendering/primitives.ts`.
 
+Mesh data (vertices, indices, skin weights, morph deltas) lives in a few shared GPU buffers sized to what the device allows. If a mesh
+cannot fit, `meshes.create` throws an `ArenaCapacityError` that names the buffer and the byte limit, and nothing is allocated, so you
+can catch it and keep going. A warning is logged when a buffer passes 80% of the limit. Morph targets are the usual culprit
+(48 bytes per vertex per target): trim targets you do not need.
+
 ```ts
 const m = renderer.materials.createPBR({
   baseColor: [1, 1, 1, 1], metallic: 0, roughness: 0.5,
@@ -346,7 +351,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).
 * glTF: one UV set, no Draco/meshopt/KTX2; each material has one sampler.
-* Works within WebGPU's default limit of 8 storage buffers per shader stage (the vertex stage uses 6).
+* Works within WebGPU's default limit of 8 storage buffers per shader stage (the vertex stage uses 6). All meshes share one deform buffer, so the total skin + morph data is capped by the device's `maxStorageBufferBindingSize` (128 MB on the default limit).
 
 ---
 
@@ -361,4 +366,5 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 | Object is black or has no shadow | No light (the fallback sun is used only with zero lights); `castShadow` not set on the light, or `RenderFlags.CastShadow` / `ReceiveShadow` missing on the object |
 | A magenta "error" material | A custom WGSL material failed validation or compilation: read `renderer.materials.shaderErrors` and `engine.gpu.errors` |
 | Hitches the first time something appears | Material created during play: create it at load and `await renderer.warmup()` |
+| `ArenaCapacityError` when creating a mesh | The shared mesh / deform buffer reached the device limit: reduce morph targets or vertex counts, or load fewer meshes at once |
 | `engine.gpu.errors` is not empty | WebGPU validation errors are collected there and logged to the console |
