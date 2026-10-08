@@ -56,3 +56,35 @@ describe('Arena size guard', () => {
     warn.mockRestore();
   });
 });
+
+describe('MeshManager reserves room in every arena first', () => {
+  it('a mesh that does not fit the deform arena leaves vertices / indices / records untouched', async () => {
+    const { MeshManager } = await import('../src/rendering/MeshManager');
+    const { createCube } = await import('../src/rendering/primitives');
+    const { device, buffers } = setup({ maxBufferSize: 1 << 30, maxStorageBufferBindingSize: 16 * 2048 });   // deform arena: 2048 elements max
+    const mm = new MeshManager(device, buffers);
+    const cube = createCube(), vcount = cube.vertices.length / 12;
+    const okId = mm.create('ok', cube);
+    const v0 = (mm as any).vertices.used, i0 = (mm as any).indices.used, d0 = mm.deform.used;
+    const target = { position: new Float32Array(vcount * 3).fill(0.1) };
+    // 24 vertices x 40 targets x 3 elements = 2880 > 2048
+    expect(() => mm.create('too-big', cube, { morphTargets: Array.from({ length: 40 }, () => target) as any })).toThrow(ArenaCapacityError);
+    expect((mm as any).vertices.used).toBe(v0);
+    expect((mm as any).indices.used).toBe(i0);
+    expect(mm.deform.used).toBe(d0);
+    expect(mm.count).toBe(1);
+    // the manager keeps working afterwards
+    const id2 = mm.create('small', cube, { morphTargets: [target] as any });
+    expect(id2).toBe(okId + 1);
+    expect(mm.get(id2).morphTargetCount).toBe(1);
+  });
+  it('bad skin data is rejected before anything is allocated', async () => {
+    const { MeshManager } = await import('../src/rendering/MeshManager');
+    const { createCube } = await import('../src/rendering/primitives');
+    const { device, buffers } = setup();
+    const mm = new MeshManager(device, buffers);
+    const v0 = (mm as any).vertices.used;
+    expect(() => mm.create('bad', createCube(), { joints0: new Uint16Array(4), weights0: new Float32Array(4) })).toThrow(/skin data/);
+    expect((mm as any).vertices.used).toBe(v0);
+  });
+});

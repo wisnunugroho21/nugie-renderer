@@ -46,6 +46,15 @@ export class Arena {
   /** Elements that fit before the next growth. */
   get capacityElements(): number { return this.capacity; }
 
+  /**
+   * Make sure `count` more elements fit (growing the buffer if needed) WITHOUT consuming them. Throws ArenaCapacityError if they
+   * can never fit. Lets callers that allocate from several arenas check everything before taking any space.
+   */
+  ensureRoom(count: number): void {
+    const need = this.used + count;
+    if (need > this.capacity) this.grow(need);
+  }
+
   /** Reserve `count` elements; returns the element offset. */
   alloc(count: number): number {
     const need = this.used + count;

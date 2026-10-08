@@ -97,6 +97,15 @@ export class MeshManager {
     const vcount = data.vertices.length / STANDARD_VERTEX_FLOATS;
     if (!Number.isInteger(vcount)) throw new Error(`Mesh '${name}': vertex data is not a multiple of the standard vertex size`);
 
+    // Validate and reserve room in EVERY arena before taking space from any of them: a failure (bad input, or the device's buffer
+    // limit) must not leave a half-created mesh behind.
+    const hasSkin = !!(deform?.joints0 && deform.weights0);
+    if (hasSkin && (deform!.joints0!.length !== vcount * 4 || deform!.weights0!.length !== vcount * 4)) throw new Error(`Mesh '${name}': skin data does not match vertex count`);
+    const morphTargets = deform?.morphTargets?.length ?? 0;
+    this.vertices.ensureRoom(vcount);
+    this.indices.ensureRoom(data.indices.length);
+    this.deform.ensureRoom((hasSkin ? vcount : 0) + morphTargets * vcount * 3);
+
     const baseVertex = this.vertices.alloc(vcount);
     const firstIndex = this.indices.alloc(data.indices.length);
     this.vertices.write(baseVertex, data.vertices);
@@ -104,8 +113,7 @@ export class MeshManager {
     this.uploadedBytes += data.vertices.byteLength + data.indices.byteLength;
 
     let deformMask = DeformMask.None, skinBase = 0, morphBase = 0, targets = 0, maxDisp = 0;
-    if (deform?.joints0 && deform.weights0) {
-      if (deform.joints0.length !== vcount * 4 || deform.weights0.length !== vcount * 4) throw new Error(`Mesh '${name}': skin data does not match vertex count`);
+    if (hasSkin && deform?.joints0 && deform.weights0) {
       const packed = packSkinData(deform.joints0, deform.weights0);
       skinBase = this.deform.alloc(vcount);
       this.deform.write(skinBase, packed);
