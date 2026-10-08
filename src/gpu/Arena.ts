@@ -4,8 +4,20 @@ import type { BufferManager } from './BufferManager';
  * Append-only GPU buffer arena addressed in ELEMENTS. Growth reallocates and copies on the GPU
  * (never re-uploading from the CPU) and bumps `generation` so bind groups can be rebuilt.
  */
+/** Thrown when an arena would have to grow past what the device can bind / allocate. */
+export class ArenaCapacityError extends Error {
+  constructor(readonly label: string, readonly requestedBytes: number, readonly limitBytes: number) {
+    super(`Arena '${label}' needs ${requestedBytes} bytes but the device allows at most ${limitBytes} bytes per buffer binding (maxStorageBufferBindingSize / maxBufferSize). ` +
+      'Reduce the amount of mesh / morph / skin data or split it across meshes loaded later.');
+  }
+}
+
 export class Arena {
   buffer: GPUBuffer;
+  /** Largest size (bytes) this arena may reach: the device's buffer limit, and for STORAGE arenas also the binding-size limit (Infinity if unknown). */
+  readonly maxBytes: number;
+  /** Set once the arena passed 80% of `maxBytes` (a warning has been logged). */
+  nearLimit = false;
   generation = 0;
   used = 0;
   private capacity: number;
@@ -15,6 +27,13 @@ export class Arena {
     private device: GPUDevice, private buffers: BufferManager, readonly label: string, private usage: GPUBufferUsageFlags,
     readonly elementBytes: number, initialCapacity: number,
   ) {
+    const lim = (device as { limits?: GPUSupportedLimits }).limits;
+    let max = Infinity;
+    if (lim) {
+      max = lim.maxBufferSize;
+      if (usage & GPUBufferUsage.STORAGE) max = Math.min(max, lim.maxStorageBufferBindingSize);
+    }
+    this.maxBytes = max;
     this.capacity = Math.max(1, initialCapacity);
     this.buffer = this.make();
   }
@@ -44,7 +63,14 @@ export class Arena {
   /** Double the capacity until `need` fits, copy the old contents on the GPU, destroy the old buffer and bump `generation`. */
   private grow(need: number): void {
     const old = this.buffer, oldBytes = this.used * this.elementBytes;
-    while (this.capacity < need) this.capacity *= 2;
+    if (need * this.elementBytes > this.maxBytes) throw new ArenaCapacityError(this.label, need * this.elementBytes, this.maxBytes);
+    let cap = this.capacity;
+    while (cap < need) cap *= 2;
+    this.capacity = Math.min(cap, Math.floor(this.maxBytes / this.elementBytes));   // never double past the limit
+    if (!this.nearLimit && need * this.elementBytes > this.maxBytes * 0.8) {
+      this.nearLimit = true;
+      console.warn(`Arena '${this.label}' is above 80% of the device buffer limit (${(need * this.elementBytes / 1048576).toFixed(0)} of ${(this.maxBytes / 1048576).toFixed(0)} MB).`);
+    }
     this.buffer = this.make();
     if (oldBytes > 0) {
       const enc = this.device.createCommandEncoder({ label: `${this.label}-grow` });
