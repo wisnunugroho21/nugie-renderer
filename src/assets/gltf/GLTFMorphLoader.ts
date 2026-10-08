@@ -11,6 +11,7 @@ export function loadMorphTargets(doc: GLTFDocument, prim: GLTFPrimitive, vertexC
   if (!prim.targets?.length) return [];
   return prim.targets.map((t) => {
     const out: MorphTargetData = {};
+    /** Read one morph attribute accessor as floats, checking it matches the vertex count. */
     const read = (acc: number | undefined): Float32Array | undefined => {
       if (acc === undefined) return undefined;
       const r = readAccessorFloat(doc, acc);
@@ -26,6 +27,7 @@ export function loadMorphTargets(doc: GLTFDocument, prim: GLTFPrimitive, vertexC
 
 /** Remap per-vertex delta arrays (3 floats/vertex) after vertices are duplicated/reordered. */
 export function remapMorphTargets(targets: MorphTargetData[], indexMap: Uint32Array): MorphTargetData[] {
+  /** Gather a delta array (3 floats per vertex) through `indexMap`. */
   const remap = (a?: Float32Array): Float32Array | undefined => {
     if (!a) return undefined;
     const o = new Float32Array(indexMap.length * 3);

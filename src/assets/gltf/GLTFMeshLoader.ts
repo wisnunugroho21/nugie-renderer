@@ -24,6 +24,7 @@ export function toTriangleList(indices: Uint32Array, mode: number): Uint32Array 
   return out;
 }
 
+/** Gather `comps` values per vertex from `src` through `indexMap` (used when vertices are re-indexed). */
 function remap<T extends Float32Array | Uint16Array>(src: T, indexMap: Uint32Array, comps: number): T {
   const o = new (src.constructor as new (n: number) => T)(indexMap.length * comps);
   for (let i = 0; i < indexMap.length; i++) for (let c = 0; c < comps; c++) o[i * comps + c] = src[indexMap[i] * comps + c];
@@ -100,6 +101,7 @@ export function loadPrimitive(doc: GLTFDocument, prim: GLTFPrimitive, warn: (m: 
   };
 }
 
+/** Convert every glTF mesh into engine primitives (standard-layout vertices, joints / weights, morph targets). */
 export function loadMeshes(doc: GLTFDocument, warn: (m: string) => void): MeshAsset[] {
   return (doc.json.meshes ?? []).map((m, mi) => {
     const prims: PrimitiveAsset[] = [];

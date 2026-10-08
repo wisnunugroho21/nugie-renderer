@@ -4,6 +4,7 @@ import { loadGLTF } from '../assets/gltf/GLTFLoader';
 import { instantiateGLTF } from '../assets/gltf/GLTFInstantiator';
 import { createPlane, createUVSphere, type MeshData } from '../rendering/primitives';
 import { entityIndex } from '../ecs/Entity';
+import { RenderFlags } from '../ecs/components/MeshRendererStore';
 import { STANDARD_VERTEX_FLOATS as F } from '../rendering/VertexLayouts';
 
 /** Draw a procedural 2D image and encode it as PNG bytes (stands in for authored texture files). */
@@ -14,8 +15,10 @@ async function png(size: number, draw: (ctx: OffscreenCanvasRenderingContext2D, 
   return new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer());
 }
 
+/** Paint a tangent-space normal map of a sine-wave bump pattern into `ctx` (an s x s canvas). */
 function heightNormalMap(ctx: OffscreenCanvasRenderingContext2D, s: number): void {
   const img = ctx.createImageData(s, s);
+  /** Height field of the bump pattern at pixel (x, y). */
   const h = (x: number, y: number) => Math.sin((x / s) * Math.PI * 8) * Math.sin((y / s) * Math.PI * 8);
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
     // +Y in the normal map = image UP, so dh/dy uses -(y) direction
@@ -71,13 +74,14 @@ async function buildTexturedGLB(mesh: MeshData): Promise<Uint8Array> {
   return b.glb();
 }
 
+/** Loads an in-memory textured GLB (base colour, metal-rough, normal, emissive maps) and instantiates it three times to show texture sharing and instancing. */
 export const gltfDemo: Demo = (ctx) => {
   const { world, renderer } = ctx;
   const plane = renderer.meshes.create('plane', createPlane());
   const ground = renderer.materials.createPBR({ name: 'ground', baseColor: [0.3, 0.32, 0.36, 1], roughness: 0.95, metallic: 0 });
   const g = entityIndex(world.create());
   world.transforms.add(g, 0, -0.5, 0); world.transforms.setScale(g, 30, 1, 30);
-  world.meshRenderers.add(g, plane, ground, 4 /* Static */);
+  world.meshRenderers.add(g, plane, ground, RenderFlags.Static);
   world.bounds.add(g, -0.5, 0, -0.5, 0.5, 0, 0.5);
 
   const status = { loaded: false, ms: 0, texturesReady: 0, instances: 0, error: '' };

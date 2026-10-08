@@ -37,6 +37,7 @@ export const DEFAULT_STREAM_CONFIG: StreamConfig = { budgetBytes: 256 * 1024 * 1
 
 export interface StreamChange { id: number; from: number; to: number; }
 
+/** Bytes of one mip `level` of the texture (dimensions halve per level, minimum 1x1). */
 export function mipBytes(e: Pick<StreamEntry, 'width' | 'height' | 'bytesPerTexel'>, level: number): number {
   return Math.max(1, e.width >> level) * Math.max(1, e.height >> level) * e.bytesPerTexel;
 }
@@ -56,10 +57,12 @@ export function desiredLevel(e: Pick<StreamEntry, 'width' | 'height' | 'mipCount
   return Math.min(Math.max(level, 0), e.mipCount - 1);
 }
 
+/** Tracks every streamed texture and plans which mip levels to load or drop each frame (see the file header). */
 export class StreamPolicy {
   readonly entries: StreamEntry[] = [];
   frame = 0;
 
+  /** Create a policy with the given budgets (defaults: 256 MB resident, 8 MB uploaded per frame). */
   constructor(public config: StreamConfig = { ...DEFAULT_STREAM_CONFIG }) {}
 
   /** Register a texture; it starts at `initialLevel` (default: the floor level, i.e. cheap and always available). */
@@ -72,14 +75,17 @@ export class StreamPolicy {
     return e;
   }
 
+  /** Start a new frame: advance the frame counter and clear last frame's on-screen extents. */
   beginFrame(): void { this.frame++; for (const e of this.entries) e.pixels = 0; }
 
+  /** Report that texture `id` covers up to `pixels` screen pixels this frame (the largest report wins). */
   touch(id: number, pixels: number): void {
     const e = this.entries[id];
     if (pixels > e.pixels) e.pixels = pixels;
     e.lastTouchFrame = this.frame;
   }
 
+  /** Bytes currently resident across all streamed textures. */
   get totalResidentBytes(): number { return this.entries.reduce((s, e) => s + residentBytes(e, e.resident), 0); }
 
   /**

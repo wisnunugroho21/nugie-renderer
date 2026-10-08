@@ -15,6 +15,7 @@ export function estimateTextureBytes(w: number, h: number, layers: number, forma
   return total * layers;
 }
 
+/** Number of mip levels of a full chain for a `w` x `h` base size. */
 export function mipLevelCount(w: number, h: number): number {
   return Math.floor(Math.log2(Math.max(w, h))) + 1;
 }
@@ -24,8 +25,10 @@ export class TextureManager {
   private byKey = new Map<string, GPUTexture>();
   private live = new Map<GPUTexture, number>();
 
+  /** Create a manager that tracks texture counts and estimated bytes in `stats`. */
   constructor(private device: GPUDevice, private stats: GPUStats) {}
 
+  /** Create a tracked texture from `desc`, recording its estimated memory. */
   create(desc: GPUTextureDescriptor): GPUTexture {
     const t = this.device.createTexture(desc);
     const size = Array.isArray(desc.size) ? desc.size : [(desc.size as GPUExtent3DDict).width, (desc.size as GPUExtent3DDict).height ?? 1, (desc.size as GPUExtent3DDict).depthOrArrayLayers ?? 1];
@@ -46,6 +49,7 @@ export class TextureManager {
     return t;
   }
 
+  /** Destroy a texture created here, forget its dedupe key and update the stats. */
   destroy(t: GPUTexture): void {
     const bytes = this.live.get(t);
     if (bytes === undefined) return;

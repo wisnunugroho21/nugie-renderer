@@ -44,8 +44,10 @@ export async function loadGLTF(data: ArrayBuffer | Uint8Array | string, resolver
   return convertDocument(doc);
 }
 
+/** Convert a parsed glTF document into engine assets (meshes, materials, images, skins, node tree, animations). Validates parent links and rejects cycles. */
 export function convertDocument(doc: GLTFDocument): GLTFAsset {
   const warnings: string[] = [];
+  /** Collect a non-fatal conversion warning. */
   const warn = (m: string) => warnings.push(m);
   const json = doc.json;
 
@@ -98,6 +100,7 @@ export function convertDocument(doc: GLTFDocument): GLTFAsset {
   return { scenes, defaultScene: json.scene ?? 0, nodes, meshes, materials, textures: registry.uses, images, cameras, skins, animations, warnings };
 }
 
+/** Throw if the node hierarchy contains a cycle (iterative depth-first search with visiting / done states). */
 function assertAcyclic(nodes: NodeAsset[]): void {
   const state = new Uint8Array(nodes.length); // 0 unvisited, 1 visiting, 2 done
   for (let i = 0; i < nodes.length; i++) {

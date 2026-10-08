@@ -2,10 +2,13 @@
 export type Box = Float32Array | number[];
 
 export const AABB = {
+  /** An empty (inverted) box, ready for `expandPoint` / `union`. */
   create(): Float32Array { return new Float32Array([Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]); },
+  /** Write the six components into `o`. */
   set(o: Box, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): Box {
     o[0] = minX; o[1] = minY; o[2] = minZ; o[3] = maxX; o[4] = maxY; o[5] = maxZ; return o;
   },
+  /** Grow `o` in place to contain point (x, y, z). */
   expandPoint(o: Box, x: number, y: number, z: number): Box {
     if (x < o[0]) o[0] = x;
     if (y < o[1]) o[1] = y;
@@ -15,11 +18,13 @@ export const AABB = {
     if (z > o[5]) o[5] = z;
     return o;
   },
+  /** o = smallest box containing both `a` and `b`. */
   union(o: Box, a: Box, b: Box): Box {
     o[0] = Math.min(a[0], b[0]); o[1] = Math.min(a[1], b[1]); o[2] = Math.min(a[2], b[2]);
     o[3] = Math.max(a[3], b[3]); o[4] = Math.max(a[4], b[4]); o[5] = Math.max(a[5], b[5]);
     return o;
   },
+  /** True if the two boxes overlap (touching counts). */
   intersects(a: Box, b: Box): boolean {
     return a[0] <= b[3] && a[3] >= b[0] && a[1] <= b[4] && a[4] >= b[1] && a[2] <= b[5] && a[5] >= b[2];
   },

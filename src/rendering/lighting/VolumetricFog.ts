@@ -42,6 +42,7 @@ export class VolumetricFog {
   private width = 0;
   private height = 0;
 
+  /** Create the froxel compute pipeline (frame + scene + volume bind groups) and parameter buffer. */
   constructor(private gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources) {
     const { device, resources: r } = gpu;
     registerEngineShaderChunks(r.shaders);
@@ -62,6 +63,7 @@ export class VolumetricFog {
 
   private volLayout: GPUBindGroupLayout;
 
+  /** Froxel grid size [x, y, z] (screen tiles x depth slices). */
   get froxels(): [number, number, number] { return this.dims; }
 
   /** Mirror the settings into the scene uniform; call every frame before the uniform is written. */

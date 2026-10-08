@@ -25,6 +25,7 @@ export class BVH {
   private stack = new Int32Array(256);
   private maskStack = new Uint8Array(256);
 
+  /** Build a BVH over the objects `ids`; `aabbs` holds their boxes and `aabbOffset(id)` gives each box's float offset. `leafSize` = max objects per leaf. */
   static build(ids: ArrayLike<number>, aabbs: ArrayLike<number>, aabbOffset: (id: number) => number, leafSize = 4): BVH {
     const bvh = new BVH();
     const n = ids.length;
@@ -136,6 +137,7 @@ export class BVH {
     return c;
   }
 
+  /** Append every object under `root` (a contiguous range of `order`, found via its leftmost and rightmost leaf) to `out`. */
   private emitSubtree(root: number, out: Uint32Array | number[], c: number): number {
     // Leaves under `root` occupy a contiguous range of `order`; find it by descending the extremes.
     let lo = root; while (this.count[lo] === 0) lo = this.first[lo];
@@ -145,6 +147,7 @@ export class BVH {
     return c;
   }
 
+  /** Double the traversal stacks (called when a very deep tree overflows them). */
   private growStack(): void {
     const s = new Int32Array(this.stack.length * 2); s.set(this.stack); this.stack = s;
     const m = new Uint8Array(this.maskStack.length * 2); m.set(this.maskStack); this.maskStack = m;
@@ -161,7 +164,9 @@ export class BVH {
 
 /** Partition `order[lo..hi]` so that position k holds the element it would in sorted-by-centroid[axis] order. */
 function quickselect(order: Uint32Array, cen: Float32Array, axis: number, lo: number, hi: number, k: number): void {
+  /** Centroid coordinate along the split axis for position `i`. */
   const key = (i: number) => cen[i * 3 + axis];
+  /** Swap positions i and j in `order` and the cached centroids. */
   const swap = (i: number, j: number) => {
     const t = order[i]; order[i] = order[j]; order[j] = t;
     for (let a = 0; a < 3; a++) { const c = cen[i * 3 + a]; cen[i * 3 + a] = cen[j * 3 + a]; cen[j * 3 + a] = c; }

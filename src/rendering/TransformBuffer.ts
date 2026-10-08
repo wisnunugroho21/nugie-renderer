@@ -15,15 +15,18 @@ export class TransformBuffer {
   private capacity: number; // in matrices
   private scratch = new Uint32Array(0);
 
+  /** Create the storage buffer (64 bytes per renderable); `mergeGap` = max gap between changed slots that is still uploaded as one range. */
   constructor(private device: GPUDevice, private buffers: BufferManager, initialCapacity = 1024, private mergeGap = 8) {
     this.capacity = initialCapacity;
     this.buffer = this.create();
   }
 
+  /** Allocate the GPU buffer for the current capacity. */
   private create(): GPUBuffer {
     return this.buffers.create('TransformBuffer', this.capacity * 64, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
   }
 
+  /** Upload the world matrices of changed slots as a few coalesced ranges (one full write when many changed or after growth). */
   sync(rw: RenderWorld): void {
     this.lastUploadBytes = 0; this.lastUploadRanges = 0;
     if (rw.count === 0) return;
@@ -55,6 +58,7 @@ export class TransformBuffer {
     this.writeRange(rw, start, end + 1);
   }
 
+  /** Upload slots [from, to) of the render world's matrix array. */
   private writeRange(rw: RenderWorld, from: number, to: number): void {
     to = Math.min(to, rw.count);
     if (to <= from) return;

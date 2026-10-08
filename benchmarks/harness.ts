@@ -11,6 +11,7 @@ export function bench(name: string, fn: () => void, ms = 400): BenchResult {
   return { name, opsPerSec: 1000 / meanMs, meanMs, samples: n };
 }
 
+/** Print a table of results with each one's speed relative to the baseline entry (default: the last). */
 export function report(title: string, results: BenchResult[], baselineIndex = results.length - 1): void {
   console.log(`\n== ${title} ==`);
   const base = results[baselineIndex];

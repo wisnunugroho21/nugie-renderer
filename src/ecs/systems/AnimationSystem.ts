@@ -23,8 +23,10 @@ export class AnimationSystem {
   nodesWritten = 0;
   private tmp: AdvanceResult = { time: 0, finished: false };
 
+  /** Create the system for `world` (it reads animators / controllers and writes transforms and morph weights). */
   constructor(private world: World) {}
 
+  /** Advance every playing animator and controller by `dt` seconds and write the sampled pose into the ECS. */
   update(dt: number): void {
     const w = this.world, a = w.animators, tr = w.transforms, mo = w.morphs;
     this.activeAnimators = 0; this.activeControllers = 0; this.nodesWritten = 0;
@@ -83,6 +85,7 @@ export class AnimationSystem {
     });
   }
 
+  /** Apply this frame's root-motion translation (rotated + scaled into the owner's frame) and rotation to entity `e`. */
   private applyRootDelta(e: number, dt3: Float32Array, dq: Float32Array): void {
     const tr = this.world.transforms;
     if (dt3[0] !== 0 || dt3[1] !== 0 || dt3[2] !== 0) {

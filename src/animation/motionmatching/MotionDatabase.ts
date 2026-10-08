@@ -72,6 +72,7 @@ export class MotionDatabase {
   readonly fps: number;
   readonly trajectoryTimes: number[];
 
+  /** Private: use `MotionDatabase.build`. */
   private constructor(
     readonly clips: MotionClipSource[], readonly config: Required<Pick<MotionDatabaseConfig, 'rootNode'>> & MotionDatabaseConfig,
     layout: FeatureLayout, frameCount: number, features: Float32Array, mean: Float32Array, scale: Float32Array,
@@ -82,8 +83,10 @@ export class MotionDatabase {
     this.fps = fps; this.trajectoryTimes = traj;
   }
 
+  /** Describe where each feature group (velocity, trajectory, joint positions / velocities, foot contacts) lives in the feature vector. */
   static makeLayout(featureJoints: number, feet: number, trajectoryTimes: number): FeatureLayout {
     let o = 0;
+    /** Reserve `n` consecutive floats in the feature vector and return their start offset. */
     const take = (n: number) => { const s = o; o += n; return s; };
     const velocity = take(3), angularVelocity = take(1), trajectoryPosition = take(2 * trajectoryTimes), trajectoryFacing = take(2 * trajectoryTimes);
     const jointPosition = take(3 * featureJoints), jointVelocity = take(3 * featureJoints), contact = take(feet);
@@ -98,6 +101,7 @@ export class MotionDatabase {
     };
   }
 
+  /** Sample every clip at `fps`, extract a feature vector per frame (velocity, future trajectory, joint pose, contacts), normalise the features and return the searchable database. */
   static build(layout: PoseLayout, rest: Pose, clips: MotionClipSource[], cfg: MotionDatabaseConfig): MotionDatabase {
     const fps = cfg.fps ?? 30, dt = 1 / fps;
     const trajT = cfg.trajectoryTimes ?? [0.2, 0.4, 0.6];
@@ -122,6 +126,7 @@ export class MotionDatabase {
       out.jp = [];
       for (const n of cfg.featureJoints) { modelTransform(layout, pose, n, x); out.jp.push(x.p[0], x.p[1], x.p[2]); }
     };
+    /** A scratch analysis state: root position, yaw and joint positions. */
     const mkState = () => ({ rp: [0, 0, 0], yaw: 0, jp: [] as number[] });
     const s0 = mkState(), s1 = mkState(), sT = mkState(), sC = mkState();
 
@@ -150,6 +155,7 @@ export class MotionDatabase {
         };
         sample(t, sC);
         const yaw = sC.yaw, c = Math.cos(yaw), s = Math.sin(yaw);
+        /** Rotate a world-space vector into the root's yaw frame (Ry(-yaw)), so features are independent of heading. */
         const toLocal = (dx: number, dy: number, dz: number): [number, number, number] => [c * dx - s * dz, dy, s * dx + c * dz]; // Ry(-yaw)
         const tA = src.loop ? t - dt : Math.max(0, t - dt), tB = src.loop ? t + dt : Math.min(clip.duration, t + dt);
         sample(tA, s0); sample(tB, s1);

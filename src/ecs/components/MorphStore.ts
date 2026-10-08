@@ -25,6 +25,7 @@ export class MorphStore extends ComponentStore {
     this.changedFlag = growU8(this.changedFlag, n);
   }
 
+  /** Return the entity's weight range to the free list (keyed by target count) so the pool slot can be reused. */
   protected reset(i: number): void {
     const c = this.targetCount[i];
     if (c > 0) {
@@ -56,6 +57,7 @@ export class MorphStore extends ComponentStore {
     this.markChanged(i);
   }
 
+  /** Queue entity `i` for re-packing / re-upload (deduplicated until the next `consumeChanged`). */
   markChanged(i: number): void {
     if (this.changedFlag[i] === 0) { this.changedFlag[i] = 1; this.changed.push(i); }
   }

@@ -2,8 +2,10 @@
 export class BitSet {
   words: Uint32Array;
 
+  /** Create a set able to hold at least `bits` bits (it grows on demand). */
   constructor(bits = 64) { this.words = new Uint32Array(Math.max(1, (bits + 31) >>> 5)); }
 
+  /** Grow the backing array (doubling) so that bit index `bits - 1` is addressable. No-op when already large enough. */
   ensure(bits: number): void {
     const need = (bits + 31) >>> 5;
     if (need <= this.words.length) return;
@@ -14,16 +16,21 @@ export class BitSet {
     this.words = w;
   }
 
+  /** Set bit `i` (growing the set if needed). */
   set(i: number): void { this.ensure(i + 1); this.words[i >>> 5] |= 1 << (i & 31); }
+  /** Clear bit `i`. Out-of-range indices are ignored. */
   clear(i: number): void { if ((i >>> 5) < this.words.length) this.words[i >>> 5] &= ~(1 << (i & 31)); }
+  /** True if bit `i` is set; indices beyond the current capacity read as unset. */
   has(i: number): boolean { return (i >>> 5) < this.words.length && (this.words[i >>> 5] & (1 << (i & 31))) !== 0; }
 
+  /** Number of bits currently set. */
   count(): number {
     let c = 0;
     for (let i = 0; i < this.words.length; i++) c += popcount(this.words[i]);
     return c;
   }
 
+  /** Visit every set bit in ascending order. */
   forEach(cb: (i: number) => void): void { BitSet.forEachAnd([this], cb); }
 
   /** Visit every index set in ALL given sets (ascending order). */
@@ -42,6 +49,7 @@ export class BitSet {
   }
 }
 
+/** Number of 1 bits in a 32-bit word (SWAR bit-count). */
 function popcount(v: number): number {
   v = v - ((v >>> 1) & 0x55555555);
   v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);

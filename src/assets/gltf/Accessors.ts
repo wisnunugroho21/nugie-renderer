@@ -4,12 +4,14 @@ import type { GLTFAccessor } from './GLTFTypes';
 const COMPONENTS: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };
 const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
 
+/** Number of components of an accessor type string (SCALAR = 1, VEC3 = 3, MAT4 = 16 ...). */
 export function componentCount(type: string): number {
   const n = COMPONENTS[type];
   if (!n) throw new GLTFError(`Unknown accessor type '${type}'`);
   return n;
 }
 
+/** Read one little-endian component of glTF `componentType`, applying the normalised-integer mapping when `normalized`. */
 function readComponent(dv: DataView, offset: number, componentType: number, normalized: boolean): number {
   switch (componentType) {
     case 5126: return dv.getFloat32(offset, true);
@@ -45,12 +47,14 @@ export function readAccessorUint(doc: GLTFDocument, index: number): { data: Uint
   return { data: out, count: acc.count, components: comps };
 }
 
+/** Look up accessor `index` in the document or throw a GLTFError. */
 export function getAccessor(doc: GLTFDocument, index: number): GLTFAccessor {
   const acc = doc.json.accessors?.[index];
   if (!acc) throw new GLTFError(`Accessor ${index} does not exist`);
   return acc;
 }
 
+/** The bytes (and byte stride, 0 = tightly packed) of a bufferView, validated against its buffer. */
 function viewBytes(doc: GLTFDocument, viewIndex: number): { bytes: Uint8Array; stride: number } {
   const view = doc.json.bufferViews?.[viewIndex];
   if (!view) throw new GLTFError(`bufferView ${viewIndex} does not exist`);
@@ -61,6 +65,7 @@ function viewBytes(doc: GLTFDocument, viewIndex: number): { bytes: Uint8Array; s
   return { bytes: buf.subarray(start, start + view.byteLength), stride: view.byteStride ?? 0 };
 }
 
+/** Visit every component of every element of a dense accessor (honours byteStride / byteOffset); a missing bufferView means all zeros. */
 function forEachElement(doc: GLTFDocument, acc: GLTFAccessor, comps: number, normalized: boolean, cb: (i: number, c: number, v: number) => void): void {
   if (acc.bufferView === undefined) return; // zero-initialized (valid when sparse provides values)
   const { bytes, stride } = viewBytes(doc, acc.bufferView);
@@ -77,6 +82,7 @@ function forEachElement(doc: GLTFDocument, acc: GLTFAccessor, comps: number, nor
   }
 }
 
+/** Overwrite the accessor values listed by its `sparse` substitution (indices + replacement values) through `set`. */
 function applySparse(doc: GLTFDocument, acc: GLTFAccessor, comps: number, set: (i: number, c: number, v: number) => void): void {
   const sp = acc.sparse;
   if (!sp) return;

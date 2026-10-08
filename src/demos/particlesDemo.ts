@@ -15,6 +15,7 @@ export const particlesDemo: Demo = (ctx) => {
   world.meshRenderers.add(g, plane, ground, 4 /* Static */);
   world.bounds.add(g, -0.5, 0, -0.5, 0.5, 0, 0.5);
 
+  /** Create an entity at (x, y, z) that drives a new emitter of `pool`. */
   const spawn = (pool: ReturnType<typeof ps.createPool>, emitter: Parameters<typeof pool.addEmitter>[0], x: number, y: number, z: number) => {
     const e = entityIndex(world.create());
     world.transforms.add(e, x, y, z);
@@ -74,6 +75,7 @@ export const particlesDemo: Demo = (ctx) => {
 
   ctx.orbit.distance = 12; ctx.orbit.pitch = 0.35; ctx.orbit.autoRotate = 0.1; ctx.orbit.target[1] = 1;
   let beamSeed = 0, lastBeam = -1;
+  // Per-frame update: move the trail emitter, regenerate the lightning beam and sweep the slash blade.
   return (t) => {
     world.transforms.setPosition(mover, Math.cos(t * 1.4) * 6, 1.2 + Math.sin(t * 2.1) * 0.6, Math.sin(t * 1.4) * 6);
     // lightning: a new jagged path ~20 times a second between two fixed points

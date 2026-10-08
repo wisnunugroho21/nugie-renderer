@@ -54,6 +54,7 @@ export class MotionMatchingMotion extends Motion {
   private haveHistory = false;
   private lastDt = 1 / 60;
 
+  /** Create a motion-matching source over `db`; `opts` tunes search interval, switch margin, continuation bias and inertialization half-life. */
   constructor(readonly db: MotionDatabase, readonly layout: Pose['layout'], rest: Pose, opts: MotionMatchingOptions = {}) {
     super();
     this.matcher = new MotionMatcher(db);
@@ -65,16 +66,19 @@ export class MotionMatchingMotion extends Motion {
     this.clip = db.clipOfFrame[this.frame]; this.time = db.timeOfFrame[this.frame];
   }
 
+  /** Unused: the playhead is driven internally, so a constant is reported. */
   duration(_params: AnimationParams): number { return 1; } // time is driven internally, not by the state machine's u
 
   collectNodes(out: Set<number>): void { for (const c of this.db.clips) for (const n of c.clip.animatedNodes) out.add(n); }
 
+  /** Sample database clip `clipIndex` at `time` into `out` (starting from the rest pose). */
   private poseAt(ctx: MotionContext, clipIndex: number, time: number, out: Pose): void {
     out.copyFrom(ctx.rest);
     const clip = this.db.clips[clipIndex].clip;
     clip.sample(Math.min(Math.max(time, 0), clip.duration), out);
   }
 
+  /** Sample the root node's translation and rotation of a database clip at `time`. */
   private rootAt(ctx: MotionContext, clipIndex: number, time: number, t: Float32Array, r: Float32Array): void {
     const n = ctx.rootNode, clip = this.db.clips[clipIndex].clip;
     t[0] = ctx.rest.t[n * 3]; t[1] = ctx.rest.t[n * 3 + 1]; t[2] = ctx.rest.t[n * 3 + 2];
@@ -86,6 +90,7 @@ export class MotionMatchingMotion extends Motion {
     }
   }
 
+  /** Advance the playhead by `dt`, accumulate root motion and, at the search interval (or at a clip end / invalid frame), search for a better frame and jump to it. */
   override update(dt: number, ctx: MotionContext): void {
     this.lastDt = dt;
     const db = this.db, src = db.clips[this.clip], dur = src.clip.duration;
@@ -135,6 +140,7 @@ export class MotionMatchingMotion extends Motion {
     }
   }
 
+  /** Jump the playhead to database `frame`; when history exists, capture the pose difference so inertialization can blend it away. */
   private switchTo(ctx: MotionContext, frame: number, dt: number): void {
     const db = this.db;
     const clip = db.clipOfFrame[frame], time = db.timeOfFrame[frame];
@@ -145,6 +151,7 @@ export class MotionMatchingMotion extends Motion {
     this.clip = clip; this.time = time; this.frame = frame; this.switches++;
   }
 
+  /** Pose of the current playhead with the inertialization offset applied (`_u` is ignored: this motion keeps its own time). */
   sample(ctx: MotionContext, _u: number, out: Pose): void {
     this.poseAt(ctx, this.clip, this.time, out);
     this.inert.apply(out, this.lastDt);
@@ -152,14 +159,17 @@ export class MotionMatchingMotion extends Motion {
     this.haveHistory = true;
   }
 
+  /** Root displacement accumulated by the last `update()`. */
   rootDelta(_ctx: MotionContext, _u0: number, _u1: number, _wrapped: boolean, out: RootDelta): void { out.copyFrom(this.delta); }
 }
 
+/** out = a * conjugate(b): the rotation that takes `b` to `a`. */
 function deltaQuat(out: Float32Array, a: Float32Array, b: Float32Array): void {
   const bx = -b[0], by = -b[1], bz = -b[2], bw = b[3];
   out[0] = a[3] * bx + a[0] * bw + a[1] * bz - a[2] * by; out[1] = a[3] * by - a[0] * bz + a[1] * bw + a[2] * bx;
   out[2] = a[3] * bz + a[0] * by - a[1] * bx + a[2] * bw; out[3] = a[3] * bw - a[0] * bx - a[1] * by - a[2] * bz;
 }
+/** Quaternion product out = a * b. */
 function mulQuat(out: Float32Array, a: Float32Array, b: Float32Array): void {
   const ax = a[0], ay = a[1], az = a[2], aw = a[3];
   out[0] = aw * b[0] + ax * b[3] + ay * b[2] - az * b[1]; out[1] = aw * b[1] - ax * b[2] + ay * b[3] + az * b[0];

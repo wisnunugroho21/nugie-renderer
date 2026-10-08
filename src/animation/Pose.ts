@@ -26,6 +26,7 @@ export class PoseLayout {
   /** Node indices ordered so that every parent precedes its children. */
   readonly order: Int32Array;
 
+  /** Describe `nodeCount` nodes with optional morph-target counts per node and parent indices (-1 = root); derives a parent-first node order and morph offsets. */
   constructor(nodeCount: number, morphCounts?: ArrayLike<number>, parent?: ArrayLike<number>) {
     this.nodeCount = nodeCount;
     this.parent = new Int32Array(nodeCount).fill(-1);
@@ -41,6 +42,7 @@ export class PoseLayout {
     this.totalMorph = total;
   }
 
+  /** Build the layout from a glTF asset's node tree (morph counts come from each node's first primitive). */
   static fromAsset(asset: GLTFAsset): PoseLayout {
     return new PoseLayout(
       asset.nodes.length,
@@ -60,6 +62,7 @@ export class Pose {
   readonly s: Float32Array;
   readonly w: Float32Array;
 
+  /** Allocate translation / rotation / scale / morph-weight arrays for `layout`, initialised to the identity pose. */
   constructor(readonly layout: PoseLayout) {
     const n = layout.nodeCount;
     this.t = new Float32Array(n * 3);
@@ -69,17 +72,20 @@ export class Pose {
     this.setIdentity();
   }
 
+  /** Reset to zero translation, identity rotation, unit scale and zero morph weights. */
   setIdentity(): this {
     this.t.fill(0); this.s.fill(1); this.w.fill(0);
     for (let i = 0; i < this.layout.nodeCount; i++) { this.r[i * 4] = 0; this.r[i * 4 + 1] = 0; this.r[i * 4 + 2] = 0; this.r[i * 4 + 3] = 1; }
     return this;
   }
 
+  /** Copy all channels from pose `o` (same layout). */
   copyFrom(o: Pose): this {
     this.t.set(o.t); this.r.set(o.r); this.s.set(o.s); this.w.set(o.w);
     return this;
   }
 
+  /** A new pose with the same layout and values. */
   clone(): Pose { return new Pose(this.layout).copyFrom(this); }
 
   /** Rest pose from the glTF node TRS + default morph weights (node.weights, else mesh.weights, else 0). */

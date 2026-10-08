@@ -12,6 +12,7 @@ export class FrustumCuller {
   rejected = 0;
   ms = 0;
 
+  /** Fill `visible` with the slots of all objects whose bounding sphere (or AABB) intersects `frustum`, and record the cost. */
   cull(rw: RenderWorld, frustum: Frustum, shape: CullShape = 'sphere'): void {
     const t0 = performance.now();
     const n = rw.count;

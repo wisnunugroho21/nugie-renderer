@@ -6,6 +6,7 @@ import { readTextureRGBA8, type SelfTest } from './harness';
 
 const TARGET = { colorFormat: 'rgba8unorm' as GPUTextureFormat, depthFormat: 'depth24plus' as GPUTextureFormat, sampleCount: 1 };
 
+/** Create a ribbon system (8 ribbons x 16 points by default) with the given overrides. */
 function make(gpu: GPUContext, cfg: Partial<RibbonSystemConfig> = {}) {
   const layouts = createBindLayouts(gpu.device);
   return { layouts, rs: new RibbonSystem(gpu, layouts, TARGET, { maxRibbons: 8, pointsPerRibbon: 16, blend: 'alpha', ...cfg }) };
@@ -49,8 +50,10 @@ async function render(gpu: GPUContext, rs: RibbonSystem, layouts: ReturnType<typ
   return (x, y) => px[(y * 64 + x) * 4] + px[(y * 64 + x) * 4 + 1] + px[(y * 64 + x) * 4 + 2];
 }
 
+/** Throw `msg` unless `cond` holds. */
 const need = (cond: boolean, msg: string) => { if (!cond) throw new Error(msg); };
 
+/** Ribbon / trail / beam tests: segment generation, ring behaviour and rendering. */
 export function ribbonTests(gpu: GPUContext): SelfTest[] {
   return [
     {
@@ -62,6 +65,7 @@ export function ribbonTests(gpu: GPUContext): SelfTest[] {
         run(gpu, rs, F, (f) => rs.setTarget(id, 0.1 * f, 0, 0));
         const r = await rs.readRibbon(id), N = 16;
         need(r.count === N, `count ${r.count} (ring should be full: N=${N})`);
+        /** Position and texture coordinate of the point `k` steps behind the ribbon head. */
         const pos = (k: number) => { const slot = (r.head + N - k) % N; return { x: r.points[slot * SEGMENT_FLOATS], u: r.points[slot * SEGMENT_FLOATS + 9] }; };
         const head = pos(0);
         need(Math.abs(head.x - 0.1 * (F - 1)) < 1e-4, `live head x ${head.x} != ${0.1 * (F - 1)}`);

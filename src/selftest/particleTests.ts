@@ -10,6 +10,7 @@ import { readTextureRGBA8, type SelfTest } from './harness';
 const TARGET = { colorFormat: 'rgba8unorm' as GPUTextureFormat, depthFormat: 'depth24plus' as GPUTextureFormat, sampleCount: 1 };
 const f32 = Math.fround;
 
+/** Create the layouts, mesh manager and particle system shared by the particle tests. */
 function setup(gpu: GPUContext) {
   const layouts = createBindLayouts(gpu.device);
   const meshes = new MeshManager(gpu.device, gpu.resources.buffers);
@@ -27,14 +28,17 @@ function step(gpu: GPUContext, sys: ParticleSystem, frames: number, dt: number):
   }
 }
 
+/** Create a pool (default 4096 billboard particles) with a single emitter. */
 function pool(sys: ParticleSystem, cfg: Partial<ParticlePoolConfig>, emitter: EmitterConfig): ParticlePool {
   const p = sys.createPool({ maxCount: 4096, billboard: {}, ...cfg });
   p.addEmitter(emitter);
   return p;
 }
 
+/** Throw unless `a` is within `tol` of `b`. */
 const approx = (a: number, b: number, tol: number, what: string) => { if (!(Math.abs(a - b) <= tol)) throw new Error(`${what}: ${a} vs ${b} (tol ${tol})`); };
 
+/** GPU particle simulation: kinematics, recycling, capacity, determinism, emitter shapes, indirect args and billboard rendering. */
 export function particleTests(gpu: GPUContext): SelfTest[] {
   return [
     {
@@ -104,6 +108,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
     {
       name: 'particles: simulation is deterministic for a fixed seed',
       run: async () => {
+        /** Run the seeded simulation once and read the particle state back. */
         const run = async () => {
           const { system } = setup(gpu);
           const p = pool(system, { maxCount: 2048 }, { shape: 'sphere', radius: 1, rate: 500, lifetime: [0.5, 1.5], velocityMin: [-1, -1, -1], velocityMax: [1, 1, 1], size: [0.05, 0.2], seed: 4242 });
@@ -123,6 +128,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
     {
       name: 'particles: emitter shapes (sphere surface, box, cone) and emitter transform / simulation space',
       run: async () => {
+        /** Spawn one burst from `emitter` (optionally with an emitter world matrix) and read the particles back. */
         const read = async (emitter: EmitterConfig, world?: number[]) => {
           const { system } = setup(gpu);
           const p = pool(system, { maxCount: 2048 }, { ...emitter, bursts: [{ time: 0, count: 600 }], lifetime: [5, 5], loop: false, duration: 0.01 });
@@ -131,6 +137,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
           const idx = await p.readAliveIndices(600), all = await p.readParticles(2048);
           return Array.from(idx.subarray(0, 600)).map((i) => Array.from(all.subarray(i * 16, i * 16 + 16)));
         };
+        /** A translation matrix (column-major). */
         const T = (x: number, y: number, z: number) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
         // sphere surface, translated by (5,1,-2)
         for (const r of await read({ shape: 'sphere', radius: 2, surfaceOnly: true }, T(5, 1, -2))) approx(Math.hypot(r[0] - 5, r[1] - 1, r[2] + 2), 2, 2e-3, 'sphere surface radius');
@@ -188,6 +195,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
             p.encodeDraw(pass, frameBG); pass.end();
             device.queue.submit([enc.finish()]);
             const px = await readTextureRGBA8(device, color, 0, 64, 64);
+            /** Sum of the RGB channels of pixel (x, y). */
             const at = (x: number, y: number) => px[(y * 64 + x) * 4] + px[(y * 64 + x) * 4 + 1] + px[(y * 64 + x) * 4 + 2];
             if (at(32, 32) < 60) throw new Error(`${orientation}/${blend}: centre pixel too dark (${at(32, 32)})`);
             if (at(1, 1) !== 0) throw new Error(`${orientation}/${blend}: corner pixel should be untouched`);
@@ -226,6 +234,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
         const err = await device.popErrorScope();
         if (err) throw new Error('validation error: ' + err.message);
         const px = await readTextureRGBA8(device, color, 0, 64, 64);
+        /** Sum of the RGB channels of pixel (x, y). */
         const at = (x: number, y: number) => px[(y * 64 + x) * 4] + px[(y * 64 + x) * 4 + 1] + px[(y * 64 + x) * 4 + 2];
         if (at(32, 32) < 60) throw new Error(`centre too dark: ${at(32, 32)}`);
         if (at(1, 1) !== 0) throw new Error('corner not black');

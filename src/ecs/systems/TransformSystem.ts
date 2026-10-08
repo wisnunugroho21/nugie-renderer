@@ -17,8 +17,10 @@ export class TransformSystem {
   private stack: number[] = [];
   private keys = new Int32Array(0);
 
+  /** Create the system over a transform store. */
   constructor(private t: TransformStore) {}
 
+  /** Recompute world matrices of all dirty transforms and their descendants (shallowest first), then clear the dirty list. */
   update(): void {
     const t = this.t;
     this.matricesUpdated = 0;
@@ -47,6 +49,7 @@ export class TransformSystem {
     list.length = 0;
   }
 
+  /** Depth-first recompute of `root` and all its descendants, stamping each so it is not processed twice this pass. */
   private updateSubtree(root: number): void {
     const t = this.t, stack = this.stack;
     stack.length = 0;
@@ -59,6 +62,7 @@ export class TransformSystem {
     }
   }
 
+  /** Compute entity `i`'s world matrix: local TRS, multiplied by the parent's world matrix when it has one. */
   private compute(i: number): void {
     const t = this.t, w = t.worldMatrices;
     const p = t.parent[i];

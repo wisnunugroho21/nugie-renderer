@@ -15,8 +15,10 @@ export class GPUContext {
   readonly errors: string[] = [];
   onDeviceLost: ((info: GPUDeviceLostInfo) => void) | null = null;
 
+  /** Private: use `GPUContext.create`. */
   private constructor(readonly canvas: HTMLCanvasElement) {}
 
+  /** Request an adapter and device (opting in to the optional features the engine uses), configure the canvas context and install error / device-loss handlers. Throws if WebGPU is unavailable. */
   static async create(canvas: HTMLCanvasElement): Promise<GPUContext> {
     if (!navigator.gpu) throw new Error('WebGPU is not supported in this browser.');
     const gc = new GPUContext(canvas);
@@ -59,6 +61,7 @@ export class GPUContext {
     return gc;
   }
 
+  /** (Re)configure the canvas context with the preferred format. */
   configure(): void {
     this.context.configure({ device: this.device, format: this.format, alphaMode: 'opaque' });
   }

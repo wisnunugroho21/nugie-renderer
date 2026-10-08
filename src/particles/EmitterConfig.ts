@@ -63,6 +63,7 @@ export function resolveEmitter(c: EmitterConfig): Required<Omit<EmitterConfig, '
 export function packEmitter(cfg: EmitterConfig, world: ArrayLike<number>, out: Float32Array, o: number, seedOverride?: number): void {
   const e = resolveEmitter(cfg);
   for (let i = 0; i < 16; i++) out[o + i] = world[i];
+  /** Write four floats into the emitter's packed data at vec4 `slot`. */
   const set = (slot: number, a: number, b: number, c: number, d: number) => { const k = o + 16 + slot * 4; out[k] = a; out[k + 1] = b; out[k + 2] = c; out[k + 3] = d; };
   if (e.shape === 'box') set(0, e.box[0], e.box[1], e.box[2], 0);
   else if (e.shape === 'sphere') set(0, e.radius, e.surfaceOnly ? 1 : 0, 0, 0);
@@ -94,8 +95,10 @@ export class EmitterRuntime {
   private acc = 0;
   private nextBurst = 0;
 
+  /** Resolve `source` (user-facing, all-optional config) into a full config with defaults filled in. */
   constructor(readonly source: EmitterConfig) { this.config = resolveEmitter(source); }
 
+  /** Reset the emitter's clock, rate accumulator and burst schedule so it plays from the beginning again. */
   restart(): void { this.time = 0; this.acc = 0; this.nextBurst = 0; this.finished = false; }
 
   /**

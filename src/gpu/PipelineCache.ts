@@ -38,13 +38,17 @@ export class PipelineCache {
   private frozen = false;
   private warned = false;
 
+  /** Create an empty cache that reports to `stats`. */
   constructor(private stats: GPUStats) {}
 
   /** Mark end of warm-up; further creations are counted as violations. */
   freeze(): void { this.frozen = true; }
+  /** True once `freeze()` was called. */
   get isFrozen(): boolean { return this.frozen; }
+  /** Allow pipeline creation again without counting violations. */
   unfreeze(): void { this.frozen = false; }
 
+  /** Return the render pipeline for `key`, calling `create` on a miss (counted as a violation after `freeze()`). */
   getRender(key: PipelineKey, create: () => GPURenderPipeline): GPURenderPipeline {
     return this.lookup(this.render, pipelineKeyString(key), create);
   }
@@ -59,10 +63,12 @@ export class PipelineCache {
     this.render.set(k, p);
   }
 
+  /** Return the compute pipeline stored under the string `key`, creating it on a miss. */
   getCompute(key: string, create: () => GPUComputePipeline): GPUComputePipeline {
     return this.lookup(this.compute, key, create);
   }
 
+  /** Shared hit / miss logic for both pipeline maps, including the post-freeze violation accounting. */
   private lookup<T>(map: Map<string, T>, key: string, create: () => T): T {
     const hit = map.get(key);
     if (hit) { this.stats.pipelineHits++; return hit; }
@@ -77,5 +83,6 @@ export class PipelineCache {
     return p;
   }
 
+  /** Total cached pipelines (render + compute). */
   get size(): number { return this.render.size + this.compute.size; }
 }

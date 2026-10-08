@@ -28,6 +28,7 @@ export class FABRIK implements PoseConstraint {
   private x = new Xform();
   private tmp = new Xform();
 
+  /** Solve for a chain of at least 3 joints (root first) in `layout`; throws otherwise. */
   constructor(private layout: PoseLayout, readonly chain: number[]) {
     if (chain.length < 3) throw new Error('FABRIK needs a chain of at least 3 joints (2 bones)');
     assertChain(layout, chain, 'FABRIK');
@@ -39,6 +40,7 @@ export class FABRIK implements PoseConstraint {
     this.work = new Float32Array(this.n * 4);
   }
 
+  /** Add every chain joint the solver rotates (all but the tip) to `out`. */
   collectNodes(out: Set<number>): void { for (let i = 0; i < this.n - 1; i++) out.add(this.chain[i]); }
 
   /** FK of the chain using `work` rotations (+ the pose's local translation/scale) -> curP / curR. */
@@ -52,6 +54,7 @@ export class FABRIK implements PoseConstraint {
     }
   }
 
+  /** Run FABRIK toward `target` (model space) and blend the resulting joint rotations into `pose` by `weight`. */
   apply(pose: Pose): void {
     if (this.weight <= 0) return;
     const { layout, n, chain, len, solved, curP, work } = this;

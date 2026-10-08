@@ -54,6 +54,7 @@ export function composeLocal(parent: Xform, lt: ArrayLike<number>, to: number, l
   parent.s[0] *= ls[so]; parent.s[1] *= ls[so + 1]; parent.s[2] *= ls[so + 2];
 }
 
+/** Copy translation, rotation and scale of `src` into `dst`. */
 export function copyXform(dst: Xform, src: Xform): void { dst.p.set(src.p); dst.r.set(src.r); dst.s.set(src.s); }
 
 /** Verify `chain` is a parent->child chain (each entry's parent is the previous entry). */

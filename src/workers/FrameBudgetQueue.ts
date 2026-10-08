@@ -1,12 +1,13 @@
+/** Handle to a queued task: cancel it before it runs, or await `done` (resolves after it ran or was cancelled). */
+export interface QueuedTask { cancel(): void; readonly done: Promise<void>; }
+
+interface Item { fn: () => void; priority: number; seq: number; cancelled: boolean; resolve: () => void; reject: (e: unknown) => void; }
+
 /**
  * Priority work queue that spreads main-thread work (GPU uploads, object instantiation ...) over frames: `runFrame(budgetMs)`
  * executes tasks, highest priority first, until the budget is spent. At least one task runs per frame so the queue always
  * drains even when a single task is slower than the budget. Tasks can be cancelled before they run.
  */
-export interface QueuedTask { cancel(): void; readonly done: Promise<void>; }
-
-interface Item { fn: () => void; priority: number; seq: number; cancelled: boolean; resolve: () => void; reject: (e: unknown) => void; }
-
 export class FrameBudgetQueue {
   private items: Item[] = [];
   private seq = 0;
@@ -14,10 +15,13 @@ export class FrameBudgetQueue {
   lastRun = { tasks: 0, ms: 0 };
   totalRun = 0;
 
+  /** `now` supplies the clock in ms (injectable for deterministic tests). */
   constructor(private now: () => number = () => performance.now()) {}
 
+  /** Number of tasks waiting. */
   get length(): number { return this.items.length; }
 
+  /** Queue `fn`; higher `priority` runs first, ties run in submission order. Returns a handle for cancelling / awaiting it. */
   enqueue(fn: () => void, priority = 0): QueuedTask {
     let resolve!: () => void, reject!: (e: unknown) => void;
     const done = new Promise<void>((res, rej) => { resolve = res; reject = rej; });
@@ -26,6 +30,7 @@ export class FrameBudgetQueue {
     return { cancel: () => { item.cancelled = true; this.items = this.items.filter((i) => i !== item); resolve(); }, done };
   }
 
+  /** Remove and return the highest-priority (then oldest) task. */
   private next(): Item | undefined {
     if (this.items.length === 0) return undefined;
     let best = 0;

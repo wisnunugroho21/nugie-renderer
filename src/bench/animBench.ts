@@ -32,6 +32,7 @@ export interface AnimBenchRow {
   jointUploadBytes: number; morphUploadBytes: number; draws: number; instances: number; submitToDoneMs: number;
 }
 
+/** Benchmarks D-F: render a crowd of skinned / morphing tentacles and measure per-phase CPU time, upload sizes and GPU latency. */
 export async function runAnimBench(gpu: GPUContext, canvas: HTMLCanvasElement, cfg: AnimBenchConfig): Promise<AnimBenchRow> {
   const renderer = new Renderer(gpu);
   const world = new World();
@@ -65,6 +66,7 @@ export async function runAnimBench(gpu: GPUContext, canvas: HTMLCanvasElement, c
   world.cameras.add(cam, Math.PI / 3, 0.1, 400 * ds);
 
   let t = 0;
+  /** Simulate one 60 Hz frame (animate, update transforms and skeletons, extract) and render it, timing each phase. */
   const frame = () => {
     const dt = 1 / 60; t += dt;
     const a0 = performance.now();
@@ -102,7 +104,9 @@ export async function runAnimBench(gpu: GPUContext, canvas: HTMLCanvasElement, c
   };
 }
 
+/** Format animation benchmark rows as an aligned text table. */
 export function formatAnimRows(rows: AnimBenchRow[]): string {
+  /** Format a number with 3 decimals, right-aligned to width `w`. */
   const f = (x: number, w = 7) => x.toFixed(3).padStart(w);
   let s = 'config                      chars  verts  tgts   anim   xf+skel  extract  renderCPU  totalCPU  jointB  morphB  draws  submit->done\n';
   for (const r of rows) {

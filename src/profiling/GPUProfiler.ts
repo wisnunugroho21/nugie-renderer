@@ -16,6 +16,7 @@ export class GPUProfiler {
   private names: string[] = [];
   private ringIndex = 0;
 
+  /** Create the query set and staging ring when the device supports timestamp queries (otherwise stay inert). */
   constructor(private device: GPUDevice, private maxPasses = 64) {
     this.supported = device.features.has('timestamp-query');
     if (!this.supported) return;
@@ -26,6 +27,7 @@ export class GPUProfiler {
     }
   }
 
+  /** Forget last frame's scope names; call once per frame before requesting `writes`. */
   beginFrame(): void { this.names.length = 0; }
 
   /** `timestampWrites` for a render/compute pass descriptor (undefined when profiling is off or full). */
@@ -51,6 +53,7 @@ export class GPUProfiler {
     queueMicrotask(() => this.read(slot, n));
   }
 
+  /** Wait for the frame's GPU work, map the staging buffer, convert timestamp pairs to milliseconds and update `results` / `smoothed`. */
   private async read(slot: { buf: GPUBuffer; names: string[]; busy: boolean }, n: number): Promise<void> {
     try {
       await this.device.queue.onSubmittedWorkDone();

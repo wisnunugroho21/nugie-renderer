@@ -28,6 +28,7 @@ export function advanceTime(time: number, delta: number, duration: number, loop:
  * that drive that instance. `nodeEntities[i]` = ENTITY INDEX of pose node i (or -1).
  */
 export class AnimatedInstance {
+  /** `layout` = node structure, `nodeEntities` = entity index per pose node (-1 = none), `clips` = available animations, `rest` = the bind / rest pose. */
   constructor(
     readonly layout: PoseLayout,
     readonly nodeEntities: Int32Array,
@@ -46,5 +47,6 @@ export class AnimatedInstance {
     return new AnimatedInstance(layout, entities, asset.animations.map((a) => AnimationClip.fromData(a)), Pose.rest(asset, layout));
   }
 
+  /** Index of the clip called `name`, or -1. */
   clipIndex(name: string): number { return this.clips.findIndex((c) => c.name === name); }
 }

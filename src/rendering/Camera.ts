@@ -39,6 +39,7 @@ export class Camera {
     return true;
   }
 
+  /** Recompute view, projection, view-projection and frustum from `position`, `target`, `fovY`, `aspect`, `near` and `far`. */
   update(): this {
     const p = this.position, t = this.target;
     Mat4.lookAt(this.view, p[0], p[1], p[2], t[0], t[1], t[2]);

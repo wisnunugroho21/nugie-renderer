@@ -2,9 +2,13 @@
 export type Q = Float32Array | number[];
 
 export const Quat = {
+  /** A new identity quaternion. */
   create(): Float32Array { return new Float32Array([0, 0, 0, 1]); },
+  /** o = (0, 0, 0, 1). */
   identity(o: Q): Q { o[0] = 0; o[1] = 0; o[2] = 0; o[3] = 1; return o; },
+  /** o = a. */
   copy(o: Q, a: Q): Q { o[0] = a[0]; o[1] = a[1]; o[2] = a[2]; o[3] = a[3]; return o; },
+  /** Rotation of `rad` radians about axis (x, y, z) (the axis need not be normalised). */
   fromAxisAngle(o: Q, x: number, y: number, z: number, rad: number): Q {
     const l = Math.hypot(x, y, z) || 1;
     const s = Math.sin(rad / 2) / l;
@@ -19,11 +23,14 @@ export const Quat = {
     o[3] = aw * bw - ax * bx - ay * by - az * bz;
     return o;
   },
+  /** o = a scaled to unit length (a zero quaternion is left unscaled). */
   normalize(o: Q, a: Q): Q {
     const l = Math.hypot(a[0], a[1], a[2], a[3]) || 1;
     o[0] = a[0] / l; o[1] = a[1] / l; o[2] = a[2] / l; o[3] = a[3] / l; return o;
   },
+  /** o = conjugate of `a` (the inverse for unit quaternions). */
   conjugate(o: Q, a: Q): Q { o[0] = -a[0]; o[1] = -a[1]; o[2] = -a[2]; o[3] = a[3]; return o; },
+  /** 4D dot product (|dot| = 1 means identical rotations). */
   dot(a: Q, b: Q): number { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]; },
   /** Rotate vector v by q into o (o may alias v). */
   rotateVec3(o: Q, q: Q, v: Q): Q {

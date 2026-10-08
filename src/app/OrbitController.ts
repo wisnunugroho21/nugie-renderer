@@ -14,6 +14,7 @@ export class OrbitController {
   private qx = Quat.create();
   private q = Quat.create();
 
+  /** Listen for drag (orbit) and wheel (zoom) input on `canvas`. */
   constructor(canvas: HTMLElement) {
     canvas.addEventListener('pointerdown', (e) => { this.dragging = true; canvas.setPointerCapture(e.pointerId); });
     canvas.addEventListener('pointerup', () => { this.dragging = false; });
@@ -25,6 +26,7 @@ export class OrbitController {
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.distance = Math.max(0.5, this.distance * Math.exp(e.deltaY * 0.001)); }, { passive: false });
   }
 
+  /** Place and orient the camera entity on the orbit sphere around `target` (call once per frame); auto-rotates while not dragging. */
   update(world: World, cameraIndex: number, dt: number): void {
     if (!this.dragging) this.yaw += this.autoRotate * dt;
     const cp = Math.cos(this.pitch);

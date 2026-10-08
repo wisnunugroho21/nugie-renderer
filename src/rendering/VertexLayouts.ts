@@ -14,6 +14,7 @@ export const STANDARD_VERTEX_LAYOUT: PipelineKey['vertexLayout'] = [{
   ],
 }];
 
+/** Convert a pipeline key's vertex layout into WebGPU vertex buffer layouts. */
 export function toGPUVertexBuffers(layout: PipelineKey['vertexLayout']): GPUVertexBufferLayout[] {
   return layout.map((l) => ({
     arrayStride: l.stride,

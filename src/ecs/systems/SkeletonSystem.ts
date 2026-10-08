@@ -23,6 +23,7 @@ export class SkeletonSystem {
   private inv = Mat4.create();
   private tmp = Mat4.create();
 
+  /** Create the system; hooks `world.skins` so new skeletons get a joint range in the shared buffer and removed ones release it. */
   constructor(private world: World, private joints: JointMatrixBuffer) {
     world.skins.onAdd = (inst) => {
       inst.jointOffset = joints.allocate(inst.jointCount);
@@ -53,6 +54,7 @@ export class SkeletonSystem {
     q.length = 0;
   }
 
+  /** Recompute one skeleton's skinning matrices: inverse(ownerWorld) * jointWorld * inverseBind, and mark its range for upload. */
   private compute(inst: SkeletonInstance): void {
     const t = this.world.transforms.worldMatrices, out = this.joints.cpu;
     const sk = inst.skeleton, ibm = sk.inverseBind;

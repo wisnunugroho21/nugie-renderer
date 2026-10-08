@@ -30,6 +30,21 @@ import type { VisibleSet } from '../visibility/VisibilitySystem';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
+/** Per-frame batch state shared between the build phase and pass recording (one reused instance, no per-frame allocation). */
+interface FrameState {
+  /** Clustered light assignment is active this frame. */
+  useClusters: boolean;
+  /** Objects in all queues / in the opaque + alpha-mask queues (the ones GPU culling covers). */
+  total: number;
+  total01: number;
+  /** Byte offset of this frame's instance records in the ring buffer. */
+  byteOffset: number;
+  instData: Uint32Array;
+  /** GPU culling is active; the first `nCullBatches` batches go through it. */
+  gpuCull: boolean;
+  nCullBatches: number;
+}
+
 /** Strategy used to turn the visible set into draw calls (benchmark A compares these). */
 export type BatchingMode = 'unsorted' | 'sorted' | 'instanced';
 
@@ -47,8 +62,10 @@ export const DEFAULT_SCENE: SceneSettings = {
 
 
 /**
- * Conventional CPU-driven renderer: RenderWorld -> (visible set) -> render queues -> batches -> draws.
- * Reads only the RenderWorld. All GPU resources come from the shared managers.
+ * The renderer: RenderWorld -> (visible set) -> render queues -> batches -> a pass graph (shadows, clusters, particles,
+ * prepass, GPU culling, fog, main) -> one command buffer per frame.
+ * Reads only the RenderWorld. All GPU resources come from the shared managers. Create GPU content through its public members
+ * (`meshes`, `materials`, `setEnvironment`, `enableFog`, `enableParticles`, `createRibbonSystem` ...).
  */
 export class Renderer {
   readonly stats = new RendererStats();
@@ -60,9 +77,9 @@ export class Renderer {
   readonly morphWeights: MorphWeightBuffer;
   /** GPU particle system (created on demand by enableParticles()). */
   particles: ParticleSystem | null = null;
-  /** LOD groups and the CPU LOD selector (run after culling; see applyLOD). */
   /** GPU resources behind bind group 1 (lights, clusters, shadows, environment). */
   readonly sceneResources: SceneResources;
+  /** LOD groups, and the CPU LOD selector (run after culling; see applyLOD). */
   readonly lodLibrary: LODLibrary;
   readonly lod: LODSystem;
   /** Ribbon / trail systems (one draw call each). */
@@ -83,10 +100,12 @@ export class Renderer {
   private queues = new RenderQueues();
   private batches = new BatchList();
 
-  // per-material pipeline cache (avoids rebuilding key strings per batch)
+  /** Batch state of the frame being rendered (filled by buildBatches, read while recording passes). */
+  private frame: FrameState = { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0 };
   // legacy SceneSettings -> lights (rebuilt only when the settings change, so the upload gate stays quiet)
   private legacy = new LightData();
   private legacyKey = '';
+  /** Build (and cache until `scene` changes) a light set equal to the legacy settings: one directional sun plus a hemisphere ambient light. */
   private legacyLights(scene: SceneSettings): LightData {
     const key = JSON.stringify(scene);
     if (key !== this.legacyKey) {
@@ -101,10 +120,12 @@ export class Renderer {
   }
 
   private targetPre: PassTarget;
+  // per-(material, deform variant) pipeline cache (avoids rebuilding key strings per batch)
   private pipeCache: (GPURenderPipeline | undefined)[] = [];
   private pipeSort: number[] = [];
   private pipeFailed: boolean[] = [];
 
+  /** Create every GPU-side manager for `gpu`: bind layouts, mesh / material managers, transform / joint / morph / instance buffers, scene resources, light clusters, shadows and the profiler. */
   constructor(private gpu: GPUContext) {
     const { device, resources: r } = gpu;
     this.layouts = createBindLayouts(device);
@@ -123,7 +144,7 @@ export class Renderer {
     this.joints = new JointMatrixBuffer(device, r.buffers);
     this.morphWeights = new MorphWeightBuffer(device, r.buffers);
     this.instanceAlloc = new DynamicBufferAllocator(device, r.buffers, {
-      // 768 = lcm(48-byte instance record, 256-byte storage alignment): every frame region starts at an
+      // 768 = lcm(48-byte instance record, 256-byte storage alignment): every allocation starts at an
       // exact multiple of the record size, so `firstInstance = byteOffset / INSTANCE_BYTES` is always integral.
       label: 'InstanceBuffer', usage: GPUBufferUsage.STORAGE, capacity: 768 * 400, frames: 3, alignment: 768,
     });
@@ -185,6 +206,7 @@ export class Renderer {
     return this.materials.warmup(this.prepassActive || this.depthPrepass ? this.targetPre : this.target, deformMasks);
   }
 
+  /** Attach (or detach with null) a texture streamer; materials rebuild their bind groups whenever a streamed texture's resident mips change. */
   setTextureStreamer(s: TextureStreamer | null): void {
     this.textureStreamer = s; this.streamRefs.clear();
     if (s) s.onViewChanged = (t) => this.materials.textureChanged(t);
@@ -220,6 +242,7 @@ export class Renderer {
     this.sceneResources.setEnvironment(env, env ? this.ibl.brdfLut() : undefined, intensity, rotation);
   }
 
+  /** The (lazily created) pipeline that draws the environment cube map as a full-screen background behind the geometry. */
   private skyboxPipeline(): GPURenderPipeline {
     return (this.skyPipeline ??= (() => {
       const module = this.gpu.resources.shaders.get('skybox', skyboxSource, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false });
@@ -268,6 +291,7 @@ export class Renderer {
     return rs;
   }
 
+  /** Recreate the depth buffer for a `width` x `height` backbuffer (called by the app on canvas resize; `render` also self-corrects). */
   resize(width: number, height: number): void {
     const { resources: r } = this.gpu;
     if (this.depthTexture) r.textures.destroy(this.depthTexture);
@@ -289,6 +313,7 @@ export class Renderer {
     return p;
   }
 
+  /** Bind group 3 (transforms, instance records, joints, morph data). `culled` selects the GPU-compacted instance buffer; cached by buffer generations so it is rebuilt only when a buffer is recreated. */
   private objectBindGroup(culled = false): GPUBindGroup {
     const { resources: r, device } = this.gpu;
     const m = this.meshes;
@@ -310,14 +335,20 @@ export class Renderer {
     }));
   }
 
-  /** Render one frame from the RenderWorld. `visible` null = every object. */
+  /**
+   * Render one frame from the RenderWorld. Phases: upload per-frame GPU data -> sort into queues -> build batches
+   * (instance records) -> record the pass graph -> submit.
+   * @param rw extracted render data (camera, objects, lights)
+   * @param scene legacy sun/ambient, used only when `rw` contains no lights
+   * @param time seconds, forwarded to shaders (`frame.cameraPosition.w`) and particle/shadow passes
+   * @param visible CPU visibility result; `null` = draw every object
+   */
   render(rw: RenderWorld, scene: SceneSettings = DEFAULT_SCENE, time = 0, visible: VisibleSet | null = null): void {
-    const { device, context, queue } = this.gpu;
+    const { device, queue } = this.gpu;
     const st = this.stats;
     if (this.depthTexture.width !== this.gpu.canvas.width || this.depthTexture.height !== this.gpu.canvas.height) this.resize(this.gpu.canvas.width, this.gpu.canvas.height);   // keep depth matched to the swapchain
     st.reset();
     const t0 = performance.now();
-    const cam = rw.camera;
     const vCount = visible ? visible.count : rw.count;
     st.renderables = rw.count;
     st.visible = vCount;
@@ -326,7 +357,36 @@ export class Renderer {
     st.cpu.culling = visible?.cullMs ?? 0;
     if (this.pendingLod) { st.lodCounts.set(this.lod.counts); st.lodCulled = this.lod.culled; this.pendingLod = false; }
 
-    // ---- uploads: frame/scene uniforms, transforms (sparse), materials (dirty range)
+    const lights = this.uploadFrameData(rw, scene, time, visible, vCount);
+    const t1 = performance.now();
+    st.cpu.upload = t1 - t0;
+
+    this.queueBuilder.build(rw, visible ? visible.slots : null, vCount, this.materials.materials, this.meshes.records, rw.camera,
+      this.batching === 'unsorted' ? 'none' : 'sorted', this.queues);
+    const t2 = performance.now();
+    st.cpu.sorting = t2 - t1;
+
+    this.buildBatches(rw);
+    const t3 = performance.now();
+    st.cpu.batching = t3 - t2;
+
+    const enc = device.createCommandEncoder();
+    this.profiler.beginFrame();
+    this.recordPasses(enc, rw, lights, time);
+    this.profiler.resolve(enc);
+    queue.submit([enc.finish()]);
+    const t4 = performance.now();
+    st.cpu.encoding = t4 - t3;
+    st.cpu.total = t4 - t0;
+  }
+
+  /**
+   * Upload everything that changes per frame except instance records: frame uniform, lights/shadows/clusters/fog,
+   * transforms (sparse), joint matrices, morph weights and dirty materials. Fills the related stats.
+   * @returns the light set actually used this frame (ECS lights, or the legacy sun/ambient fallback)
+   */
+  private uploadFrameData(rw: RenderWorld, scene: SceneSettings, time: number, visible: VisibleSet | null, vCount: number): LightData {
+    const st = this.stats, cam = rw.camera, queue = this.gpu.queue;
     const fd = this.frameData;
     fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32);
     fd.set(cam.position, 48); fd[51] = time;
@@ -340,6 +400,7 @@ export class Renderer {
     if (this.fog && rw.hasCamera) { this.fog.resize(this.gpu.canvas.width, this.gpu.canvas.height); this.fog.applySettings(); }
     this.sceneResources.syncLights(L);
     const useClusters = this.clusteredShading && L.count > L.globalCount;
+    this.frame.useClusters = useClusters;
     if (useClusters) this.clusters.resize(this.gpu.canvas.width, this.gpu.canvas.height);
     this.sceneResources.writeUniform({
       lightCount: L.count, globalCount: L.globalCount, clustered: useClusters, clusterDims: useClusters ? this.clusters.dims : undefined, clusterTileSize: this.clusters.config.tileSize,
@@ -360,16 +421,16 @@ export class Renderer {
     st.animation.morphUploadBytes = this.morphWeights.uploadBytes;
     st.animation.activeMorphStates = rw.morph.activeStates;
     st.animation.activeMorphTargets = rw.morph.activeTargets;
-    const t1 = performance.now();
-    st.cpu.upload = t1 - t0;
+    return L;
+  }
 
-    // ---- queues (sorting)
-    this.queueBuilder.build(rw, visible ? visible.slots : null, vCount, this.materials.materials, this.meshes.records, cam,
-      this.batching === 'unsorted' ? 'none' : 'sorted', this.queues);
-    const t2 = performance.now();
-    st.cpu.sorting = t2 - t1;
-
-    // ---- batching + instance data written straight into the ring buffer
+  /**
+   * Turn the sorted queues into batches (one per mesh+material run) and write their instance records straight into the
+   * per-frame ring buffer; also prepares GPU culling and shadow caster data and counts state switches.
+   * Results are stored in `this.frame` for {@link recordPasses}.
+   */
+  private buildBatches(rw: RenderWorld): void {
+    const st = this.stats;
     const lists = this.queues.ordered;
     const total = lists[0].count + lists[1].count + lists[2].count;
     this.instanceAlloc.beginFrame();
@@ -380,38 +441,62 @@ export class Renderer {
     const gpuCull = this.gpuCulling !== 'off' && rw.hasCamera && total > 0;
     if (gpuCull && this.sphereScratch.length < total * 4) this.sphereScratch = new Float32Array(Math.max(total * 4, this.sphereScratch.length * 2));
     buildBatches(lists, rw, this.meshes.records, instData, byteOffset / INSTANCE_BYTES, this.batching === 'instanced' ? 'instanced' : 'individual', this.batches, gpuCull ? this.sphereScratch : undefined);
-    const nCullBatches = gpuCull ? (() => { let n = 0; while (n < this.batches.count && this.batches.queue[n] < 2) n++; return n; })() : 0;
+    // GPU culling covers the leading opaque / alpha-mask batches (queue id < 2); transparent batches stay on the CPU path.
+    let nCullBatches = 0;
+    if (gpuCull) while (nCullBatches < this.batches.count && this.batches.queue[nCullBatches] < 2) nCullBatches++;
     const total01 = lists[0].count + lists[1].count;
-    if (gpuCull) { this.culler ??= new GPUCuller(this.gpu); this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD && this.gpuCulling !== 'hiz' ? (m) => this.lodGroupOfMesh(m) : undefined); }
+    if (gpuCull) {
+      this.culler ??= new GPUCuller(this.gpu);
+      this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD && this.gpuCulling !== 'hiz' ? (m) => this.lodGroupOfMesh(m) : undefined);
+    }
     if (rw.hasCamera) this.shadows.prepare(rw, this.instanceAlloc);
     this.instanceAlloc.flush();
     st.bufferUploadBytes = this.instanceAlloc.bytesUploadedThisFrame + this.transformBuffer.lastUploadBytes;
-    const t3 = performance.now();
-    st.cpu.batching = t3 - t2;
     if (this.batching !== 'unsorted') {
       for (const l of lists) {
         const c = countSwitches(l, rw, this.materials.materials, this.meshes.records);
         st.pipelineSwitches += c.pipeline; st.materialSwitches += c.material; st.meshSwitches += c.mesh;
       }
     }
+    const f = this.frame;
+    f.total = total; f.total01 = total01; f.byteOffset = byteOffset; f.instData = instData; f.gpuCull = gpuCull; f.nCullBatches = nCullBatches;
+  }
 
-    // ---- encode
-    const enc = device.createCommandEncoder();
-    this.profiler.beginFrame();
+  /**
+   * Declare this frame's passes in the render graph (shadows, clusters, particles, prepass, culling, fog, main pass(es)),
+   * then compile and execute it into `enc`. The graph orders passes by their declared reads/writes and drops unused ones.
+   */
+  private recordPasses(enc: GPUCommandEncoder, rw: RenderWorld, L: LightData, time: number): void {
+    const cam = rw.camera, f = this.frame;
     const g = this.graph;
     g.reset();
     if (rw.hasCamera && this.shadows.layers.length) {
       g.addPass({ name: 'shadows', writes: ['shadowMap'], execute: (e) => this.shadows.encode(e, this.objectBindGroup(), time, this.profiler) });
     }
-    if (useClusters && rw.hasCamera) {
+    if (f.useClusters && rw.hasCamera) {
       g.addPass({ name: 'clusters', reads: ['lights'], writes: ['clusterGrid'], execute: (e) => this.clusters.encode(e, cam.view, cam.projection[0], cam.projection[5], cam.near, cam.far, L, this.profiler.writes('clusters')) });
     }
     if (this.particles) g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.particles!.encodeCompute(e) });   // emit/simulate/compact before any draw reads them
     if (this.ribbonSystems.length) g.addPass({ name: 'ribbons-update', writes: ['ribbons'], execute: (e) => { for (const rs of this.ribbonSystems) rs.encodeCompute(e); } });
-    const useHiz = gpuCull && this.gpuCulling === 'hiz';
-    const prepass = (this.depthPrepass || useHiz) && rw.hasCamera && total > 0;
+    const useHiz = f.gpuCull && this.gpuCulling === 'hiz';
+    const twoPhase = f.gpuCull && this.gpuCulling === 'hiz2';
+    const prepass = (this.depthPrepass || useHiz) && rw.hasCamera && f.total > 0;
     this.prepassActive = prepass;
-    if (prepass) g.addPass({ name: 'depth-prepass', writes: ['depth'], execute: (enc) => {
+    if (prepass) this.addDepthPrepass(g);
+    if (f.gpuCull) this.addCullingPasses(g, rw, useHiz, twoPhase);
+    if (this.fog?.enabled && rw.hasCamera) {
+      const camWorld = Mat4.invert(Mat4.create(), cam.view);
+      if (camWorld) g.addPass({ name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'], execute: (e) => this.fog!.encode(e, this.frameBG, camWorld, cam.projection[0], cam.projection[5], cam.near, this.profiler.writes('fog')) });
+    }
+    if (twoPhase) this.addTwoPhaseMainPasses(g, rw);
+    else this.addMainPass(g, rw, prepass);
+    g.compile();
+    g.execute(enc);
+  }
+
+  /** Depth-only pass over opaque + alpha-masked batches (lets the main pass shade each pixel once, and feeds the in-frame Hi-Z). */
+  private addDepthPrepass(g: RenderGraph): void {
+    g.addPass({ name: 'depth-prepass', writes: ['depth'], execute: (enc) => {
       const dp = enc.beginRenderPass({
         label: 'depth-prepass', colorAttachments: [], timestampWrites: this.profiler.writes('prepass'),
         depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
@@ -430,129 +515,147 @@ export class Renderer {
       }
       dp.end();
     } });
-    const twoPhase = gpuCull && this.gpuCulling === 'hiz2';
-    const hizArg = () => ({ view: this.hiz!.fullView!, width: this.hiz!.width, height: this.hiz!.height, mips: this.hiz!.mips });
-    const srcBase = byteOffset / INSTANCE_BYTES;
-    if (gpuCull) {
-      if (useHiz || twoPhase) {
-        this.hiz ??= new HiZ(this.gpu);
-        this.hiz.resize(this.gpu.canvas.width, this.gpu.canvas.height);
-      }
-      if (twoPhase) {
-        let maxObj = 0;
-        for (let i = 0; i < total01; i++) maxObj = Math.max(maxObj, instData[i * INSTANCE_WORDS + 6]);
-        this.culler!.ensureVisibility(maxObj + 1);
-        g.addPass({ name: 'cull-A', reads: [], writes: ['culledA'],
-          execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cullA'), 1, cam) });
-      } else if (useHiz) {
-        g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture.createView(), this.profiler.writes('hiz')) });
-      }
-      if (!twoPhase) {
-        g.addPass({
-          name: 'gpu-cull', reads: useHiz ? ['hizTex'] : [], writes: ['culled'],
-          execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, useHiz ? hizArg() : null, this.profiler.writes('cull'), 0, cam),
-        });
-      }
-    }
-    // One draw loop for the opaque/alpha batches (CPU draws, or indirect draws from the culled set at argBase) and the rest.
-    const drawGeometry = (pass: GPURenderPassEncoder, which: 'all' | 'culled' | 'rest', argBase: number): void => {
-      pass.setBindGroup(0, this.frameBG);
-      pass.setBindGroup(1, this.sceneResources.bindGroup);
-      pass.setBindGroup(3, gpuCull && which !== 'rest' ? this.objectBindGroup(true) : this.objectBindGroup());
-      pass.setVertexBuffer(0, this.meshes.vertexBuffer);
-      pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-      let curPipe: GPURenderPipeline | null = null, curMat = -1;
-      const bind = (matId: number, deformMask: number): void => {
-        const pipe = this.pipelineFor(matId, deformMask);
-        if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; }
-        if (matId !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(matId)); curMat = matId; }
-      };
-      if (gpuCull && which !== 'rest') {
-        // GPU-compacted draws: one indirect draw per (batch, LOD level)
-        const cu = this.culler!;
-        for (let v = 0; v < cu.virtualCount; v++) {
-          bind(cu.virtualMaterial[v], this.meshes.get(cu.virtualMesh[v]).deformMask);
-          pass.drawIndexedIndirect(cu.argsBuffer, (argBase + v) * 20);
-          st.drawCalls++;
-        }
-      }
-      if (which === 'culled') return;
-      if (gpuCull && which === 'all') pass.setBindGroup(3, this.objectBindGroup());   // remaining batches use the uncompacted records
-      const b = this.batches;
-      let curMesh = -1;
-      for (let i = gpuCull ? nCullBatches : 0; i < b.count; i++) {
-        const matId = b.materialId[i];
-        const meshId = b.meshId[i];
-        const mesh = this.meshes.get(meshId);
-        const pipe = this.pipelineFor(matId, mesh.deformMask);
-        if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; if (this.batching === 'unsorted') st.pipelineSwitches++; }
-        if (matId !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(matId)); curMat = matId; if (this.batching === 'unsorted') st.materialSwitches++; }
-        if (this.batching === 'unsorted' && meshId !== curMesh) st.meshSwitches++;
-        curMesh = meshId;
-        pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-        st.drawCalls++;
-        st.instances += b.instanceCount[i];
-        st.triangles += (mesh.indexCount / 3) * b.instanceCount[i];
-      }
-    };
-    const extras = (pass: GPURenderPassEncoder): void => {
-      if (rw.hasCamera && this.showSkybox && this.sceneResources.env.enabled) {
-        pass.setPipeline(this.skyboxPipeline());
-        pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
-        pass.draw(3);
-      }
-      if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameBG);   // after opaque + transparent geometry
-      if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameBG);                            // one draw per ribbon system
-    };
-    const common = ['shadowMap', 'clusterGrid', 'particles', 'ribbons', 'lights', 'fogVolume'];
-    if (this.fog?.enabled && rw.hasCamera) {
-      const camWorld = Mat4.invert(Mat4.create(), cam.view);
-      if (camWorld) g.addPass({ name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'], execute: (e) => this.fog!.encode(e, this.frameBG, camWorld, cam.projection[0], cam.projection[5], cam.near, this.profiler.writes('fog')) });
+  }
+
+  /** Arguments describing the Hi-Z pyramid for the culling shader. */
+  private hizArg() { return { view: this.hiz!.fullView!, width: this.hiz!.width, height: this.hiz!.height, mips: this.hiz!.mips }; }
+
+  /**
+   * GPU visibility passes. `hiz2` (two-phase): cull-A against last frame's visibility (cull-B is added with the main passes).
+   * `hiz`: build the pyramid from this frame's prepass, then cull. `frustum`: frustum cull only.
+   */
+  private addCullingPasses(g: RenderGraph, rw: RenderWorld, useHiz: boolean, twoPhase: boolean): void {
+    const cam = rw.camera, f = this.frame;
+    const srcBase = f.byteOffset / INSTANCE_BYTES;
+    if (useHiz || twoPhase) {
+      this.hiz ??= new HiZ(this.gpu);
+      this.hiz.resize(this.gpu.canvas.width, this.gpu.canvas.height);
     }
     if (twoPhase) {
-      // Phase A: draw what was visible last frame (clear). Pyramid from that depth. Phase B: draw the newly visible rest (load).
-      let colorView: GPUTextureView | null = null;
-      g.addPass({ name: 'main-A', reads: [...common, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
-        colorView = context.getCurrentTexture().createView();
-        const pass = enc.beginRenderPass({
-          label: 'main-A', timestampWrites: this.profiler.writes('mainA'),
-          colorAttachments: [{ view: colorView, clearValue: this.clearColor, loadOp: 'clear', storeOp: 'store' }],
-          depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
-        });
-        if (total > 0) drawGeometry(pass, 'culled', 0);
-        pass.end();
-      } });
+      let maxObj = 0;
+      for (let i = 0; i < f.total01; i++) maxObj = Math.max(maxObj, f.instData[i * INSTANCE_WORDS + 6]);
+      this.culler!.ensureVisibility(maxObj + 1);
+      g.addPass({ name: 'cull-A', reads: [], writes: ['culledA'],
+        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cullA'), 1, cam) });
+    } else if (useHiz) {
       g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture.createView(), this.profiler.writes('hiz')) });
-      g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
-        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, hizArg(), this.profiler.writes('cullB'), 2, cam) });
-      g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', 'particles', 'ribbons'], writes: ['backbuffer'], sideEffect: true, execute: (enc) => {
-        const pass = enc.beginRenderPass({
-          label: 'main-B', timestampWrites: this.profiler.writes('mainB'),
-          colorAttachments: [{ view: colorView!, loadOp: 'load', storeOp: 'store' }],
-          depthStencilAttachment: { view: this.depthView, depthLoadOp: 'load', depthStoreOp: 'store' },
-        });
-        if (total > 0) { drawGeometry(pass, 'culled', this.culler!.virtualCount); drawGeometry(pass, 'rest', 0); }
-        extras(pass);
-        pass.end();
-      } });
-    } else {
-      g.addPass({ name: 'main', reads: [...common, 'depth', 'culled'], writes: ['backbuffer'], sideEffect: true, execute: (enc) => {
-        const pass = enc.beginRenderPass({
-          label: 'main', timestampWrites: this.profiler.writes('main'),
-          colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: this.clearColor, loadOp: 'clear', storeOp: 'store' }],
-          depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: prepass ? 'load' : 'clear', depthStoreOp: 'store' },
-        });
-        if (rw.hasCamera && total > 0) drawGeometry(pass, 'all', 0);
-        extras(pass);
-        pass.end();
-      } });
     }
-    g.compile();
-    g.execute(enc);
-    this.profiler.resolve(enc);
-    queue.submit([enc.finish()]);
-    const t4 = performance.now();
-    st.cpu.encoding = t4 - t3;
-    st.cpu.total = t4 - t0;
+    if (!twoPhase) {
+      g.addPass({
+        name: 'gpu-cull', reads: useHiz ? ['hizTex'] : [], writes: ['culled'],
+        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, useHiz ? this.hizArg() : null, this.profiler.writes('cull'), 0, cam),
+      });
+    }
+  }
+
+  /**
+   * Draw loop for opaque / alpha batches. With GPU culling, `'culled'` issues one indirect draw per (batch, LOD level) from the
+   * compacted set (arguments start at `argBase`), `'rest'` draws the batches the GPU path does not cover, `'all'` does both.
+   * Without GPU culling every batch is drawn directly.
+   */
+  private drawGeometry(pass: GPURenderPassEncoder, which: 'all' | 'culled' | 'rest', argBase: number): void {
+    const f = this.frame, st = this.stats, gpuCull = f.gpuCull;
+    pass.setBindGroup(0, this.frameBG);
+    pass.setBindGroup(1, this.sceneResources.bindGroup);
+    pass.setBindGroup(3, gpuCull && which !== 'rest' ? this.objectBindGroup(true) : this.objectBindGroup());
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer);
+    pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    let curPipe: GPURenderPipeline | null = null, curMat = -1;
+    /** Set the pipeline and material bind group only when they differ from the previously bound ones. */
+    const bind = (matId: number, deformMask: number): void => {
+      const pipe = this.pipelineFor(matId, deformMask);
+      if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; }
+      if (matId !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(matId)); curMat = matId; }
+    };
+    if (gpuCull && which !== 'rest') {
+      // GPU-compacted draws: one indirect draw per (batch, LOD level)
+      const cu = this.culler!;
+      for (let v = 0; v < cu.virtualCount; v++) {
+        bind(cu.virtualMaterial[v], this.meshes.get(cu.virtualMesh[v]).deformMask);
+        pass.drawIndexedIndirect(cu.argsBuffer, (argBase + v) * 20);
+        st.drawCalls++;
+      }
+    }
+    if (which === 'culled') return;
+    if (gpuCull && which === 'all') pass.setBindGroup(3, this.objectBindGroup());   // remaining batches use the uncompacted records
+    const b = this.batches;
+    let curMesh = -1;
+    for (let i = gpuCull ? f.nCullBatches : 0; i < b.count; i++) {
+      const matId = b.materialId[i];
+      const meshId = b.meshId[i];
+      const mesh = this.meshes.get(meshId);
+      const pipe = this.pipelineFor(matId, mesh.deformMask);
+      if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; if (this.batching === 'unsorted') st.pipelineSwitches++; }
+      if (matId !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(matId)); curMat = matId; if (this.batching === 'unsorted') st.materialSwitches++; }
+      if (this.batching === 'unsorted' && meshId !== curMesh) st.meshSwitches++;
+      curMesh = meshId;
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+      st.drawCalls++;
+      st.instances += b.instanceCount[i];
+      st.triangles += (mesh.indexCount / 3) * b.instanceCount[i];
+    }
+  }
+
+  /** Draws that follow opaque + transparent geometry in the main pass: skybox, particles, ribbons. */
+  private drawExtras(pass: GPURenderPassEncoder, rw: RenderWorld): void {
+    if (rw.hasCamera && this.showSkybox && this.sceneResources.env.enabled) {
+      pass.setPipeline(this.skyboxPipeline());
+      pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
+      pass.draw(3);
+    }
+    if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameBG);   // after opaque + transparent geometry
+    if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameBG);                            // one draw per ribbon system
+  }
+
+  /** Resources the main pass(es) read, declared so the render graph orders them after their producers. */
+  private static readonly MAIN_READS = ['shadowMap', 'clusterGrid', 'particles', 'ribbons', 'lights', 'fogVolume'];
+
+  /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
+  private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
+    const { context } = this.gpu;
+    g.addPass({ name: 'main', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: ['backbuffer'], sideEffect: true, execute: (enc) => {
+      const pass = enc.beginRenderPass({
+        label: 'main', timestampWrites: this.profiler.writes('main'),
+        colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: this.clearColor, loadOp: 'clear', storeOp: 'store' }],
+        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: prepass ? 'load' : 'clear', depthStoreOp: 'store' },
+      });
+      if (rw.hasCamera && this.frame.total > 0) this.drawGeometry(pass, 'all', 0);
+      this.drawExtras(pass, rw);
+      pass.end();
+    } });
+  }
+
+  /**
+   * Two-phase occlusion culling (`hiz2`). Phase A draws what was visible last frame (clears the targets); the depth is turned into a
+   * Hi-Z pyramid; cull-B tests everything else against it; phase B draws the newly visible rest (loads the targets) plus extras.
+   */
+  private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
+    const { context } = this.gpu;
+    const cam = rw.camera, f = this.frame;
+    const srcBase = f.byteOffset / INSTANCE_BYTES;
+    let colorView: GPUTextureView | null = null;
+    g.addPass({ name: 'main-A', reads: [...Renderer.MAIN_READS, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
+      colorView = context.getCurrentTexture().createView();
+      const pass = enc.beginRenderPass({
+        label: 'main-A', timestampWrites: this.profiler.writes('mainA'),
+        colorAttachments: [{ view: colorView, clearValue: this.clearColor, loadOp: 'clear', storeOp: 'store' }],
+        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
+      });
+      if (f.total > 0) this.drawGeometry(pass, 'culled', 0);
+      pass.end();
+    } });
+    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture.createView(), this.profiler.writes('hiz')) });
+    g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
+      execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
+    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', 'particles', 'ribbons'], writes: ['backbuffer'], sideEffect: true, execute: (enc) => {
+      const pass = enc.beginRenderPass({
+        label: 'main-B', timestampWrites: this.profiler.writes('mainB'),
+        colorAttachments: [{ view: colorView!, loadOp: 'load', storeOp: 'store' }],
+        depthStencilAttachment: { view: this.depthView, depthLoadOp: 'load', depthStoreOp: 'store' },
+      });
+      if (f.total > 0) { this.drawGeometry(pass, 'culled', this.culler!.virtualCount); this.drawGeometry(pass, 'rest', 0); }
+      this.drawExtras(pass, rw);
+      pass.end();
+    } });
   }
 }

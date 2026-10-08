@@ -63,6 +63,7 @@ export class RibbonSystem {
   private upData = new ArrayBuffer(16);
   private N: number;
 
+  /** Allocate the ribbon descriptor and shared segment ring buffers (`maxRibbons` x `pointsPerRibbon`) and build the update + render pipelines. */
   constructor(readonly gpu: GPUContext, layouts: BindLayouts, readonly target: { colorFormat: GPUTextureFormat; depthFormat: GPUTextureFormat; sampleCount: number }, readonly config: RibbonSystemConfig) {
     const { device, resources: res } = gpu;
     registerEngineShaderChunks(res.shaders);
@@ -205,6 +206,7 @@ export class RibbonSystem {
     device.queue.writeBuffer(this.updateParams, 0, this.upData);
   }
 
+  /** Record the compute pass that extends trails and writes new segments (skipped when there are no ribbons). */
   encodeCompute(enc: GPUCommandEncoder): void {
     if (this.count === 0) return;
     const pass = enc.beginComputePass({ label: 'ribbons-update' });
@@ -214,6 +216,7 @@ export class RibbonSystem {
     pass.end();
   }
 
+  /** Record the ribbon draw: all segments of all ribbons in one instanced draw call. */
   encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void {
     if (this.count === 0) return;
     pass.setPipeline(this.pipeline);
@@ -244,6 +247,7 @@ export class RibbonSystem {
 export function beamPoints(a: Vec3, b: Vec3, segments: number, jitter: number, seed = 1): Float32Array {
   const n = Math.max(2, segments + 1), out = new Float32Array(n * 3);
   let s = seed >>> 0 || 1;
+  /** Deterministic pseudo-random number in [-1, 1) (LCG). */
   const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296 * 2 - 1; };
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
   const len = Math.hypot(dx, dy, dz) || 1;

@@ -14,10 +14,13 @@ export class ShaderManager {
   private modules = new Map<string, GPUShaderModule>();
   readonly errors: ShaderError[] = [];
 
+  /** Create a manager bound to `device`. */
   constructor(private device: GPUDevice, private stats: GPUStats) {}
 
+  /** Register WGSL source under `name` so `//#include name` lines can splice it in. */
   registerChunk(name: string, source: string): void { this.chunks.set(name, source); }
 
+  /** Cache key for a shader id plus its (sorted) feature defines. */
   static key(id: string, defines: ShaderDefines): string {
     const d = Object.keys(defines).sort().map((k) => `${k}=${+defines[k]}`).join(',');
     return `${id}#${d}`;
@@ -28,6 +31,7 @@ export class ShaderManager {
     // Includes are idempotent: a chunk is spliced in only the first time it is requested (shared dependencies are
     // pulled in by several chunks, and WGSL forbids duplicate declarations).
     const seen = new Set<string>();
+    /** Recursively replace `//#include` lines with chunk source (each chunk only once; nesting limited to 8 levels). */
     const resolve = (src: string, depth: number): string => {
       if (depth > 8) throw new Error('#include nesting too deep');
       return src.replace(/^[ \t]*\/\/#include\s+(\S+)[ \t]*$/gm, (_m, name: string) => {
@@ -46,6 +50,7 @@ export class ShaderManager {
     return header + resolve(source, 0);
   }
 
+  /** Return the compiled module for `id` + `defines`, assembling and compiling it on first use. Compilation errors are collected asynchronously in `errors`. */
   get(id: string, source: string, defines: ShaderDefines = {}): GPUShaderModule {
     const key = ShaderManager.key(id, defines);
     let m = this.modules.get(key);

@@ -30,10 +30,12 @@ export class JointMatrixBuffer {
     this.markDirty(0, 1);
   }
 
+  /** Allocate the GPU storage buffer for the current capacity. */
   private makeBuffer(): GPUBuffer {
     return this.buffers.create('JointMatrixBuffer', this.capacity * 64, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
   }
 
+  /** Matrices handed out so far (including released holes). */
   get usedMatrices(): number { return this.used; }
 
   /** Reserve `count` matrices; returns the matrix offset. Reuses freed blocks of the same size. */
@@ -47,14 +49,17 @@ export class JointMatrixBuffer {
     return off;
   }
 
+  /** Return a skeleton's joint range to the free list (keyed by joint count) for reuse by an equally sized skeleton. */
   release(offset: number, count: number): void {
     const list = this.free.get(count) ?? [];
     list.push(offset);
     this.free.set(count, list);
   }
 
+  /** Queue the range [offset, offset + count) for upload at the next `flush`. */
   markDirty(offset: number, count: number): void { this.dirty.push(offset, count); }
 
+  /** Double the capacity, recreate the GPU buffer (bumping `generation`) and schedule a full re-upload. */
   private grow(needed: number): void {
     let cap = this.capacity;
     while (cap < needed) cap *= 2;
@@ -67,6 +72,7 @@ export class JointMatrixBuffer {
     this.dirty.push(0, this.used); // re-upload everything after reallocation
   }
 
+  /** Reset the per-frame upload counters. */
   beginFrame(): void { this.uploadBytes = 0; this.uploadRanges = 0; }
 
   /** Upload dirty ranges (sorted + coalesced). */
@@ -77,6 +83,7 @@ export class JointMatrixBuffer {
     for (let i = 0; i < d.length; i += 2) ranges.push([d[i], d[i] + d[i + 1]]);
     ranges.sort((a, b) => a[0] - b[0]);
     let [start, end] = ranges[0];
+    /** Upload matrices [s, e) to the GPU buffer. */
     const write = (s: number, e: number) => {
       this.device.queue.writeBuffer(this.buffer, s * 64, this.cpu.buffer, this.cpu.byteOffset + s * 64, (e - s) * 64);
       this.uploadBytes += (e - s) * 64; this.uploadRanges++;

@@ -4,8 +4,10 @@ import type { GPUStats } from './GPUStats';
 export class BufferManager {
   private live = new Map<GPUBuffer, number>();
 
+  /** Create a manager that counts live buffers and bytes in `stats`. */
   constructor(private device: GPUDevice, private stats: GPUStats) {}
 
+  /** Create a tracked buffer; `size` is rounded up to a multiple of 4 bytes. */
   create(label: string, size: number, usage: GPUBufferUsageFlags, mappedAtCreation = false): GPUBuffer {
     // Round to 4 bytes (writeBuffer / copy alignment).
     const aligned = (size + 3) & ~3;
@@ -23,6 +25,7 @@ export class BufferManager {
     return buffer;
   }
 
+  /** Destroy a buffer created here and update the stats (unknown buffers are ignored). */
   destroy(buffer: GPUBuffer): void {
     const size = this.live.get(buffer);
     if (size === undefined) return;
@@ -32,5 +35,6 @@ export class BufferManager {
     buffer.destroy();
   }
 
+  /** Number of live buffers. */
   get count(): number { return this.live.size; }
 }

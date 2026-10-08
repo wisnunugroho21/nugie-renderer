@@ -20,6 +20,7 @@ export class MotionMatcher {
   /** Frames examined / early-outs in the last search (diagnostics). */
   examined = 0;
 
+  /** Create a matcher over database `db` (allocates the query vector). */
   constructor(readonly db: MotionDatabase) { this.query = new Float32Array(db.dim); }
 
   /**
@@ -31,6 +32,7 @@ export class MotionMatcher {
     // start from the current frame's features (normalized space), then overwrite the controllable groups
     if (currentFrame >= 0) for (let d = 0; d < D; d++) q[d] = db.features[currentFrame * D + d];
     else q.fill(0);
+    /** Normalise feature `d` with the database's mean and scale. */
     const norm = (d: number, raw: number) => (raw - db.mean[d]) * db.scale[d];
     q[L.velocity] = norm(L.velocity, desired.vx); q[L.velocity + 1] = norm(L.velocity + 1, 0); q[L.velocity + 2] = norm(L.velocity + 2, desired.vz);
     q[L.angularVelocity] = norm(L.angularVelocity, desired.yawRate);

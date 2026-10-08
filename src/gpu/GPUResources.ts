@@ -16,6 +16,7 @@ export class GPUResources {
   readonly pipelines: PipelineCache;
   readonly bindGroups: BindGroupCache;
 
+  /** Create all managers for `device`, sharing one stats object. */
   constructor(readonly device: GPUDevice) {
     this.buffers = new BufferManager(device, this.stats);
     this.textures = new TextureManager(device, this.stats);

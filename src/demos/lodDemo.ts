@@ -24,6 +24,7 @@ export const lodDemo: Demo = (ctx) => {
     lo = renderer.meshes.create('sphere-lo', createUVSphere(8, 4));
   }
   const plane = renderer.meshes.create('plane', createPlane());
+  /** Register a three-level sphere LOD group (high / mid / low mesh). */
   const makeGroup = () => renderer.lodLibrary.create({
     name: 'sphere', levels: [{ meshId: hi, minScreenSize: 0.12 }, { meshId: mid, minScreenSize: 0.04 }, { meshId: lo, minScreenSize: 0.006 }],
   });

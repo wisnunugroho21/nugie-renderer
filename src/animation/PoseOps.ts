@@ -52,6 +52,7 @@ export function blendPoses(out: Pose, a: Pose, b: Pose, w: number, mask?: PoseMa
   }
 }
 
+/** Copy node `n`'s TRS (and, when `morph`, its morph weights) from `src` to `out`. */
 function copyNode(out: Pose, src: Pose, n: number, morph: boolean): void {
   const t = n * 3, q = n * 4;
   out.t[t] = src.t[t]; out.t[t + 1] = src.t[t + 1]; out.t[t + 2] = src.t[t + 2];

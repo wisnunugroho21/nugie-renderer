@@ -20,6 +20,7 @@ export class WorkerPool {
   /** Highest number of jobs that were ever in flight at once (diagnostics / tests). */
   peakBusy = 0;
 
+  /** Spawn `size` workers from `factory` (default: min(4, cores - 1), at least 1). */
   constructor(factory: () => WorkerLike, size = Math.max(1, Math.min(4, (typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4) - 1))) {
     for (let i = 0; i < size; i++) {
       const slot = { w: factory(), job: null as Job | null };
@@ -34,9 +35,12 @@ export class WorkerPool {
     }
   }
 
+  /** Number of workers. */
   get size(): number { return this.workers.length; }
+  /** Jobs queued but not yet handed to a worker. */
   get pending(): number { return this.queue.length; }
 
+  /** Queue a job: `msg` is posted to the next idle worker (buffers listed in `transfer` are moved, not copied). Resolves with the worker's reply, rejects on `{error}` replies or worker errors. */
   run<T>(msg: unknown, transfer: Transferable[] = [], priority = 0): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       this.queue.push({ msg, transfer, priority, seq: this.seq++, resolve: resolve as (v: unknown) => void, reject });
@@ -44,6 +48,7 @@ export class WorkerPool {
     });
   }
 
+  /** Hand queued jobs (highest priority, then oldest) to every idle worker. */
   private pump(): void {
     for (const slot of this.workers) {
       if (slot.job || this.queue.length === 0) continue;
@@ -59,5 +64,11 @@ export class WorkerPool {
     }
   }
 
-  terminate(): void { for (const s of this.workers) s.w.terminate(); this.workers = []; this.queue.length = 0; }
+  /** Terminate every worker; in-flight and queued jobs are rejected so their promises never hang. */
+  terminate(): void {
+    const err = new Error('WorkerPool terminated');
+    for (const s of this.workers) { s.w.terminate(); s.job?.reject(err); s.job = null; }
+    for (const j of this.queue) j.reject(err);
+    this.workers = []; this.queue.length = 0;
+  }
 }

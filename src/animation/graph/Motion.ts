@@ -8,7 +8,9 @@ import type { AnimationParams } from './AnimationParams';
 export class RootDelta {
   readonly t = new Float32Array(3);
   readonly r = new Float32Array([0, 0, 0, 1]);
+  /** Set to "no movement" (zero translation, identity rotation). */
   reset(): this { this.t.fill(0); this.r[0] = this.r[1] = this.r[2] = 0; this.r[3] = 1; return this; }
+  /** Copy translation and rotation from `o`. */
   copyFrom(o: RootDelta): this { this.t.set(o.t); this.r.set(o.r); return this; }
 }
 
@@ -44,6 +46,7 @@ export abstract class Motion {
    * Stateful motions (motion matching) advance their own playhead here; clip motions need nothing.
    */
   update(_dt: number, _ctx: MotionContext): void {}
+  /** Write the pose at normalised time `u` into `out`. */
   abstract sample(ctx: MotionContext, u: number, out: Pose): void;
   /** Add every node index this motion may write to `out` (used to know which ECS nodes a controller drives). */
   abstract collectNodes(out: Set<number>): void;
@@ -57,6 +60,7 @@ const ta = new Float32Array(3), tb = new Float32Array(3);
 const t0s = new Float32Array(3), r0s = new Float32Array(4), tes = new Float32Array(3), res = new Float32Array(4);
 const firstQ = new Float32Array(4), secondQ = new Float32Array(4);
 
+/** Sample only the root node's translation and rotation of `clip` at `time` (rest values where the clip has no channel). */
 function sampleRoot(clip: AnimationClip, node: number, time: number, t: Float32Array, r: Float32Array, rest: Pose): void {
   t[0] = rest.t[node * 3]; t[1] = rest.t[node * 3 + 1]; t[2] = rest.t[node * 3 + 2];
   r[0] = rest.r[node * 4]; r[1] = rest.r[node * 4 + 1]; r[2] = rest.r[node * 4 + 2]; r[3] = rest.r[node * 4 + 3];
@@ -75,6 +79,7 @@ function qDelta(out: Float32Array, a: Float32Array, b: Float32Array): void {
   out[2] = a[3] * bz + a[0] * by - a[1] * bx + a[2] * bw;
   out[3] = a[3] * bw - a[0] * bx - a[1] * by - a[2] * bz;
 }
+/** Quaternion product out = a * b on standalone 4-element arrays. */
 function qMul(out: Float32Array, a: Float32Array, b: Float32Array): void {
   const ax = a[0], ay = a[1], az = a[2], aw = a[3];
   out[0] = aw * b[0] + ax * b[3] + ay * b[2] - az * b[1];
@@ -84,17 +89,22 @@ function qMul(out: Float32Array, a: Float32Array, b: Float32Array): void {
 }
 
 export class ClipMotion extends Motion {
+  /** Wrap a single animation clip as a motion. */
   constructor(readonly clip: AnimationClip) { super(); }
 
+  /** The clip's length in seconds. */
   duration(): number { return this.clip.duration; }
 
+  /** Add every node the clip animates to `out`. */
   collectNodes(out: Set<number>): void { for (const n of this.clip.animatedNodes) out.add(n); }
 
+  /** Start from the rest pose and sample the clip at normalised time `u`. */
   sample(ctx: MotionContext, u: number, out: Pose): void {
     out.copyFrom(ctx.rest);
     this.clip.sample(u * this.clip.duration, out);
   }
 
+  /** Root displacement between normalised times u0 and u1; when `wrapped`, sums the end-of-clip part and the restart part. */
   rootDelta(ctx: MotionContext, u0: number, u1: number, wrapped: boolean, out: RootDelta): void {
     const d = this.clip.duration, n = ctx.rootNode;
     out.reset();
@@ -132,6 +142,7 @@ export class BlendTree1D extends Motion {
   private deltaA = new RootDelta();
   private deltaB = new RootDelta();
 
+  /** Create a tree driven by parameter id `param`; entries are sorted by threshold. Needs at least one entry. */
   constructor(layout: PoseLayout, readonly param: number, entries: BlendTreeEntry[]) {
     super();
     if (entries.length === 0) throw new Error('Blend tree needs at least one entry');
@@ -140,6 +151,7 @@ export class BlendTree1D extends Motion {
     this.poseB = new Pose(layout);
   }
 
+  /** Add the nodes of every child motion to `out`. */
   collectNodes(out: Set<number>): void { for (const e of this.entries) e.motion.collectNodes(out); }
 
   /** Forward the per-frame hook to every child (stateful children advance regardless of their current weight). */
@@ -156,6 +168,7 @@ export class BlendTree1D extends Motion {
     return { i, w: (value - e[i].threshold) / (e[i + 1].threshold - e[i].threshold) };
   }
 
+  /** Weighted-average duration of the two bracketing children for the current parameter value. */
   duration(params: AnimationParams): number {
     const { i, w } = this.select(params.values[this.param]);
     const d0 = this.entries[i].motion.duration(params);
@@ -163,6 +176,7 @@ export class BlendTree1D extends Motion {
     return d0 + (this.entries[i + 1].motion.duration(params) - d0) * w;
   }
 
+  /** Blend the two bracketing children's poses by the interpolation factor. */
   sample(ctx: MotionContext, u: number, out: Pose): void {
     const { i, w } = this.select(ctx.params.values[this.param]);
     if (w === 0) { this.entries[i].motion.sample(ctx, u, out); return; }
@@ -171,6 +185,7 @@ export class BlendTree1D extends Motion {
     blendPoses(out, this.poseA, this.poseB, w);
   }
 
+  /** Interpolate the two bracketing children's root displacements (translation lerp, rotation nlerp). */
   rootDelta(ctx: MotionContext, u0: number, u1: number, wrapped: boolean, out: RootDelta): void {
     const { i, w } = this.select(ctx.params.values[this.param]);
     if (w === 0) { this.entries[i].motion.rootDelta(ctx, u0, u1, wrapped, out); return; }

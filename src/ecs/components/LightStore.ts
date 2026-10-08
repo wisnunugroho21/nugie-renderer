@@ -15,17 +15,20 @@ export class LightStore extends ComponentStore {
   width = new Float32Array(0);
   height = new Float32Array(0);
   twoSided = new Uint8Array(0);
-  /** 1 = request a shadow map (directional: cascaded; spot: one map). Point lights do not cast shadows yet. */
+  /** 1 = request a shadow map (directional: cascaded; spot: one map; point / area: cube map). */
   castShadow = new Uint8Array(0);
 
+  /** Grow every light parameter array. */
   protected grow(n: number): void {
     this.type = growU8(this.type, n); this.color = growF32(this.color, n, 3);
     this.intensity = growF32(this.intensity, n); this.range = growF32(this.range, n);
     this.innerCone = growF32(this.innerCone, n); this.outerCone = growF32(this.outerCone, n);
     this.width = growF32(this.width, n); this.height = growF32(this.height, n); this.twoSided = growU8(this.twoSided, n); this.castShadow = growU8(this.castShadow, n);
   }
+  /** Zero the entity's light parameters. */
   protected reset(i: number): void { this.type[i] = 0; this.intensity[i] = 0; this.range[i] = 0; this.width[i] = 0; this.height[i] = 0; this.twoSided[i] = 0; this.castShadow[i] = 0; }
 
+  /** Make the entity a light. `range` only matters for point / spot lights; the cone angles default to 0 / 45 degrees (spot lights). Set `castShadow[i] = 1` to request shadows. */
   add(i: number, type: LightType, r = 1, g = 1, b = 1, intensity = 1, range = 10): void {
     this.ensureCapacity(i + 1);
     this.has.set(i);

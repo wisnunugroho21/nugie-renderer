@@ -1,41 +1,13 @@
-import type { Application } from '../app/Application';
-import type { GPUContext } from '../gpu/GPUContext';
-import type { Renderer } from '../rendering/Renderer';
-import type { RenderWorld } from '../rendering/RenderWorld';
-import type { World } from '../ecs/World';
-import type { TransformSystem } from '../ecs/systems/TransformSystem';
-import type { BoundsSystem } from '../ecs/systems/BoundsSystem';
-import type { AnimationSystem } from '../ecs/systems/AnimationSystem';
-import type { SkeletonSystem } from '../ecs/systems/SkeletonSystem';
-import type { ParticleEmitterSystem } from '../ecs/systems/ParticleEmitterSystem';
-import type { RibbonEmitterSystem } from '../ecs/systems/RibbonEmitterSystem';
-import type { RenderExtractor } from '../rendering/RenderExtractor';
-import type { VisibilitySystem } from '../visibility/VisibilitySystem';
-import type { TextureLoader } from '../assets/TextureLoader';
+import type { Engine } from '../app/Engine';
 import type { OrbitController } from '../app/OrbitController';
-import type { SceneSettings } from '../rendering/Renderer';
 
-export interface DemoContext {
-  app: Application;
-  gpu: GPUContext;
-  renderer: Renderer;
-  world: World;
-  ts: TransformSystem;
-  bs: BoundsSystem;
-  animation: AnimationSystem;
-  skeletons: SkeletonSystem;
-  particleEmitters: ParticleEmitterSystem;
-  ribbonEmitters: RibbonEmitterSystem;
-  extractor: RenderExtractor;
-  rw: RenderWorld;
-  visibility: VisibilitySystem;
-  textures: TextureLoader;
+/** Everything a demo can use: the whole {@link Engine} plus the demo camera controller and the page's URL parameters. */
+export type DemoContext = Engine & {
+  /** Mouse orbit camera driving the camera entity. */
   orbit: OrbitController;
+  /** The page's query string (demos read options such as `?n=20000`). */
   params: URLSearchParams;
-  /** Index of the active camera entity. */
-  camera: number;
-  scene: SceneSettings;
-}
+};
 
-/** A demo sets up its scene and returns a per-frame update callback. */
+/** A demo sets up its scene and returns a per-frame update callback `(time, dt)`. */
 export type Demo = (ctx: DemoContext) => ((t: number, dt: number) => void) | void;

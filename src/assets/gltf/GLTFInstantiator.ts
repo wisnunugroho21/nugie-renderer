@@ -46,6 +46,7 @@ const gpuCache = new WeakMap<GLTFAsset, WeakMap<object, GPUAssetCache>>();
 let assetCounter = 0;
 const assetIds = new WeakMap<GLTFAsset, string>();
 
+/** Create (once per asset and mesh manager) the GPU meshes, materials and skeleton assets of a glTF asset; later calls reuse them. */
 function uploadAsset(asset: GLTFAsset, ctx: InstantiateContext): { cache: GPUAssetCache; fresh: boolean } {
   let perRenderer = gpuCache.get(asset);
   if (!perRenderer) { perRenderer = new WeakMap(); gpuCache.set(asset, perRenderer); }

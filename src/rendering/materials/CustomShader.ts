@@ -59,6 +59,7 @@ export function validateCustomShader(wgsl: string, vertexEntry: string, fragment
   const stripped = wgsl.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
   if (/@\s*group\s*\(/.test(stripped)) errors.push('Custom shaders must not declare @group resources; use the engine binding contract.');
   if (/@\s*binding\s*\(/.test(stripped)) errors.push('Custom shaders must not declare @binding resources; use the engine binding contract.');
+  /** True if the source declares entry point `name` for shader stage `stage`. */
   const hasEntry = (stage: string, name: string) => new RegExp(`@\\s*${stage}[^{;]*?\\bfn\\s+${name}\\s*\\(`).test(stripped);
   if (!hasEntry('vertex', vertexEntry)) errors.push(`Missing @vertex entry point '${vertexEntry}'.`);
   if (!hasEntry('fragment', fragmentEntry)) errors.push(`Missing @fragment entry point '${fragmentEntry}'.`);

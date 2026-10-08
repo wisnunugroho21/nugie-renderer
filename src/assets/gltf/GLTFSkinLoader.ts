@@ -33,6 +33,7 @@ export function readSkinAttributes(doc: GLTFDocument, jointsAccessor: number, we
   return { joints, weights: normalizeWeights(w.data) };
 }
 
+/** Return a copy where every vertex's four weights sum to 1 (a vertex with no weight is bound fully to its first joint). */
 export function normalizeWeights(weights: Float32Array): Float32Array {
   const out = new Float32Array(weights);
   for (let v = 0; v < out.length; v += 4) {

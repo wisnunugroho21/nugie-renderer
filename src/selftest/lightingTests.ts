@@ -73,8 +73,11 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   outv[o+1u] = areaSpecularFraction(light, N, V, P, ltc);
 }`;
 
+/** Vector difference a - b. */
 const sub = (a: number[], b: number[]) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+/** Dot product of two 3-vectors. */
 const dot3 = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+/** Normalise a 3-vector. */
 const unit = (a: number[]) => { const l = Math.hypot(a[0], a[1], a[2]); return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /** Brute-force quadrature over the rectangle: diffuse form factor E/(PI L) and GGX specular (float64). */
@@ -101,6 +104,7 @@ function areaReference(c: AreaCase): { ff: number; spec: number } {
 
 interface AreaCase { pos: number[]; dir: number[]; right: number[]; up: number[]; hw: number; hh: number; twoSided: boolean; P: number[]; N: number[]; V: number[]; rough: number; f0: number; label: string }
 
+/** Area-light form factor / LTC specular vs brute-force quadrature, and punctual light attenuation vs a TS reference. */
 export function lightingTests(gpu: GPUContext): SelfTest[] {
   return [{
     name: 'lighting: area lights - diffuse form factor (exact) and LTC specular vs brute-force quadrature',
@@ -108,6 +112,7 @@ export function lightingTests(gpu: GPUContext): SelfTest[] {
       const { device, resources: res } = gpu;
       const cases: AreaCase[] = [];
       const V0 = [0.5, 0.7, 0.5];
+      /** Add an area-light test case (defaults overridden by `o`). */
       const mk = (label: string, o: Partial<AreaCase>): void => { cases.push({ pos: [0, 3, 0], dir: [0, -1, 0], right: [1, 0, 0], up: [0, 0, 1], hw: 1, hh: 1, twoSided: false, P: [0, 0, 0], N: [0, 1, 0], V: V0, rough: 0.5, f0: 1, label, ...o }); };
       mk('overhead 2x2 r.5', {});
       mk('overhead r.3', { rough: 0.3 });
@@ -126,6 +131,7 @@ export function lightingTests(gpu: GPUContext): SelfTest[] {
       // CPU bilinear lookup of the LTC table (same addressing as ltcLookup in ibl_eval.wgsl)
       const ltcAt = (rough: number, NoV: number): number[] => {
         const fx = rough * (LTC_SIZE - 1), fy = Math.sqrt(1 - NoV) * (LTC_SIZE - 1), x0 = Math.min(Math.floor(fx), LTC_SIZE - 2), y0 = Math.min(Math.floor(fy), LTC_SIZE - 2), tx = fx - x0, ty = fy - y0;
+        /** LTC table component `k` at grid cell (x, y). */
         const g = (x: number, y: number, k: number) => LTC_TABLE[(y * LTC_SIZE + x) * 3 + k];
         return [0, 1, 2].map((k) => (g(x0, y0, k) * (1 - tx) + g(x0 + 1, y0, k) * tx) * (1 - ty) + (g(x0, y0 + 1, k) * (1 - tx) + g(x0 + 1, y0 + 1, k) * tx) * ty);
       };
@@ -167,6 +173,7 @@ export function lightingTests(gpu: GPUContext): SelfTest[] {
       const { device, resources: res } = gpu;
       const rng = new Rng(77);
       const N = 512, ld = new LightData(), P: number[][] = [];
+      /** Normalise a vector given as an array. */
       const norm = (v: number[]) => { const l = Math.hypot(...v) || 1; return v.map((x) => x / l); };
       for (let i = 0; i < N; i++) {
         const type = [LightType.Directional, LightType.Point, LightType.Spot][i % 3];

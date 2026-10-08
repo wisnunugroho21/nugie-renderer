@@ -7,6 +7,7 @@ import { LightType } from '../ecs/components/LightStore';
 import { halfToFloat } from '../assets/RGBE';
 import { readBuffer, type SelfTest } from './harness';
 
+/** Read a rgba16float 3D texture back to the CPU as float RGBA. */
 async function readVolume(gpu: GPUContext, tex: GPUTexture): Promise<{ w: number; h: number; d: number; px: Float32Array }> {
   const w = tex.width, h = tex.height, d = tex.depthOrArrayLayers, bpr = Math.ceil(w * 8 / 256) * 256;
   const buf = gpu.resources.buffers.create('fog-readback', bpr * h * d, GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC);
@@ -42,8 +43,10 @@ async function bakeFog(gpu: GPUContext, opts: { density: number; g: number; ambi
   return { vol: await readVolume(gpu, fog.volume!), fog };
 }
 
+/** Henyey-Greenstein phase function for anisotropy `g` and cosine `c`. */
 function hg(g: number, c: number): number { return (1 - g * g) / (4 * Math.PI * Math.pow(Math.max(1 + g * g - 2 * g * c, 1e-4), 1.5)); }
 
+/** Froxel fog vs analytic transmittance and in-scattering (homogeneous medium, ambient and directional light). */
 export function fogTests(gpu: GPUContext): SelfTest[] {
   const near = 0.1, far = 50, tile = 8;
   /** Expected (S, T) at froxel (x, y, k) for homogeneous fog. */
@@ -60,6 +63,7 @@ export function fogTests(gpu: GPUContext): SelfTest[] {
     }
     return { T, S: s.map((v) => v * (1 - T)) };
   };
+  /** Compare froxels of `vol` with the analytic expectation; returns the worst error and sample count. */
   const check = (vol: { w: number; h: number; px: Float32Array }, density: number, g: number, ambient: number[], light?: { dir: number[]; color: number[]; intensity: number }): { worst: number; samples: number } => {
     let worst = 0, samples = 0;
     for (const [x, y] of [[32, 32], [5, 50], [60, 8], [20, 40]]) for (const k of [0, 5, 20, 35, 47]) {

@@ -10,10 +10,12 @@ export const GLTF_DEFAULT_MATERIAL: MaterialAsset = {
   textures: {},
 };
 
+/** Convert glTF materials to engine PBR descriptions plus the texture-use slots they reference (warns on unsupported TEXCOORD sets). */
 export function loadMaterials(doc: GLTFDocument, textures: TextureUseRegistry, warn: (m: string) => void): MaterialAsset[] {
   return (doc.json.materials ?? []).map((m, i) => {
     const pbr = m.pbrMetallicRoughness ?? {};
     const name = m.name ?? `material${i}`;
+    /** Resolve a texture reference (warning about unsupported UV sets) into a texture-use id. */
     const tex = (info: GLTFTextureInfo | undefined, srgb: boolean, what: string): number | undefined => {
       if (!info) return undefined;
       if ((info.texCoord ?? 0) !== 0) warn(`${name}: ${what} uses TEXCOORD_${info.texCoord}; only TEXCOORD_0 is supported`);

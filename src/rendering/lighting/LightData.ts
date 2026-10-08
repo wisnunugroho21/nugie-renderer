@@ -49,6 +49,7 @@ export class LightData {
   private lastCount = -1;
   private lastAmbient = new Float32Array(6);
 
+  /** Remove all lights and ambient terms (the capacity is kept). */
   clear(): void { this.count = 0; this.directionalCount = 0; this.globalCount = 0; this.ambientSky.fill(0); this.ambientGround.fill(0); }
 
   /** Append a light. Ambient lights are summed into the hemisphere colors instead of occupying a slot. */

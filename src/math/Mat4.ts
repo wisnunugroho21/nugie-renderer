@@ -8,8 +8,11 @@
 export type M4 = Float32Array | number[];
 
 export const Mat4 = {
+  /** A new identity matrix. */
   create(): Float32Array { const m = new Float32Array(16); m[0] = m[5] = m[10] = m[15] = 1; return m; },
+  /** Overwrite `o` with the identity matrix. */
   identity(o: M4): M4 { for (let i = 0; i < 16; i++) o[i] = 0; o[0] = o[5] = o[10] = o[15] = 1; return o; },
+  /** o = a. */
   copy(o: M4, a: M4): M4 { for (let i = 0; i < 16; i++) o[i] = a[i]; return o; },
 
   /** o = a * b. o may alias a or b. */

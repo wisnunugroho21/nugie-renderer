@@ -4,8 +4,10 @@ import type { GPUStats } from './GPUStats';
 export class BindGroupCache {
   private cache = new Map<string, GPUBindGroup>();
 
+  /** Create an empty cache that reports hits / misses to `stats`. */
   constructor(private stats: GPUStats) {}
 
+  /** Return the bind group for `key`, calling `create` (once) on a miss. */
   get(key: string, create: () => GPUBindGroup): GPUBindGroup {
     const hit = this.cache.get(key);
     if (hit) { this.stats.bindGroupHits++; return hit; }
@@ -22,5 +24,6 @@ export class BindGroupCache {
     this.stats.bindGroups = this.cache.size;
   }
 
+  /** Drop every cached bind group. */
   clear(): void { this.cache.clear(); this.stats.bindGroups = 0; }
 }

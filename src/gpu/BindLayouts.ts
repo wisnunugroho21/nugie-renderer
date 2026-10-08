@@ -12,12 +12,19 @@ export interface BindLayouts {
   scene: GPUBindGroupLayout;
   material: GPUBindGroupLayout;
   object: GPUBindGroupLayout;
+  /**
+   * Same entries as `object` but visible to compute shaders. Kept OUT of `pipelineLayout` on purpose: a pipeline layout is
+   * validated per stage, and 4 scene + 8 object storage buffers would exceed the 10-per-stage limit of many GPUs.
+   * Only the GPU self-tests (WGSL `deformVertex` run as a compute kernel) use it.
+   */
+  objectCompute: GPUBindGroupLayout;
   /** frame, scene, material, object */
   pipelineLayout: GPUPipelineLayout;
 }
 
 export const MATERIAL_TEXTURE_SLOTS = 5;
 
+/** Create the four engine bind-group layouts and the pipeline layout combining them (see the table above). */
 export function createBindLayouts(device: GPUDevice): BindLayouts {
   const VF = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
   const frame = device.createBindGroupLayout({
@@ -28,6 +35,7 @@ export function createBindLayouts(device: GPUDevice): BindLayouts {
   // Scene storage buffers are FRAGMENT-only: keeps the vertex stage within its storage-buffer budget (see MIN_VERTEX_STORAGE_BUFFERS).
   const FC = GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;   // compute: volumetric fog reads lights / shadows through this group
   const sro = (binding: number): GPUBindGroupLayoutEntry => ({ binding, visibility: FC, buffer: { type: 'read-only-storage' } });
+  /** Fragment-visible 2D float texture binding. */
   const tex2d = (binding: number): GPUBindGroupLayoutEntry => ({ binding, visibility: F, texture: { sampleType: 'float', viewDimension: '2d' } });
   const scene = device.createBindGroupLayout({
     label: 'layout-scene',
@@ -44,6 +52,7 @@ export function createBindLayouts(device: GPUDevice): BindLayouts {
       { binding: 13, visibility: F, texture: { sampleType: 'float', viewDimension: '3d' } },   // volumetric fog
     ],
   });
+  /** Fragment-visible 2D float material texture binding. */
   const tex = (binding: number): GPUBindGroupLayoutEntry => ({
     binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d' },
   });
@@ -56,16 +65,14 @@ export function createBindLayouts(device: GPUDevice): BindLayouts {
       tex(3), tex(4), tex(5), tex(6), tex(7),
     ],
   });
-  // Object-group data is consumed by vertex (and compute) stages only; fragment shaders get per-instance values via varyings.
-  const VC = GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE;
-  const ro = (binding: number): GPUBindGroupLayoutEntry => ({ binding, visibility: VC, buffer: { type: 'read-only-storage' } });
-  const object = device.createBindGroupLayout({
-    label: 'layout-object',
-    entries: [ro(0), ro(1), ro(2), ro(3), ro(4), ro(5), ro(6), ro(7)],
-  });
+  // Object-group data is consumed by the vertex stage only; fragment shaders get per-instance values via varyings.
+  const objectEntries = (visibility: number): GPUBindGroupLayoutEntry[] =>
+    Array.from({ length: 8 }, (_, binding) => ({ binding, visibility, buffer: { type: 'read-only-storage' } }));
+  const object = device.createBindGroupLayout({ label: 'layout-object', entries: objectEntries(GPUShaderStage.VERTEX) });
+  const objectCompute = device.createBindGroupLayout({ label: 'layout-object-compute', entries: objectEntries(GPUShaderStage.COMPUTE) });
   const pipelineLayout = device.createPipelineLayout({
     label: 'engine-pipeline-layout',
     bindGroupLayouts: [frame, scene, material, object],
   });
-  return { frame, scene, material, object, pipelineLayout };
+  return { frame, scene, material, object, objectCompute, pipelineLayout };
 }

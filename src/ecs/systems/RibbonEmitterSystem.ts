@@ -5,8 +5,10 @@ import { BitSet } from '../../core/BitSet';
 export class RibbonEmitterSystem {
   active = 0;
 
+  /** Create the system for `world`. */
   constructor(private world: World) {}
 
+  /** Move each ribbon head to its entity's world position (translation column of the world matrix). */
   update(): void {
     const w = this.world, s = w.ribbonEmitters, m = w.transforms.worldMatrices;
     this.active = 0;

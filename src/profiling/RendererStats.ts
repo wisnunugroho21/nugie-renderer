@@ -28,6 +28,7 @@ export class RendererStats {
   // CPU timings (ms)
   cpu = { extraction: 0, culling: 0, sorting: 0, batching: 0, upload: 0, encoding: 0, total: 0 };
 
+  /** Zero the per-frame counters and the CPU timings the renderer itself measures. */
   reset(): void {
     this.renderables = this.visible = this.frustumTested = this.frustumRejected = 0;
     this.drawCalls = this.instances = this.triangles = 0;
@@ -38,6 +39,7 @@ export class RendererStats {
     const a = this.animation;
     a.jointUploadBytes = a.morphUploadBytes = a.activeMorphStates = a.activeMorphTargets = 0;
     const c = this.cpu;
-    c.extraction = c.culling = c.sorting = c.batching = c.upload = c.encoding = c.total = 0;
+    // `extraction` is measured by the caller BEFORE render(), so it must survive the reset.
+    c.culling = c.sorting = c.batching = c.upload = c.encoding = c.total = 0;
   }
 }

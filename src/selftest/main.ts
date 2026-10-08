@@ -44,6 +44,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 `;
 
+/** Create the GPU context for the self-test page. */
 async function setup() {
   const gpu = await GPUContext.create(document.getElementById('canvas') as HTMLCanvasElement);
   return { gpu, device: gpu.device };
@@ -76,6 +77,7 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
       for (let k = 0; k < 4; k++) weights0[i * 4 + k] = w[k] / sum;
     }
     const targets: RefMorph[] = Array.from({ length: T }, (_, k) => {
+      /** Random float array with values in [-scale, scale). */
       const mk = (scale: number) => Float32Array.from({ length: N * 3 }, () => rng.range(-scale, scale));
       return { position: mk(0.4), normal: k === 1 ? undefined : mk(0.2), tangent: k === 2 ? mk(0.2) : undefined };
     });
@@ -120,12 +122,12 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
     const empty = device.createBindGroupLayout({ entries: [] });
     const module = res.shaders.get('deform-parity', DEFORM_TEST_WGSL, { HAS_SKINNING: variant.skin, HAS_MORPH_TARGETS: variant.morph });
     const pipeline = device.createComputePipeline({
-      layout: device.createPipelineLayout({ bindGroupLayouts: [ioLayout, empty, empty, layouts.object] }),
+      layout: device.createPipelineLayout({ bindGroupLayouts: [ioLayout, empty, empty, layouts.objectCompute] }),
       compute: { module, entryPoint: 'main' },
     });
     const bgIO = device.createBindGroup({ layout: ioLayout, entries: [
       { binding: 0, resource: { buffer: vinBuf } }, { binding: 1, resource: { buffer: voutBuf } }, { binding: 2, resource: { buffer: params } }] });
-    const bgObj = device.createBindGroup({ layout: layouts.object, entries: [
+    const bgObj = device.createBindGroup({ layout: layouts.objectCompute, entries: [
       { binding: 0, resource: { buffer: dummy } }, { binding: 1, resource: { buffer: instBuf } }, { binding: 2, resource: { buffer: joints.buffer } },
       { binding: 3, resource: { buffer: morphW.buffer } }, { binding: 4, resource: { buffer: meshes.skin.buffer } },
       { binding: 5, resource: { buffer: meshes.morphPosition.buffer } }, { binding: 6, resource: { buffer: meshes.morphNormal.buffer } },
@@ -157,6 +159,7 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
   };
 }
 
+/** Check that `vertex_index` includes `baseVertex` (the engine's skinning / morph shaders rely on it). */
 async function vertexIndexTest(gpu: GPUContext): Promise<string> {
   const { device } = gpu;
   const module = device.createShaderModule({ code: `
@@ -183,6 +186,7 @@ async function vertexIndexTest(gpu: GPUContext): Promise<string> {
   return 'vertex_index includes baseVertex (engine assumption holds on this device)';
 }
 
+/** Check that GPU mip generation averages in linear light for sRGB textures and plainly for data textures. */
 async function mipmapTest(gpu: GPUContext, srgb: boolean): Promise<string> {
   const { device, resources: res } = gpu;
   const format: GPUTextureFormat = srgb ? 'rgba8unorm-srgb' : 'rgba8unorm';

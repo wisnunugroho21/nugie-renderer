@@ -29,8 +29,8 @@ export class TransformStore extends ComponentStore {
   /** Indices queued for the next TransformSystem.update(). */
   dirtyList: number[] = [];
 
+  /** Grow all TRS, matrix, hierarchy and dirty arrays (new parents / children = -1). */
   protected grow(n: number): void {
-    const oldCap = this.capacity;
     this.positionX = growF32(this.positionX, n); this.positionY = growF32(this.positionY, n); this.positionZ = growF32(this.positionZ, n);
     this.rotationX = growF32(this.rotationX, n); this.rotationY = growF32(this.rotationY, n);
     this.rotationZ = growF32(this.rotationZ, n); this.rotationW = growF32(this.rotationW, n);
@@ -41,9 +41,9 @@ export class TransformStore extends ComponentStore {
     this.nextSibling = growI32(this.nextSibling, n, -1);
     this.depth = growI32(this.depth, n);
     this.dirty = growU8(this.dirty, n);
-    void oldCap;
   }
 
+  /** Unlink the entity from its parent and turn its children into roots (marked dirty). */
   protected reset(i: number): void {
     this.detach(i);
     // Orphan children (they become roots).
@@ -69,19 +69,23 @@ export class TransformStore extends ComponentStore {
     this.markDirty(i);
   }
 
+  /** Queue the transform for recomputation by the next TransformSystem.update() (deduplicated). */
   markDirty(i: number): void {
     if (this.dirty[i] === 0) { this.dirty[i] = 1; this.dirtyList.push(i); }
   }
 
+  /** Set the local position and mark the transform dirty. */
   setPosition(i: number, x: number, y: number, z: number): void {
     this.positionX[i] = x; this.positionY[i] = y; this.positionZ[i] = z; this.markDirty(i);
   }
+  /** Set the local rotation from quaternion (x, y, z, w); the input is normalised and a zero quaternion becomes identity. */
   setRotation(i: number, x: number, y: number, z: number, w: number): void {
     // Non-unit quaternions would scale / shear the world matrix: always store a unit quaternion (identity for a zero input).
     const l = Math.hypot(x, y, z, w);
     if (l > 0) { const k = 1 / l; x *= k; y *= k; z *= k; w *= k; } else { x = y = z = 0; w = 1; }
     this.rotationX[i] = x; this.rotationY[i] = y; this.rotationZ[i] = z; this.rotationW[i] = w; this.markDirty(i);
   }
+  /** Set the local scale and mark the transform dirty. */
   setScale(i: number, x: number, y: number, z: number): void {
     this.scaleX[i] = x; this.scaleY[i] = y; this.scaleZ[i] = z; this.markDirty(i);
   }
@@ -100,6 +104,7 @@ export class TransformStore extends ComponentStore {
     this.markDirty(child);
   }
 
+  /** Remove `i` from its parent's child list (no-op for roots). */
   private detach(i: number): void {
     const p = this.parent[i];
     if (p === -1) return;

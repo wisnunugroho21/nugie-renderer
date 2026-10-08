@@ -9,6 +9,7 @@ export type SortMode = 'none' | 'sorted';
 /** Sorted object slots for one queue. `slots` is only valid for [0, count). */
 export interface QueueList { slots: Uint32Array; count: number; }
 
+/** The three per-frame draw lists (opaque, alpha-mask, transparent). */
 export class RenderQueues {
   opaque: QueueList = { slots: new Uint32Array(0), count: 0 };
   alphaMask: QueueList = { slots: new Uint32Array(0), count: 0 };
@@ -34,6 +35,7 @@ export class RenderQueueBuilder {
   private lists: [Uint32Array, Uint32Array, Uint32Array] = [new Uint32Array(0), new Uint32Array(0), new Uint32Array(0)];
   private counts = [0, 0, 0];
 
+  /** Split the visible objects into the three queues and sort each: opaque / alpha-mask by pipeline, material, mesh and distance; transparent back to front. */
   build(
     rw: RenderWorld, visible: Uint32Array | null, visibleCount: number, materials: ArrayLike<Material>,
     meshes: ArrayLike<MeshRecord>, camera: { position: ArrayLike<number>; far: number }, sort: SortMode, out: RenderQueues,
@@ -88,12 +90,14 @@ export class RenderQueueBuilder {
     }
   }
 
+  /** Grow the key and list scratch arrays to hold `n` objects. */
   private ensure(n: number): void {
     if (this.hi.length < n * 3) { this.hi = new Uint32Array(n * 3 * 2); this.lo = new Uint32Array(n * 3 * 2); }
     for (let q = 0; q < 3; q++) if (this.lists[q].length < n) this.lists[q] = new Uint32Array(Math.max(n, this.lists[q].length * 2, 64));
   }
 }
 
+/** Count how often pipeline, material and mesh change between consecutive objects of a sorted list (a sorting-quality metric). */
 export function countSwitches(list: QueueList, rw: RenderWorld, materials: ArrayLike<Material>, meshes: ArrayLike<MeshRecord>): SwitchCounts {
   const c: SwitchCounts = { pipeline: 0, material: 0, mesh: 0 };
   let pp = -1, pm = -1, pmesh = -1;

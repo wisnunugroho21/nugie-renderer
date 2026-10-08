@@ -2,7 +2,9 @@
 export type Sphere = Float32Array | number[];
 
 export const BoundingSphere = {
+  /** A zeroed sphere [cx, cy, cz, radius]. */
   create(): Float32Array { return new Float32Array(4); },
+  /** The sphere circumscribing box `a` (centre of the box, half its diagonal). */
   fromAABB(o: Sphere, a: ArrayLike<number>): Sphere {
     o[0] = (a[0] + a[3]) / 2; o[1] = (a[1] + a[4]) / 2; o[2] = (a[2] + a[5]) / 2;
     o[3] = Math.hypot(a[3] - a[0], a[4] - a[1], a[5] - a[2]) / 2; return o;

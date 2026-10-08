@@ -2,9 +2,11 @@
 
 export interface HDRImage { width: number; height: number; /** RGB float32, top row first. */ data: Float32Array; }
 
+/** Decode a Radiance .hdr file (RGBE, flat or new-style RLE) into float RGB pixels; throws on a malformed header, truncated data or an unsupported orientation. */
 export function parseRGBE(buffer: ArrayBuffer): HDRImage {
   const b = new Uint8Array(buffer);
   let p = 0;
+  /** Read bytes up to the next newline as a string (used for the header lines). */
   const readLine = (): string => {
     let s = '';
     while (p < b.length && b[p] !== 10) s += String.fromCharCode(b[p++]);
@@ -58,6 +60,7 @@ export function parseRGBE(buffer: ArrayBuffer): HDRImage {
 /** Encode to RGBE (flat scanlines, or new-style RLE when `rle`). Used by tests and tools. */
 export function encodeRGBE(img: HDRImage, rle = false): ArrayBuffer {
   const head = new TextEncoder().encode(`#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y ${img.height} +X ${img.width}\n`);
+  /** Encode pixel `i` as shared-exponent RGBE bytes. */
   const px = (i: number): [number, number, number, number] => {
     const r = img.data[i * 3], g = img.data[i * 3 + 1], bl = img.data[i * 3 + 2], m = Math.max(r, g, bl);
     if (m < 1e-32) return [0, 0, 0, 0];
@@ -106,6 +109,7 @@ export function rgbToRGBA16F(rgb: Float32Array): Uint16Array {
   return out;
 }
 
+/** Convert an IEEE 754 half-precision bit pattern (as stored in rgba16float textures) to a JS number. */
 export function halfToFloat(h: number): number {
   const s = h & 0x8000 ? -1 : 1, e = (h >> 10) & 31, m = h & 1023;
   if (e === 0) return s * m * Math.pow(2, -24);

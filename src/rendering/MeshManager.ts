@@ -71,6 +71,7 @@ export class MeshManager {
 
   private meshes: MeshRecord[] = [];
 
+  /** Create the shared vertex / index arenas and the skin and morph-delta arenas. */
   constructor(device: GPUDevice, buffers: BufferManager, initialVertices = 1 << 16, initialIndices = 1 << 18) {
     const storage = GPUBufferUsage.STORAGE;
     this.vertices = new Arena(device, buffers, 'mesh-vertices', GPUBufferUsage.VERTEX | storage, STANDARD_VERTEX_STRIDE, initialVertices);
@@ -81,18 +82,23 @@ export class MeshManager {
     this.morphTangent = new Arena(device, buffers, 'MorphTangentDeltaBuffer', storage, 16, 1024);
   }
 
+  /** The shared vertex buffer (all meshes live in it). */
   get vertexBuffer(): GPUBuffer { return this.vertices.buffer; }
+  /** The shared index buffer. */
   get indexBuffer(): GPUBuffer { return this.indices.buffer; }
   /** Sum of all arena generations: changes whenever ANY shared buffer is reallocated. */
   get generation(): number {
     return this.vertices.generation + this.indices.generation + this.skin.generation + this.morphPosition.generation
       + this.morphNormal.generation + this.morphTangent.generation;
   }
+  /** Number of meshes created. */
   get count(): number { return this.meshes.length; }
   /** Dense record array indexed by mesh id (hot-path friendly). */
   get records(): MeshRecord[] { return this.meshes; }
+  /** The record (ranges, bounds, deformation info) of mesh `id`. */
   get(id: number): MeshRecord { return this.meshes[id]; }
 
+  /** Upload a mesh into the shared buffers and return its id. `deform` adds skin weights and / or morph target deltas. Throws if sizes do not match. */
   create(name: string, data: MeshData, deform?: MeshDeformData): number {
     const vcount = data.vertices.length / STANDARD_VERTEX_FLOATS;
     if (!Number.isInteger(vcount)) throw new Error(`Mesh '${name}': vertex data is not a multiple of the standard vertex size`);
@@ -143,6 +149,7 @@ export class MeshManager {
   }
 }
 
+/** Local AABB [minXYZ, maxXYZ] of interleaved standard-layout vertices. */
 export function computeBounds(vertices: Float32Array): Float32Array {
   const b = new Float32Array([Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]);
   for (let i = 0; i < vertices.length; i += STANDARD_VERTEX_FLOATS) {

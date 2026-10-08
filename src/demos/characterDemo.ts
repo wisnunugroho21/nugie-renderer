@@ -6,7 +6,9 @@ import { AnimatedInstance } from '../animation/Animator';
 import { Animator } from '../animation/AnimatorHandle';
 import { createPlane } from '../rendering/primitives';
 import { entityIndex } from '../ecs/Entity';
+import { RenderFlags } from '../ecs/components/MeshRendererStore';
 
+/** Skinned, animated "tentacle" characters (generated GLB, `?crowd=<n>`) instantiated in a grid and played with the animator API. */
 export const characterDemo: Demo = (ctx) => {
   const { world, renderer, params } = ctx;
   const crowd = Number(params.get('crowd') ?? 9);
@@ -14,7 +16,7 @@ export const characterDemo: Demo = (ctx) => {
   const ground = renderer.materials.createPBR({ name: 'ground', baseColor: [0.3, 0.32, 0.36, 1], roughness: 0.95, metallic: 0 });
   const g = entityIndex(world.create());
   world.transforms.add(g, 0, 0, 0); world.transforms.setScale(g, 60, 1, 60);
-  world.meshRenderers.add(g, plane, ground, 4 /* Static */);
+  world.meshRenderers.add(g, plane, ground, RenderFlags.Static);
   world.bounds.add(g, -0.5, 0, -0.5, 0.5, 0, 0.5);
 
   const status = { loaded: false, instances: 0, error: '', animators: [] as number[] };

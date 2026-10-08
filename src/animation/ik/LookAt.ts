@@ -19,10 +19,13 @@ export class LookAt implements PoseConstraint {
   maxAngle = Math.PI;
   private x = new Xform();
 
+  /** Rotate `joint` so its local `axis` (default +Z) points at the target. */
   constructor(private layout: PoseLayout, readonly joint: number, readonly axis: [number, number, number] = [0, 0, 1]) {}
 
+  /** Add the joint this constraint rotates to `out`. */
   collectNodes(out: Set<number>): void { out.add(this.joint); }
 
+  /** Aim the joint at `target` (model space), limited to `maxAngle`, and blend the new rotation into `pose` by `weight`. */
   apply(pose: Pose): void {
     if (this.weight <= 0) return;
     const { layout, joint, x } = this;

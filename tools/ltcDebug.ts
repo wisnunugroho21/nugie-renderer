@@ -1,9 +1,11 @@
 import { LTC_SIZE, LTC_TABLE } from '../src/rendering/lighting/ltcTable';
+/** Normalise a 3-vector. */
 const unit = (a: number[]) => { const l = Math.hypot(a[0], a[1], a[2]); return [a[0] / l, a[1] / l, a[2] / l]; };
 const rough = Number(process.argv[2] ?? 0.3);
 const N = [0, 1, 0], V = unit([0.5, 0.7, 0.5]), NoV = V[1];
 const fx = rough * (LTC_SIZE - 1), fy = Math.sqrt(1 - NoV) * (LTC_SIZE - 1);
 const x0 = Math.min(Math.floor(fx), LTC_SIZE - 2), y0 = Math.min(Math.floor(fy), LTC_SIZE - 2), tx = fx - x0, ty = fy - y0;
+/** Table lookup: component `k` of the LTC entry at grid cell (x, y). */
 const g = (x: number, y: number, k: number) => LTC_TABLE[(y * LTC_SIZE + x) * 3 + k];
 const t = [0, 1, 2].map((k) => (g(x0, y0, k) * (1 - tx) + g(x0 + 1, y0, k) * tx) * (1 - ty) + (g(x0, y0 + 1, k) * (1 - tx) + g(x0 + 1, y0 + 1, k) * tx) * ty);
 console.log('ltc params', t, 'neighbour', [0, 1, 2].map((k) => g(x0, y0, k)), [0, 1, 2].map((k) => g(x0 + 1, y0, k)));

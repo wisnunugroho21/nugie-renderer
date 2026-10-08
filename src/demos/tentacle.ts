@@ -64,6 +64,7 @@ export function buildTentacleGLB(opts: TentacleOptions = {}): Uint8Array {
 
   // ---- animations
   const tIn = b.accessor(new Float32Array([0, 0.5, 1, 1.5, 2]), 'SCALAR');
+  /** Pack per-key Z rotations (radians) into quaternion values. */
   const rotZ = (angles: number[]) => { const o = new Float32Array(angles.length * 4); angles.forEach((a, i) => o.set(Quat.fromAxisAngle(Quat.create(), 0, 0, 1, a), i * 4)); return o; };
   const animations: unknown[] = [];
   const waveSamplers: unknown[] = [], waveChannels: unknown[] = [];
