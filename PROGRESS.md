@@ -244,7 +244,7 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 - Storage-buffer budget: the vertex stage binds 6 storage buffers (transforms, instances, joints, morph weights, one deform arena for skin + morph deltas, one material buffer holding records + custom parameters); the busiest compute pass (GPU culling) binds 8. The engine runs within WebGPU's default limit of 8 per stage (verified by requesting exactly 8).
 - No 2D blend trees yet (plan: "later"); 1D trees nest, so 2D locomotion can be composed from them.
 - Motion matching inertializes translation/rotation only (not scale/morph); root velocity is not smoothed at a switch.
-- No animation graph demo scene yet (all behaviour covered by unit tests + ECS integration tests).
+- Animation graph demo: `/?scene=animgraph` (state machine with trigger / exit-time / crossfades, 1D blend tree, masked layers, speed parameter); IK and motion matching still have no demo (covered by unit tests).
 - Particles: no GPU sorting (alpha particles can mis-order; use additive or accept), no soft particles (needs scene depth), no collisions.
 - Ribbons: trail ring holds `pointsPerRibbon` points (older points are overwritten); texture u uses accumulated length.
 - Dev note: stepping `window.__r.app.onFrame(dt)` in a loop advances time deterministically even when rAF is paused.

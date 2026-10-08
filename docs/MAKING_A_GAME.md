@@ -28,7 +28,7 @@ npm run build        # type-check + production build
 | URL | What it is |
 |---|---|
 | `/game.html` | the starter game: copy `src/game/` to start your own |
-| `/?scene=materials` (also `gltf`, `character`, `particles`, `lod`, `lights`, `occlusion`, `streaming`) | demos |
+| `/?scene=materials` (also `gltf`, `character`, `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph`) | demos (`animgraph` shows how to build state machines, blend trees and layers: `src/demos/animationGraphDemo.ts`) |
 | `/selftest.html` | GPU self-tests (compute / lighting / shadows / fog vs CPU references) |
 | `/bench.html?suite=lights\|cull\|passes\|anim` | benchmarks |
 
