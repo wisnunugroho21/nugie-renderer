@@ -17,7 +17,7 @@ export interface PassBenchRow { config: string; passes: [string, number][]; tota
  * lights, IBL, volumetric fog, and a 3000-sphere field. Each row switches one feature off to show what it costs.
  */
 export async function runPassBench(canvas: HTMLCanvasElement, params = new URLSearchParams()): Promise<PassBenchRow[]> {
-  // `lights=<n>`: point light count (default 512), `segs=<n>`: sphere tessellation (default 32 = ~1000 triangles each; small values make the scene fragment-bound), `scale=<x>`: canvas size multiplier
+  // `lod=0`: no LOD, `lights=<n>`: point light count (default 512), `segs=<n>`: sphere tessellation (default 32 = ~1000 triangles each; small values make the scene fragment-bound), `scale=<x>`: canvas size multiplier
   const frames = Number(params.get('frames') ?? 40), only = params.get('rows') === '1';   // `frames=<n>`: frames averaged per row, `rows=1`: first row only
   const segs = Number(params.get('segs') ?? 32), lightCount = Number(params.get('lights') ?? 512), scale = Number(params.get('scale') ?? 1);
   if (scale !== 1) { canvas.width = Math.round(canvas.width * scale); canvas.height = Math.round(canvas.height * scale); }
@@ -26,8 +26,19 @@ export async function runPassBench(canvas: HTMLCanvasElement, params = new URLSe
   if (params.has('tile')) renderer.clusters.config.tileSize = Number(params.get('tile'));       // `tile=<px>`, `slices=<n>`: light cluster grid
   if (params.has('slices')) renderer.clusters.config.slices = Number(params.get('slices'));
   if (!renderer.profiler.supported) return [];
-  const sphere = renderer.meshes.create('sphere', createUVSphere(segs, Math.max(3, segs >> 1))), plane = renderer.meshes.create('plane', createPlane());
+  const sphereMesh = (n: number) => createUVSphere(n, Math.max(3, n >> 1));
+  const sphere = renderer.meshes.create('sphere', sphereMesh(segs)), plane = renderer.meshes.create('plane', createPlane());
   const mat = renderer.materials.createPBR({ baseColor: [0.8, 0.75, 0.7, 1], roughness: 0.5, metallic: 0 });
+  // `lod=0` draws every sphere at full detail; by default they use three levels (full / 3/8 / 1/4 of the segments) chosen by screen size
+  const useLOD = params.get('lod') !== '0';
+  const lodGroup = useLOD ? renderer.lodLibrary.create({
+    name: 'sphere', cullBelowLast: false,
+    levels: [
+      { meshId: sphere, minScreenSize: 0.12 },
+      { meshId: renderer.meshes.create('sphere-mid', sphereMesh(Math.max(6, Math.round(segs * 0.375)))), minScreenSize: 0.04 },
+      { meshId: renderer.meshes.create('sphere-lo', sphereMesh(Math.max(4, segs >> 2))), minScreenSize: 0 },
+    ],
+  }) : -1;
   const world = new World();
   const ts = new TransformSystem(world.transforms), bs = new BoundsSystem(world.transforms, world.bounds), ex = new RenderExtractor(world, ts), rw = new RenderWorld();
   let seed = 3;
@@ -41,6 +52,7 @@ export async function runPassBench(canvas: HTMLCanvasElement, params = new URLSe
     const e = entityIndex(world.create());
     world.transforms.add(e, (rnd() - 0.5) * 70, 0.6, (rnd() - 0.5) * 70);
     world.meshRenderers.add(e, sphere, mat, flags); world.bounds.add(e, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5);
+    if (useLOD) world.lods.add(e, lodGroup);
   }
   const sun = entityIndex(world.create());
   world.transforms.add(sun); world.transforms.setRotation(sun, -0.5, 0.2, 0.1, 0.84);
@@ -57,6 +69,8 @@ export async function runPassBench(canvas: HTMLCanvasElement, params = new URLSe
   renderer.setEnvironment(renderer.ibl.fromSky(), 0.6);
   renderer.enableFog({ density: 0.01 });
 
+  /** One frame: CPU LOD selection, then render. */
+  const draw = () => renderer.render(rw, undefined, 0, renderer.applyLOD(rw, null));
   const rows: PassBenchRow[] = [];
   const configs: [string, () => void][] = [
     ['everything on', () => { renderer.shadows.enabled = true; renderer.fog!.enabled = true; renderer.clusteredShading = true; renderer.depthPrepass = false; }],
@@ -67,12 +81,12 @@ export async function runPassBench(canvas: HTMLCanvasElement, params = new URLSe
   ];
   for (const [config, apply] of only ? configs.slice(0, 1) : configs) {
     apply();
-    for (let i = 0; i < 10; i++) renderer.render(rw);
+    for (let i = 0; i < 10; i++) draw();
     await gpu.queue.onSubmittedWorkDone();
     renderer.profiler.smoothed.clear();
-    for (let f = 0; f < frames; f++) { renderer.render(rw); await gpu.queue.onSubmittedWorkDone(); await new Promise((r) => setTimeout(r, 4)); }
+    for (let f = 0; f < frames; f++) { draw(); await gpu.queue.onSubmittedWorkDone(); await new Promise((r) => setTimeout(r, 4)); }
     const passes = [...renderer.profiler.smoothed].sort((a, b) => b[1] - a[1]);
-    rows.push({ config, passes, totalMs: passes.reduce((s, p) => s + p[1], 0) });
+    rows.push({ config: `${config} [${Math.round(renderer.stats.triangles / 1000)}k triangles${useLOD ? `, LOD levels ${Array.from(renderer.stats.lodCounts.subarray(0, 3)).join('/')}` : ''}]`, passes, totalMs: passes.reduce((s, p) => s + p[1], 0) });
   }
   return rows;
 }

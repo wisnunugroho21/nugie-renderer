@@ -540,7 +540,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 4. Prefer many cheap lights over few expensive ones; clustered shading handles the count. Only shadow what matters (sun + a few spots).
 5. Use LOD for anything with more than a few thousand triangles that appears many times.
 6. Profile: the debug HUD (`formatHud`) shows GPU time per pass (`renderer.profiler.smoothed`), draw calls, uploads and cull stats;
-   `/bench.html?suite=passes` gives a per-pass breakdown (options: `segs=<n>` sphere tessellation - small values make the scene fragment-bound, `lights=<n>`, `tile=<px>` / `slices=<n>` light-cluster grid, `frames=<n>`, `rows=1`).
+   `/bench.html?suite=passes` gives a per-pass breakdown (the spheres use a 3-level LOD group, `lod=0` turns it off; other options: `segs=<n>` sphere tessellation - small values make the scene fragment-bound, `lights=<n>`, `tile=<px>` / `slices=<n>` light-cluster grid, `frames=<n>`, `rows=1`).
 7. Never `await` GPU readbacks in the frame loop.
 
 ---
