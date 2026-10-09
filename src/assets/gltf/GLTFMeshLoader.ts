@@ -3,18 +3,18 @@ import { readAccessorFloat, readAccessorUint } from './Accessors';
 import { readSkinAttributes } from './GLTFSkinLoader';
 import { loadMorphTargets, remapMorphTargets } from './GLTFMorphLoader';
 import type { MeshAsset, PrimitiveAsset } from '../AssetTypes';
-import type { GLTFPrimitive } from './GLTFTypes';
+import { PrimitiveMode, type GLTFPrimitive } from './GLTFTypes';
 import { STANDARD_VERTEX_FLOATS } from '../../rendering/VertexLayouts';
 
 /** Convert triangle strip/fan index sequences to a plain triangle list. */
 export function toTriangleList(indices: Uint32Array, mode: number): Uint32Array {
-  if (mode === 4) {
+  if (mode === PrimitiveMode.Triangles) {
     return indices.length % 3 === 0 ? indices : indices.subarray(0, indices.length - (indices.length % 3));
   }
   const tris = Math.max(0, indices.length - 2);
   const out = new Uint32Array(tris * 3);
   for (let i = 0; i < tris; i++) {
-    if (mode === 5) { // strip: alternate winding to keep CCW
+    if (mode === PrimitiveMode.TriangleStrip) { // strip: alternate winding to keep CCW
       const even = (i & 1) === 0;
       out[i * 3] = even ? indices[i] : indices[i + 1]; out[i * 3 + 1] = even ? indices[i + 1] : indices[i]; out[i * 3 + 2] = indices[i + 2];
     } else { // fan
@@ -46,8 +46,8 @@ export function computeFlatNormals(positions: Float32Array): Float32Array {
 
 /** Load one primitive into engine geometry. Returns null (with a warning) for unsupported modes. */
 export function loadPrimitive(doc: GLTFDocument, prim: GLTFPrimitive, warn: (m: string) => void, label: string): PrimitiveAsset | null {
-  const mode = prim.mode ?? 4;
-  if (mode < 4) { warn(`${label}: primitive mode ${mode} (points/lines) is not supported; skipped`); return null; }
+  const mode = prim.mode ?? PrimitiveMode.Triangles;
+  if (mode < PrimitiveMode.Triangles) { warn(`${label}: primitive mode ${mode} (points/lines) is not supported; skipped`); return null; }
   if (prim.attributes.POSITION === undefined) { warn(`${label}: primitive without POSITION skipped`); return null; }
 
   const pos = readAccessorFloat(doc, prim.attributes.POSITION);

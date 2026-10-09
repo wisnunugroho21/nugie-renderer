@@ -1,8 +1,10 @@
 import { GLTFError, type GLTFDocument } from './GLTFParser';
-import type { GLTFAccessor } from './GLTFTypes';
+import { ComponentType, type GLTFAccessor } from './GLTFTypes';
 
 const COMPONENTS: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };
-const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+const COMPONENT_BYTES: Record<number, number> = {
+  [ComponentType.Int8]: 1, [ComponentType.Uint8]: 1, [ComponentType.Int16]: 2, [ComponentType.Uint16]: 2, [ComponentType.Uint32]: 4, [ComponentType.Float32]: 4,
+};
 
 /** Number of components of an accessor type string (SCALAR = 1, VEC3 = 3, MAT4 = 16 ...). */
 export function componentCount(type: string): number {
@@ -14,12 +16,12 @@ export function componentCount(type: string): number {
 /** Read one little-endian component of glTF `componentType`, applying the normalised-integer mapping when `normalized`. */
 function readComponent(dv: DataView, offset: number, componentType: number, normalized: boolean): number {
   switch (componentType) {
-    case 5126: return dv.getFloat32(offset, true);
-    case 5125: return dv.getUint32(offset, true);
-    case 5123: { const v = dv.getUint16(offset, true); return normalized ? v / 65535 : v; }
-    case 5122: { const v = dv.getInt16(offset, true); return normalized ? Math.max(v / 32767, -1) : v; }
-    case 5121: { const v = dv.getUint8(offset); return normalized ? v / 255 : v; }
-    case 5120: { const v = dv.getInt8(offset); return normalized ? Math.max(v / 127, -1) : v; }
+    case ComponentType.Float32: return dv.getFloat32(offset, true);
+    case ComponentType.Uint32: return dv.getUint32(offset, true);
+    case ComponentType.Uint16: { const v = dv.getUint16(offset, true); return normalized ? v / 65535 : v; }
+    case ComponentType.Int16: { const v = dv.getInt16(offset, true); return normalized ? Math.max(v / 32767, -1) : v; }
+    case ComponentType.Uint8: { const v = dv.getUint8(offset); return normalized ? v / 255 : v; }
+    case ComponentType.Int8: { const v = dv.getInt8(offset); return normalized ? Math.max(v / 127, -1) : v; }
     default: throw new GLTFError(`Unsupported componentType ${componentType}`);
   }
 }

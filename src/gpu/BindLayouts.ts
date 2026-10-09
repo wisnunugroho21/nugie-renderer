@@ -23,8 +23,6 @@ export interface BindLayouts {
   pipelineLayout: GPUPipelineLayout;
 }
 
-export const MATERIAL_TEXTURE_SLOTS = 9;   // base colour, metal-rough, normal, occlusion, emissive, height, alpha, aux (2D) + environment (cube)
-
 /** Create the four engine bind-group layouts and the pipeline layout combining them (see the table above). */
 export function createBindLayouts(device: GPUDevice): BindLayouts {
   const VF = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;

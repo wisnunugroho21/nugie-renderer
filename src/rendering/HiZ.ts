@@ -13,6 +13,9 @@ export class HiZ {
   private initPipe: GPUComputePipeline;
   private downPipe: GPUComputePipeline;
   private mipViews: GPUTextureView[] = [];
+  /** Bind groups of the build passes, created once per pyramid / depth view instead of every frame. */
+  private downGroups: GPUBindGroup[] = [];
+  private initGroups = new WeakMap<GPUTextureView, GPUBindGroup>();
 
   /** Create the two compute pipelines (copy depth to mip 0, then max-downsample). */
   constructor(private gpu: GPUContext) {
@@ -33,6 +36,8 @@ export class HiZ {
     });
     this.fullView = this.texture.createView();
     this.mipViews = Array.from({ length: this.mips }, (_, m) => this.texture!.createView({ baseMipLevel: m, mipLevelCount: 1 }));
+    this.downGroups = [];
+    this.initGroups = new WeakMap();
   }
 
   /** Append the pyramid build for `depth` (a depth texture view with TEXTURE_BINDING usage, sized like the pyramid). */
@@ -40,12 +45,17 @@ export class HiZ {
     const { device } = this.gpu;
     const pass = enc.beginComputePass({ label: 'hiz', timestampWrites });
     pass.setPipeline(this.initPipe);
-    pass.setBindGroup(0, device.createBindGroup({ layout: this.initPipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: depth }, { binding: 1, resource: this.mipViews[0] }] }));
+    let initGroup = this.initGroups.get(depth);
+    if (!initGroup) {
+      initGroup = device.createBindGroup({ layout: this.initPipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: depth }, { binding: 1, resource: this.mipViews[0] }] });
+      this.initGroups.set(depth, initGroup);
+    }
+    pass.setBindGroup(0, initGroup);
     pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8));
     pass.setPipeline(this.downPipe);
     for (let m = 1; m < this.mips; m++) {
       const w = Math.max(1, this.width >> m), h = Math.max(1, this.height >> m);
-      pass.setBindGroup(0, device.createBindGroup({ layout: this.downPipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: this.mipViews[m - 1] }, { binding: 1, resource: this.mipViews[m] }] }));
+      pass.setBindGroup(0, this.downGroups[m] ??= device.createBindGroup({ layout: this.downPipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: this.mipViews[m - 1] }, { binding: 1, resource: this.mipViews[m] }] }));
       pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8));
     }
     pass.end();

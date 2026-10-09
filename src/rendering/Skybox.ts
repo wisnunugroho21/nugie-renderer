@@ -1,0 +1,41 @@
+import type { GPUContext } from '../gpu/GPUContext';
+import type { BindLayouts } from '../gpu/BindLayouts';
+import type { PassTarget } from './materials/MaterialManager';
+import skyboxSource from '../shaders/skybox.wgsl?raw';
+
+/** Draws the bound environment cube map as a full-screen background behind the geometry (one triangle, depth-tested, no depth writes). */
+export class Skybox {
+  /** One pipeline per (colour format, sample count) of the target it draws into. */
+  private pipelines = new Map<string, GPURenderPipeline>();
+
+  constructor(private gpu: GPUContext, private layouts: BindLayouts, private defaultDepthFormat: GPUTextureFormat) {}
+
+  /** Forget the cached pipelines (the framebuffer configuration changed). */
+  retarget(): void { this.pipelines.clear(); }
+
+  /** Record the sky draw into `pass`, which renders into `target`. */
+  draw(pass: GPURenderPassEncoder, target: PassTarget, frame: GPUBindGroup, scene: GPUBindGroup): void {
+    pass.setPipeline(this.pipelineFor(target));
+    pass.setBindGroup(0, frame); pass.setBindGroup(1, scene);
+    pass.draw(3);
+  }
+
+  /** The (lazily created) pipeline for `target`. */
+  private pipelineFor(target: PassTarget): GPURenderPipeline {
+    const key = `${target.colorFormat}|${target.sampleCount}`;
+    let pipe = this.pipelines.get(key);
+    if (pipe) return pipe;
+    const { device } = this.gpu;
+    const module = this.gpu.resources.shaders.get('skybox', skyboxSource, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false });
+    pipe = device.createRenderPipeline({
+      label: 'skybox', layout: device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene] }),
+      vertex: { module, entryPoint: 'vs_main' },
+      fragment: { module, entryPoint: 'fs_main', targets: [{ format: target.colorFormat ?? this.gpu.format }] },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: { format: target.depthFormat ?? this.defaultDepthFormat, depthWriteEnabled: false, depthCompare: 'less-equal' },
+      multisample: { count: target.sampleCount },
+    });
+    this.pipelines.set(key, pipe);
+    return pipe;
+  }
+}

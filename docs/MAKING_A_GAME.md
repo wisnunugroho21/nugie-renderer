@@ -46,7 +46,9 @@ Demo URL switches (handy while developing): `env=sky`, `hdr=<url>`, `envI=<inten
 src/index.ts     Public API barrel: import from here
 src/app/         Engine (what a game uses), Application (device + frame loop + resize), OrbitController, Hud, urlSettings
 src/ecs/         World, entities, component stores (components/), per-frame systems (systems/)
-src/rendering/   Renderer, RenderExtractor, RenderWorld, materials/, lighting/, shadows/, GPU culling, primitives
+src/rendering/   Renderer (frame orchestration: queues -> batches -> pass graph), RenderExtractor, RenderWorld, materials/, lighting/, shadows/,
+                 post/ (post-processing, transmission copy), overlay/ (lines, points, sprites, text), GPU culling, primitives.
+                 Small collaborators of Renderer: FrameUniform (per-view uniform), Skybox, GPULodIndex, lighting/LegacySceneLights, streaming/StreamingDriver
 src/assets/      glTF/GLB loading + instantiation, texture loading, RGBE (.hdr)
 src/animation/   clips, animator, graph/ (state machines, blend trees), ik/, motionmatching/, root motion
 src/particles/   GPU particle pools and ribbons

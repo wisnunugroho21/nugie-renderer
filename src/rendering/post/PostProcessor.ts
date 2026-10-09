@@ -327,6 +327,9 @@ export class PostProcessor {
     });
   }
 
+  /** Bind group of the depth-linearisation pass, valid for one depth view / sample count / parameter slot. */
+  private depthGroup: { view: GPUTextureView; ms: boolean; slot: number; bg: GPUBindGroup } | null = null;
+
   private bindGroup(key: string, slot: number, a: GPUTextureView, b?: GPUTextureView, c?: GPUTextureView, d?: GPUTextureView): GPUBindGroup {
     let g = this.groups.get(key);
     if (!g) {
@@ -384,13 +387,21 @@ export class PostProcessor {
     if (vd && aux) {
       const ms = frame.depthSamples > 1;
       const sl = this.slot([proj[10], proj[14], 0, 0]);
-      const bg = gpu.device.createBindGroup({
-        label: 'post:depth', layout: this.depthLayouts[ms ? 1 : 0],
-        entries: [
-          { binding: ms ? 1 : 0, resource: frame.depthView },
-          { binding: 2, resource: { buffer: this.params, offset: sl * PARAM_STRIDE, size: 16 } },
-        ],
-      });
+      // the same (depth view, sample count, parameter slot) comes back every frame: keep the bind group instead of rebuilding it
+      let cached = this.depthGroup;
+      if (!cached || cached.view !== frame.depthView || cached.ms !== ms || cached.slot !== sl) {
+        cached = this.depthGroup = {
+          view: frame.depthView, ms, slot: sl,
+          bg: gpu.device.createBindGroup({
+            label: 'post:depth', layout: this.depthLayouts[ms ? 1 : 0],
+            entries: [
+              { binding: ms ? 1 : 0, resource: frame.depthView },
+              { binding: 2, resource: { buffer: this.params, offset: sl * PARAM_STRIDE, size: 16 } },
+            ],
+          }),
+        };
+      }
+      const bg = cached.bg;
       g.addPass({ name: 'post-depth', reads: ['sceneColor'], writes: ['viewDepth'], execute: (e) => this.fullscreen(e, 'post-depth', vd.view, this.depthPipeline(ms), bg) });
     }
 

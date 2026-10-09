@@ -13,20 +13,24 @@ import { RibbonSystem, type RibbonSystemConfig } from '../particles/RibbonSystem
 import { LODLibrary, LODSystem } from '../visibility/LODSystem';
 import { SceneResources } from './lighting/SceneResources';
 import { IBLBaker, type Environment } from './lighting/IBL';
-import skyboxSource from '../shaders/skybox.wgsl?raw';
-import { TextureStreamer, type StreamedTexture } from '../streaming/TextureStreamer';
+import type { TextureStreamer } from '../streaming/TextureStreamer';
+import { StreamingDriver } from '../streaming/StreamingDriver';
 import { VolumetricFog, type FogSettings } from './lighting/VolumetricFog';
 import { Mat4 } from '../math/Mat4';
-import { GPUCuller, type GPULodGroup } from './GPUCuller';
+import { GPUCuller } from './GPUCuller';
+import { GPULodIndex } from './GPULodIndex';
 import { HiZ } from './HiZ';
 import { RenderGraph } from './RenderGraph';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
 import { PostProcessor, HDR_FORMAT, AUX_FORMAT } from './post/PostProcessor';
-import { MipmapGenerator } from '../gpu/MipmapGenerator';
 import { MaterialFeature } from './materials/MaterialFlags';
 import { ClusterGrid } from './lighting/ClusterGrid';
-import { LightData } from './lighting/LightData';
+import type { LightData } from './lighting/LightData';
+import { LegacySceneLights, DEFAULT_SCENE, type SceneSettings } from './lighting/LegacySceneLights';
+import { FrameUniform } from './FrameUniform';
+import { Skybox } from './Skybox';
+import { TransmissionCopy } from './post/TransmissionCopy';
 import { RendererStats } from '../profiling/RendererStats';
 import type { RenderWorld } from './RenderWorld';
 import { Camera } from './Camera';
@@ -93,18 +97,7 @@ interface ViewScratch {
 /** Strategy used to turn the visible set into draw calls (benchmark A compares these). */
 export type BatchingMode = 'unsorted' | 'sorted' | 'instanced';
 
-export interface SceneSettings {
-  /** Direction TOWARD the sun (does not need to be normalized). */
-  sunDirection: [number, number, number];
-  sunColor: [number, number, number];
-  ambientSky: [number, number, number];
-  ambientGround: [number, number, number];
-}
-
-export const DEFAULT_SCENE: SceneSettings = {
-  sunDirection: [0.4, 0.8, 0.5], sunColor: [3, 2.9, 2.7], ambientSky: [0.25, 0.3, 0.4], ambientGround: [0.08, 0.07, 0.06],
-};
-
+export { DEFAULT_SCENE, type SceneSettings };
 
 /**
  * The renderer: RenderWorld -> (visible set) -> render queues -> batches -> a pass graph (shadows, clusters, particles,
@@ -143,11 +136,10 @@ export class Renderer {
   /** Depth-only view of the depth buffer for sampling in post passes (SSAO / SSR). */
   private depthSampleView!: GPUTextureView;
   private target: PassTarget;
-  private frameBuffer: GPUBuffer;
-  private frameBG: GPUBindGroup;
+  /** Per-view uniform + bind group 0 (camera, time, viewport, output flags). */
+  private frameUniform: FrameUniform;
   private transformBuffer: TransformBuffer;
   private instanceAlloc: DynamicBufferAllocator;
-  private frameData = new Float32Array(60);
 
   private queueBuilder = new RenderQueueBuilder();
   private queues = new RenderQueues();
@@ -155,22 +147,8 @@ export class Renderer {
 
   /** Batch state of the frame being rendered (filled by buildBatches, read while recording passes). */
   private frame: FrameState = { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0, transmissive: false };
-  // legacy SceneSettings -> lights (rebuilt only when the settings change, so the upload gate stays quiet)
-  private legacy = new LightData();
-  private legacyKey = '';
-  /** Build (and cache until `scene` changes) a light set equal to the legacy settings: one directional sun plus a hemisphere ambient light. */
-  private legacyLights(scene: SceneSettings): LightData {
-    const key = JSON.stringify(scene);
-    if (key !== this.legacyKey) {
-      this.legacyKey = key;
-      const L = this.legacy, sl = Math.hypot(...scene.sunDirection) || 1;
-      L.clear();
-      L.add({ type: 0, position: [0, 0, 0], direction: [-scene.sunDirection[0] / sl, -scene.sunDirection[1] / sl, -scene.sunDirection[2] / sl], color: scene.sunColor, intensity: 1, range: 0, innerCone: 0, outerCone: 0 });
-      L.add({ type: 3, position: [0, 0, 0], direction: [0, -1, 0], color: scene.ambientSky, intensity: 1, range: 0, innerCone: 0, outerCone: 0, groundColor: scene.ambientGround });
-      L.finalize();
-    }
-    return this.legacy;
-  }
+  /** Sun + ambient lights built from `SceneSettings`, used when the scene defines no lights. */
+  private legacyLights = new LegacySceneLights();
 
   private targetPre: PassTarget;
   // per-(material, deform variant) pipeline cache (avoids rebuilding key strings per batch)
@@ -190,11 +168,13 @@ export class Renderer {
     this.targetPre = { ...this.target, depthEqual: true };
     this.extrasTarget = { colorFormat: gpu.format, depthFormat: DEPTH_FORMAT, sampleCount: 1 };
     this.post = new PostProcessor(gpu);
-    this.mips = new MipmapGenerator(gpu.device, gpu.resources);
 
-    this.frameBuffer = r.buffers.create('FrameUniformBuffer', this.frameData.byteLength, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    this.frameUniform = new FrameUniform(gpu, this.layouts);
     this.sceneResources = new SceneResources(gpu, this.layouts);
-    this.frameBG = device.createBindGroup({ label: 'frame-bg', layout: this.layouts.frame, entries: [{ binding: 0, resource: { buffer: this.frameBuffer } }] });
+    this.skybox = new Skybox(gpu, this.layouts, DEPTH_FORMAT);
+    this.transmission = new TransmissionCopy(gpu, this.sceneResources);
+    this.streaming = new StreamingDriver(this.materials);
+    this.gpuLodIndex = new GPULodIndex(this.lodLibrary);
 
     this.transformBuffer = new TransformBuffer(device, r.buffers);
     this.joints = new JointMatrixBuffer(device, r.buffers);
@@ -227,14 +207,14 @@ export class Renderer {
    */
   gpuCulling: 'off' | 'frustum' | 'hiz2' = 'off';
   /** Optional texture streaming (mip residency follows on-screen coverage); see `setTextureStreamer`. */
-  textureStreamer: TextureStreamer | null = null;
-  private streamRefs = new Map<number, StreamedTexture[]>();
+  private streaming: StreamingDriver;
+  /** The attached texture streamer, if any. */
+  get textureStreamer(): TextureStreamer | null { return this.streaming.streamer; }
   /** Volumetric fog (null until `enableFog`). */
   fog: VolumetricFog | null = null;
   /** With GPU culling on: select LOD levels in the culling shader (batches of LOD-group meshes expand into one draw per level). */
   gpuLOD = false;
-  private lodByMesh = new Map<number, GPULodGroup>();
-  private lodMapGroups = -1;
+  private gpuLodIndex: GPULodIndex;
   private culler: GPUCuller | null = null;
   private hiz: HiZ | null = null;
   private sphereScratch = new Float32Array(4 * 1024);
@@ -245,7 +225,7 @@ export class Renderer {
   /** Unique id: bind-group cache keys must not collide between renderers sharing one GPU context. */
   private readonly id = Renderer.nextId++;
   private baker: IBLBaker | null = null;
-  private skyPipelines = new Map<string, GPURenderPipeline>();
+  private skybox: Skybox;
   /** Off-screen views (mirrors, minimaps, security cameras ...), rendered before the main view every frame. Add with `addView`. */
   readonly views: RenderView[] = [];
   private renderTargets: RenderTarget[] = [];
@@ -254,9 +234,8 @@ export class Renderer {
   private viewScratch = new Map<boolean, ViewScratch>();
   private probeVisibility = new VisibilitySystem();
   private lastTime = 0;
-  private mips: MipmapGenerator;
   /** Copy of the opaque scene (HDR, mip chain) that transmissive materials refract. */
-  private transTex: GPUTexture | null = null;
+  private transmission: TransmissionCopy;
   /** Screen-space transmission runs this frame (post chain on, a transmissive material visible). */
   private transmissionActive = false;
   /** Draw the bound environment as the background (when one is set). */
@@ -277,32 +256,7 @@ export class Renderer {
   }
 
   /** Attach (or detach with null) a texture streamer; materials rebuild their bind groups whenever a streamed texture's resident mips change. */
-  setTextureStreamer(s: TextureStreamer | null): void {
-    this.textureStreamer = s; this.streamRefs.clear();
-    if (s) s.onViewChanged = (t) => this.materials.textureChanged(t);
-  }
-
-  /** Report per-material screen coverage to the streamer, then apply its plan (before the frame's bind groups are used). */
-  private streamTextures(rw: RenderWorld, visible: VisibleSet | null, vCount: number): void {
-    const s = this.textureStreamer!;
-    s.beginFrame();
-    const cam = rw.camera, tanHalf = Math.tan(cam.fovY / 2), H = this.gpu.canvas.height, sph = rw.boundsSphere;
-    const px = new Map<number, number>();
-    for (let n = 0; n < vCount; n++) {
-      const slot = visible ? visible.slots![n] : n;
-      const dx = sph[slot * 4] - cam.position[0], dy = sph[slot * 4 + 1] - cam.position[1], dz = sph[slot * 4 + 2] - cam.position[2];
-      const d = Math.sqrt(dx * dx + dy * dy + dz * dz), r = sph[slot * 4 + 3];
-      const pixels = d <= r ? H : (r / (d * tanHalf)) * H;
-      const m = rw.materialId[slot];
-      if (pixels > (px.get(m) ?? 0)) px.set(m, pixels);
-    }
-    for (const [m, pixels] of px) {
-      let refs = this.streamRefs.get(m);
-      if (!refs) { refs = this.materials.get(m).textures.filter((t): t is StreamedTexture => !!t && s.textures.includes(t as StreamedTexture)); this.streamRefs.set(m, refs); }
-      for (const t of refs) s.touch(t, pixels);
-    }
-    s.update();
-  }
+  setTextureStreamer(s: TextureStreamer | null): void { this.streaming.attach(s); }
 
   /** Lazily created IBL baker (procedural sky / HDR / BRDF LUT generation). */
   get ibl(): IBLBaker { return (this.baker ??= new IBLBaker(this.gpu)); }
@@ -310,36 +264,6 @@ export class Renderer {
   /** Bind an environment for image-based lighting (null = back to the hemisphere ambient term). */
   setEnvironment(env: Environment | null, intensity = 1, rotation = 0): void {
     this.sceneResources.setEnvironment(env, env ? this.ibl.brdfLut() : undefined, intensity, rotation);
-  }
-
-  /** The (lazily created) pipeline that draws the environment cube map as a full-screen background behind the geometry. */
-  private skyboxPipeline(): GPURenderPipeline {
-    const key = `${this.target.colorFormat}|${this.target.sampleCount}`;
-    let pipe = this.skyPipelines.get(key);
-    if (pipe) return pipe;
-    const { device } = this.gpu;
-    const module = this.gpu.resources.shaders.get('skybox', skyboxSource, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false });
-    pipe = device.createRenderPipeline({
-      label: 'skybox', layout: device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene] }),
-      vertex: { module, entryPoint: 'vs_main' },
-      fragment: { module, entryPoint: 'fs_main', targets: [{ format: this.target.colorFormat ?? this.gpu.format }] },
-      primitive: { topology: 'triangle-list' },
-      depthStencil: { format: this.target.depthFormat ?? DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
-      multisample: { count: this.target.sampleCount },
-    });
-    this.skyPipelines.set(key, pipe);
-    return pipe;
-  }
-
-  /** LOD group that `meshId` belongs to (any of its levels), for GPU LOD. */
-  private lodGroupOfMesh(meshId: number): GPULodGroup | null {
-    const groups = this.lodLibrary.groups;
-    if (groups.length !== this.lodMapGroups) {
-      this.lodByMesh.clear();
-      for (const g of groups) for (const l of g.levels) if (!this.lodByMesh.has(l.meshId)) this.lodByMesh.set(l.meshId, g);
-      this.lodMapGroups = groups.length;
-    }
-    return this.lodByMesh.get(meshId) ?? null;
   }
 
   /** Apply LOD selection to a visible set (no-op when no LOD groups exist). Fills the LOD stats. */
@@ -429,7 +353,7 @@ export class Renderer {
       if (++v.frameCounter >= v.interval) { v.frameCounter = 0; due.push(v); }
     }
     if (due.length === 0) return;
-    const mainFrame = this.frameData.slice();
+    const mainFrame = this.frameUniform.snapshot();
     for (const v of due) {
       if (v.mirror) {
         if (!rw.hasCamera) continue;
@@ -443,8 +367,7 @@ export class Renderer {
       v.lastDrawn = this.viewScratch.get(v.mirror !== null)?.frame.total ?? 0;
     }
     // the main view continues with its own uniforms (queue order: view writes, view submit, then these writes, main submit)
-    this.frameData.set(mainFrame);
-    this.gpu.queue.writeBuffer(this.frameBuffer, 0, this.frameData);
+    this.frameUniform.restore(mainFrame);
     this.sceneResources.restoreUniform();
   }
 
@@ -514,13 +437,8 @@ export class Renderer {
     this.queues = scratch.queues; this.batches = scratch.batches; this.frame = scratch.frame;
     this.prepassActive = false; this.gpuCulling = 'off';
     try {
-      const cam = job.camera, fd = this.frameData;
-      fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32);
-      fd.set(cam.position, 48); fd[51] = time;
-      fd[52] = job.width; fd[53] = job.height; fd[54] = cam.near; fd[55] = cam.far;
-      fd[56] = 1;                                   // linear HDR output: the colour is used as a texture, not displayed directly
-      fd[57] = 0; fd[58] = 0; fd[59] = 0;           // views refract the environment (no opaque copy)
-      queue.writeBuffer(this.frameBuffer, 0, fd);
+      const cam = job.camera;
+      this.frameUniform.writeView(cam, time, job.width, job.height, true);   // linear HDR output: the colour is used as a texture; no opaque copy, so views refract the environment
       this.sceneResources.writeViewUniform();
 
       scratch.queueBuilder.build(rw, slots.slots, slots.count, this.materials.materials, this.meshes.records, cam, this.batching === 'unsorted' ? 'none' : 'sorted', this.queues);
@@ -533,11 +451,7 @@ export class Renderer {
         depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
       });
       if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'early');
-      if (job.skybox && this.showSkybox && this.sceneResources.env.enabled) {
-        pass.setPipeline(this.skyboxPipeline());
-        pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
-        pass.draw(3);
-      }
+      if (job.skybox && this.showSkybox && this.sceneResources.env.enabled) this.skybox.draw(pass, this.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup);
       if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'late');
       pass.end();
       queue.submit([enc.finish()]);
@@ -563,7 +477,7 @@ export class Renderer {
     this.probeVisibility.mode = 'linear';
     const cam = new Camera();
     const view = new Float32Array(16), proj = cubeFaceProjection(new Float32Array(16), near, far);
-    const mainFrame = this.frameData.slice();
+    const mainFrame = this.frameUniform.snapshot();
     for (let face = 0; face < 6; face++) {
       cubeFaceView(view, face, position[0], position[1], position[2]);
       cam.setMatrices(view, proj, near, far);
@@ -573,8 +487,7 @@ export class Renderer {
         visibility: this.probeVisibility, excludeRef: null, exclude: o.exclude ?? null,
       }, rw, this.lastTime);
     }
-    this.frameData.set(mainFrame);
-    this.gpu.queue.writeBuffer(this.frameBuffer, 0, this.frameData);
+    this.frameUniform.restore(mainFrame);
     this.sceneResources.restoreUniform();
     this.gpu.resources.textures.destroy(depth);
     return this.ibl.bakeCube(source, size);
@@ -615,7 +528,7 @@ export class Renderer {
     this.targetPre.colorFormat = colorFormat; this.targetPre.sampleCount = samples;
     this.extrasTarget.colorFormat = colorFormat; this.extrasTarget.sampleCount = samples;
     this.pipeCache.length = 0; this.pipeSort.length = 0; this.pipeFailed.length = 0;
-    this.skyPipelines.clear();
+    this.skybox.retarget();
     for (const o of this.overlays) o.retarget();
     this.particles?.retarget();
     for (const rs of this.ribbonSystems) rs.retarget();
@@ -705,10 +618,8 @@ export class Renderer {
     const t3 = performance.now();
     st.cpu.batching = t3 - t2;
     this.transmissionActive = this.post.enabled && this.frame.transmissive && rw.hasCamera && !(this.frame.gpuCull && this.gpuCulling === 'hiz2');
-    if (this.transmissionActive) this.ensureTransmission();
-    const fd = this.frameData;
-    fd[57] = this.transmissionActive ? 1 : 0; fd[58] = this.transTex && this.transmissionActive ? this.transTex.mipLevelCount - 1 : 0;
-    queue.writeBuffer(this.frameBuffer, 57 * 4, fd, 57, 3);
+    if (this.transmissionActive) this.transmission.ensure(this.gpu.canvas.width, this.gpu.canvas.height);
+    this.frameUniform.setTransmission(this.transmissionActive, this.transmission.maxMip);
     this.renderViews(rw, time);
 
     const enc = device.createCommandEncoder();
@@ -729,18 +640,12 @@ export class Renderer {
    * @returns the light set actually used this frame (ECS lights, or the legacy sun/ambient fallback)
    */
   private uploadFrameData(rw: RenderWorld, scene: SceneSettings, time: number, visible: VisibleSet | null, vCount: number): LightData {
-    const st = this.stats, cam = rw.camera, queue = this.gpu.queue;
-    const fd = this.frameData;
-    fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32);
-    fd.set(cam.position, 48); fd[51] = time;
-    fd[52] = this.gpu.canvas.width; fd[53] = this.gpu.canvas.height; fd[54] = cam.near; fd[55] = cam.far;
-    fd[56] = this.post.enabled ? 1 : 0;
-    fd[57] = 0; fd[58] = 0; fd[59] = 0;               // screen-space transmission flags: set after the batches are known (see render)
-    queue.writeBuffer(this.frameBuffer, 0, fd);
+    const st = this.stats, cam = rw.camera;
+    this.frameUniform.writeView(cam, time, this.gpu.canvas.width, this.gpu.canvas.height, this.post.enabled);   // the transmission flags are set once the batches are known (see render)
     // Lights come from the ECS (rw.lights). If the scene defines none, fall back to the legacy SceneSettings sun + ambient.
     let L = rw.lights;
-    if (L.count === 0 && L.ambientSky[0] === 0 && L.ambientSky[1] === 0 && L.ambientSky[2] === 0) L = this.legacyLights(scene);
-    if (this.textureStreamer && rw.hasCamera) this.streamTextures(rw, visible, vCount);
+    if (L.count === 0 && L.ambientSky[0] === 0 && L.ambientSky[1] === 0 && L.ambientSky[2] === 0) L = this.legacyLights.get(scene);
+    if (this.streaming.streamer && rw.hasCamera) this.streaming.update(rw, visible, vCount, this.gpu.canvas.height);
     this.shadows.assign(L, cam);
     if (this.fog && rw.hasCamera) { this.fog.resize(this.gpu.canvas.width, this.gpu.canvas.height); this.fog.applySettings(); }
     this.sceneResources.syncLights(L);
@@ -792,7 +697,7 @@ export class Renderer {
     const total01 = lists[0].count + lists[1].count;
     if (gpuCull) {
       this.culler ??= new GPUCuller(this.gpu);
-      this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD ? (m) => this.lodGroupOfMesh(m) : undefined);
+      this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD ? (m) => this.gpuLodIndex.groupOf(m) : undefined);
     }
     if (rw.hasCamera && !view) this.shadows.prepare(rw, this.instanceAlloc);
     this.instanceAlloc.flush();
@@ -821,27 +726,6 @@ export class Renderer {
     this.frame.transmissive = transmissive;
   }
 
-  /** (Re)create the opaque-scene copy at the size of the HDR scene target and hand it to the scene bind group. */
-  private ensureTransmission(): void {
-    const w = this.gpu.canvas.width, h = this.gpu.canvas.height;
-    if (this.transTex && this.transTex.width === w && this.transTex.height === h) return;
-    const { textures } = this.gpu.resources;
-    if (this.transTex) textures.destroy(this.transTex);
-    const mips = Math.floor(Math.log2(Math.max(w, h))) + 1;
-    this.transTex = textures.create({
-      label: 'transmission-copy', size: [w, h], format: HDR_FORMAT, mipLevelCount: mips,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    this.sceneResources.setTransmission(this.transTex.createView());
-  }
-
-  /** Copy the finished opaque scene into the transmission texture and build its mip chain (rougher refraction samples blurrier mips). */
-  private copyTransmission(enc: GPUCommandEncoder): void {
-    const t = this.transTex!;
-    enc.copyTextureToTexture({ texture: this.post.sceneTexture }, { texture: t }, [t.width, t.height]);
-    this.mips.generateInto(enc, t, HDR_FORMAT, t.mipLevelCount);
-  }
-
   /**
    * Declare this frame's passes in the render graph (shadows, clusters, particles, prepass, culling, fog, main pass(es)),
    * then compile and execute it into `enc`. The graph orders passes by their declared reads/writes and drops unused ones.
@@ -865,7 +749,7 @@ export class Renderer {
     if (f.gpuCull) this.addCullingPasses(g, rw, twoPhase);
     if (this.fog?.enabled && rw.hasCamera) {
       const camWorld = Mat4.invert(Mat4.create(), cam.view);
-      if (camWorld) g.addPass({ name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'], execute: (e) => this.fog!.encode(e, this.frameBG, camWorld, cam.projection[0], cam.projection[5], cam.near, this.profiler.writes('fog')) });
+      if (camWorld) g.addPass({ name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'], execute: (e) => this.fog!.encode(e, this.frameUniform.bindGroup, camWorld, cam.projection[0], cam.projection[5], cam.near, this.profiler.writes('fog')) });
     }
     if (twoPhase) this.addTwoPhaseMainPasses(g, rw);
     else this.addMainPass(g, rw, prepass);
@@ -886,7 +770,7 @@ export class Renderer {
         depthStencilAttachment: { view: this.depthView, depthReadOnly: true },
       });
       if (rw.hasCamera && this.frame.total > 0) {
-        ap.setBindGroup(0, this.frameBG); ap.setBindGroup(1, this.sceneResources.bindGroup); ap.setBindGroup(3, this.objectBindGroup());
+        ap.setBindGroup(0, this.frameUniform.bindGroup); ap.setBindGroup(1, this.sceneResources.bindGroup); ap.setBindGroup(3, this.objectBindGroup());
         ap.setVertexBuffer(0, this.meshes.vertexBuffer); ap.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
         let pp: GPURenderPipeline | null = null, pm = -1;
         const b = this.batches;
@@ -911,7 +795,7 @@ export class Renderer {
         label: 'depth-prepass', colorAttachments: [], timestampWrites: this.profiler.writes('prepass'),
         depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
       });
-      dp.setBindGroup(0, this.frameBG); dp.setBindGroup(1, this.sceneResources.bindGroup); dp.setBindGroup(3, this.objectBindGroup());
+      dp.setBindGroup(0, this.frameUniform.bindGroup); dp.setBindGroup(1, this.sceneResources.bindGroup); dp.setBindGroup(3, this.objectBindGroup());
       dp.setVertexBuffer(0, this.meshes.vertexBuffer); dp.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
       let pp: GPURenderPipeline | null = null, pm = -1;
       const b = this.batches;
@@ -940,8 +824,6 @@ export class Renderer {
     if (twoPhase) {
       this.hiz ??= new HiZ(this.gpu);
       this.hiz.resize(this.gpu.canvas.width, this.gpu.canvas.height);
-    }
-    if (twoPhase) {
       let maxObj = 0;
       for (let i = 0; i < f.total01; i++) maxObj = Math.max(maxObj, f.instData[i * INSTANCE_WORDS + 6]);
       this.culler!.ensureVisibility(maxObj + 1);
@@ -965,7 +847,7 @@ export class Renderer {
     const mats = this.materials.materials;
     /** early = opaque / alpha-masked geometry, late = blended + transmissive (drawn after the sky and, with transmission, after the opaque copy). */
     const skip = (late: boolean): boolean => (part === 'early' && late) || (part === 'late' && !late);
-    pass.setBindGroup(0, this.frameBG);
+    pass.setBindGroup(0, this.frameUniform.bindGroup);
     pass.setBindGroup(1, this.sceneResources.bindGroup);
     pass.setBindGroup(3, gpuCull && which !== 'rest' ? this.objectBindGroup(true) : this.objectBindGroup());
     pass.setVertexBuffer(0, this.meshes.vertexBuffer);
@@ -1008,21 +890,17 @@ export class Renderer {
     }
   }
 
-  /** Draws that follow opaque + transparent geometry in the main pass: skybox, particles, ribbons. */
   /** The environment background (drawn after the opaque geometry, before blended surfaces). */
   private drawSky(pass: GPURenderPassEncoder, rw: RenderWorld): void {
-    if (rw.hasCamera && this.showSkybox && this.sceneResources.env.enabled) {
-      pass.setPipeline(this.skyboxPipeline());
-      pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
-      pass.draw(3);
-    }
+    if (rw.hasCamera && this.showSkybox && this.sceneResources.env.enabled) this.skybox.draw(pass, this.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup);
   }
 
+  /** Draws that follow opaque + transparent geometry in the main pass: skybox (unless drawn separately), particles, ribbons, overlays. */
   private drawExtras(pass: GPURenderPassEncoder, rw: RenderWorld, sky = true): void {
     if (sky) this.drawSky(pass, rw);
-    if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameBG);   // after opaque + transparent geometry
-    if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameBG);                            // one draw per ribbon system
-    if (rw.hasCamera) for (const o of this.overlays) o.encodeDraw(pass, this.frameBG);                                    // lines / points / sprites / text on top
+    if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameUniform.bindGroup);   // after opaque + transparent geometry
+    if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameUniform.bindGroup);                            // one draw per ribbon system
+    if (rw.hasCamera) for (const o of this.overlays) o.encodeDraw(pass, this.frameUniform.bindGroup);                                    // lines / points / sprites / text on top
   }
 
   /** Resources the main pass(es) read, declared so the render graph orders them after their producers. */
@@ -1082,7 +960,7 @@ export class Renderer {
       this.drawSky(pass, rw);
       pass.end();
     } });
-    g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.copyTransmission(enc) });
+    g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.transmission.copyFrom(enc, this.post.sceneTexture) });
     g.addPass({ name: 'main-late', reads: ['transmissionTex', 'particles', 'ribbons'], writes: ['sceneColor'], execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main-late', colorAttachments: [this.mainColorAttachment(false)], depthStencilAttachment: depthAttachment(true),
@@ -1109,7 +987,7 @@ export class Renderer {
       if (f.total > 0) this.drawGeometry(pass, 'culled', 0);
       pass.end();
     } });
-    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture.createView(), this.profiler.writes('hiz')) });
+    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthView, this.profiler.writes('hiz')) });
     g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
       execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
     g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', 'particles', 'ribbons'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
