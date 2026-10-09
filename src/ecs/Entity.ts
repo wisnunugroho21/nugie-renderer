@@ -51,6 +51,12 @@ export class EntityManager {
     return true;
   }
 
+  /** The current handle of the live entity in slot `index` (or -1 if the slot is free). Lets index-based code destroy entities. */
+  handleOf(index: number): Entity {
+    if (index < 0 || index >= this.next || this.alive[index] !== 1) return NULL_ENTITY;
+    return ((this.generations[index] & GEN_MASK) << INDEX_BITS) | index;
+  }
+
   /** True if `e` refers to a live entity (index in range, slot occupied, generation matches). */
   isAlive(e: Entity): boolean {
     if (e < 0) return false;

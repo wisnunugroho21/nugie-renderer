@@ -269,6 +269,78 @@ Notes:
 * Not included: depth of field, TAA / SMAA, outlines.
 * URL switches for the demos: `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1`, `ssao=<intensity>`, `ssr=<intensity>`.
 
+### Primitives
+
+`createCube / createUVSphere / createPlane` plus, from `shapes.ts`: `createCylinder`, `createCone`, `createCapsule`, `createTorus`, `createTorusKnot`,
+`createLathe(profile)`, `createTube(path)` (+ `sampleCatmullRom` to smooth a path), `createExtrude(polygon)`, `createShape(polygon)` (ear-clipping triangulation, no holes),
+`createCircle`, `createRing`, `createQuad` (XY, faces +Z), `createPlaneGrid`, and the regular solids `createTetrahedron / Octahedron / Icosahedron / Dodecahedron(radius, detail)`
+(`detail` > 0 subdivides towards a sphere with smooth normals). Every shape has outward normals, CCW winding, uvs and tangents, takes an options object with sensible defaults
+(unit-sized, centred) and is covered by watertightness / volume tests. Create a mesh with `renderer.meshes.create(name, createTorus({ radius: 1 }))`.
+
+### Object grouping
+
+```ts
+const arm = engine.spawnGroup({ position: [0, 2, 0], name: 'arm' });
+const hand = engine.spawnObject({ mesh, material, position: [1, 0, 0], parent: arm, name: 'hand' });
+engine.world.transforms.setRotation(arm, 0, Math.sin(t), 0, Math.cos(t));   // the hand swings with it
+engine.setVisible(arm, false);                 // hides the whole tree
+engine.setParent(hand, otherGroup, true);      // keepWorld: re-parent without moving it
+engine.find('hand', arm);                      // by name, anywhere or inside one tree
+engine.destroyTree(arm);                       // the group and everything below it
+```
+
+A group is an entity with only a transform; children inherit it (the transform system already did this). `ecs/Hierarchy.ts` adds `createGroup`, `childrenOf`,
+`descendantsOf`, `rootOf`, `setParent` (optionally keeping the world pose), `setVisible`, `destroyTree`, `worldPosition` and `findByName` (names live in `world.names`).
+Do not mark children of a group that moves as `RenderFlags.Static` (the static BVH assumes they never move).
+
+### InstancedMesh and BatchedMesh
+
+```ts
+const rocks = engine.createInstancedMesh({ mesh: rock, material: grey, count: 50_000, position: [0, 0, 0] });
+for (let i = 0; i < rocks.capacity; i++) rocks.setTRSAt(i, x, y, z, qx, qy, qz, qw, s, s, s);   // or setMatrixAt(i, m)
+rocks.setMaterialAt(7, red); rocks.setVisibleAt(3, false); rocks.setCount(40_000);
+
+const props = engine.createBatchedMesh({ material: concrete });
+const [crate, barrel] = [props.addGeometry(crateMesh), props.addGeometry(barrelMesh)];
+const id = props.addInstance(crate, { position: [1, 0, 2], scale: 2 });
+props.setGeometryAt(id, barrel); props.deleteInstance(id);
+```
+
+Both are thin, tested layers over light entities parented to a group (move the group = move all). The renderer already merges objects sharing (mesh, material) into one
+instanced draw and culls them individually, so a million-instance-style scene costs one draw per distinct (mesh, material) in view, not one per object: 100k cubes drew in
+25 draw calls in the demo (`/?scene=shapes&n=100000`; about 20 ms of render CPU plus ~25 ms of per-frame extraction and transforms on the dev machine; GPU-side time was not the limit).
+Differences from three.js: per-instance colour is done with `setMaterialAt` (a small palette of materials, still batched), and instance data lives in the ECS (CPU) rather than in a
+GPU matrix buffer, so `setMatrixAt` costs a decompose. `BatchedMesh` draws one batch per DISTINCT geometry rather than one multi-draw for all of them.
+
+### Lines, points, sprites and text
+
+```ts
+const lines = engine.createLineSystem({ autoClear: true, width: 2 });      // immediate mode: re-issue every frame
+lines.grid(40, 40); lines.axes([0, 0, 0], 2); lines.box(min, max, [1, 0.5, 0]); lines.sphere(c, r); lines.arrow(a, b); lines.polyline(pts, color, 2, true);
+const points = engine.createPointSystem({ size: 4, sizeUnit: 'pixels' });   // retained until clear()
+points.addMany(xyzFloat32Array, [1, 1, 0.5, 1]);
+
+const font = await engine.createFont({ family: 'sans-serif', weight: 'bold' });   // browser canvas -> glyph atlas
+const labels = engine.createTextSystem(font);
+const label = labels.addText(font, 'Hello\nworld', { position: [0, 2, 0], size: 0.3, align: 'center' });   // billboard in the world
+label.setText('changed'); label.setPosition(p); label.remove();
+const hud = engine.createTextSystem(font, { space: 'screen' });                   // pixels from the top-left, drawn on top
+hud.addText(font, 'score 0', { position: [16, 16, 0], size: 22 });
+
+const sprites = engine.createSpriteSystem({ texture, sizeUnit: 'pixels', blend: 'additive' });   // icons, glows, particles by hand
+sprites.add({ position: [x, y, z], size: 24, uv: spriteSheetUV(2, 1, 4, 4), color: [1, 1, 1, 0.8] });
+```
+
+* **Lines** are screen-space quads of a width in pixels (anti-aliased, round-ish joins are not provided: square caps), colour and width interpolate along a segment, segments crossing
+  the near plane are clipped. All segments of a system are one draw call. `depthTest: false` draws gizmos on top. Helpers: `line, gradient, polyline, segments, box, transformedBox, circle,
+  sphere, arrow, axes, grid, cross, frustum`.
+* **Points** are discs or squares sized in pixels or world units. **Sprites** face the camera ('camera'), turn about Y only ('axis-y') or lie in a plane ('fixed', with `right` / `up`);
+  a system draws one texture. **Text** is glyph sprites from a font atlas: `\n`, wrapping (`maxWidth`), left / centre / right alignment, anchors; no kerning or complex scripts; one
+  system per font, and the atlas is rasterised with the browser's canvas (so the font must be installed or loaded).
+* All of them draw into the main pass after the scene (HDR / MSAA / post-processing aware), linear colours may exceed 1 (they bloom). They are not drawn into render-target views.
+* Alpha-blended things are not sorted against each other: add overlapping sprites back to front.
+* Demo: `/?scene=shapes&env=sky` (all primitives on a rotating carousel group, 8000 instanced cubes (`n=`), a batched mesh, debug boxes, a point cloud, sparkles, labels and a HUD; H hides the carousel).
+
 ### Render-to-texture: mirrors, minimaps, security cameras, probes
 
 ```ts
@@ -438,6 +510,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 ## 9. Known limitations (see `PROGRESS.md` for the full list)
 
 * Off-screen views do not draw particles / fog / post-processing; no per-object reflection probes or portals with recursion.
+* Lines have no round joins / dashes, text has no kerning / SDF, there are no glTF-style line or point primitives (use the line / point systems).
 * No DOF / TAA / SMAA (bloom, tone mapping, SSAO, SSR, FXAA and MSAA exist, see "Post-processing and anti-aliasing"); SSR is screen-space only.
 * No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.

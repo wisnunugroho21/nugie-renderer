@@ -131,6 +131,33 @@ export const Mat4 = {
     return o;
   },
 
+  /**
+   * Split a TRS matrix (no shear) into position (3), unit quaternion x, y, z, w (4) and scale (3); a mirroring matrix gets a negative
+   * x scale. Inverse of `compose`.
+   */
+  decompose(m: M4, pos: M4, quat: M4, scale: M4, off = 0): void {
+    let sx = Math.hypot(m[off], m[off + 1], m[off + 2]);
+    const sy = Math.hypot(m[off + 4], m[off + 5], m[off + 6]), sz = Math.hypot(m[off + 8], m[off + 9], m[off + 10]);
+    const det = m[off] * (m[off + 5] * m[off + 10] - m[off + 6] * m[off + 9]) - m[off + 4] * (m[off + 1] * m[off + 10] - m[off + 2] * m[off + 9])
+      + m[off + 8] * (m[off + 1] * m[off + 6] - m[off + 2] * m[off + 5]);
+    if (det < 0) sx = -sx;
+    pos[0] = m[off + 12]; pos[1] = m[off + 13]; pos[2] = m[off + 14];
+    scale[0] = sx; scale[1] = sy; scale[2] = sz;
+    const ix = sx || 1, iy = sy || 1, iz = sz || 1;
+    // rotation matrix r(row, col) from the normalised columns
+    const r00 = m[off] / ix, r10 = m[off + 1] / ix, r20 = m[off + 2] / ix;
+    const r01 = m[off + 4] / iy, r11 = m[off + 5] / iy, r21 = m[off + 6] / iy;
+    const r02 = m[off + 8] / iz, r12 = m[off + 9] / iz, r22 = m[off + 10] / iz;
+    const tr = r00 + r11 + r22;
+    let x: number, y: number, z: number, w: number;
+    if (tr > 0) { const k = 0.5 / Math.sqrt(tr + 1); w = 0.25 / k; x = (r21 - r12) * k; y = (r02 - r20) * k; z = (r10 - r01) * k; }
+    else if (r00 > r11 && r00 > r22) { const k = 2 * Math.sqrt(1 + r00 - r11 - r22); w = (r21 - r12) / k; x = 0.25 * k; y = (r01 + r10) / k; z = (r02 + r20) / k; }
+    else if (r11 > r22) { const k = 2 * Math.sqrt(1 + r11 - r00 - r22); w = (r02 - r20) / k; x = (r01 + r10) / k; y = 0.25 * k; z = (r12 + r21) / k; }
+    else { const k = 2 * Math.sqrt(1 + r22 - r00 - r11); w = (r10 - r01) / k; x = (r02 + r20) / k; y = (r12 + r21) / k; z = 0.25 * k; }
+    const l = Math.hypot(x, y, z, w) || 1;
+    quat[0] = x / l; quat[1] = y / l; quat[2] = z / l; quat[3] = w / l;
+  },
+
   /** Largest axis scale of the upper 3x3 (for conservative bounding-sphere transforms). */
   maxScale(m: M4, off = 0): number {
     const sx = Math.hypot(m[off], m[off + 1], m[off + 2]);

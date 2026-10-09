@@ -13,6 +13,7 @@ import { ControllerStore } from './components/ControllerStore';
 import { ParticleEmitterStore } from './components/ParticleEmitterStore';
 import { RibbonEmitterStore } from './components/RibbonEmitterStore';
 import { LODStore } from './components/LODStore';
+import { NameStore } from './components/NameStore';
 
 /** Owns entities and all component stores. Gameplay writes here; the renderer never reads it directly. */
 export class World {
@@ -32,9 +33,11 @@ export class World {
   readonly particleEmitters = new ParticleEmitterStore();
   readonly ribbonEmitters = new RibbonEmitterStore();
   readonly lods = new LODStore();
+  /** Optional entity names (`world.names.set(e, 'door')`, `findByName`). */
+  readonly names = new NameStore();
 
   private stores: ComponentStore[] = [
-    this.transforms, this.meshRenderers, this.bounds, this.cameras, this.lights, this.animators, this.morphs, this.skins, this.controllers, this.particleEmitters, this.ribbonEmitters, this.lods,
+    this.transforms, this.meshRenderers, this.bounds, this.cameras, this.lights, this.animators, this.morphs, this.skins, this.controllers, this.particleEmitters, this.ribbonEmitters, this.lods, this.names,
   ];
 
   /** Register an additional store (animator, skin, morph, ... added by later phases). */

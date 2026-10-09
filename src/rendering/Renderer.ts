@@ -32,6 +32,10 @@ import { RenderTarget, RENDER_TARGET_FORMAT, type RenderTargetDesc } from './Ren
 import { RenderView, type RenderViewOptions } from './RenderView';
 import { mirrorView, planeToView, obliqueProjection, cubeFaceView, cubeFaceProjection } from './viewMath';
 import { VisibilitySystem } from '../visibility/VisibilitySystem';
+import type { Overlay } from './overlay/Overlay';
+import { LineSystem, type LineSystemOptions } from './overlay/LineSystem';
+import { PointSystem, type PointSystemOptions } from './overlay/PointSystem';
+import { SpriteSystem, type SpriteSystemOptions } from './overlay/SpriteSystem';
 import type { TextureRef } from './materials/Material';
 import type { VisibleSet } from '../visibility/VisibilitySystem';
 
@@ -240,6 +244,8 @@ export class Renderer {
   /** Off-screen views (mirrors, minimaps, security cameras ...), rendered before the main view every frame. Add with `addView`. */
   readonly views: RenderView[] = [];
   private renderTargets: RenderTarget[] = [];
+  /** Lines, points, sprites and text drawn after the scene (see createLineSystem / createPointSystem / createSpriteSystem). */
+  private overlays: Overlay[] = [];
   private viewScratch = new Map<boolean, ViewScratch>();
   private probeVisibility = new VisibilitySystem();
   private lastTime = 0;
@@ -338,6 +344,38 @@ export class Renderer {
     return out;
   }
   private pendingLod = false;
+
+  // ---- lines, points, sprites, text ----------------------------------------------------------------------------------------------
+
+  /** Thick anti-aliased lines + debug-draw helpers (boxes, spheres, axes, grids ...). One draw call per system. */
+  createLineSystem(o?: LineSystemOptions): LineSystem {
+    this.syncFramebuffer();
+    const s = new LineSystem(this.gpu, this.layouts, this.extrasTarget, o);
+    this.overlays.push(s);
+    return s;
+  }
+
+  /** Screen-facing discs / squares (point clouds), sized in pixels or world units. One draw call per system. */
+  createPointSystem(o?: PointSystemOptions): PointSystem {
+    this.syncFramebuffer();
+    const s = new PointSystem(this.gpu, this.layouts, this.extrasTarget, o);
+    this.overlays.push(s);
+    return s;
+  }
+
+  /** Textured sprites and text (see `createFont`). One system draws one texture in one draw call. */
+  createSpriteSystem(o: SpriteSystemOptions): SpriteSystem {
+    this.syncFramebuffer();
+    const s = new SpriteSystem(this.gpu, this.layouts, this.extrasTarget, o);
+    this.overlays.push(s);
+    return s;
+  }
+
+  /** Stop drawing a line / point / sprite system. */
+  removeOverlay(o: Overlay): void {
+    const i = this.overlays.indexOf(o);
+    if (i >= 0) this.overlays.splice(i, 1);
+  }
 
   // ---- render-to-texture: render targets, off-screen views, probe capture -------------------------------------------------------------
 
@@ -568,6 +606,7 @@ export class Renderer {
     this.extrasTarget.colorFormat = colorFormat; this.extrasTarget.sampleCount = samples;
     this.pipeCache.length = 0; this.pipeSort.length = 0; this.pipeFailed.length = 0;
     this.skyPipelines.clear();
+    for (const o of this.overlays) o.retarget();
     this.particles?.retarget();
     for (const rs of this.ribbonSystems) rs.retarget();
     if (!first) {
@@ -659,9 +698,11 @@ export class Renderer {
 
     const enc = device.createCommandEncoder();
     this.profiler.beginFrame();
+    for (const o of this.overlays) o.flush();
     this.recordPasses(enc, rw, lights, time);
     this.profiler.resolve(enc);
     queue.submit([enc.finish()]);
+    for (const o of this.overlays) if (o.autoClear) o.clear();
     const t4 = performance.now();
     st.cpu.encoding = t4 - t3;
     st.cpu.total = t4 - t0;
@@ -924,6 +965,7 @@ export class Renderer {
     }
     if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameBG);   // after opaque + transparent geometry
     if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameBG);                            // one draw per ribbon system
+    if (rw.hasCamera) for (const o of this.overlays) o.encodeDraw(pass, this.frameBG);                                    // lines / points / sprites / text on top
   }
 
   /** Resources the main pass(es) read, declared so the render graph orders them after their producers. */

@@ -22,6 +22,13 @@ import type { RenderTarget, RenderTargetDesc } from '../rendering/RenderTarget';
 import type { RenderView, RenderViewOptions, MirrorPlane } from '../rendering/RenderView';
 import { createMirrorMaterial, type MirrorMaterialOptions } from '../rendering/materials/MirrorMaterial';
 import type { Environment } from '../rendering/lighting/IBL';
+import { createGroup, setParent as hierarchySetParent, setVisible as hierarchySetVisible, destroyTree as hierarchyDestroyTree, findByName, type GroupOptions } from '../ecs/Hierarchy';
+import { InstancedMesh, type InstancedMeshOptions } from '../scene/InstancedMesh';
+import { BatchedMesh, type BatchedMeshOptions } from '../scene/BatchedMesh';
+import type { LineSystemOptions, LineSystem } from '../rendering/overlay/LineSystem';
+import type { PointSystemOptions, PointSystem } from '../rendering/overlay/PointSystem';
+import type { SpriteSystemOptions, SpriteSystem } from '../rendering/overlay/SpriteSystem';
+import { createFont, type Font, type FontOptions } from '../rendering/overlay/Font';
 import type { GPUContext } from '../gpu/GPUContext';
 
 /** Options for {@link Engine.create}. Every field is optional. */
@@ -61,6 +68,10 @@ export interface SpawnObjectOptions {
   flags?: number;
   /** Local AABB used for culling (default: the mesh's own bounds). */
   bounds?: LocalBounds;
+  /** Parent entity index (a group or another object): position / rotation / scale are then relative to it. */
+  parent?: number;
+  /** Name for `engine.find`. */
+  name?: string;
 }
 
 /** Parameters for {@link Engine.spawnLight}. */
@@ -193,6 +204,8 @@ export class Engine {
     w.meshRenderers.add(e, o.mesh, o.material, o.flags ?? (RenderFlags.CastShadow | RenderFlags.ReceiveShadow));
     const b = o.bounds ?? this.renderer.meshes.get(o.mesh).bounds;
     w.bounds.add(e, b[0], b[1], b[2], b[3], b[4], b[5]);
+    if (o.parent !== undefined && o.parent >= 0) w.transforms.setParent(e, o.parent);
+    if (o.name !== undefined) w.names.set(e, o.name);
     return e;
   }
 
@@ -255,6 +268,49 @@ export class Engine {
   pick(clientX: number, clientY: number, opts?: RaycastOptions): RayHit | null {
     return this.raycast(this.screenRay(clientX, clientY), opts);
   }
+
+  // ---- lines, points, sprites, text -------------------------------------------------------------------------------------------
+
+  /** Thick lines + debug-draw helpers; see {@link LineSystem}. They draw after the scene (not into render-target views). */
+  createLineSystem(o?: LineSystemOptions): LineSystem { return this.renderer.createLineSystem(o); }
+
+  /** Point clouds; see {@link PointSystem}. */
+  createPointSystem(o?: PointSystemOptions): PointSystem { return this.renderer.createPointSystem(o); }
+
+  /** Textured sprites and text for one texture; see {@link SpriteSystem}. */
+  createSpriteSystem(o: SpriteSystemOptions): SpriteSystem { return this.renderer.createSpriteSystem(o); }
+
+  /** Rasterise a system font into a glyph atlas (browser canvas). Use with {@link createTextSystem}. */
+  createFont(o?: FontOptions): Promise<Font> { return createFont(this.textures, o); }
+
+  /**
+   * A sprite system set up for text in `font`: `const label = engine.createTextSystem(font); label.addText(font, 'Hello', { position: [0, 2, 0], size: 0.3 })`.
+   * With `space: 'screen'` positions are canvas pixels from the top-left (a HUD).
+   */
+  createTextSystem(font: Font, o: Omit<SpriteSystemOptions, 'texture'> = {}): SpriteSystem { return this.renderer.createSpriteSystem({ ...o, texture: font.texture }); }
+
+  // ---- grouping, instancing ---------------------------------------------------------------------------------------------------
+
+  /** An empty group: an entity with just a transform. Pass it as `parent` of objects (or other groups) to move them together. Returns its entity index. */
+  spawnGroup(o?: GroupOptions): number { return createGroup(this.world, o); }
+
+  /** Reparent `child` under `parent` (-1 = scene root). With `keepWorld` the child stays where it is in the world (uses the last frame's world matrices). */
+  setParent(child: number, parent: number, keepWorld = false): void { hierarchySetParent(this.world, child, parent, keepWorld); }
+
+  /** Show / hide an object and everything below it. */
+  setVisible(root: number, visible: boolean): void { hierarchySetVisible(this.world, root, visible); }
+
+  /** Destroy an object and everything below it; returns how many entities went away. */
+  destroyTree(root: number): number { return hierarchyDestroyTree(this.world, root); }
+
+  /** First entity with this name (optionally only inside the tree of `root`), or -1. */
+  find(name: string, root = -1): number { return findByName(this.world, name, root); }
+
+  /** Many copies of one mesh with per-instance transforms / materials / visibility; see {@link InstancedMesh}. */
+  createInstancedMesh(o: InstancedMeshOptions): InstancedMesh { return new InstancedMesh(this.world, this.renderer.meshes, o); }
+
+  /** Several geometries sharing one material, each with many instances; see {@link BatchedMesh}. */
+  createBatchedMesh(o: BatchedMeshOptions): BatchedMesh { return new BatchedMesh(this.world, this.renderer.meshes, o); }
 
   // ---- render-to-texture ----------------------------------------------------------------------------------------------------
 
