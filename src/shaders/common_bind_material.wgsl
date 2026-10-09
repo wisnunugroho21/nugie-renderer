@@ -6,6 +6,10 @@
 @group(2) @binding(4) var texNormal: texture_2d<f32>;
 @group(2) @binding(5) var texOcclusion: texture_2d<f32>;
 @group(2) @binding(6) var texEmissive: texture_2d<f32>;
+@group(2) @binding(7) var texHeight: texture_2d<f32>;       // R = height (bump / parallax / displacement)
+@group(2) @binding(8) var texAlpha: texture_2d<f32>;        // G = alpha
+@group(2) @binding(9) var texAux: texture_2d<f32>;          // matcap image, toon ramp, or packed (clearcoat, clearcoat roughness, transmission, thickness)
+@group(2) @binding(10) var texEnv: texture_cube<f32>;       // per-material prefiltered environment (mips = roughness)
 
 // Custom-material parameters live in the SAME storage buffer as the material records (one binding): the parameter region is
 // addressed in vec4s and each 64-byte record is viewed as four vec4s. `i` is an absolute vec4 index (materials[].paramBase + slot).

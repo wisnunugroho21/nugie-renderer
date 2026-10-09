@@ -50,11 +50,12 @@ export class SceneResources {
   brdfLut: GPUTextureView;
   envSampler: GPUSampler;
   ltcMatrix: GPUTextureView;
+  /** Copy of the opaque scene (HDR, mip chain) that transmissive materials refract; a 1x1 default until the renderer supplies one. */
+  transmission!: GPUTextureView;
   /** Volumetric fog volume (rgb in-scatter, a transmittance); a 1x1x1 'no fog' volume until the fog system supplies one. */
   fogVolume: GPUTextureView;
   /** Fog state mirrored into the uniform. */
   fog = { enabled: false, density: 0, heightFalloff: 0, anisotropy: 0, far: 100, tile: 8, ambient: [0, 0, 0] as [number, number, number] };
-  ltcMagnitude: GPUTextureView;
   /** Bumped when the bind group had to be rebuilt (diagnostics). */
   generation = 0;
   uploadBytes = 0;
@@ -66,6 +67,7 @@ export class SceneResources {
   private volumeBg: GPUBindGroup | null = null;
   private dummyFogView!: GPUTextureView;
   private dummyShadowView: GPUTextureView;
+  private defaultTransmission!: GPUTextureView;
   private lightCapacity = 256;
   private lightsVersion = -1;
   private uniformData = new ArrayBuffer(SCENE_UNIFORM_BYTES);
@@ -91,7 +93,7 @@ export class SceneResources {
     this.envIrradiance = cube(); this.envSpecular = cube();
     /** A 1x1 default 2D texture view. */
     const tex2 = (label: string) => r.textures.create({ label, size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING }).createView();
-    this.brdfLut = tex2('brdf-default'); this.ltcMagnitude = tex2('ltc-mag-default');
+    this.brdfLut = tex2('brdf-default'); this.transmission = tex2('transmission-default'); this.defaultTransmission = this.transmission;
     // LTC inverse-matrix table (offline fit, tools/fitLTC.ts): rgb = (ia, ib, ic)
     const ltc = r.textures.create({ label: 'ltc-matrix', size: [LTC_SIZE, LTC_SIZE], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
     const half = new Uint16Array(LTC_SIZE * LTC_SIZE * 4), one = floatToHalf(1);
@@ -149,11 +151,14 @@ export class SceneResources {
         { binding: 9, resource: this.brdfLut },
         { binding: 10, resource: this.envSampler },
         { binding: 11, resource: this.ltcMatrix },
-        { binding: 12, resource: this.ltcMagnitude },
+        { binding: 12, resource: this.transmission },
         { binding: 13, resource: fogView },
       ],
     });
   }
+
+  /** Supply (or clear with null) the opaque-scene copy sampled by transmissive materials. */
+  setTransmission(view: GPUTextureView | null): void { this.transmission = view ?? this.defaultTransmission; this.invalidate(); }
 
   /** Bind the shadow map array and the light matrices buffer (called by the ShadowSystem). */
   setShadowResources(map: GPUTextureView, matrices: GPUBuffer): void { this.shadowMap = map; this.shadowMatrices = matrices; this.invalidate(); }

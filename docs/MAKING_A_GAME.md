@@ -269,6 +269,43 @@ Notes:
 * Not included: depth of field, TAA / SMAA, outlines.
 * URL switches for the demos: `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1`, `ssao=<intensity>`, `ssr=<intensity>`.
 
+### Materials: shading models, surface detail, physical extensions
+
+`createPBR` is one description that selects a shader variant; features you do not use are compiled out, so a plain material costs what it always did.
+
+```ts
+renderer.materials.createPBR({ baseColor, roughness, metallic });                                  // physically based (default)
+renderer.materials.createPBR({ shading: 'toon', baseColor, toonSteps: 3 });                         // 'basic' | 'lambert' | 'phong' | 'toon' | 'matcap' | 'pbr'
+renderer.materials.createPBR({ clearcoat: 1, clearcoatRoughness: 0.03, baseColor: [0.8, 0.05, 0.05, 1], metallic: 0.6 });   // car paint
+renderer.materials.createPBR({ transmission: 1, thickness: 0.8, ior: 1.5, attenuationColor: [0.1, 0.7, 0.3], attenuationDistance: 1.2 });   // coloured glass
+renderer.materials.createPBR({ displacementScale: 0.3, bumpScale: 0.03, textures: { baseColor, height } });   // terrain tile (use a subdivided mesh)
+```
+
+| Feature | Description fields | Notes |
+|---|---|---|
+| Shading models | `shading`: `basic` (unlit), `lambert`, `phong` (`shininess`, `specular`), `toon` (`toonSteps` bands, or a ramp texture in `textures.aux`), `matcap` (image in `textures.aux`) | lit models keep shadows, fog, normal / alpha maps and image-based diffuse; unlit ones only base colour + emissive |
+| Height detail | `textures.height` (R) + `bumpScale` (bump mapping), `parallaxScale` (parallax occlusion, 24 layers), `displacementScale` / `displacementBias` (vertex displacement) | displacement needs a subdivided mesh and widened bounds (`world.bounds.padding[e]`); shadows and the depth prepass use the displaced shape |
+| Alpha map | `textures.alpha` (G channel) | blends by default (`alphaMode: 'MASK'` for cut-outs); cut-out shadows honour it |
+| Environment per material | `environment` (an `Environment` from `engine.captureEnvironment` / `renderer.ibl`), `envIntensity` | one prefiltered cube: its roughest mip stands in for the irradiance |
+| Clearcoat | `clearcoat`, `clearcoatRoughness` | second GGX lobe on the geometric normal, direct + image-based |
+| Sheen | `sheenColor`, `sheenRoughness` | Charlie distribution; the image-based part is a fit, not the glTF LUT |
+| Transmission, volume, dispersion | `transmission`, `thickness`, `attenuationColor` / `attenuationDistance`, `ior`, `dispersion` | see below |
+| Iridescence | `iridescence`, `iridescenceIor`, `iridescenceThickness: [min, max]` nm | thin-film Fresnel evaluated at the view angle (per fragment, not per light) |
+| Anisotropy | `anisotropy` (-1..1), `anisotropyRotation` | stretched GGX highlights + a bent reflection vector; needs mesh tangents or uvs |
+| Specular / IOR | `ior`, `specularIntensity`, `specularColor` | dielectric F0 from the IOR, tinted and scaled (KHR_materials_ior / specular) |
+
+* **Transmission** refracts what is behind the surface. With the HDR post chain on (`renderer.post.configure({...})`) and a transmissive material in view, the main pass is split: opaque
+  geometry and the sky are drawn first, copied (with mips, so rough glass blurs), and transmissive and blended surfaces then sample that copy at the exit point of the refracted ray (offset by
+  `thickness`; `dispersion` bends red / green / blue differently; the volume absorbs with Beer-Lambert). Without the chain (or with `gpuCulling: 'hiz2'`, or inside render-target views) it
+  refracts the environment only. Transmissive surfaces do not see each other. As a side effect the sky is now drawn before blended surfaces (it used to be drawn after them).
+* **Per-pixel factors**: the one spare texture slot, `textures.aux`, doubles as the packed factors map for physical materials: R clearcoat, G clearcoat roughness, B transmission, A thickness (multiplied
+  into the factors). Other extension maps (sheen colour, specular, iridescence thickness, anisotropy direction ...) are factor-only. Why: a pipeline layout is limited to 16 sampled textures per
+  stage and the scene bind group already uses 7; materials now take 9 (base colour, metal-rough, normal, occlusion, emissive, height, alpha, aux, environment cube), which uses the budget up.
+* Extension lobes are evaluated for point / spot / directional lights and image-based lighting; rectangular area lights use the plain GGX / diffuse model (diffuse only for the non-PBR models).
+* Custom WGSL materials keep their five texture slots and end with `outputColor(...)` as before; the shared prelude gained the extra material bindings (unused by them).
+* glTF: `KHR_materials_clearcoat / sheen / transmission / volume / ior / specular / iridescence / anisotropy / dispersion / unlit` factors are imported (their textures are skipped with a warning).
+* Demo: `/?scene=gallery&env=sky` is a labelled ball per feature; add `&post=1` for screen-space transmission.
+
 ### Primitives
 
 `createCube / createUVSphere / createPlane` plus, from `shapes.ts`: `createCylinder`, `createCone`, `createCapsule`, `createTorus`, `createTorusKnot`,
@@ -334,6 +371,7 @@ sprites.add({ position: [x, y, z], size: 24, uv: spriteSheetUV(2, 1, 4, 4), colo
 * **Lines** are screen-space quads of a width in pixels (anti-aliased, round-ish joins are not provided: square caps), colour and width interpolate along a segment, segments crossing
   the near plane are clipped. All segments of a system are one draw call. `depthTest: false` draws gizmos on top. Helpers: `line, gradient, polyline, segments, box, transformedBox, circle,
   sphere, arrow, axes, grid, cross, frustum`.
+* **Dashes and caps**: `createLineSystem({ dashSize, gapSize, dashOffset, caps: 'butt' | 'square' | 'round', widthUnit: 'pixels' | 'world' })` (dash lengths in world units; the pattern runs on along a `polyline`, `setDash` animates it). Points take `minSize` / `maxSize` in pixels.
 * **Points** are discs or squares sized in pixels or world units. **Sprites** face the camera ('camera'), turn about Y only ('axis-y') or lie in a plane ('fixed', with `right` / `up`);
   a system draws one texture. **Text** is glyph sprites from a font atlas: `\n`, wrapping (`maxWidth`), left / centre / right alignment, anchors; no kerning or complex scripts; one
   system per font, and the atlas is rasterised with the browser's canvas (so the font must be installed or loaded).
@@ -511,6 +549,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 
 * Off-screen views do not draw particles / fog / post-processing; no per-object reflection probes or portals with recursion.
 * Lines have no round joins / dashes, text has no kerning / SDF, there are no glTF-style line or point primitives (use the line / point systems).
+* Material maps for individual extensions (clearcoat, transmission, thickness, sheen, specular, iridescence, anisotropy) are not supported beyond the packed `aux` map; transmissive objects do not refract each other.
 * No DOF / TAA / SMAA (bloom, tone mapping, SSAO, SSR, FXAA and MSAA exist, see "Post-processing and anti-aliasing"); SSR is screen-space only.
 * No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.

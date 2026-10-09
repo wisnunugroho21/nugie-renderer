@@ -1,5 +1,5 @@
 // Point sprites: one instanced draw, 6 vertices per point, squares or anti-aliased discs of a size in pixels or world units.
-//   pts[i] = { xyz + size, color };  params = (size mode: 0 pixels / 1 world units, shape: 0 square / 1 disc, 0, 0)
+//   pts[i] = { xyz + size, color };  params = (size mode: 0 pixels / 1 world units, shape: 0 square / 1 disc, min size px, max size px (0 = none))
 //#include common_types
 //#include common_bind_frame
 //#include common_color
@@ -28,7 +28,8 @@ fn vs_main(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> 
   // world sizes become pixels through the projection: size * (focal length in pixels) / distance
   var sizePx = pt.p.w;
   if (params.x > 0.5) { sizePx = pt.p.w * frame.projection[1][1] * frame.viewport.y * 0.5 / clip.w; }
-  sizePx = max(sizePx, 1.0);
+  sizePx = max(sizePx, params.z);
+  if (params.w > 0.0) { sizePx = min(sizePx, params.w); }
   let h = sizePx * 0.5 + 1.0;                                             // + feather
   o.pos = vec4<f32>(clip.xy + c * h / (0.5 * frame.viewport.xy) * clip.w, clip.z - 0.0002 * clip.w, clip.w);
   o.color = pt.c;

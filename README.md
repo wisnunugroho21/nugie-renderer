@@ -35,7 +35,7 @@ npm run dev        # http://localhost:5173/
 
 | Page | What it is |
 |---|---|
-| `/` (`?scene=materials`) | Demo launcher. Other scenes: `gltf`, `character`, `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph` (animation graph: state machine, blend tree, layers), `rtt` (render-to-texture: mirror, minimap, security camera, reflection probe), `shapes` (primitives, groups, instancing, lines, points, sprites, text) |
+| `/` (`?scene=materials`) | Demo launcher. Other scenes: `gltf`, `character`, `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph` (animation graph: state machine, blend tree, layers), `rtt` (render-to-texture: mirror, minimap, security camera, reflection probe), `shapes` (primitives, groups, instancing, lines, points, sprites, text), `gallery` (materials: shading models, bump / parallax / displacement, clearcoat, sheen, glass, iridescence, anisotropy ...) |
 | `/game.html` | **Starter game** (move a cube with WASD) — the template to copy for your own game, see [`src/game/main.ts`](src/game/main.ts) |
 | `/selftest.html` | GPU self-tests: shaders, lighting, shadows, fog, particles compared with CPU reference implementations |
 | `/bench.html?suite=lights\|cull\|passes\|anim` | GPU benchmarks (default suite: draw submission) |

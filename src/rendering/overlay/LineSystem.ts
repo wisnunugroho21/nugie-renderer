@@ -12,12 +12,21 @@ export interface LineSystemOptions {
   width?: number;
   /** Default colour (default white). */
   color?: Color;
+  /** Width unit: 'pixels' (default; constant on screen) or 'world' (lines shrink with distance, like geometry). */
+  widthUnit?: 'pixels' | 'world';
+  /** Dashed lines: dash and gap lengths in WORLD units along the line (the pattern runs on continuously along a `polyline`; each `line` starts a fresh pattern). */
+  dashSize?: number;
+  gapSize?: number;
+  /** Shifts the dash pattern along the line (world units): animate it for marching ants. */
+  dashOffset?: number;
+  /** Ends of every segment: 'square' (default, joins neighbours without gaps), 'round' or 'butt'. */
+  caps?: 'butt' | 'square' | 'round';
   /** Clear after every frame: re-issue the lines each frame (immediate mode, e.g. debug drawing). Default false: lines stay until `clear()`. */
   autoClear?: boolean;
   name?: string;
 }
 
-const SEG_FLOATS = 16;     // a (xyz, width px), b (xyz, width px), colorA, colorB
+const SEG_FLOATS = 20;     // a (xyz, width), b (xyz, width), colorA, colorB, distance along the polyline at a / at b
 
 /**
  * Thick, anti-aliased lines in world space (three.js `Line` / `LineSegments` / `Line2`), plus debug-draw helpers (boxes, spheres, arrows,
@@ -34,7 +43,15 @@ export class LineSystem implements Overlay {
   width: number;
   color: Color;
   readonly depthTest: boolean;
+  readonly widthUnit: 'pixels' | 'world';
+  /** Dash pattern (world units; `dashSize` 0 = solid line). Changes take effect on the next frame. */
+  dashSize: number;
+  gapSize: number;
+  dashOffset: number;
+  caps: 'butt' | 'square' | 'round';
   private store: StorageArray;
+  private params0: GPUBuffer;
+  private params1: GPUBuffer;
   private n = 0;
   private dirty = false;
   private layout: GPUBindGroupLayout;
@@ -48,8 +65,18 @@ export class LineSystem implements Overlay {
     this.width = o.width ?? 1.5;
     this.color = o.color ?? [1, 1, 1, 1];
     this.depthTest = o.depthTest ?? true;
+    this.widthUnit = o.widthUnit ?? 'pixels';
+    this.dashSize = o.dashSize ?? 0; this.gapSize = o.gapSize ?? 0; this.dashOffset = o.dashOffset ?? 0; this.caps = o.caps ?? 'square';
     this.store = new StorageArray(gpu, `${o.name ?? 'lines'}:segments`, SEG_FLOATS, o.maxSegments ?? 4096);
-    this.layout = gpu.device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } }] });
+    const V = GPUShaderStage.VERTEX, F = GPUShaderStage.FRAGMENT;
+    this.layout = gpu.device.createBindGroupLayout({ entries: [
+      { binding: 0, visibility: V, buffer: { type: 'read-only-storage' } },
+      { binding: 1, visibility: V | F, buffer: { type: 'uniform' } },
+      { binding: 2, visibility: V, buffer: { type: 'uniform' } },
+    ] });
+    const U = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
+    this.params0 = gpu.resources.buffers.create(`${o.name ?? 'lines'}:params0`, 16, U);
+    this.params1 = gpu.resources.buffers.create(`${o.name ?? 'lines'}:params1`, 16, U);
     this.layouts = layouts;
     this.retarget();
   }
@@ -80,16 +107,33 @@ export class LineSystem implements Overlay {
     });
   }
 
+  /** Change the dash pattern (world units; `dash` 0 = solid). */
+  setDash(dash: number, gap: number, offset = 0): this { this.dashSize = dash; this.gapSize = gap; this.dashOffset = offset; return this; }
+
+  private lastParams = '';
+  /** Send the dash / cap / width-unit parameters when they changed. */
+  private writeParams(): void {
+    const cap = this.caps === 'butt' ? 0 : this.caps === 'round' ? 2 : 1;
+    const key = `${this.dashSize}|${this.gapSize}|${this.dashOffset}|${cap}|${this.widthUnit}`;
+    if (key === this.lastParams) return;
+    this.lastParams = key;
+    this.gpu.queue.writeBuffer(this.params0, 0, new Float32Array([this.dashSize, this.gapSize, this.dashOffset, cap]));
+    this.gpu.queue.writeBuffer(this.params1, 0, new Float32Array([this.widthUnit === 'world' ? 1 : 0, 0, 0, 0]));
+  }
+
   clear(): void { if (this.n !== 0) { this.n = 0; this.dirty = true; } }
 
   flush(): void {
+    this.writeParams();
     if (this.dirty) { this.store.upload(this.n); this.dirty = false; }
   }
 
   encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void {
     if (!this.visible || this.n === 0) return;
     if (!this.bindGroup || this.bindGen !== this.store.generation) {
-      this.bindGroup = this.gpu.device.createBindGroup({ label: 'lines', layout: this.layout, entries: [{ binding: 0, resource: { buffer: this.store.buffer } }] });
+      this.bindGroup = this.gpu.device.createBindGroup({ label: 'lines', layout: this.layout, entries: [
+        { binding: 0, resource: { buffer: this.store.buffer } }, { binding: 1, resource: { buffer: this.params0 } }, { binding: 2, resource: { buffer: this.params1 } },
+      ] });
       this.bindGen = this.store.generation;
       this.dirty = true;                                  // a re-created buffer is empty
       this.flush();
@@ -107,22 +151,25 @@ export class LineSystem implements Overlay {
     return this.gradient(a, b, color, color, width);
   }
 
-  /** One segment whose colour blends from `ca` at `a` to `cb` at `b`. */
-  gradient(a: Vec3, b: Vec3, ca: Color, cb: Color, width: number = this.width): this {
+  /** One segment whose colour blends from `ca` at `a` to `cb` at `b`. `startDist` is the distance along the line at `a` (continues a dash pattern). */
+  gradient(a: Vec3, b: Vec3, ca: Color, cb: Color, width: number = this.width, startDist = 0): this {
     this.store.ensure(this.n + 1);
     const d = this.store.data, o = this.n * SEG_FLOATS;
     d[o] = a[0]; d[o + 1] = a[1]; d[o + 2] = a[2]; d[o + 3] = width;
     d[o + 4] = b[0]; d[o + 5] = b[1]; d[o + 6] = b[2]; d[o + 7] = width;
     d[o + 8] = ca[0]; d[o + 9] = ca[1]; d[o + 10] = ca[2]; d[o + 11] = ca[3] ?? 1;
     d[o + 12] = cb[0]; d[o + 13] = cb[1]; d[o + 14] = cb[2]; d[o + 15] = cb[3] ?? 1;
+    d[o + 16] = startDist; d[o + 17] = startDist + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); d[o + 18] = 0; d[o + 19] = 0;
     this.n++; this.dirty = true;
     return this;
   }
 
   /** Connected segments through `points` (like three.js `Line`); `closed` joins the last point back to the first (`LineLoop`). */
   polyline(points: ReadonlyArray<Vec3>, color: Color = this.color, width: number = this.width, closed = false): this {
-    for (let i = 0; i + 1 < points.length; i++) this.line(points[i], points[i + 1], color, width);
-    if (closed && points.length > 2) this.line(points[points.length - 1], points[0], color, width);
+    let dist = 0;                                     // the dash pattern runs on across the joints
+    const seg = (a: Vec3, b: Vec3) => { this.gradient(a, b, color, color, width, dist); dist += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); };
+    for (let i = 0; i + 1 < points.length; i++) seg(points[i], points[i + 1]);
+    if (closed && points.length > 2) seg(points[points.length - 1], points[0]);
     return this;
   }
 

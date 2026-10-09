@@ -229,6 +229,8 @@ export class PostProcessor {
   /** The main pass must be followed by the aux pass (view-space normal / roughness / metallic) for SSAO or SSR. */
   get needsAux(): boolean { return this.enabled && (this.settings.ssao.enabled || this.settings.ssr.enabled); }
 
+  /** The HDR scene colour texture (resolved when multisampled): copied for screen-space transmission. */
+  get sceneTexture(): GPUTexture { return this.scene!.tex; }
   /** Scene colour view the main pass draws into (resolve target when multisampled). Valid after {@link ensureTargets}. */
   get sceneView(): GPUTextureView { return this.scene!.view; }
   /** Multisampled colour view the main pass draws into when `samples > 1`. */
@@ -267,7 +269,7 @@ export class PostProcessor {
 
     const RT = GPUTextureUsage.RENDER_ATTACHMENT, TB = GPUTextureUsage.TEXTURE_BINDING;
     if (this.enabled) {
-      this.scene = make('post-scene', w, h, HDR_FORMAT, RT | TB);
+      this.scene = make('post-scene', w, h, HDR_FORMAT, RT | TB | GPUTextureUsage.COPY_SRC);
       if (fxaa) this.ldr = make('post-ldr', w, h, this.gpu.format, RT | TB);
       for (let i = 0, lw = w, lh = h; i < levels; i++) {
         lw = Math.max(1, (lw + 1) >> 1); lh = Math.max(1, (lh + 1) >> 1);

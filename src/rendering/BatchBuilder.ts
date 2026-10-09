@@ -16,6 +16,8 @@ export class BatchList {
   instanceCount = new Uint32Array(64);
   /** Which queue each batch belongs to (0 opaque, 1 alphaMask, 2 transparent). */
   queue = new Uint8Array(64);
+  /** 1 for batches drawn after the opaque geometry and the sky: blended surfaces and transmissive materials (set by the renderer). */
+  late = new Uint8Array(64);
 
   /** Empty the list (capacity is kept). */
   reset(): void { this.count = 0; }
@@ -35,7 +37,7 @@ export class BatchList {
       const o = new (a.constructor as new (n: number) => T)(n); o.set(a); return o;
     };
     this.materialId = g(this.materialId); this.meshId = g(this.meshId); this.firstInstance = g(this.firstInstance);
-    this.instanceCount = g(this.instanceCount); this.queue = g(this.queue);
+    this.instanceCount = g(this.instanceCount); this.queue = g(this.queue); this.late = g(this.late);
   }
 }
 

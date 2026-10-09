@@ -19,7 +19,7 @@ fn evaluateIBL(s: SurfaceInfo, occlusion: f32) -> vec3<f32> {
   let lod = s.roughness * (scene.env.z - 1.0);
   let prefiltered = textureSampleLevel(envSpecular, envSampler, rotateY(R, rot), lod).rgb;
   let ab = textureSampleLevel(brdfLut, envSampler, vec2<f32>(NoV, s.roughness), 0.0).rg;
-  let specular = prefiltered * (s.f0 * ab.x + vec3<f32>(ab.y));
+  let specular = prefiltered * (s.f0 * ab.x + vec3<f32>(ab.y * s.f90));
   return (irradiance * s.diffuseColor + specular) * scene.env.x * occlusion;
 }
 
@@ -32,9 +32,10 @@ fn ltcLookup(roughness: f32, NoV: f32) -> vec3<f32> {
 
 fn shadeArea(light: Light, s: SurfaceInfo, P: vec3<f32>) -> vec3<f32> {
   let radiance = light.colorIntensity.rgb * light.colorIntensity.w;
+  if (s.model != 0u) { return s.diffuseColor * areaFormFactor(light, P, s.N) * radiance; }   // Lambert / Phong / Toon: diffuse only
   let NoV = max(dot(s.N, s.V), 1e-3);
   let ab = textureSampleLevel(brdfLut, envSampler, vec2<f32>(NoV, s.roughness), 0.0).rg;
-  let specColor = s.f0 * ab.x + vec3<f32>(ab.y);
+  let specColor = s.f0 * ab.x + vec3<f32>(ab.y * s.f90);
   let spec = specColor * areaSpecularFraction(light, s.N, s.V, P, ltcLookup(s.roughness, NoV));
   let diffuse = s.diffuseColor * (vec3<f32>(1.0) - specColor) * areaFormFactor(light, P, s.N);
   return (diffuse + spec) * radiance;

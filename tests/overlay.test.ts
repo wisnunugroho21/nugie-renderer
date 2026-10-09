@@ -121,7 +121,7 @@ describe('LineSystem', () => {
     ls.circle([1, 2, 3], [0, 0, 1], 2, undefined, 16);
     const d = (ls as unknown as { store: { data: Float32Array } }).store.data;
     for (let i = 0; i < 16; i++) {
-      const o = i * 16;
+      const o = i * 20;
       expect(d[o + 2]).toBeCloseTo(3, 5);                              // stays in the z = 3 plane
       expect(Math.hypot(d[o] - 1, d[o + 1] - 2)).toBeCloseTo(2, 5);
     }
@@ -133,7 +133,7 @@ describe('LineSystem', () => {
     for (let i = 0; i < 100; i++) ls.line([i, 0, 0], [i, 1, 0]);
     expect(ls.count).toBe(100);
     const d = (ls as unknown as { store: { data: Float32Array } }).store.data;
-    expect(d[0]).toBe(0); expect(d[99 * 16]).toBe(99);
+    expect(d[0]).toBe(0); expect(d[99 * 20]).toBe(99);
   });
 
   it('uploads only when something changed', () => {
@@ -142,10 +142,45 @@ describe('LineSystem', () => {
     ls.line([0, 0, 0], [1, 1, 1]);
     const before = writes.length;
     ls.flush();
-    expect(writes.length).toBe(before + 1);
-    expect(writes[writes.length - 1].label).toBe('ln:segments');
+    expect(writes.length).toBe(before + 3);                             // the segments + the two parameter blocks (first flush)
+    expect(writes.some((w) => w.label === 'ln:segments')).toBe(true);
     ls.flush();
-    expect(writes.length).toBe(before + 1);                             // clean: nothing to send
+    expect(writes.length).toBe(before + 3);                             // clean: nothing to send
+  });
+});
+
+describe('LineSystem dashes, caps and widths', () => {
+  const data = (ls: LineSystem) => (ls as unknown as { store: { data: Float32Array } }).store.data;
+
+  it('polylines carry the cumulative distance so a dash pattern continues across joints; lines restart', () => {
+    const { gpu, layouts, target } = setup();
+    const ls = new LineSystem(gpu, layouts, target, { dashSize: 0.5, gapSize: 0.25 });
+    ls.polyline([[0, 0, 0], [3, 0, 0], [3, 4, 0], [0, 4, 0]]);
+    const d = data(ls);
+    expect([d[16], d[17]]).toEqual([0, 3]);                              // first segment: 0 .. 3
+    expect([d[20 + 16], d[20 + 17]]).toEqual([3, 7]);                    // continues: 3 .. 7
+    expect([d[40 + 16], d[40 + 17]]).toEqual([7, 10]);
+    ls.clear();
+    ls.line([0, 0, 0], [0, 0, 5]); ls.line([1, 0, 0], [1, 0, 2]);
+    expect([d[16], d[17], d[20 + 16], d[20 + 17]]).toEqual([0, 5, 0, 2]);
+    ls.clear();
+    ls.polyline([[0, 0, 0], [1, 0, 0], [1, 1, 0]], undefined, undefined, true);
+    expect(d[40 + 16]).toBe(2);                                          // the closing segment starts after both edges
+    expect(d[40 + 17]).toBeCloseTo(2 + Math.SQRT2, 6);
+  });
+
+  it('stores the dash, cap and width settings and sends them only when they change', () => {
+    const { gpu, layouts, target, writes } = setup();
+    const ls = new LineSystem(gpu, layouts, target, { name: 'dl', dashSize: 1, gapSize: 0.5, dashOffset: 0.25, caps: 'round', widthUnit: 'world' });
+    expect([ls.dashSize, ls.gapSize, ls.dashOffset, ls.caps, ls.widthUnit]).toEqual([1, 0.5, 0.25, 'round', 'world']);
+    ls.flush();
+    const n = writes.filter((w) => w.label.startsWith('dl:params')).length;
+    expect(n).toBe(2);
+    ls.flush();
+    expect(writes.filter((w) => w.label.startsWith('dl:params')).length).toBe(2);
+    ls.setDash(2, 1, 0.5);
+    ls.flush();
+    expect(writes.filter((w) => w.label.startsWith('dl:params')).length).toBe(4);   // changed: rewritten
   });
 });
 

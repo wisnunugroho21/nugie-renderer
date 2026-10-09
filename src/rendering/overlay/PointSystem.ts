@@ -12,6 +12,9 @@ export interface PointSystemOptions {
   shape?: 'disc' | 'square';
   /** Hide points behind geometry (default true). */
   depthTest?: boolean;
+  /** Smallest / largest on-screen size in pixels (default 1 / unlimited): keeps distant world-sized points visible and near ones from covering the screen. */
+  minSize?: number;
+  maxSize?: number;
   /** Default size (pixels or world units depending on `sizeUnit`; default 4 px / 0.05 world). */
   size?: number;
   color?: Color;
@@ -59,7 +62,7 @@ export class PointSystem implements Overlay {
       { binding: 1, visibility: V | F, buffer: { type: 'uniform' } },
     ] });
     this.params = gpu.resources.buffers.create(`${o.name ?? 'points'}:params`, 16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-    gpu.queue.writeBuffer(this.params, 0, new Float32Array([this.sizeUnit === 'world' ? 1 : 0, this.shape === 'disc' ? 1 : 0, 0, 0]));
+    gpu.queue.writeBuffer(this.params, 0, new Float32Array([this.sizeUnit === 'world' ? 1 : 0, this.shape === 'disc' ? 1 : 0, Math.max(o.minSize ?? 1, 1), o.maxSize ?? 0]));
     this.retarget();
   }
 

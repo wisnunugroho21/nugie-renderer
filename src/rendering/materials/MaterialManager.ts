@@ -5,9 +5,10 @@ import { ShaderManager } from '../../gpu/ShaderManager';
 import { COMMON_PRELUDE, ERROR_SOURCE, PBR_SOURCE, registerEngineShaderChunks } from '../../shaders';
 import { STANDARD_VERTEX_LAYOUT, toGPUVertexBuffers } from '../VertexLayouts';
 import { MaterialFeature, MaterialRecordFlags, featureDefines } from './MaterialFlags';
+import { EXT_VEC4, needsExtParams, packPBRExt, pbrFeatureMask, type TexPresence } from './PBRExtension';
 import { DeformMask } from '../MeshManager';
 import {
-  TextureSlot,
+  TextureSlot, TEXTURE_SLOT_COUNT,
   type CustomMaterialDesc, type Material, type PBRMaterialDesc, type ParamValues,
   type RenderQueue, type TextureRef, type TextureSlots,
 } from './Material';
@@ -16,7 +17,7 @@ import {
 } from './CustomShader';
 
 const RECORD_WORDS = 16; // 64 bytes (matches MaterialRecord in common.wgsl)
-const TEX_SLOTS = 5;
+const TEX_SLOTS = TEXTURE_SLOT_COUNT;
 
 export interface PassTarget {
   /** null for depth-only passes. */
@@ -72,7 +73,7 @@ export class MaterialManager {
   private layouts_ = new Map<string, ParamLayout>(); // by shaderId
   private customSources = new Map<string, string>(); // shaderId -> full WGSL
   private sortIds = new Map<string, number>();
-  private defaults!: { white: TextureRef; flatNormal: TextureRef };
+  private defaults!: { white: TextureRef; flatNormal: TextureRef; blackCube: GPUTextureView };
 
   /** Create the shared material / parameter buffers, the 1x1 default textures, the default PBR material and the error material. */
   constructor(private device: GPUDevice, private res: GPUResources, private layouts: BindLayouts) {
@@ -86,11 +87,10 @@ export class MaterialManager {
   // ---------------------------------------------------------------- creation
 
   createPBR(desc: PBRMaterialDesc = {}): number {
-    const alphaMode = desc.alphaMode ?? 'OPAQUE';
-    const hasNormal = !!desc.textures?.normal;
-    const features = (alphaMode === 'MASK' ? MaterialFeature.AlphaMask : 0)
-      | (alphaMode === 'BLEND' ? MaterialFeature.AlphaBlend : 0)
-      | (hasNormal ? MaterialFeature.NormalMap : 0);
+    const t = desc.textures;
+    const alphaMode = desc.alphaMode ?? (t?.alpha ? 'BLEND' : 'OPAQUE');
+    const full: PBRMaterialDesc = { ...desc, alphaMode };
+    const features = pbrFeatureMask(full, this.presenceOf(t), !!desc.environment);
     const m = this.newMaterial({
       name: desc.name ?? `pbr${this.materials.length}`, kind: 'pbr',
       queue: alphaMode === 'BLEND' ? 'transparent' : alphaMode === 'MASK' ? 'alphaMask' : 'opaque',
@@ -105,14 +105,42 @@ export class MaterialManager {
       passes: { main: true, depth: alphaMode !== 'BLEND', shadow: alphaMode !== 'BLEND' },
       samplerDesc: desc.sampler ?? DEFAULT_SAMPLER,
     });
-    const t = desc.textures;
     this.setTextureRaw(m, TextureSlot.BaseColor, t?.baseColor ?? null);
     this.setTextureRaw(m, TextureSlot.MetalRough, t?.metalRough ?? null);
     this.setTextureRaw(m, TextureSlot.Normal, t?.normal ?? null);
     this.setTextureRaw(m, TextureSlot.Occlusion, t?.occlusion ?? null);
     this.setTextureRaw(m, TextureSlot.Emissive, t?.emissive ?? null);
-    this.writeRecord(m.id, desc);
+    this.setTextureRaw(m, TextureSlot.Height, t?.height ?? null);
+    this.setTextureRaw(m, TextureSlot.Alpha, t?.alpha ?? null);
+    this.setTextureRaw(m, TextureSlot.Aux, t?.aux ?? null);
+    m.environment = desc.environment ?? null;
+    m.pbr = { ...desc };                      // as given: an alpha mode the caller left out stays "unspecified" (an alpha map may still switch it to BLEND)
+    this.applyExtParams(m);
+    this.writeRecord(m.id, full);
     return m.id;
+  }
+
+  /** Which optional textures a texture-slot list contains (they select shader variants). */
+  private presenceOf(t: PBRMaterialDesc['textures'] | undefined): TexPresence {
+    return { normal: !!t?.normal, height: !!t?.height, alpha: !!t?.alpha, aux: !!t?.aux };
+  }
+
+  /** Allocate (once) and fill the extension parameter block of a PBR material that uses any extension. */
+  private applyExtParams(m: Material): void {
+    const d = m.pbr;
+    if (!d || !needsExtParams(m.features, d)) return;
+    if (m.paramCount === 0) { m.paramCount = EXT_VEC4; m.paramBase = this.allocParams(EXT_VEC4); }
+    packPBRExt(d, this.paramF32, m.paramBase);
+    this.paramDirtyMin = Math.min(this.paramDirtyMin, m.paramBase);
+    this.paramDirtyMax = Math.max(this.paramDirtyMax, m.paramBase + m.paramCount - 1);
+  }
+
+  /** Recompute a PBR material's shader features after its description, textures or environment changed. */
+  private refreshPBRFeatures(m: Material): void {
+    if (m.kind !== 'pbr' || !m.pbr) return;
+    const tex = { normal: !!m.textures[TextureSlot.Normal], height: !!m.textures[TextureSlot.Height], alpha: !!m.textures[TextureSlot.Alpha], aux: !!m.textures[TextureSlot.Aux] };
+    m.features = pbrFeatureMask({ ...m.pbr, alphaMode: m.alphaMode }, tex, !!m.environment);
+    this.refreshSortId(m);
   }
 
   /** Register a custom WGSL material (validated first; throws MaterialError). Returns its id. Parameters are read through generated `param_<name>(base)` accessors. */
@@ -165,12 +193,12 @@ export class MaterialManager {
   }
 
   /** Allocate a material record (growing the shared buffer if needed) and add it to the registry. */
-  private newMaterial(p: Omit<Material, 'id' | 'textures' | 'paramBase' | 'paramCount' | 'paramSchema' | 'version' | 'failed' | 'pipelineSortId'>): Material {
+  private newMaterial(p: Omit<Material, 'id' | 'textures' | 'paramBase' | 'paramCount' | 'paramSchema' | 'version' | 'failed' | 'pipelineSortId' | 'environment' | 'pbr'>): Material {
     const id = this.materials.length;
     if (id >= this.recCap) this.growRecords(id + 1);
     const m: Material = {
       ...p, id, textures: new Array(TEX_SLOTS).fill(null) as TextureSlots,
-      paramBase: 0, paramCount: 0, paramSchema: [], version: 0, failed: false, pipelineSortId: 0,
+      paramBase: 0, paramCount: 0, paramSchema: [], version: 0, failed: false, pipelineSortId: 0, environment: null, pbr: null,
     };
     this.materials.push(m);
     this.refreshSortId(m);
@@ -179,14 +207,19 @@ export class MaterialManager {
 
   // ---------------------------------------------------------------- mutation
 
-  /** Update PBR scalar data. Only changes record data; pipelines are untouched unless alpha/normal-map features change. */
+  /**
+   * Update a PBR material: scalar data, shading model and extension parameters (partial updates merge with what was set before).
+   * Changing something that selects shader code (alpha mode, an extension switching on / off, the environment) switches the material to
+   * another pipeline variant; plain value changes only rewrite data.
+   */
   setPBR(id: number, desc: PBRMaterialDesc): void {
     const m = this.materials[id];
-    if (m.kind !== 'pbr') throw new Error('setPBR on non-PBR material');
+    if (m.kind !== 'pbr' || !m.pbr) throw new Error('setPBR on non-PBR material');
+    const { textures: _ignored, ...scalars } = desc;
+    void _ignored;
+    const merged: PBRMaterialDesc = { ...m.pbr, ...scalars };
     if (desc.alphaMode !== undefined && desc.alphaMode !== m.alphaMode) {
       m.alphaMode = desc.alphaMode;
-      m.features = (m.features & ~(MaterialFeature.AlphaMask | MaterialFeature.AlphaBlend))
-        | (desc.alphaMode === 'MASK' ? MaterialFeature.AlphaMask : 0) | (desc.alphaMode === 'BLEND' ? MaterialFeature.AlphaBlend : 0);
       m.queue = desc.alphaMode === 'BLEND' ? 'transparent' : desc.alphaMode === 'MASK' ? 'alphaMask' : 'opaque';
       m.state = { ...m.state, blend: desc.alphaMode === 'BLEND' ? ALPHA_BLEND : null, depthWrite: desc.alphaMode !== 'BLEND' };
       m.passes.depth = m.passes.shadow = desc.alphaMode !== 'BLEND';
@@ -195,18 +228,24 @@ export class MaterialManager {
       m.doubleSided = desc.doubleSided;
       m.state = { ...m.state, cullMode: desc.doubleSided ? 'none' : 'back' };
     }
-    this.refreshSortId(m);
-    this.writeRecord(id, { ...this.readBack(id), ...desc });
+    if (desc.environment !== undefined) { m.environment = desc.environment; m.version++; }
+    merged.alphaMode = m.alphaMode;
+    m.pbr = merged;
+    this.refreshPBRFeatures(m);
+    this.applyExtParams(m);
+    this.writeRecord(id, merged);
   }
 
-  /** Bind `tex` (or null = default) to texture slot `slot` of material `id`; toggles the normal-map shader variant when the normal slot changes. */
+  /** Bind `tex` (or null = default) to texture slot `slot` of material `id`; slots that select shader code (normal, height, alpha, aux) switch the pipeline variant. */
   setTexture(id: number, slot: number, tex: TextureRef | null): void {
     const m = this.materials[id];
     this.setTextureRaw(m, slot, tex);
     m.version++;
-    if (m.kind === 'pbr' && slot === TextureSlot.Normal) {
-      m.features = tex ? m.features | MaterialFeature.NormalMap : m.features & ~MaterialFeature.NormalMap;
-      this.refreshSortId(m);
+    if (m.kind === 'pbr') {
+      if (slot === TextureSlot.Alpha && tex && !m.pbr?.alphaMode && m.alphaMode === 'OPAQUE') this.setPBR(id, { alphaMode: 'BLEND' });
+      this.refreshPBRFeatures(m);
+      this.applyExtParams(m);
+      if (m.pbr) this.writeRecord(id, m.pbr);
     }
   }
 
@@ -251,6 +290,7 @@ export class MaterialManager {
           binding: 2 + s,
           resource: (t ?? (s === TextureSlot.Normal ? this.defaults.flatNormal : this.defaults.white)).view,
         })),
+        { binding: 2 + TEX_SLOTS, resource: m.environment ? m.environment.specularView : this.defaults.blackCube },
       ],
     }));
   }
@@ -441,14 +481,6 @@ export class MaterialManager {
   /** Store the texture reference without touching versions or shader features. */
   private setTextureRaw(m: Material, slot: number, tex: TextureRef | null): void { m.textures[slot] = tex; }
 
-  /** Read a PBR material's numeric parameters back from the CPU copy of the material buffer. */
-  private readBack(id: number): PBRMaterialDesc {
-    const o = id * RECORD_WORDS, f = this.recF32;
-    return {
-      baseColor: [f[o], f[o + 1], f[o + 2], f[o + 3]], emissive: [f[o + 4], f[o + 5], f[o + 6]], emissiveStrength: f[o + 7],
-      metallic: f[o + 8], roughness: f[o + 9], normalScale: f[o + 10], occlusionStrength: f[o + 11], alphaCutoff: f[o + 12],
-    };
-  }
 
   /** Write a material's PBR parameters and flags into its 64-byte record in the shared buffer and extend the dirty range. */
   private writeRecord(id: number, d: PBRMaterialDesc, extraFlags = 0): void {
@@ -463,7 +495,7 @@ export class MaterialManager {
     const hasEmissive = em[0] > 0 || em[1] > 0 || em[2] > 0;
     u[o + 13] = (m.doubleSided ? MaterialRecordFlags.DoubleSided : 0) | (hasEmissive ? MaterialRecordFlags.Emissive : 0) | extraFlags
       | (m.kind === 'custom' ? MaterialRecordFlags.Custom : 0);
-    u[o + 14] = m.kind === 'custom' ? this.recCap * 4 + m.paramBase : 0;   // absolute vec4 index: the param region follows the records
+    u[o + 14] = m.paramCount > 0 ? this.recCap * 4 + m.paramBase : 0;   // absolute vec4 index: the param region follows the records
     u[o + 15] = 0;
     this.recDirtyMin = Math.min(this.recDirtyMin, id);
     this.recDirtyMax = Math.max(this.recDirtyMax, id);
@@ -498,7 +530,7 @@ export class MaterialManager {
     this.materialBuffer = this.makeMaterialBuffer();
     this.generation++;
     // the parameter region starts after the records, so it moves: re-point every custom material and re-upload everything
-    for (const m of this.materials) if (m.kind === 'custom') this.recU32[m.id * RECORD_WORDS + 14] = this.recCap * 4 + m.paramBase;
+    for (const m of this.materials) if (m.paramCount > 0) this.recU32[m.id * RECORD_WORDS + 14] = this.recCap * 4 + m.paramBase;
     this.recDirtyMin = 0; this.recDirtyMax = Math.max(0, this.materials.length - 1);
     if (this.paramUsedVec4 > 0) { this.paramDirtyMin = 0; this.paramDirtyMax = this.paramUsedVec4 - 1; }
   }
@@ -522,7 +554,8 @@ export class MaterialManager {
       this.device.queue.writeTexture({ texture: tex }, new Uint8Array(rgba), { bytesPerRow: 4 }, [1, 1]);
       return { id, view: tex.createView() };
     };
-    this.defaults = { white: mk('default-white', [255, 255, 255, 255]), flatNormal: mk('default-flat-normal', [128, 128, 255, 255]) };
+    const blackCube = this.res.textures.create({ label: 'default-black-cube', size: [1, 1, 6], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }).createView({ dimension: 'cube' });
+    this.defaults = { white: mk('default-white', [255, 255, 255, 255]), flatNormal: mk('default-flat-normal', [128, 128, 255, 255]), blackCube };
   }
 }
 

@@ -90,4 +90,9 @@ export async function parseGLTF(data: ArrayBuffer | Uint8Array | string, resolve
 }
 
 /** Extensions we can honor (or safely ignore) when listed as REQUIRED. */
-const SUPPORTED_REQUIRED_EXTENSIONS = new Set(['KHR_materials_emissive_strength', 'KHR_texture_transform']);
+const SUPPORTED_REQUIRED_EXTENSIONS = new Set([
+  'KHR_materials_emissive_strength', 'KHR_texture_transform',
+  // physical material extensions: factors are honoured, their textures are ignored with a warning
+  'KHR_materials_clearcoat', 'KHR_materials_sheen', 'KHR_materials_transmission', 'KHR_materials_volume', 'KHR_materials_ior',
+  'KHR_materials_specular', 'KHR_materials_iridescence', 'KHR_materials_anisotropy', 'KHR_materials_dispersion', 'KHR_materials_unlit',
+]);

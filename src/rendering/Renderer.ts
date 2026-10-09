@@ -23,6 +23,8 @@ import { RenderGraph } from './RenderGraph';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
 import { PostProcessor, HDR_FORMAT, AUX_FORMAT } from './post/PostProcessor';
+import { MipmapGenerator } from '../gpu/MipmapGenerator';
+import { MaterialFeature } from './materials/MaterialFlags';
 import { ClusterGrid } from './lighting/ClusterGrid';
 import { LightData } from './lighting/LightData';
 import { RendererStats } from '../profiling/RendererStats';
@@ -54,6 +56,8 @@ interface FrameState {
   /** GPU culling is active; the first `nCullBatches` batches go through it. */
   gpuCull: boolean;
   nCullBatches: number;
+  /** A visible opaque batch uses a transmissive material. */
+  transmissive: boolean;
 }
 
 /** Everything an off-screen render needs besides the scene: a camera and the colour / depth views to draw into. */
@@ -150,7 +154,7 @@ export class Renderer {
   private batches = new BatchList();
 
   /** Batch state of the frame being rendered (filled by buildBatches, read while recording passes). */
-  private frame: FrameState = { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0 };
+  private frame: FrameState = { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0, transmissive: false };
   // legacy SceneSettings -> lights (rebuilt only when the settings change, so the upload gate stays quiet)
   private legacy = new LightData();
   private legacyKey = '';
@@ -186,6 +190,7 @@ export class Renderer {
     this.targetPre = { ...this.target, depthEqual: true };
     this.extrasTarget = { colorFormat: gpu.format, depthFormat: DEPTH_FORMAT, sampleCount: 1 };
     this.post = new PostProcessor(gpu);
+    this.mips = new MipmapGenerator(gpu.device, gpu.resources);
 
     this.frameBuffer = r.buffers.create('FrameUniformBuffer', this.frameData.byteLength, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     this.sceneResources = new SceneResources(gpu, this.layouts);
@@ -249,6 +254,11 @@ export class Renderer {
   private viewScratch = new Map<boolean, ViewScratch>();
   private probeVisibility = new VisibilitySystem();
   private lastTime = 0;
+  private mips: MipmapGenerator;
+  /** Copy of the opaque scene (HDR, mip chain) that transmissive materials refract. */
+  private transTex: GPUTexture | null = null;
+  /** Screen-space transmission runs this frame (post chain on, a transmissive material visible). */
+  private transmissionActive = false;
   /** Draw the bound environment as the background (when one is set). */
   showSkybox = true;
 
@@ -456,7 +466,7 @@ export class Renderer {
       s = {
         target: { colorFormat: RENDER_TARGET_FORMAT, depthFormat: DEPTH_FORMAT, sampleCount: 1, flipWinding: flip },
         queueBuilder: new RenderQueueBuilder(), queues: new RenderQueues(), batches: new BatchList(),
-        frame: { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0 },
+        frame: { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0, transmissive: false },
         pipeCache: [], pipeSort: [], pipeFailed: [], slots: new Uint32Array(0),
       };
       this.viewScratch.set(flip, s);
@@ -511,6 +521,7 @@ export class Renderer {
       fd.set(cam.position, 48); fd[51] = time;
       fd[52] = job.width; fd[53] = job.height; fd[54] = cam.near; fd[55] = cam.far;
       fd[56] = 1;                                   // linear HDR output: the colour is used as a texture, not displayed directly
+      fd[57] = 0; fd[58] = 0; fd[59] = 0;           // views refract the environment (no opaque copy)
       queue.writeBuffer(this.frameBuffer, 0, fd);
       this.sceneResources.writeViewUniform();
 
@@ -523,12 +534,13 @@ export class Renderer {
         colorAttachments: [{ view: job.colorView, clearValue: Renderer.srgbToLinear(job.clearColor), loadOp: 'clear', storeOp: 'store' }],
         depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
       });
-      if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0);
+      if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'early');
       if (job.skybox && this.showSkybox && this.sceneResources.env.enabled) {
         pass.setPipeline(this.skyboxPipeline());
         pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
         pass.draw(3);
       }
+      if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'late');
       pass.end();
       queue.submit([enc.finish()]);
     } finally {
@@ -694,6 +706,11 @@ export class Renderer {
     this.buildBatches(rw);
     const t3 = performance.now();
     st.cpu.batching = t3 - t2;
+    this.transmissionActive = this.post.enabled && this.frame.transmissive && rw.hasCamera && !(this.frame.gpuCull && this.gpuCulling === 'hiz2');
+    if (this.transmissionActive) this.ensureTransmission();
+    const fd = this.frameData;
+    fd[57] = this.transmissionActive ? 1 : 0; fd[58] = this.transTex && this.transmissionActive ? this.transTex.mipLevelCount - 1 : 0;
+    queue.writeBuffer(this.frameBuffer, 57 * 4, fd, 57, 3);
     this.renderViews(rw, time);
 
     const enc = device.createCommandEncoder();
@@ -720,6 +737,7 @@ export class Renderer {
     fd.set(cam.position, 48); fd[51] = time;
     fd[52] = this.gpu.canvas.width; fd[53] = this.gpu.canvas.height; fd[54] = cam.near; fd[55] = cam.far;
     fd[56] = this.post.enabled ? 1 : 0;
+    fd[57] = 0; fd[58] = 0; fd[59] = 0;               // screen-space transmission flags: set after the batches are known (see render)
     queue.writeBuffer(this.frameBuffer, 0, fd);
     // Lights come from the ECS (rw.lights). If the scene defines none, fall back to the legacy SceneSettings sun + ambient.
     let L = rw.lights;
@@ -789,6 +807,41 @@ export class Renderer {
     }
     const f = this.frame;
     f.total = total; f.total01 = total01; f.byteOffset = byteOffset; f.instData = instData; f.gpuCull = gpuCull; f.nCullBatches = nCullBatches;
+    this.markLateBatches();
+  }
+
+  /** Flag the batches drawn after the opaque geometry + sky (blended surfaces, transmissive materials) and note whether transmission is needed. */
+  private markLateBatches(): void {
+    const b = this.batches, mats = this.materials.materials;
+    if (b.late.length < b.count) b.late = new Uint8Array(Math.max(b.count, b.late.length * 2));
+    let transmissive = false;
+    for (let i = 0; i < b.count; i++) {
+      const t = b.queue[i] < 2 && (mats[b.materialId[i]].features & MaterialFeature.Transmission) !== 0;
+      b.late[i] = b.queue[i] === 2 || t ? 1 : 0;
+      if (t) transmissive = true;
+    }
+    this.frame.transmissive = transmissive;
+  }
+
+  /** (Re)create the opaque-scene copy at the size of the HDR scene target and hand it to the scene bind group. */
+  private ensureTransmission(): void {
+    const w = this.gpu.canvas.width, h = this.gpu.canvas.height;
+    if (this.transTex && this.transTex.width === w && this.transTex.height === h) return;
+    const { textures } = this.gpu.resources;
+    if (this.transTex) textures.destroy(this.transTex);
+    const mips = Math.floor(Math.log2(Math.max(w, h))) + 1;
+    this.transTex = textures.create({
+      label: 'transmission-copy', size: [w, h], format: HDR_FORMAT, mipLevelCount: mips,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this.sceneResources.setTransmission(this.transTex.createView());
+  }
+
+  /** Copy the finished opaque scene into the transmission texture and build its mip chain (rougher refraction samples blurrier mips). */
+  private copyTransmission(enc: GPUCommandEncoder): void {
+    const t = this.transTex!;
+    enc.copyTextureToTexture({ texture: this.post.sceneTexture }, { texture: t }, [t.width, t.height]);
+    this.mips.generateInto(enc, t, HDR_FORMAT, t.mipLevelCount);
   }
 
   /**
@@ -913,8 +966,11 @@ export class Renderer {
    * compacted set (arguments start at `argBase`), `'rest'` draws the batches the GPU path does not cover, `'all'` does both.
    * Without GPU culling every batch is drawn directly.
    */
-  private drawGeometry(pass: GPURenderPassEncoder, which: 'all' | 'culled' | 'rest', argBase: number): void {
+  private drawGeometry(pass: GPURenderPassEncoder, which: 'all' | 'culled' | 'rest', argBase: number, part: 'all' | 'early' | 'late' = 'all'): void {
     const f = this.frame, st = this.stats, gpuCull = f.gpuCull;
+    const mats = this.materials.materials;
+    /** early = opaque / alpha-masked geometry, late = blended + transmissive (drawn after the sky and, with transmission, after the opaque copy). */
+    const skip = (late: boolean): boolean => (part === 'early' && late) || (part === 'late' && !late);
     pass.setBindGroup(0, this.frameBG);
     pass.setBindGroup(1, this.sceneResources.bindGroup);
     pass.setBindGroup(3, gpuCull && which !== 'rest' ? this.objectBindGroup(true) : this.objectBindGroup());
@@ -931,6 +987,7 @@ export class Renderer {
       // GPU-compacted draws: one indirect draw per (batch, LOD level)
       const cu = this.culler!;
       for (let v = 0; v < cu.virtualCount; v++) {
+        if (skip((mats[cu.virtualMaterial[v]].features & MaterialFeature.Transmission) !== 0)) continue;
         bind(cu.virtualMaterial[v], this.meshes.get(cu.virtualMesh[v]).deformMask);
         pass.drawIndexedIndirect(cu.argsBuffer, (argBase + v) * 20);
         st.drawCalls++;
@@ -941,6 +998,7 @@ export class Renderer {
     const b = this.batches;
     let curMesh = -1;
     for (let i = gpuCull ? f.nCullBatches : 0; i < b.count; i++) {
+      if (skip(b.late[i] === 1)) continue;
       const matId = b.materialId[i];
       const meshId = b.meshId[i];
       const mesh = this.meshes.get(meshId);
@@ -957,12 +1015,17 @@ export class Renderer {
   }
 
   /** Draws that follow opaque + transparent geometry in the main pass: skybox, particles, ribbons. */
-  private drawExtras(pass: GPURenderPassEncoder, rw: RenderWorld): void {
+  /** The environment background (drawn after the opaque geometry, before blended surfaces). */
+  private drawSky(pass: GPURenderPassEncoder, rw: RenderWorld): void {
     if (rw.hasCamera && this.showSkybox && this.sceneResources.env.enabled) {
       pass.setPipeline(this.skyboxPipeline());
       pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
       pass.draw(3);
     }
+  }
+
+  private drawExtras(pass: GPURenderPassEncoder, rw: RenderWorld, sky = true): void {
+    if (sky) this.drawSky(pass, rw);
     if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameBG);   // after opaque + transparent geometry
     if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameBG);                            // one draw per ribbon system
     if (rw.hasCamera) for (const o of this.overlays) o.encodeDraw(pass, this.frameBG);                                    // lines / points / sprites / text on top
@@ -986,23 +1049,52 @@ export class Renderer {
   }
 
   /** Colour attachment of the main pass: swap chain or HDR scene target, through the multisampled buffer (resolved) when MSAA is on. */
-  private mainColorAttachment(clear: boolean): GPURenderPassColorAttachment {
+  private mainColorAttachment(clear: boolean, keepMsaa = false): GPURenderPassColorAttachment {
     const final = this.post.enabled ? this.post.sceneView : this.gpu.context.getCurrentTexture().createView();
     const loadOp = clear ? 'clear' : 'load';
-    if (this.target.sampleCount > 1) return { view: this.post.msaaView, resolveTarget: final, clearValue: this.mainClearValue(), loadOp, storeOp: 'discard' };
+    if (this.target.sampleCount > 1) return { view: this.post.msaaView, resolveTarget: final, clearValue: this.mainClearValue(), loadOp, storeOp: keepMsaa ? 'store' : 'discard' };
     return { view: final, clearValue: this.mainClearValue(), loadOp, storeOp: 'store' };
   }
 
   /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
   private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
-    g.addPass({ name: 'main', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
+    const geometry = (pass: GPURenderPassEncoder, part: 'early' | 'late'): void => {
+      if (rw.hasCamera && this.frame.total > 0) this.drawGeometry(pass, 'all', 0, part);
+    };
+    const depthAttachment = (load: boolean): GPURenderPassDepthStencilAttachment => (
+      { view: this.depthView, depthClearValue: 1, depthLoadOp: load ? 'load' : 'clear', depthStoreOp: 'store' });
+    if (!this.transmissionActive) {
+      // opaque + alpha-masked, then the sky, then blended / transmissive surfaces, then particles / ribbons / overlays
+      g.addPass({ name: 'main', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
+        const pass = enc.beginRenderPass({
+          label: 'main', timestampWrites: this.profiler.writes('main'),
+          colorAttachments: [this.mainColorAttachment(true)], depthStencilAttachment: depthAttachment(prepass),
+        });
+        geometry(pass, 'early');
+        this.drawSky(pass, rw);
+        geometry(pass, 'late');
+        this.drawExtras(pass, rw, false);
+        pass.end();
+      } });
+      return;
+    }
+    // Screen-space transmission: finish the opaque scene + sky, copy it (with mips), then draw what refracts it.
+    g.addPass({ name: 'main-opaque', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
       const pass = enc.beginRenderPass({
-        label: 'main', timestampWrites: this.profiler.writes('main'),
-        colorAttachments: [this.mainColorAttachment(true)],
-        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: prepass ? 'load' : 'clear', depthStoreOp: 'store' },
+        label: 'main-opaque', timestampWrites: this.profiler.writes('main'),
+        colorAttachments: [this.mainColorAttachment(true, true)], depthStencilAttachment: depthAttachment(prepass),
       });
-      if (rw.hasCamera && this.frame.total > 0) this.drawGeometry(pass, 'all', 0);
-      this.drawExtras(pass, rw);
+      geometry(pass, 'early');
+      this.drawSky(pass, rw);
+      pass.end();
+    } });
+    g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.copyTransmission(enc) });
+    g.addPass({ name: 'main-late', reads: ['transmissionTex', 'particles', 'ribbons'], writes: ['sceneColor'], execute: (enc) => {
+      const pass = enc.beginRenderPass({
+        label: 'main-late', colorAttachments: [this.mainColorAttachment(false)], depthStencilAttachment: depthAttachment(true),
+      });
+      geometry(pass, 'late');
+      this.drawExtras(pass, rw, false);
       pass.end();
     } });
   }

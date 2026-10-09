@@ -23,7 +23,7 @@ export interface BindLayouts {
   pipelineLayout: GPUPipelineLayout;
 }
 
-export const MATERIAL_TEXTURE_SLOTS = 5;
+export const MATERIAL_TEXTURE_SLOTS = 9;   // base colour, metal-rough, normal, occlusion, emissive, height, alpha, aux (2D) + environment (cube)
 
 /** Create the four engine bind-group layouts and the pipeline layout combining them (see the table above). */
 export function createBindLayouts(device: GPUDevice): BindLayouts {
@@ -49,7 +49,8 @@ export function createBindLayouts(device: GPUDevice): BindLayouts {
       { binding: 8, visibility: F, texture: { sampleType: 'float', viewDimension: 'cube' } },
       tex2d(9),
       { binding: 10, visibility: F, sampler: { type: 'filtering' } },
-      tex2d(11), tex2d(12),
+      tex2d(11),
+      tex2d(12),                                                                       // opaque scene copy for screen-space transmission
       { binding: 13, visibility: F, texture: { sampleType: 'float', viewDimension: '3d' } },   // volumetric fog
     ],
   });
@@ -61,8 +62,12 @@ export function createBindLayouts(device: GPUDevice): BindLayouts {
     label: 'layout-material',
     entries: [
       { binding: 0, visibility: VF, buffer: { type: 'read-only-storage' } },
-      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+      { binding: 1, visibility: VF, sampler: { type: 'filtering' } },       // the vertex stage samples the height map (displacement)
       tex(2), tex(3), tex(4), tex(5), tex(6),
+      { binding: 7, visibility: VF, texture: { sampleType: 'float', viewDimension: '2d' } },   // height (bump / parallax / displacement)
+      tex(8),                                                                                   // alpha map
+      tex(9),                                                                                   // aux: matcap, toon ramp or packed physical factors
+      { binding: 10, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: 'cube' } },   // per-material environment
     ],
   });
   // Object-group data is consumed by the vertex stage only; fragment shaders get per-instance values via varyings.

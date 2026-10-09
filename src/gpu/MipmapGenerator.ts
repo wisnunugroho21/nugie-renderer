@@ -12,6 +12,14 @@ export class MipmapGenerator {
   /** Texture needs TEXTURE_BINDING | RENDER_ATTACHMENT usage and `mipLevelCount` levels. */
   generate(texture: GPUTexture, format: GPUTextureFormat, mipLevelCount: number, layers = 1): void {
     if (mipLevelCount <= 1) return;
+    const enc = this.device.createCommandEncoder({ label: 'mipmap-gen' });
+    this.generateInto(enc, texture, format, mipLevelCount, layers);
+    this.device.queue.submit([enc.finish()]);
+  }
+
+  /** Record the same mip chain into an existing command encoder (e.g. inside a frame). */
+  generateInto(enc: GPUCommandEncoder, texture: GPUTexture, format: GPUTextureFormat, mipLevelCount: number, layers = 1): void {
+    if (mipLevelCount <= 1) return;
     const { device, res } = this;
     const pipeline = res.pipelines.getRender({
       shader: 'mipmap', vertexLayout: [], topology: 'triangle-list', cullMode: 'none', depth: null,
@@ -26,7 +34,6 @@ export class MipmapGenerator {
       });
     });
     const sampler = res.samplers.get({ magFilter: 'linear', minFilter: 'linear', mipmapFilter: 'nearest', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
-    const enc = device.createCommandEncoder({ label: 'mipmap-gen' });
     for (let layer = 0; layer < layers; layer++) {
       for (let level = 1; level < mipLevelCount; level++) {
         const src = texture.createView({ dimension: '2d', baseMipLevel: level - 1, mipLevelCount: 1, baseArrayLayer: layer, arrayLayerCount: 1 });
@@ -39,6 +46,5 @@ export class MipmapGenerator {
         pass.end();
       }
     }
-    device.queue.submit([enc.finish()]);
   }
 }
