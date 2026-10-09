@@ -3,17 +3,17 @@
 //
 //#include brdf
 
-// Smooth range window (Karis): reaches exactly 0 at `range`, ~1 well inside. range <= 0 means unlimited.
-fn rangeWindow(d: f32, range: f32) -> f32 {
+// Smooth range window (Karis): reaches exactly 0 at `range`, ~1 well inside. d2 = squared distance. range <= 0 means unlimited.
+fn rangeWindow(d2: f32, range: f32) -> f32 {
   if (range <= 0.0) { return 1.0; }
-  let x = d / range;
-  let w = clamp(1.0 - x * x * x * x, 0.0, 1.0);
+  let x2 = d2 / (range * range);
+  let w = clamp(1.0 - x2 * x2, 0.0, 1.0);
   return w * w;
 }
 
 // Inverse-square falloff with the range window. d2 = squared distance to the light.
 fn pointAttenuation(d2: f32, range: f32) -> f32 {
-  return rangeWindow(sqrt(d2), range) / max(d2, 1e-4);
+  return rangeWindow(d2, range) / max(d2, 1e-4);
 }
 
 // Spot cone: smooth between the outer and inner cone angles. L = direction from the SURFACE toward the light.

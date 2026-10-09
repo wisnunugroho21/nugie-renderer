@@ -147,8 +147,8 @@ const SUITES: Record<string, (canvas: HTMLCanvasElement, params: URLSearchParams
     finish(rows);
   },
   /** Benchmark B: GPU time per pass with every feature enabled (timestamp queries). */
-  async passes(canvas) {
-    const rows = await runPassBench(canvas);
+  async passes(canvas, params) {
+    const rows = await runPassBench(canvas, params);
     log('== B: GPU time per pass (timestamp queries; sun + spot shadows, 512 clustered lights, IBL, fog, 3000 spheres) ==');
     for (const r of rows) log(r.config.padEnd(30) + ' total ' + r.totalMs.toFixed(2).padStart(6) + ' ms   ' + r.passes.map(([k, v]) => k + ' ' + v.toFixed(2)).join('  '));
     finish(rows);

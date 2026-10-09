@@ -5,6 +5,9 @@
 // Extension fields of SurfaceInfo are zero by default, so a plain material compiles to exactly the old BRDF.
 //#include common_color
 
+// x^5 with multiplications (pow() costs a log2 + exp2 per call; this runs per light per pixel).
+fn pow5(x: f32) -> f32 { let x2 = x * x; return x2 * x2 * x; }
+
 fn D_GGX(NoH: f32, a: f32) -> f32 {
   let a2 = a * a;
   let d = NoH * NoH * (a2 - 1.0) + 1.0;
@@ -20,13 +23,13 @@ fn V_SmithGGXCorrelated(NoV: f32, NoL: f32, a: f32) -> f32 {
 }
 
 fn F_Schlick(VoH: f32, f0: vec3<f32>) -> vec3<f32> {
-  let f = pow(1.0 - VoH, 5.0);
+  let f = pow5(1.0 - VoH);
   return f0 + (vec3<f32>(1.0) - f0) * f;
 }
 
 // Schlick with an explicit grazing reflectance (KHR_materials_specular lowers it below 1).
 fn F_Schlick90(VoH: f32, f0: vec3<f32>, f90: f32) -> vec3<f32> {
-  let f = pow(1.0 - VoH, 5.0);
+  let f = pow5(1.0 - VoH);
   return f0 + (vec3<f32>(f90) - f0) * f;
 }
 
@@ -249,7 +252,7 @@ fn evaluateDirectLight(s: SurfaceInfo, L: vec3<f32>, radiance: vec3<f32>) -> vec
   if (s.clearcoat > 0.0) {
     let ccA = max(s.ccRoughness * s.ccRoughness, 0.002);
     let ccNoH = clamp(dot(s.Ng, H), 0.0, 1.0);
-    let Fc = s.clearcoat * (0.04 + 0.96 * pow(1.0 - VoH, 5.0));
+    let Fc = s.clearcoat * (0.04 + 0.96 * pow5(1.0 - VoH));
     base = base * (1.0 - Fc);
     extra = extra * (1.0 - Fc);
     coat = vec3<f32>(D_GGX(ccNoH, ccA) * V_Kelemen(VoH) * Fc * ccNoL);

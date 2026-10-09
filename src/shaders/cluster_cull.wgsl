@@ -29,12 +29,37 @@ fn sphereIntersectsAabb(c: vec3<f32>, r: f32, lo: vec3<f32>, hi: vec3<f32>) -> b
   return dot(d, d) <= r * r;
 }
 
+// View-space bounding sphere (xyz = centre, w = radius) of ranged light `i`.
+fn lightSphere(i: u32) -> vec4<f32> {
+  let l = lights[i];
+  var center = (params.view * vec4<f32>(l.positionRange.xyz, 1.0)).xyz;
+  var radius = l.positionRange.w;
+  if (u32(l.directionType.w + 0.5) == LIGHT_SPOT) {
+    // bounding sphere of the cone (apex at the light, axis = direction, slant length = range)
+    let cosO = clamp(l.spot.x, 0.0, 1.0);
+    let axis = (params.view * vec4<f32>(l.directionType.xyz, 0.0)).xyz;
+    if (cosO < 0.7071) {
+      center = center + axis * (radius * cosO);
+      radius = radius * sqrt(1.0 - cosO * cosO);
+    } else {
+      let r2 = radius / (2.0 * cosO);
+      center = center + axis * r2;
+      radius = r2;
+    }
+  }
+  return vec4<f32>(center, radius);
+}
+
+// Every thread of a workgroup tests the same lights, so the group transforms them once, 64 at a time, into shared memory.
+const GROUP = 64u;
+var<workgroup> spheres: array<vec4<f32>, 64>;
+
 @compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+fn main(@builtin(global_invocation_id) id: vec3<u32>, @builtin(local_invocation_index) li: u32) {
   let dims = params.dims.xyz;
   let total = dims.x * dims.y * dims.z;
   let cid = id.x;
-  if (cid >= total) { return; }
+  let valid = cid < total;                 // out-of-range threads still take part in the barriers below
   let tx = cid % dims.x;
   let ty = (cid / dims.x) % dims.y;
   let tz = cid / (dims.x * dims.y);
@@ -53,27 +78,21 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let maxPer = params.counts.z;
   let base = cid * maxPer;
   var count = 0u;
-  for (var i = params.counts.y; i < params.counts.x; i = i + 1u) {
-    let l = lights[i];
-    var center = (params.view * vec4<f32>(l.positionRange.xyz, 1.0)).xyz;
-    var radius = l.positionRange.w;
-    if (u32(l.directionType.w + 0.5) == LIGHT_SPOT) {
-      // bounding sphere of the cone (apex at the light, axis = direction, slant length = range)
-      let cosO = clamp(l.spot.x, 0.0, 1.0);
-      let axis = (params.view * vec4<f32>(l.directionType.xyz, 0.0)).xyz;
-      if (cosO < 0.7071) {
-        center = center + axis * (radius * cosO);
-        radius = radius * sqrt(1.0 - cosO * cosO);
-      } else {
-        let r2 = radius / (2.0 * cosO);
-        center = center + axis * r2;
-        radius = r2;
+  for (var first = params.counts.y; first < params.counts.x; first = first + GROUP) {
+    let mine = first + li;
+    if (mine < params.counts.x) { spheres[li] = lightSphere(mine); }
+    workgroupBarrier();
+    if (valid) {
+      let n = min(GROUP, params.counts.x - first);
+      for (var j = 0u; j < n; j = j + 1u) {
+        let sp = spheres[j];
+        if (sphereIntersectsAabb(sp.xyz, sp.w, lo, hi)) {
+          if (count < maxPer) { clusterIndices[base + count] = first + j; count = count + 1u; }
+          else { atomicAdd(&overflow, 1u); }
+        }
       }
     }
-    if (sphereIntersectsAabb(center, radius, lo, hi)) {
-      if (count < maxPer) { clusterIndices[base + count] = i; count = count + 1u; }
-      else { atomicAdd(&overflow, 1u); }
-    }
+    workgroupBarrier();
   }
-  clusterGrid[cid] = vec2<u32>(base, count);
+  if (valid) { clusterGrid[cid] = vec2<u32>(base, count); }
 }

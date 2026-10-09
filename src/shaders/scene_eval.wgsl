@@ -120,10 +120,10 @@ fn clusterIndexOf(fragXY: vec2<f32>, viewZ: f32) -> u32 {
 }
 
 fn shadowedLight(light: Light, s: SurfaceInfo, P: vec3<f32>, viewZ: f32) -> vec3<f32> {
-  var vis = 1.0;
-  if (light.spot.z >= 0.0) { vis = shadowVisibility(light, P, s.N, viewZ); }
-  if (vis <= 0.0) { return vec3<f32>(0.0); }
-  return shadePunctual(light, s, P) * vis;
+  // shade first: the shadow lookup (9 taps) is skipped for lights that contribute nothing here (out of range, behind the surface)
+  let lit = shadePunctual(light, s, P);
+  if (light.spot.z < 0.0 || dot(lit, lit) <= 0.0) { return lit; }
+  return lit * shadowVisibility(light, P, s.N, viewZ);
 }
 
 // Direct lighting from every light that can reach this fragment: the global prefix always, then either this fragment's

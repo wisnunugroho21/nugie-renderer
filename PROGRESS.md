@@ -221,7 +221,7 @@ Note: GPU culling saves nothing when everything is visible; its value is occlude
 | no shadows, no fog | 17.0 ms | 16.6 | - | - | 0.42 | - |
 | everything + depth prepass | 23.4 ms | 17.0 | 3.5 | 0.9 | 0.40 | 1.7 |
 
-Run: `/bench.html?suite=passes`. Shadows cost ~3.6 ms, froxel fog ~0.8 ms and light assignment ~0.4 ms; the depth prepass saves ~1.5 ms of main-pass time but costs 1.7 ms here (no net gain without heavy overdraw).
+Run: `/bench.html?suite=passes` (`segs=8` makes it shading-bound: the default scene has ~3.2M triangles, so about half of its 18 ms main pass is geometry). Shadows cost ~3.6 ms, froxel fog ~0.8 ms and light assignment ~0.4 ms; the depth prepass saves ~1.5 ms of main-pass time but costs 1.7 ms here (no net gain without heavy overdraw).
 
 ## Particle / ribbon architecture (Phase 26E-H)
 Per pool: ParticleStateBuffer, ParticleAliveBuffer A/B (ping-pong), ParticleDeadBuffer (atomic stack), ParticleSpawnBuffer,

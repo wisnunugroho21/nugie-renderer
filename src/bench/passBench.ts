@@ -16,11 +16,17 @@ export interface PassBenchRow { config: string; passes: [string, number][]; tota
  * Benchmark B: GPU time per pass (timestamp queries) for a feature-complete frame: cascaded sun + spot shadows, 512 clustered point
  * lights, IBL, volumetric fog, and a 3000-sphere field. Each row switches one feature off to show what it costs.
  */
-export async function runPassBench(canvas: HTMLCanvasElement, frames = 40): Promise<PassBenchRow[]> {
+export async function runPassBench(canvas: HTMLCanvasElement, params = new URLSearchParams()): Promise<PassBenchRow[]> {
+  // `lights=<n>`: point light count (default 512), `segs=<n>`: sphere tessellation (default 32 = ~1000 triangles each; small values make the scene fragment-bound), `scale=<x>`: canvas size multiplier
+  const frames = Number(params.get('frames') ?? 40), only = params.get('rows') === '1';   // `frames=<n>`: frames averaged per row, `rows=1`: first row only
+  const segs = Number(params.get('segs') ?? 32), lightCount = Number(params.get('lights') ?? 512), scale = Number(params.get('scale') ?? 1);
+  if (scale !== 1) { canvas.width = Math.round(canvas.width * scale); canvas.height = Math.round(canvas.height * scale); }
   const gpu = await GPUContext.create(canvas);
   const renderer = new Renderer(gpu);
+  if (params.has('tile')) renderer.clusters.config.tileSize = Number(params.get('tile'));       // `tile=<px>`, `slices=<n>`: light cluster grid
+  if (params.has('slices')) renderer.clusters.config.slices = Number(params.get('slices'));
   if (!renderer.profiler.supported) return [];
-  const sphere = renderer.meshes.create('sphere', createUVSphere(32, 16)), plane = renderer.meshes.create('plane', createPlane());
+  const sphere = renderer.meshes.create('sphere', createUVSphere(segs, Math.max(3, segs >> 1))), plane = renderer.meshes.create('plane', createPlane());
   const mat = renderer.materials.createPBR({ baseColor: [0.8, 0.75, 0.7, 1], roughness: 0.5, metallic: 0 });
   const world = new World();
   const ts = new TransformSystem(world.transforms), bs = new BoundsSystem(world.transforms, world.bounds), ex = new RenderExtractor(world, ts), rw = new RenderWorld();
@@ -39,7 +45,7 @@ export async function runPassBench(canvas: HTMLCanvasElement, frames = 40): Prom
   const sun = entityIndex(world.create());
   world.transforms.add(sun); world.transforms.setRotation(sun, -0.5, 0.2, 0.1, 0.84);
   world.lights.add(sun, LightType.Directional, 1, 0.95, 0.85, 2.5); world.lights.castShadow[sun] = 1;
-  for (let i = 0; i < 512; i++) {
+  for (let i = 0; i < lightCount; i++) {
     const e = entityIndex(world.create());
     world.transforms.add(e, (rnd() - 0.5) * 70, 1.5, (rnd() - 0.5) * 70);
     world.lights.add(e, LightType.Point, rnd(), rnd(), rnd(), 20, 6);
@@ -59,7 +65,7 @@ export async function runPassBench(canvas: HTMLCanvasElement, frames = 40): Prom
     ['no shadows, no fog', () => { renderer.fog!.enabled = false; }],
     ['everything + depth prepass', () => { renderer.shadows.enabled = true; renderer.fog!.enabled = true; renderer.depthPrepass = true; }],
   ];
-  for (const [config, apply] of configs) {
+  for (const [config, apply] of only ? configs.slice(0, 1) : configs) {
     apply();
     for (let i = 0; i < 10; i++) renderer.render(rw);
     await gpu.queue.onSubmittedWorkDone();

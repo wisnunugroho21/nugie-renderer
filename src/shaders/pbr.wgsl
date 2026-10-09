@@ -193,7 +193,7 @@ fn evaluateIBLExt(s: SurfaceInfo, occlusion: f32, intensity: f32) -> vec3<f32> {
   if (s.clearcoat > 0.0) {
     let ccNoV = max(dot(s.Ng, s.V), 1e-4);
     let abc = textureSampleLevel(brdfLut, envSampler, vec2<f32>(ccNoV, s.ccRoughness), 0.0).rg;
-    let Fc = s.clearcoat * (0.04 + 0.96 * pow(1.0 - ccNoV, 5.0));
+    let Fc = s.clearcoat * (0.04 + 0.96 * pow5(1.0 - ccNoV));
     let coat = iblSpecularAt(reflect(-s.V, s.Ng), s.ccRoughness) * (0.04 * abc.x + abc.y) * s.clearcoat;
     total = total * (1.0 - Fc) + coat;
   }
