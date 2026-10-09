@@ -1,9 +1,10 @@
 import { Pose, type PoseLayout } from '../Pose';
+import { hypot3 } from '../../math/hypot';
 
 /** Rotation vector (axis * angle) of the shortest rotation represented by unit quaternion q. */
 function logQuat(out: Float32Array, o: number, qx: number, qy: number, qz: number, qw: number): void {
   if (qw < 0) { qx = -qx; qy = -qy; qz = -qz; qw = -qw; }
-  const s = Math.hypot(qx, qy, qz);
+  const s = hypot3(qx, qy, qz);
   if (s < 1e-8) { out[o] = qx * 2; out[o + 1] = qy * 2; out[o + 2] = qz * 2; return; }
   const k = (2 * Math.atan2(s, qw)) / s;
   out[o] = qx * k; out[o + 1] = qy * k; out[o + 2] = qz * k;
@@ -11,7 +12,7 @@ function logQuat(out: Float32Array, o: number, qx: number, qy: number, qz: numbe
 
 /** Quaternion from rotation vector, written into out[o..o+3]. */
 function expQuat(out: Float32Array, o: number, rx: number, ry: number, rz: number): void {
-  const angle = Math.hypot(rx, ry, rz);
+  const angle = hypot3(rx, ry, rz);
   if (angle < 1e-8) { out[o] = rx * 0.5; out[o + 1] = ry * 0.5; out[o + 2] = rz * 0.5; out[o + 3] = 1; return; }
   const s = Math.sin(angle / 2) / angle;
   out[o] = rx * s; out[o + 1] = ry * s; out[o + 2] = rz * s; out[o + 3] = Math.cos(angle / 2);

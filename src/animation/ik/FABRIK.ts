@@ -2,6 +2,7 @@ import { Quat } from '../../math/Quat';
 import type { Pose, PoseLayout } from '../Pose';
 import { Xform, assertChain, composeLocal, copyXform, modelTransform, type PoseConstraint } from './IK';
 import { slerpInto } from '../AnimationSampler';
+import { hypot3 } from '../../math/hypot';
 
 const qTmp = new Float32Array(4), qConj = new Float32Array(4), qModel = new Float32Array(4), qNew = new Float32Array(4), qLocal = new Float32Array(4);
 
@@ -70,12 +71,12 @@ export class FABRIK implements PoseConstraint {
     solved.set(curP);
     let total = 0;
     for (let i = 0; i < n - 1; i++) {
-      len[i] = Math.hypot(solved[(i + 1) * 3] - solved[i * 3], solved[(i + 1) * 3 + 1] - solved[i * 3 + 1], solved[(i + 1) * 3 + 2] - solved[i * 3 + 2]);
+      len[i] = hypot3(solved[(i + 1) * 3] - solved[i * 3], solved[(i + 1) * 3 + 1] - solved[i * 3 + 1], solved[(i + 1) * 3 + 2] - solved[i * 3 + 2]);
       total += len[i];
     }
     const rx = solved[0], ry = solved[1], rz = solved[2];
     const tx = this.target[0], ty = this.target[1], tz = this.target[2];
-    const dist = Math.hypot(tx - rx, ty - ry, tz - rz);
+    const dist = hypot3(tx - rx, ty - ry, tz - rz);
 
     if (dist >= total) {
       // unreachable: stretch straight toward the target
@@ -87,7 +88,7 @@ export class FABRIK implements PoseConstraint {
       this.reached = true;
       let it = 0;
       for (; it < this.maxIterations; it++) {
-        const err = Math.hypot(solved[(n - 1) * 3] - tx, solved[(n - 1) * 3 + 1] - ty, solved[(n - 1) * 3 + 2] - tz);
+        const err = hypot3(solved[(n - 1) * 3] - tx, solved[(n - 1) * 3 + 1] - ty, solved[(n - 1) * 3 + 2] - tz);
         if (err < this.tolerance) break;
         // backward: tip to target
         solved[(n - 1) * 3] = tx; solved[(n - 1) * 3 + 1] = ty; solved[(n - 1) * 3 + 2] = tz;
@@ -122,7 +123,7 @@ export class FABRIK implements PoseConstraint {
 /** p[i] = p[ref] + normalize(p[i] - p[ref]) * length */
 function place(p: Float32Array, i: number, ref: number, length: number): void {
   let dx = p[i * 3] - p[ref * 3], dy = p[i * 3 + 1] - p[ref * 3 + 1], dz = p[i * 3 + 2] - p[ref * 3 + 2];
-  const l = Math.hypot(dx, dy, dz) || 1;
+  const l = hypot3(dx, dy, dz) || 1;
   dx /= l; dy /= l; dz /= l;
   p[i * 3] = p[ref * 3] + dx * length; p[i * 3 + 1] = p[ref * 3 + 1] + dy * length; p[i * 3 + 2] = p[ref * 3 + 2] + dz * length;
 }

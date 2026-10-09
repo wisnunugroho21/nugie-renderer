@@ -1,5 +1,6 @@
 import type { Pose } from './Pose';
 import { RootDelta } from './graph/Motion';
+import { hypot2 } from '../math/hypot';
 
 export type RootMotionMode = 'disabled' | 'translation' | 'rotation' | 'both';
 
@@ -16,7 +17,7 @@ const DEFAULT_AXES = { x: true, y: false, z: true };
 /** Split q into twist about +Y and swing: q = swing * twist. Writes the twist into `twist`. */
 export function twistY(twist: Float32Array, q: ArrayLike<number>, qo = 0): void {
   const y = q[qo + 1], w = q[qo + 3];
-  const l = Math.hypot(y, w);
+  const l = hypot2(y, w);
   if (l < 1e-8) { twist[0] = 0; twist[1] = 0; twist[2] = 0; twist[3] = 1; return; }
   twist[0] = 0; twist[1] = y / l; twist[2] = 0; twist[3] = w / l;
 }

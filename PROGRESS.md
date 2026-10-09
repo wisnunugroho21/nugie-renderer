@@ -92,7 +92,7 @@ Review pass over the modules, typecheck, 437 unit tests and the 34 GPU self-test
 ## Storage-buffer budget and arena guard (October 2026)
 
 * **Vertex stage: 10 -> 6 storage buffers.** `deformData` is ONE arena for all skin weights and morph deltas (skin: 1 element per
-  vertex at `skinBase`; morph: position / normal / tangent delta interleaved, 3 elements per vertex per target at `morphBase`, read as
+  vertex at `skinBase`; morph: position [, normal [, tangent]] delta interleaved, `morphStride` (1-3, only what the mesh has) elements per vertex per target at `morphBase`, read as
   raw `vec4<u32>` and bit-cast, so no bit pattern is ever interpreted as a float). The material buffer holds the 64-byte records AND the
   custom parameters (a region after the records; `paramBase` is an absolute vec4 index; `paramVec4(i)` views a record as four vec4s,
   so `param_<name>()` accessors in custom shaders are unchanged). Object group = transforms, instances, joints, morph weights,

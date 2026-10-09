@@ -1,4 +1,5 @@
 import { ComponentStore, growF32, growI32, growU8 } from '../ComponentStore';
+import { hypot4 } from '../../math/hypot';
 
 /**
  * Structure-of-arrays transform store with a parent/child hierarchy.
@@ -81,7 +82,7 @@ export class TransformStore extends ComponentStore {
   /** Set the local rotation from quaternion (x, y, z, w); the input is normalised and a zero quaternion becomes identity. */
   setRotation(i: number, x: number, y: number, z: number, w: number): void {
     // Non-unit quaternions would scale / shear the world matrix: always store a unit quaternion (identity for a zero input).
-    const l = Math.hypot(x, y, z, w);
+    const l = hypot4(x, y, z, w);
     if (l > 0) { const k = 1 / l; x *= k; y *= k; z *= k; w *= k; } else { x = y = z = 0; w = 1; }
     this.rotationX[i] = x; this.rotationY[i] = y; this.rotationZ[i] = z; this.rotationW[i] = w; this.markDirty(i);
   }

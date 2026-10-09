@@ -4,6 +4,7 @@ import type { MeshData } from './primitives';
 import type { MorphTargetData } from '../assets/AssetTypes';
 import type { CpuGeometry } from '../picking/Raycaster';
 import { STANDARD_VERTEX_FLOATS, STANDARD_VERTEX_STRIDE } from './VertexLayouts';
+import { hypot3 } from '../math/hypot';
 
 /** Deformation capability bits of a mesh (selects the vertex-shader variant). */
 export const DeformMask = { None: 0, Skin: 1, Morph: 2 } as const;
@@ -29,8 +30,10 @@ export interface MeshRecord {
   deformMask: number;
   /** Element offset (16 B elements) of this mesh's skin data in the shared deform arena: 1 element per vertex. */
   skinBase: number;
-  /** Element offset of this mesh's morph deltas in the deform arena: 3 elements (position, normal, tangent delta) per vertex per target, target-major. */
+  /** Element offset of this mesh's morph deltas in the deform arena: `morphStride` elements (position, then normal, then tangent delta) per vertex per target, target-major. */
   morphBase: number;
+  /** Elements per vertex per target: 1 = position deltas only, 2 = + normals, 3 = + tangents (0 = no morph targets). Only the attributes the mesh has are stored and read. */
+  morphStride: number;
   morphTargetCount: number;
   /** Largest possible vertex displacement from morphing (sum over targets of max |delta|); 0 if none. */
   morphMaxDisplacement: number;
@@ -114,7 +117,10 @@ export class MeshManager {
     const morphTargets = deform?.morphTargets?.length ?? 0;
     this.vertices.ensureRoom(vcount);
     this.indices.ensureRoom(data.indices.length);
-    this.deform.ensureRoom((hasSkin ? vcount : 0) + morphTargets * vcount * 3);
+    // morph deltas are stored with as few elements per vertex as the mesh needs: the vertex shader reads (and the GPU fetches) only those
+    let morphStride = 0;
+    deform?.morphTargets?.forEach((t) => { morphStride = Math.max(morphStride, t.tangent ? 3 : t.normal ? 2 : 1); });
+    this.deform.ensureRoom((hasSkin ? vcount : 0) + morphTargets * vcount * morphStride);
 
     const baseVertex = this.vertices.alloc(vcount);
     const firstIndex = this.indices.alloc(data.indices.length);
@@ -132,20 +138,20 @@ export class MeshManager {
     }
     if (deform?.morphTargets?.length) {
       targets = deform.morphTargets.length;
-      morphBase = this.deform.alloc(targets * vcount * 3);
+      morphBase = this.deform.alloc(targets * vcount * morphStride);
       deform.morphTargets.forEach((t, k) => {
-        // interleaved per vertex: position delta, normal delta, tangent delta (missing attributes stay zero)
-        const v4 = new Float32Array(vcount * 12);
+        // interleaved per vertex: position delta, then normal delta, then tangent delta, up to `morphStride` (missing attributes stay zero)
+        const v4 = new Float32Array(vcount * morphStride * 4);
         let disp = 0;
         [t.position, t.normal, t.tangent].forEach((src, slot) => {
           if (!src) return;
           for (let i = 0; i < vcount; i++) {
-            const o = (i * 3 + slot) * 4;
+            const o = (i * morphStride + slot) * 4;
             v4[o] = src[i * 3]; v4[o + 1] = src[i * 3 + 1]; v4[o + 2] = src[i * 3 + 2];
-            if (slot === 0) disp = Math.max(disp, Math.hypot(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]));
+            if (slot === 0) disp = Math.max(disp, hypot3(src[i * 3], src[i * 3 + 1], src[i * 3 + 2]));
           }
         });
-        this.deform.write(morphBase + k * vcount * 3, v4);
+        this.deform.write(morphBase + k * vcount * morphStride, v4);
         this.uploadedBytes += v4.byteLength;
         maxDisp += disp;
       });
@@ -163,7 +169,7 @@ export class MeshManager {
     }
     this.meshes.push({
       id, name, vertexCount: vcount, indexCount: data.indices.length, baseVertex, firstIndex, bounds: computeBounds(data.vertices),
-      deformMask, skinBase, morphBase, morphTargetCount: targets, morphMaxDisplacement: maxDisp,
+      deformMask, skinBase, morphBase, morphStride, morphTargetCount: targets, morphMaxDisplacement: maxDisp,
     });
     return id;
   }

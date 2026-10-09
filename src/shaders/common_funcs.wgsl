@@ -29,13 +29,15 @@ fn deformVertex(inst: Instance, vertexIndex: u32, position: vec3<f32>, normal: v
 
   if HAS_MORPH_TARGETS {
     // Only ACTIVE targets are listed (CPU-compacted): cost scales with active targets, not total targets.
+    // Deltas are stored per vertex as position [, normal [, tangent]]: only the attributes the mesh has are fetched (stride 1..3).
+    let stride = (inst.flags >> 4u) & 3u;
     for (var k = 0u; k < inst.morphTargetCount; k = k + 1u) {
       let targetIdx = morphWeights[inst.morphWeightOffset + k * 2u];
       let w = bitcast<f32>(morphWeights[inst.morphWeightOffset + k * 2u + 1u]);
-      let idx = inst.morphBase + (targetIdx * inst.vertexCount + local) * 3u;
+      let idx = inst.morphBase + (targetIdx * inst.vertexCount + local) * stride;
       p = p + bitcast<vec4<f32>>(deformData[idx]).xyz * w;
-      n = n + bitcast<vec4<f32>>(deformData[idx + 1u]).xyz * w;
-      t = t + bitcast<vec4<f32>>(deformData[idx + 2u]).xyz * w;
+      if (stride > 1u) { n = n + bitcast<vec4<f32>>(deformData[idx + 1u]).xyz * w; }
+      if (stride > 2u) { t = t + bitcast<vec4<f32>>(deformData[idx + 2u]).xyz * w; }
     }
     n = normalize(n);
     if (dot(t, t) > 0.0) { t = normalize(t); }

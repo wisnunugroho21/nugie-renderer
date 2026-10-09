@@ -80,7 +80,7 @@ export function buildBatches(
       out[o + 8] = mesh.vertexCount;
       out[o + 9] = mesh.skinBase;
       out[o + 10] = mesh.morphBase;
-      out[o + 11] = mesh.deformMask;
+      out[o + 11] = mesh.deformMask | (mesh.morphStride << 4);   // flags: deform capability bits, morph delta stride in bits 4-5
       if (spheres) { const sp = rw.boundsSphere, so = written * 4; spheres[so] = sp[slot * 4]; spheres[so + 1] = sp[slot * 4 + 1]; spheres[so + 2] = sp[slot * 4 + 2]; spheres[so + 3] = sp[slot * 4 + 3]; }
       written++;
     }

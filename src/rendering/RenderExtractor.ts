@@ -6,6 +6,7 @@ import type { RenderWorld } from './RenderWorld';
 import { packActiveMorphWeights } from './MorphPacking';
 import { LightType } from '../ecs/components/LightStore';
 import { SHADOW_REQUEST } from './lighting/LightData';
+import { hypot3 } from '../math/hypot';
 
 /**
  * ECS -> RenderWorld. Maintains a persistent entity->slot map so only objects whose transform
@@ -117,7 +118,7 @@ export class RenderExtractor {
         innerCone: ls.innerCone[e], outerCone: ls.outerCone[e], shadowSlot: ls.castShadow[e] ? SHADOW_REQUEST : -1,
         ...(type === LightType.Area ? {
           right: norm3(wm[m], wm[m + 1], wm[m + 2]), up: norm3(wm[m + 4], wm[m + 5], wm[m + 6]),
-          halfWidth: 0.5 * ls.width[e] * Math.hypot(wm[m], wm[m + 1], wm[m + 2]), halfHeight: 0.5 * ls.height[e] * Math.hypot(wm[m + 4], wm[m + 5], wm[m + 6]),
+          halfWidth: 0.5 * ls.width[e] * hypot3(wm[m], wm[m + 1], wm[m + 2]), halfHeight: 0.5 * ls.height[e] * hypot3(wm[m + 4], wm[m + 5], wm[m + 6]),
           twoSided: ls.twoSided[e] !== 0,
         } : {}),
       });
@@ -156,6 +157,6 @@ export class RenderExtractor {
 
 /** Normalise a 3-vector (zero vectors are returned unscaled). */
 function norm3(x: number, y: number, z: number): [number, number, number] {
-  const l = Math.hypot(x, y, z) || 1;
+  const l = hypot3(x, y, z) || 1;
   return [x / l, y / l, z / l];
 }

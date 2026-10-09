@@ -1,3 +1,4 @@
+import { hypot3 } from './hypot';
 /** Allocation-free Vec3 helpers operating on Float32Array/number[]. Right-handed. */
 export type V3 = Float32Array | number[];
 
@@ -22,10 +23,10 @@ export const Vec3 = {
     o[0] = ay * bz - az * by; o[1] = az * bx - ax * bz; o[2] = ax * by - ay * bx; return o;
   },
   /** Euclidean length. */
-  length(a: V3): number { return Math.hypot(a[0], a[1], a[2]); },
+  length(a: V3): number { return hypot3(a[0], a[1], a[2]); },
   /** o = a with unit length (a zero vector stays zero). */
   normalize(o: V3, a: V3): V3 {
-    const l = Math.hypot(a[0], a[1], a[2]) || 1;
+    const l = hypot3(a[0], a[1], a[2]) || 1;
     o[0] = a[0] / l; o[1] = a[1] / l; o[2] = a[2] / l; return o;
   },
   /** o = a + (b - a) * t. */
@@ -33,5 +34,5 @@ export const Vec3 = {
     o[0] = a[0] + (b[0] - a[0]) * t; o[1] = a[1] + (b[1] - a[1]) * t; o[2] = a[2] + (b[2] - a[2]) * t; return o;
   },
   /** Distance between points a and b. */
-  distance(a: V3, b: V3): number { return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); },
+  distance(a: V3, b: V3): number { return hypot3(a[0] - b[0], a[1] - b[1], a[2] - b[2]); },
 };

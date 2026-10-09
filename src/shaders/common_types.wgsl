@@ -73,7 +73,7 @@ struct Instance {
   vertexCount: u32,
   skinBase: u32,          // element offset of this mesh's skin data
   morphBase: u32,         // element offset of this mesh's morph deltas (target-major)
-  flags: u32,
+  flags: u32,             // bits 0-1: deform capability (skin / morph), bits 4-5: morph delta stride (elements per vertex per target)
 };
 
 struct VertexInput {

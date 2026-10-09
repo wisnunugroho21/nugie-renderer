@@ -1,6 +1,7 @@
 import type { RenderWorld } from '../rendering/RenderWorld';
 import type { MeshRecord } from '../rendering/MeshManager';
 import type { VisibleSet } from './VisibilitySystem';
+import { hypot3 } from '../math/hypot';
 
 export interface LODLevel {
   meshId: number;
@@ -107,7 +108,7 @@ export class LODSystem {
       if (g < 0) { out[kept++] = slot; continue; }
       const group = groups[g];
       const o = slot * 4;
-      const dist = Math.hypot(sph[o] - camPos[0], sph[o + 1] - camPos[1], sph[o + 2] - camPos[2]);
+      const dist = hypot3(sph[o] - camPos[0], sph[o + 1] - camPos[1], sph[o + 2] - camPos[2]);
       const r = sph[o + 3];
       const size = (dist <= r ? Infinity : r / (dist * tanHalf)) * this.lodBias;
 

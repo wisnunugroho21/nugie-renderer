@@ -104,7 +104,7 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
     // --- instance record
     const inst = new Uint32Array(12);
     inst[0] = 0; inst[1] = 0; inst[2] = jointOffset; inst[3] = variant.skin ? J : 0; inst[4] = 0; inst[5] = variant.morph ? activeCount : 0;
-    inst[7] = mesh.baseVertex; inst[8] = mesh.vertexCount; inst[9] = mesh.skinBase; inst[10] = mesh.morphBase; inst[11] = mesh.deformMask;
+    inst[7] = mesh.baseVertex; inst[8] = mesh.vertexCount; inst[9] = mesh.skinBase; inst[10] = mesh.morphBase; inst[11] = mesh.deformMask | (mesh.morphStride << 4);
     const instBuf = res.buffers.createWithData('inst', inst, GPUBufferUsage.STORAGE);
     const dummy = res.buffers.create('dummy-transforms', 64, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
 

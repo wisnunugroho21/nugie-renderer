@@ -1,4 +1,5 @@
 import { Mat4 } from '../../math/Mat4';
+import { hypot3 } from '../../math/hypot';
 
 /** Practical split scheme: blend of logarithmic and uniform splits. Returns the far distance of each cascade. */
 export function cascadeSplits(near: number, far: number, count: number, lambda: number, out: Float32Array | number[] = new Float32Array(4)): Float32Array | number[] {
@@ -44,11 +45,11 @@ export function fitCascade(
   const c = [0, 0, 0];
   for (const p of corners) { c[0] += p[0] / 8; c[1] += p[1] / 8; c[2] += p[2] / 8; }
   let r = 0;
-  for (const p of corners) r = Math.max(r, Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]));
+  for (const p of corners) r = Math.max(r, hypot3(p[0] - c[0], p[1] - c[1], p[2] - c[2]));
   r = Math.ceil(r * 16) / 16;   // quantise so tiny fov / aspect jitter does not change the size
   const texel = (2 * r) / mapSize;
 
-  const l = Math.hypot(lightDir[0], lightDir[1], lightDir[2]) || 1, d = [lightDir[0] / l, lightDir[1] / l, lightDir[2] / l];
+  const l = hypot3(lightDir[0], lightDir[1], lightDir[2]) || 1, d = [lightDir[0] / l, lightDir[1] / l, lightDir[2] / l];
   const up = Math.abs(d[1]) > 0.99 ? up1 : up0;
   const back = r + casterRange;
   const view = Mat4.lookAt(Mat4.create(), c[0] - d[0] * back, c[1] - d[1] * back, c[2] - d[2] * back, c[0], c[1], c[2], up[0], up[1], up[2]);
@@ -66,7 +67,7 @@ export interface SpotShadowResult { viewProjection: Float32Array; /** tan of the
 
 /** Perspective shadow matrix for a spot light (fov = outer cone * 2 plus a small margin for the PCF kernel). */
 export function fitSpot(pos: ArrayLike<number>, dir: ArrayLike<number>, outerCone: number, range: number): SpotShadowResult {
-  const l = Math.hypot(dir[0], dir[1], dir[2]) || 1, d = [dir[0] / l, dir[1] / l, dir[2] / l];
+  const l = hypot3(dir[0], dir[1], dir[2]) || 1, d = [dir[0] / l, dir[1] / l, dir[2] / l];
   const up = Math.abs(d[1]) > 0.99 ? up1 : up0;
   const half = Math.min(outerCone + 0.03, 1.5);
   const far = range > 0 ? range : 100, near = Math.max(0.05, far * 0.005);

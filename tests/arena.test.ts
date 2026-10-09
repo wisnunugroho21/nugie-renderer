@@ -67,8 +67,8 @@ describe('MeshManager reserves room in every arena first', () => {
     const okId = mm.create('ok', cube);
     const v0 = (mm as any).vertices.used, i0 = (mm as any).indices.used, d0 = mm.deform.used;
     const target = { position: new Float32Array(vcount * 3).fill(0.1) };
-    // 24 vertices x 40 targets x 3 elements = 2880 > 2048
-    expect(() => mm.create('too-big', cube, { morphTargets: Array.from({ length: 40 }, () => target) as any })).toThrow(ArenaCapacityError);
+    // position-only deltas take 1 element per vertex per target: 24 vertices x 100 targets x 1 = 2400 > 2048
+    expect(() => mm.create('too-big', cube, { morphTargets: Array.from({ length: 100 }, () => target) as any })).toThrow(ArenaCapacityError);
     expect((mm as any).vertices.used).toBe(v0);
     expect((mm as any).indices.used).toBe(i0);
     expect(mm.deform.used).toBe(d0);
@@ -77,6 +77,28 @@ describe('MeshManager reserves room in every arena first', () => {
     const id2 = mm.create('small', cube, { morphTargets: [target] as any });
     expect(id2).toBe(okId + 1);
     expect(mm.get(id2).morphTargetCount).toBe(1);
+  });
+  it('morph deltas use only as many elements per vertex as the mesh has attributes', async () => {
+    const { MeshManager } = await import('../src/rendering/MeshManager');
+    const { createCube } = await import('../src/rendering/primitives');
+    const { device, buffers } = setup();
+    const mm = new MeshManager(device, buffers);
+    const cube = createCube(), vcount = cube.vertices.length / 12;
+    const vec = (v: number) => new Float32Array(vcount * 3).fill(v);
+    const cases: [string, any[], number][] = [
+      ['position only', [{ position: vec(0.1) }, { position: vec(0.2) }], 1],
+      ['position + normal', [{ position: vec(0.1), normal: vec(0.5) }], 2],
+      ['tangent without normal', [{ position: vec(0.1), tangent: vec(0.3) }], 3],
+      ['mixed targets take the widest', [{ position: vec(0.1) }, { position: vec(0.1), normal: vec(0.5) }], 2],
+    ];
+    for (const [name, targets, stride] of cases) {
+      const before = mm.deform.used, id = mm.create(name, cube, { morphTargets: targets });
+      expect(mm.get(id).morphStride).toBe(stride);
+      expect(mm.deform.used - before).toBe(targets.length * vcount * stride);
+      // the stored deltas sit at (target * vcount + vertex) * stride: the first target's position delta of vertex 0 is element 0
+      expect(mm.get(id).morphTargetCount).toBe(targets.length);
+    }
+    expect(mm.get(mm.create('plain', cube)).morphStride).toBe(0);
   });
   it('bad skin data is rejected before anything is allocated', async () => {
     const { MeshManager } = await import('../src/rendering/MeshManager');

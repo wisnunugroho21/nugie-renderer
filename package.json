@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "bench": "tsx benchmarks/run.ts",
+    "bench:anim": "tsx benchmarks/animation.ts",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
     "prepack": "npm run typecheck && npm test && npm run build:lib"
   },

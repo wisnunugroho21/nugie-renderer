@@ -2,6 +2,7 @@ import { Quat } from '../../math/Quat';
 import type { Pose, PoseLayout } from '../Pose';
 import { Xform, assertChain, composeLocal, copyXform, modelTransform, type PoseConstraint } from './IK';
 import { slerpInto } from '../AnimationSampler';
+import { hypot3 } from '../../math/hypot';
 
 // Module-level scratch: solvers run every frame and must not allocate.
 const qParentConj = new Float32Array(4), qA = new Float32Array(4), qNewModelA = new Float32Array(4), qLocalA = new Float32Array(4);
@@ -16,7 +17,7 @@ const conj = (o: Float32Array, a: ArrayLike<number>, ao = 0) => { o[0] = -a[ao];
 function perpendicular(vx: number, vy: number, vz: number, dx: number, dy: number, dz: number): boolean {
   const dot = vx * dx + vy * dy + vz * dz;
   vBend[0] = vx - dx * dot; vBend[1] = vy - dy * dot; vBend[2] = vz - dz * dot;
-  return Math.hypot(vBend[0], vBend[1], vBend[2]) > 1e-6;
+  return hypot3(vBend[0], vBend[1], vBend[2]) > 1e-6;
 }
 
 /**
@@ -62,13 +63,13 @@ export class TwoBoneIK implements PoseConstraint {
     Quat.multiply(this.parentRot, A.r, qRootLocalConj);
 
     const ax = A.p[0], ay = A.p[1], az = A.p[2];
-    const l1 = Math.hypot(B.p[0] - ax, B.p[1] - ay, B.p[2] - az);
-    const l2 = Math.hypot(C.p[0] - B.p[0], C.p[1] - B.p[1], C.p[2] - B.p[2]);
+    const l1 = hypot3(B.p[0] - ax, B.p[1] - ay, B.p[2] - az);
+    const l2 = hypot3(C.p[0] - B.p[0], C.p[1] - B.p[1], C.p[2] - B.p[2]);
     if (l1 < 1e-8 || l2 < 1e-8) return;
 
     let tx = this.target[0] - ax, ty = this.target[1] - ay, tz = this.target[2] - az;
-    let dist = Math.hypot(tx, ty, tz);
-    if (dist < 1e-6) { tx = C.p[0] - ax; ty = C.p[1] - ay; tz = C.p[2] - az; dist = Math.hypot(tx, ty, tz) || 1; }
+    let dist = hypot3(tx, ty, tz);
+    if (dist < 1e-6) { tx = C.p[0] - ax; ty = C.p[1] - ay; tz = C.p[2] - az; dist = hypot3(tx, ty, tz) || 1; }
     const maxReach = l1 + l2 - 1e-5, minReach = Math.abs(l1 - l2) + 1e-5;
     this.reachable = dist <= maxReach && dist >= minReach;
     const d = Math.min(maxReach, Math.max(minReach, dist));
@@ -82,7 +83,7 @@ export class TwoBoneIK implements PoseConstraint {
       const ex = fx <= fy && fx <= fz ? 1 : 0, ey = ex === 0 && fy <= fz ? 1 : 0, ez = ex === 0 && ey === 0 ? 1 : 0;
       vBend[0] = dy * ez - dz * ey; vBend[1] = dz * ex - dx * ez; vBend[2] = dx * ey - dy * ex;
     }
-    const bl = Math.hypot(vBend[0], vBend[1], vBend[2]) || 1;
+    const bl = hypot3(vBend[0], vBend[1], vBend[2]) || 1;
     const bx = vBend[0] / bl, by = vBend[1] / bl, bz = vBend[2] / bl;
 
     // --- desired middle joint position (law of cosines) and the clamped target point

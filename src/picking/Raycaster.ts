@@ -3,6 +3,7 @@ import { BitSet } from '../core/BitSet';
 import { RenderFlags } from '../ecs/components/MeshRendererStore';
 import type { World } from '../ecs/World';
 import type { MeshManager } from '../rendering/MeshManager';
+import { hypot3 } from '../math/hypot';
 
 /** A ray in world space. `direction` need not be normalised, but hit distances are measured in units of its length. */
 export interface Ray {
@@ -52,7 +53,7 @@ export function rayFromNDC(invViewProjection: ArrayLike<number>, nx: number, ny:
   };
   const a = unproject(0), b = unproject(1);        // clip depth runs 0 (near) .. 1 (far)
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-  const l = Math.hypot(dx, dy, dz) || 1;
+  const l = hypot3(dx, dy, dz) || 1;
   return { origin: a, direction: [dx / l, dy / l, dz / l] };
 }
 
@@ -115,7 +116,7 @@ export function rayMesh(geo: CpuGeometry, invWorld: ArrayLike<number>, ray: Ray,
   const e2x = p[c] - p[a], e2y = p[c + 1] - p[a + 1], e2z = p[c + 2] - p[a + 2];
   const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
   const wx = m[0] * nx + m[1] * ny + m[2] * nz, wy = m[4] * nx + m[5] * ny + m[6] * nz, wz = m[8] * nx + m[9] * ny + m[10] * nz;
-  const l = Math.hypot(wx, wy, wz) || 1;
+  const l = hypot3(wx, wy, wz) || 1;
   return { distance: best, triangle: bestTri, normal: [wx / l, wy / l, wz / l] };
 }
 

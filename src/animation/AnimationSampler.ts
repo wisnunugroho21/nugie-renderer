@@ -1,4 +1,5 @@
 import type { InterpolationMode } from '../assets/AssetTypes';
+import { hypot4 } from '../math/hypot';
 
 /**
  * Index k of the keyframe interval containing t: times[k] <= t < times[k+1].
@@ -31,7 +32,7 @@ export function slerpInto(out: Float32Array, o: number, a: Float32Array, ao: num
 
 /** Normalise the quaternion stored at `out[o..o+3]` in place. */
 function normalizeQuat(out: Float32Array, o: number): void {
-  const l = Math.hypot(out[o], out[o + 1], out[o + 2], out[o + 3]) || 1;
+  const l = hypot4(out[o], out[o + 1], out[o + 2], out[o + 3]) || 1;
   out[o] /= l; out[o + 1] /= l; out[o + 2] /= l; out[o + 3] /= l;
 }
 
@@ -45,20 +46,20 @@ export function sampleChannel(
   t: number, out: Float32Array, outOffset: number, hint = 0,
 ): number {
   const n = times.length;
-  const cubic = interpolation === 'CUBICSPLINE';
-  /** Offset of keyframe `key`'s value (cubic-spline channels store in-tangent, value, out-tangent per key). */
-  const valueAt = (key: number) => (cubic ? key * 3 + 1 : key) * stride;
   if (n === 0) return -1;
+  const cubic = interpolation === 'CUBICSPLINE';
+  // value of key k starts at k * keyStride + keyBase (cubic-spline channels store in-tangent, value, out-tangent per key)
+  const keyStride = cubic ? stride * 3 : stride, keyBase = cubic ? stride : 0;
   const k = findKey(times, t, hint);
-  if (k < 0) { for (let c = 0; c < stride; c++) out[outOffset + c] = values[valueAt(0) + c]; return 0; }
-  if (k >= n - 1) { for (let c = 0; c < stride; c++) out[outOffset + c] = values[valueAt(n - 1) + c]; return n - 1; }
+  if (k < 0) { copyValue(values, keyBase, out, outOffset, stride); return 0; }
+  if (k >= n - 1) { copyValue(values, (n - 1) * keyStride + keyBase, out, outOffset, stride); return n - 1; }
 
   const t0 = times[k], t1 = times[k + 1], dt = t1 - t0;
-  if (interpolation === 'STEP' || dt <= 0) { for (let c = 0; c < stride; c++) out[outOffset + c] = values[valueAt(k) + c]; return k; }
+  if (interpolation === 'STEP' || dt <= 0) { copyValue(values, k * keyStride + keyBase, out, outOffset, stride); return k; }
   const s = (t - t0) / dt;
 
   if (!cubic) {
-    const a = valueAt(k), b = valueAt(k + 1);
+    const a = k * keyStride, b = a + keyStride;
     if (isQuat) slerpInto(out, outOffset, values, a, values, b, s);
     else for (let c = 0; c < stride; c++) out[outOffset + c] = values[a + c] + (values[b + c] - values[a + c]) * s;
     return k;
@@ -66,10 +67,15 @@ export function sampleChannel(
   // Cubic Hermite (glTF spec): tangents are scaled by the interval length.
   const s2 = s * s, s3 = s2 * s;
   const h00 = 2 * s3 - 3 * s2 + 1, h10 = s3 - 2 * s2 + s, h01 = -2 * s3 + 3 * s2, h11 = s3 - s2;
-  const v0 = valueAt(k), outTan0 = (k * 3 + 2) * stride, inTan1 = ((k + 1) * 3) * stride, v1 = valueAt(k + 1);
+  const v0 = k * keyStride + keyBase, outTan0 = k * keyStride + 2 * stride, inTan1 = (k + 1) * keyStride, v1 = v0 + keyStride;
   for (let c = 0; c < stride; c++) {
     out[outOffset + c] = h00 * values[v0 + c] + h10 * dt * values[outTan0 + c] + h01 * values[v1 + c] + h11 * dt * values[inTan1 + c];
   }
   if (isQuat) normalizeQuat(out, outOffset);
   return k;
+}
+
+/** out[o .. o+stride) = values[from .. from+stride). */
+function copyValue(values: Float32Array, from: number, out: Float32Array, o: number, stride: number): void {
+  for (let c = 0; c < stride; c++) out[o + c] = values[from + c];
 }

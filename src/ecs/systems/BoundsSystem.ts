@@ -1,6 +1,7 @@
 import type { BoundsStore } from '../components/BoundsStore';
 import type { TransformStore } from '../components/TransformStore';
 import { AABB } from '../../math/AABB';
+import { hypot3 } from '../../math/hypot';
 
 const tmpIn = new Float32Array(6);
 const tmpOut = new Float32Array(6);
@@ -29,7 +30,7 @@ export class BoundsSystem {
       b.sphere[s] = (b.world[o] + b.world[o + 3]) / 2;
       b.sphere[s + 1] = (b.world[o + 1] + b.world[o + 4]) / 2;
       b.sphere[s + 2] = (b.world[o + 2] + b.world[o + 5]) / 2;
-      b.sphere[s + 3] = Math.hypot(b.world[o + 3] - b.world[o], b.world[o + 4] - b.world[o + 1], b.world[o + 5] - b.world[o + 2]) / 2;
+      b.sphere[s + 3] = hypot3(b.world[o + 3] - b.world[o], b.world[o + 4] - b.world[o + 1], b.world[o + 5] - b.world[o + 2]) / 2;
       this.boundsUpdated++;
     }
   }

@@ -1,3 +1,4 @@
+import { hypot3 } from './hypot';
 /**
  * Frustum as 6 planes [nx,ny,nz,d] with inward-facing normals: inside <=> n·p + d >= 0.
  * Order: left, right, bottom, top, near, far. Extracted (Gribb/Hartmann) from a
@@ -13,7 +14,7 @@ export class Frustum {
     const plane = (idx: number, s: number, row: number) => {
       // plane = row3 + s*row_k (row_k = (m[k], m[4+k], m[8+k], m[12+k]))
       const a = m[3] + s * m[row], b = m[7] + s * m[4 + row], c = m[11] + s * m[8 + row], d = m[15] + s * m[12 + row];
-      const l = Math.hypot(a, b, c) || 1;
+      const l = hypot3(a, b, c) || 1;
       p[idx * 4] = a / l; p[idx * 4 + 1] = b / l; p[idx * 4 + 2] = c / l; p[idx * 4 + 3] = d / l;
     };
     plane(0, 1, 0);  // left   : w + x >= 0
@@ -23,7 +24,7 @@ export class Frustum {
     plane(5, -1, 2); // far    : w - z >= 0
     // near: z >= 0 (WebGPU depth range)
     const a = m[2], b = m[6], c = m[10], d = m[14];
-    const l = Math.hypot(a, b, c) || 1;
+    const l = hypot3(a, b, c) || 1;
     p[16] = a / l; p[17] = b / l; p[18] = c / l; p[19] = d / l;
     return this;
   }

@@ -1,4 +1,5 @@
 import { Mat4, type M4 } from '../math/Mat4';
+import { hypot3 } from '../math/hypot';
 
 
 /**
@@ -8,7 +9,7 @@ import { Mat4, type M4 } from '../math/Mat4';
 
 /** World-space reflection about the plane through `p` with normal `n` (need not be unit length). */
 export function reflectionMatrix(o: M4, px: number, py: number, pz: number, nx: number, ny: number, nz: number): M4 {
-  const l = Math.hypot(nx, ny, nz) || 1;
+  const l = hypot3(nx, ny, nz) || 1;
   nx /= l; ny /= l; nz /= l;
   const d = nx * px + ny * py + nz * pz;
   o[0] = 1 - 2 * nx * nx; o[1] = -2 * ny * nx;    o[2] = -2 * nz * nx;    o[3] = 0;
@@ -26,7 +27,7 @@ export function mirrorView(o: M4, view: ArrayLike<number>, p: ArrayLike<number>,
 
 /** The world plane through `p` with normal `n` as a view-space plane (a, b, c, d): a*x + b*y + c*z + d > 0 on the side `n` points to. */
 export function planeToView(view: ArrayLike<number>, p: ArrayLike<number>, n: ArrayLike<number>): [number, number, number, number] {
-  const l = Math.hypot(n[0], n[1], n[2]) || 1;
+  const l = hypot3(n[0], n[1], n[2]) || 1;
   const nx = n[0] / l, ny = n[1] / l, nz = n[2] / l;
   const cw = [nx, ny, nz, -(nx * p[0] + ny * p[1] + nz * p[2])];
   const inv = Mat4.invert(Mat4.create(), view as M4);

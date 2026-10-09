@@ -5,6 +5,7 @@ import { registerEngineShaderChunks } from '../shaders';
 import updateSource from '../shaders/ribbons_update.wgsl?raw';
 import renderSource from '../shaders/ribbons_render.wgsl?raw';
 import type { Vec3, Vec4 } from './EmitterConfig';
+import { hypot3 } from '../math/hypot';
 
 export type RibbonMode = 'trail' | 'chain' | 'flat';
 const MODE_ID: Record<RibbonMode, number> = { trail: 0, chain: 1, flat: 2 };
@@ -177,7 +178,7 @@ export class RibbonSystem {
     for (let i = 0; i < n; i++) {
       const slot = n - 1 - i;               // head = n - 1 holds points[0]
       const o = slot * SEGMENT_FLOATS;
-      if (i > 0) dist += Math.hypot(points[i * 3] - points[(i - 1) * 3], points[i * 3 + 1] - points[(i - 1) * 3 + 1], points[i * 3 + 2] - points[(i - 1) * 3 + 2]);
+      if (i > 0) dist += hypot3(points[i * 3] - points[(i - 1) * 3], points[i * 3 + 1] - points[(i - 1) * 3 + 1], points[i * 3 + 2] - points[(i - 1) * 3 + 2]);
       seg[o] = points[i * 3]; seg[o + 1] = points[i * 3 + 1]; seg[o + 2] = points[i * 3 + 2]; seg[o + 3] = 0;
       seg[o + 4] = colors?.[i * 4] ?? 1; seg[o + 5] = colors?.[i * 4 + 1] ?? 1; seg[o + 6] = colors?.[i * 4 + 2] ?? 1; seg[o + 7] = colors?.[i * 4 + 3] ?? 1;
       seg[o + 8] = widths?.[i] ?? 1; seg[o + 9] = dist;
@@ -255,12 +256,12 @@ export function beamPoints(a: Vec3, b: Vec3, segments: number, jitter: number, s
   /** Deterministic pseudo-random number in [-1, 1) (LCG). */
   const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296 * 2 - 1; };
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-  const len = Math.hypot(dx, dy, dz) || 1;
+  const len = hypot3(dx, dy, dz) || 1;
   // two perpendicular axes to the beam direction
   const ux = dx / len, uy = dy / len, uz = dz / len;
   let px = uy * 0 - uz * 1, py = uz * 0 - ux * 0, pz = ux * 1 - uy * 0;     // u x (0,0,1)
-  if (Math.hypot(px, py, pz) < 1e-4) { px = 1; py = 0; pz = 0; }
-  const pl = Math.hypot(px, py, pz); px /= pl; py /= pl; pz /= pl;
+  if (hypot3(px, py, pz) < 1e-4) { px = 1; py = 0; pz = 0; }
+  const pl = hypot3(px, py, pz); px /= pl; py /= pl; pz /= pl;
   const qx = uy * pz - uz * py, qy = uz * px - ux * pz, qz = ux * py - uy * px;
   for (let i = 0; i < n; i++) {
     const t = i / (n - 1), taper = Math.sin(Math.PI * t), j1 = rnd() * jitter * taper, j2 = rnd() * jitter * taper;

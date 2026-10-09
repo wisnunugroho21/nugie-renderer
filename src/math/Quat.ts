@@ -1,3 +1,4 @@
+import { hypot3, hypot4 } from './hypot';
 /** Quaternion helpers [x, y, z, w]. */
 export type Q = Float32Array | number[];
 
@@ -10,7 +11,7 @@ export const Quat = {
   copy(o: Q, a: Q): Q { o[0] = a[0]; o[1] = a[1]; o[2] = a[2]; o[3] = a[3]; return o; },
   /** Rotation of `rad` radians about axis (x, y, z) (the axis need not be normalised). */
   fromAxisAngle(o: Q, x: number, y: number, z: number, rad: number): Q {
-    const l = Math.hypot(x, y, z) || 1;
+    const l = hypot3(x, y, z) || 1;
     const s = Math.sin(rad / 2) / l;
     o[0] = x * s; o[1] = y * s; o[2] = z * s; o[3] = Math.cos(rad / 2); return o;
   },
@@ -25,7 +26,7 @@ export const Quat = {
   },
   /** o = a scaled to unit length (a zero quaternion is left unscaled). */
   normalize(o: Q, a: Q): Q {
-    const l = Math.hypot(a[0], a[1], a[2], a[3]) || 1;
+    const l = hypot4(a[0], a[1], a[2], a[3]) || 1;
     o[0] = a[0] / l; o[1] = a[1] / l; o[2] = a[2] / l; o[3] = a[3] / l; return o;
   },
   /** o = conjugate of `a` (the inverse for unit quaternions). */
@@ -46,7 +47,7 @@ export const Quat = {
    * Handles parallel and anti-parallel vectors (anti-parallel picks a stable perpendicular axis).
    */
   fromTo(o: Q, ax: number, ay: number, az: number, bx: number, by: number, bz: number): Q {
-    let la = Math.hypot(ax, ay, az), lb = Math.hypot(bx, by, bz);
+    let la = hypot3(ax, ay, az), lb = hypot3(bx, by, bz);
     if (la < 1e-12 || lb < 1e-12) return Quat.identity(o);
     ax /= la; ay /= la; az /= la; bx /= lb; by /= lb; bz /= lb;
     const d = ax * bx + ay * by + az * bz;
@@ -56,13 +57,13 @@ export const Quat = {
       const fx = Math.abs(ax), fy = Math.abs(ay), fz = Math.abs(az);
       const ex = fx <= fy && fx <= fz ? 1 : 0, ey = ex === 0 && fy <= fz ? 1 : 0, ez = ex === 0 && ey === 0 ? 1 : 0;
       const px = ay * ez - az * ey, py = az * ex - ax * ez, pz = ax * ey - ay * ex;
-      const pl = Math.hypot(px, py, pz);
+      const pl = hypot3(px, py, pz);
       o[0] = px / pl; o[1] = py / pl; o[2] = pz / pl; o[3] = 0;
       return o;
     }
     const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
     const w = 1 + d;
-    const l = Math.hypot(cx, cy, cz, w);
+    const l = hypot4(cx, cy, cz, w);
     o[0] = cx / l; o[1] = cy / l; o[2] = cz / l; o[3] = w / l;
     return o;
   },

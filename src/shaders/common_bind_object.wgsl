@@ -5,5 +5,5 @@
 @group(3) @binding(3) var<storage, read> morphWeights: array<u32>;
 // ONE arena for all per-vertex deformation data (16 B elements, read as raw u32 so no bit pattern is ever interpreted as a float):
 //   skin  (instance.skinBase + vertex):                     .xy = joints (u16x4 packed), .zw = weights (unorm16x4 packed)
-//   morph (instance.morphBase + (target * vertexCount + vertex) * 3): position delta, normal delta, tangent delta (xyz as f32 bits)
+//   morph (instance.morphBase + (target * vertexCount + vertex) * stride, stride = instance.flags >> 4 & 3): position delta, [normal delta, [tangent delta]] (xyz as f32 bits)
 @group(3) @binding(4) var<storage, read> deformData: array<vec4<u32>>;

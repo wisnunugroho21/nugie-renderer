@@ -2,6 +2,7 @@ import { Quat } from '../../math/Quat';
 import type { Pose, PoseLayout } from '../Pose';
 import { Xform, modelTransform, type PoseConstraint } from './IK';
 import { slerpInto } from '../AnimationSampler';
+import { hypot3 } from '../../math/hypot';
 
 const qFrom = new Float32Array(4), qLimited = new Float32Array(4), qNewModel = new Float32Array(4), qParentConj = new Float32Array(4), qLocal = new Float32Array(4);
 const qLocalConj = new Float32Array(4), qParent = new Float32Array(4);
@@ -34,7 +35,7 @@ export class LookAt implements PoseConstraint {
     vAxis[0] = this.axis[0]; vAxis[1] = this.axis[1]; vAxis[2] = this.axis[2];
     Quat.rotateVec3(vAxis, x.r, vAxis);
     const dx = this.target[0] - x.p[0], dy = this.target[1] - x.p[1], dz = this.target[2] - x.p[2];
-    if (Math.hypot(dx, dy, dz) < 1e-6) return;
+    if (hypot3(dx, dy, dz) < 1e-6) return;
     Quat.fromTo(qFrom, vAxis[0], vAxis[1], vAxis[2], dx, dy, dz);
     // limit the angle: q = slerp(identity, qFrom, min(1, max / angle))
     const angle = 2 * Math.acos(Math.min(1, Math.abs(qFrom[3])));

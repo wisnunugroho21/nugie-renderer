@@ -1,3 +1,4 @@
+import { hypot3, hypot4 } from './hypot';
 /**
  * Mat4 helpers. CONVENTIONS (documented, tested):
  *  - Column-major storage (matches WGSL mat4x4<f32>), column vectors: v' = M * v.
@@ -108,9 +109,9 @@ export const Mat4 = {
   lookAt(o: M4, ex: number, ey: number, ez: number, tx: number, ty: number, tz: number,
     ux = 0, uy = 1, uz = 0): M4 {
     let zx = ex - tx, zy = ey - ty, zz = ez - tz;
-    let l = Math.hypot(zx, zy, zz) || 1; zx /= l; zy /= l; zz /= l;
+    let l = hypot3(zx, zy, zz) || 1; zx /= l; zy /= l; zz /= l;
     let xx = uy * zz - uz * zy, xy = uz * zx - ux * zz, xz = ux * zy - uy * zx;
-    l = Math.hypot(xx, xy, xz) || 1; xx /= l; xy /= l; xz /= l;
+    l = hypot3(xx, xy, xz) || 1; xx /= l; xy /= l; xz /= l;
     const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
     o[0] = xx; o[1] = yx; o[2] = zx; o[3] = 0;
     o[4] = xy; o[5] = yy; o[6] = zy; o[7] = 0;
@@ -136,8 +137,8 @@ export const Mat4 = {
    * x scale. Inverse of `compose`.
    */
   decompose(m: M4, pos: M4, quat: M4, scale: M4, off = 0): void {
-    let sx = Math.hypot(m[off], m[off + 1], m[off + 2]);
-    const sy = Math.hypot(m[off + 4], m[off + 5], m[off + 6]), sz = Math.hypot(m[off + 8], m[off + 9], m[off + 10]);
+    let sx = hypot3(m[off], m[off + 1], m[off + 2]);
+    const sy = hypot3(m[off + 4], m[off + 5], m[off + 6]), sz = hypot3(m[off + 8], m[off + 9], m[off + 10]);
     const det = m[off] * (m[off + 5] * m[off + 10] - m[off + 6] * m[off + 9]) - m[off + 4] * (m[off + 1] * m[off + 10] - m[off + 2] * m[off + 9])
       + m[off + 8] * (m[off + 1] * m[off + 6] - m[off + 2] * m[off + 5]);
     if (det < 0) sx = -sx;
@@ -154,15 +155,15 @@ export const Mat4 = {
     else if (r00 > r11 && r00 > r22) { const k = 2 * Math.sqrt(1 + r00 - r11 - r22); w = (r21 - r12) / k; x = 0.25 * k; y = (r01 + r10) / k; z = (r02 + r20) / k; }
     else if (r11 > r22) { const k = 2 * Math.sqrt(1 + r11 - r00 - r22); w = (r02 - r20) / k; x = (r01 + r10) / k; y = 0.25 * k; z = (r12 + r21) / k; }
     else { const k = 2 * Math.sqrt(1 + r22 - r00 - r11); w = (r10 - r01) / k; x = (r02 + r20) / k; y = (r12 + r21) / k; z = 0.25 * k; }
-    const l = Math.hypot(x, y, z, w) || 1;
+    const l = hypot4(x, y, z, w) || 1;
     quat[0] = x / l; quat[1] = y / l; quat[2] = z / l; quat[3] = w / l;
   },
 
   /** Largest axis scale of the upper 3x3 (for conservative bounding-sphere transforms). */
   maxScale(m: M4, off = 0): number {
-    const sx = Math.hypot(m[off], m[off + 1], m[off + 2]);
-    const sy = Math.hypot(m[off + 4], m[off + 5], m[off + 6]);
-    const sz = Math.hypot(m[off + 8], m[off + 9], m[off + 10]);
+    const sx = hypot3(m[off], m[off + 1], m[off + 2]);
+    const sy = hypot3(m[off + 4], m[off + 5], m[off + 6]);
+    const sz = hypot3(m[off + 8], m[off + 9], m[off + 10]);
     return Math.max(sx, sy, sz);
   },
 };
