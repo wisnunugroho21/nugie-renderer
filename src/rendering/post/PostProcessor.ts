@@ -53,7 +53,7 @@ export interface SSRSettings {
 }
 
 export interface PostSettings {
-  /** Samples per pixel of the scene target: 1 (off) or 4 (MSAA). Works with or without the post chain. Ignored (1) while `gpuCulling` is 'hiz' / 'hiz2', which sample the single-sample depth buffer. */
+  /** Samples per pixel of the scene target: 1 (off) or 4 (MSAA). Works with or without the post chain. Ignored (1) while `gpuCulling` is 'hiz2', which samples the single-sample depth buffer. */
   msaa: 1 | 4;
   /** FXAA on the final image (needs the post chain). */
   fxaa: boolean;

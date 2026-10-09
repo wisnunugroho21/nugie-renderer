@@ -13,7 +13,7 @@ export interface CullBenchRow { scene: string; mode: string; gpuMs: number; cpuM
 
 /**
  * Benchmark G: GPU-driven visibility. A dense sphere field (hidden behind a wall when `occluded`), rendered with CPU-side culling
- * disabled so every object reaches the renderer: 'off' (no GPU culling), 'frustum' (GPU frustum cull + indirect) and 'hiz'.
+ * disabled so every object reaches the renderer: 'off' (no GPU culling), 'frustum' (GPU frustum cull + indirect) and 'hiz2' (two-phase Hi-Z).
  */
 export async function runCullBench(canvas: HTMLCanvasElement, count: number, frames = 30): Promise<CullBenchRow[]> {
   const gpu = await GPUContext.create(canvas);
@@ -43,7 +43,7 @@ export async function runCullBench(canvas: HTMLCanvasElement, count: number, fra
     world.transforms.add(sun); world.lights.add(sun, LightType.Directional, 1, 1, 1, 2);
     ts.update(); bs.update(ts.updated); ex.extract(rw, canvas.width / canvas.height);
     (window as unknown as { __cull: unknown }).__cull = { renderer, rw, gpu, canvas };
-    for (const mode of ['off', 'frustum', 'hiz', 'hiz2'] as const) {
+    for (const mode of ['off', 'frustum', 'hiz2'] as const) {
       renderer.gpuCulling = mode;
       for (let i = 0; i < 8; i++) renderer.render(rw);
       await gpu.queue.onSubmittedWorkDone();

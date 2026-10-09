@@ -6,7 +6,7 @@ import type { CullMode } from '../visibility/VisibilitySystem';
 /**
  * Renderer options that can be switched from the page URL while developing:
  *  post-processing: `ssao=<intensity>`, `ssr=<intensity>`, `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1` (HDR chain only);
- *  `mode=unsorted|sorted|instanced`, `cluster=0`, `prepass=1`, `gpulod=1`, `gpucull=off|frustum|hiz|hiz2`, `cull=none|linear|bvh`.
+ *  `mode=unsorted|sorted|instanced`, `cluster=0`, `prepass=1`, `gpulod=1`, `gpucull=off|frustum|hiz2`, `cull=none|linear|bvh`.
  * Applied synchronously; call before the first frame.
  */
 export function applyRenderSettings(engine: Engine, params: URLSearchParams): void {
@@ -15,7 +15,8 @@ export function applyRenderSettings(engine: Engine, params: URLSearchParams): vo
   r.clusteredShading = params.get('cluster') !== '0';
   r.depthPrepass = params.get('prepass') === '1';
   r.gpuLOD = params.get('gpulod') === '1';
-  r.gpuCulling = (params.get('gpucull') as typeof r.gpuCulling) ?? 'off';
+  const gpucull = params.get('gpucull');
+  r.gpuCulling = gpucull === 'frustum' || gpucull === 'hiz2' ? gpucull : gpucull === 'hiz' ? 'hiz2' : 'off';   // 'hiz' (removed single-phase mode) maps to hiz2
   engine.visibility.mode = (params.get('cull') as CullMode) ?? 'bvh';
   applyPostSettings(engine, params);
 }

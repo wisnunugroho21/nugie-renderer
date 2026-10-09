@@ -3,7 +3,7 @@ import { entityIndex } from '../ecs/Entity';
 import { createCube, createUVSphere } from '../rendering/primitives';
 import { RenderFlags } from '../ecs/components/MeshRendererStore';
 
-/** Occlusion stress scene: a large wall directly in front of the camera hides a dense field of spheres (use ?gpucull=hiz). */
+/** Occlusion stress scene: a large wall directly in front of the camera hides a dense field of spheres (use ?gpucull=hiz2). */
 export const occlusionDemo: Demo = (ctx) => {
   const { world, renderer, params } = ctx;
   const n = Number(params.get('n') ?? 6000);

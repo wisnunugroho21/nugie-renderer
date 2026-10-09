@@ -22,8 +22,13 @@ export class RenderQueues {
 /** Switch counters over a sorted list (pipeline / material / mesh changes between consecutive objects). */
 export interface SwitchCounts { pipeline: number; material: number; mesh: number; }
 
+/** What one queue looked like when it was last sorted: its input (slots in partition order + sort keys) and the sorted result. */
+interface SortCache { n: number; slots: Uint32Array; hi: Uint32Array; lo: Uint32Array; sorted: Uint32Array; }
+
 /**
  * Builds the three render queues from the visible set.
+ * A queue whose input (objects and sort keys) is identical to the previous build reuses that build's sorted order, so a
+ * still camera over a static scene sorts nothing (see `sortsReused`).
  *   Opaque / AlphaMask : sort by pipeline -> material -> mesh -> depth bucket (front-to-back)
  *   Transparent        : back-to-front by distance to the camera
  * With sort 'none', objects keep their RenderWorld order (the unsorted baseline).
@@ -34,6 +39,9 @@ export class RenderQueueBuilder {
   private lo = new Uint32Array(0);
   private lists: [Uint32Array, Uint32Array, Uint32Array] = [new Uint32Array(0), new Uint32Array(0), new Uint32Array(0)];
   private counts = [0, 0, 0];
+  private cache: SortCache[] = [0, 1, 2].map(() => ({ n: -1, slots: new Uint32Array(0), hi: new Uint32Array(0), lo: new Uint32Array(0), sorted: new Uint32Array(0) }));
+  /** Queues (of the last `build`) whose previous sorted order was reused instead of sorting again. */
+  sortsReused = 0;
 
   /** Split the visible objects into the three queues and sort each: opaque / alpha-mask by pipeline, material, mesh and distance; transparent back to front. */
   build(
@@ -42,6 +50,7 @@ export class RenderQueueBuilder {
   ): void {
     this.ensure(visibleCount);
     this.counts[0] = this.counts[1] = this.counts[2] = 0;
+    this.sortsReused = 0;
     const cx = camera.position[0], cy = camera.position[1], cz = camera.position[2];
     const invFar = 65535 / Math.max(camera.far, 1e-3);
     const sph = rw.boundsSphere;
@@ -84,10 +93,30 @@ export class RenderQueueBuilder {
       if (sort === 'none') { dst.slots.set(qSlots[q].subarray(0, n)); continue; }
       const hi = keyHi.subarray(qOffset[q], qOffset[q] + n);
       const lo = keyLo.subarray(qOffset[q], qOffset[q] + n);
+      const src = qSlots[q], c = this.cache[q];
+      if (this.sameInput(c, n, src, hi, lo)) { dst.slots.set(c.sorted.subarray(0, n)); this.sortsReused++; continue; }
       const order = this.sorter.sort(n, hi, lo);
-      const src = qSlots[q];
       for (let i = 0; i < n; i++) dst.slots[i] = src[order[i]];
+      this.remember(c, n, src, hi, lo, dst.slots);
     }
+  }
+
+  /** True when queue input `(src, hi, lo)` of `n` objects equals what `c` recorded (so the recorded sorted order is still right). */
+  private sameInput(c: SortCache, n: number, src: Uint32Array, hi: Uint32Array, lo: Uint32Array): boolean {
+    if (c.n !== n) return false;
+    const cs = c.slots, ch = c.hi, cl = c.lo;
+    for (let i = 0; i < n; i++) if (src[i] !== cs[i] || hi[i] !== ch[i] || lo[i] !== cl[i]) return false;
+    return true;
+  }
+
+  /** Record a queue's input and sorted result for the next build. */
+  private remember(c: SortCache, n: number, src: Uint32Array, hi: Uint32Array, lo: Uint32Array, sorted: Uint32Array): void {
+    if (c.slots.length < n) {
+      const cap = Math.max(n, c.slots.length * 2, 64);
+      c.slots = new Uint32Array(cap); c.hi = new Uint32Array(cap); c.lo = new Uint32Array(cap); c.sorted = new Uint32Array(cap);
+    }
+    c.n = n;
+    c.slots.set(src.subarray(0, n)); c.hi.set(hi); c.lo.set(lo); c.sorted.set(sorted.subarray(0, n));
   }
 
   /** Grow the key and list scratch arrays to hold `n` objects. */

@@ -33,7 +33,7 @@ npm run build        # type-check + production build
 | `/bench.html?suite=lights\|cull\|passes\|anim` | benchmarks |
 
 Demo URL switches (handy while developing): `env=sky`, `hdr=<url>`, `envI=<intensity>`, `fog=<density>`, `cluster=0`, `prepass=1`,
-`cull=none|linear|bvh`, `gpucull=frustum|hiz|hiz2`, `gpulod=1`, `warmup=1` (the `lights` scene also takes `shadows=0` and `n=<lights>`).
+`cull=none|linear|bvh`, `gpucull=frustum|hiz2`, `gpulod=1`, `warmup=1` (the `lights` scene also takes `shadows=0` and `n=<lights>`).
 
 **Starting your own game:** copy `game.html` and `src/game/` (rename them), add the page to `build.rollupOptions.input` in
 `vite.config.ts`, and import everything from [`src/index.ts`](../src/index.ts).
@@ -248,7 +248,7 @@ Two independent switches:
   (`aces` = the engine's classic look, `reinhard`, `neutral` = Khronos PBR Neutral, `none`) are applied, followed by saturation / contrast / vignette
   (display space), sRGB encoding with a 1-LSB dither, and optionally **FXAA**. Bloom settings: `threshold`, `knee`, `intensity`, `radius`, `levels`.
 * **MSAA** (`msaa: 4`): a 4x multisampled colour + depth target resolved automatically. Works with or without the chain.
-  It is disabled (with a console warning) while `gpuCulling` is `'hiz'` / `'hiz2'` because the Hi-Z pyramid samples a single-sample depth buffer; use FXAA there.
+  It is disabled (with a console warning) while `gpuCulling` is `'hiz2'` because the Hi-Z pyramid samples a single-sample depth buffer; use FXAA there.
 
 **SSAO** (`ssao: true` or `{ radius, bias, intensity, power, samples }`) darkens creases and contact points: normal-oriented hemisphere sampling against the
 depth buffer, then a depth-aware blur. It multiplies the final lit image (it cannot tell direct from ambient light), so keep `intensity` moderate in brightly lit scenes.
@@ -553,7 +553,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 * No DOF / TAA / SMAA (bloom, tone mapping, SSAO, SSR, FXAA and MSAA exist, see "Post-processing and anti-aliasing"); SSR is screen-space only.
 * No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
-* The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).
+* The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path).
 * glTF: one UV set, no Draco/meshopt/KTX2; each material has one sampler.
 * Works within WebGPU's default limit of 8 storage buffers per shader stage (the vertex stage uses 6). All meshes share one deform buffer, so the total skin + morph data is capped by the device's `maxStorageBufferBindingSize` (128 MB on the default limit).
 

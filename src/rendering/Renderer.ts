@@ -223,9 +223,9 @@ export class Renderer {
   depthPrepass = false;
   /**
    * GPU-driven visibility for opaque / alpha-masked batches: 'frustum' = GPU frustum culling + compaction + indirect draws;
-   * 'hiz' additionally occlusion-culls against a depth pyramid of this frame's depth prepass (enables the prepass automatically).
+   * 'hiz2' additionally occlusion-culls with two phases (draw last frame's visible set, build a depth pyramid from it, test the rest).
    */
-  gpuCulling: 'off' | 'frustum' | 'hiz' | 'hiz2' = 'off';
+  gpuCulling: 'off' | 'frustum' | 'hiz2' = 'off';
   /** Optional texture streaming (mip residency follows on-screen coverage); see `setTextureStreamer`. */
   textureStreamer: TextureStreamer | null = null;
   private streamRefs = new Map<number, StreamedTexture[]>();
@@ -600,10 +600,10 @@ export class Renderer {
    * in-frame Hi-Z is on, which samples the depth buffer). When anything changed, cached pipelines are dropped and rebuilt on demand.
    */
   private syncFramebuffer(): void {
-    const hiz = this.gpuCulling === 'hiz' || this.gpuCulling === 'hiz2';
+    const hiz = this.gpuCulling === 'hiz2';
     let samples: number = this.post.settings.msaa;
     if (hiz && samples > 1) {
-      if (!this.msaaWarned) { this.msaaWarned = true; console.warn("MSAA is disabled while gpuCulling is 'hiz' / 'hiz2' (the Hi-Z pyramid reads a single-sample depth buffer); use post.fxaa instead."); }
+      if (!this.msaaWarned) { this.msaaWarned = true; console.warn("MSAA is disabled while gpuCulling is 'hiz2' (the Hi-Z pyramid reads a single-sample depth buffer); use post.fxaa instead."); }
       samples = 1;
     }
     const colorFormat = this.post.enabled ? HDR_FORMAT : this.gpu.format;
@@ -792,7 +792,7 @@ export class Renderer {
     const total01 = lists[0].count + lists[1].count;
     if (gpuCull) {
       this.culler ??= new GPUCuller(this.gpu);
-      this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD && this.gpuCulling !== 'hiz' ? (m) => this.lodGroupOfMesh(m) : undefined);
+      this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD ? (m) => this.lodGroupOfMesh(m) : undefined);
     }
     if (rw.hasCamera && !view) this.shadows.prepare(rw, this.instanceAlloc);
     this.instanceAlloc.flush();
@@ -858,12 +858,11 @@ export class Renderer {
     }
     if (this.particles) g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.particles!.encodeCompute(e) });   // emit/simulate/compact before any draw reads them
     if (this.ribbonSystems.length) g.addPass({ name: 'ribbons-update', writes: ['ribbons'], execute: (e) => { for (const rs of this.ribbonSystems) rs.encodeCompute(e); } });
-    const useHiz = f.gpuCull && this.gpuCulling === 'hiz';
     const twoPhase = f.gpuCull && this.gpuCulling === 'hiz2';
-    const prepass = (this.depthPrepass || useHiz) && rw.hasCamera && f.total > 0;
+    const prepass = this.depthPrepass && rw.hasCamera && f.total > 0;
     this.prepassActive = prepass;
     if (prepass) this.addDepthPrepass(g);
-    if (f.gpuCull) this.addCullingPasses(g, rw, useHiz, twoPhase);
+    if (f.gpuCull) this.addCullingPasses(g, rw, twoPhase);
     if (this.fog?.enabled && rw.hasCamera) {
       const camWorld = Mat4.invert(Mat4.create(), cam.view);
       if (camWorld) g.addPass({ name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'], execute: (e) => this.fog!.encode(e, this.frameBG, camWorld, cam.projection[0], cam.projection[5], cam.near, this.profiler.writes('fog')) });
@@ -933,12 +932,12 @@ export class Renderer {
 
   /**
    * GPU visibility passes. `hiz2` (two-phase): cull-A against last frame's visibility (cull-B is added with the main passes).
-   * `hiz`: build the pyramid from this frame's prepass, then cull. `frustum`: frustum cull only.
+   * `frustum`: frustum cull only.
    */
-  private addCullingPasses(g: RenderGraph, rw: RenderWorld, useHiz: boolean, twoPhase: boolean): void {
+  private addCullingPasses(g: RenderGraph, rw: RenderWorld, twoPhase: boolean): void {
     const cam = rw.camera, f = this.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
-    if (useHiz || twoPhase) {
+    if (twoPhase) {
       this.hiz ??= new HiZ(this.gpu);
       this.hiz.resize(this.gpu.canvas.width, this.gpu.canvas.height);
     }
@@ -948,13 +947,10 @@ export class Renderer {
       this.culler!.ensureVisibility(maxObj + 1);
       g.addPass({ name: 'cull-A', reads: [], writes: ['culledA'],
         execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cullA'), 1, cam) });
-    } else if (useHiz) {
-      g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture.createView(), this.profiler.writes('hiz')) });
-    }
-    if (!twoPhase) {
+    } else {
       g.addPass({
-        name: 'gpu-cull', reads: useHiz ? ['hizTex'] : [], writes: ['culled'],
-        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, useHiz ? this.hizArg() : null, this.profiler.writes('cull'), 0, cam),
+        name: 'gpu-cull', reads: [], writes: ['culled'],
+        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cull'), 0, cam),
       });
     }
   }

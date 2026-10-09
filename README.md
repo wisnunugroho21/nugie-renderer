@@ -41,7 +41,7 @@ npm run dev        # http://localhost:5173/
 | `/bench.html?suite=lights\|cull\|passes\|anim` | GPU benchmarks (default suite: draw submission) |
 
 Demo URL switches: `env=sky`, `hdr=<url>`, `envI=<intensity>`, `sky=0`, `fog=<density>`, `mode=unsorted|sorted|instanced`, `cluster=0`,
-`prepass=1`, `cull=none|linear|bvh`, `ssao=1`, `ssr=1`, `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=aces|neutral|reinhard|none`, `exposure=<x>`, `gpucull=frustum|hiz|hiz2`, `gpulod=1`, `warmup=1`; plus scene options such as `n=<count>`
+`prepass=1`, `cull=none|linear|bvh`, `ssao=1`, `ssr=1`, `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=aces|neutral|reinhard|none`, `exposure=<x>`, `gpucull=frustum|hiz2`, `gpulod=1`, `warmup=1`; plus scene options such as `n=<count>`
 (see [`src/app/urlSettings.ts`](src/app/urlSettings.ts)).
 
 | Command | Purpose |

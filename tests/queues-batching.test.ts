@@ -116,6 +116,55 @@ describe('RenderQueueBuilder', () => {
     expect(Array.from(q.opaque.slots.subarray(0, 3))).toEqual([0, 1, 2]);
   });
 
+  describe('sort reuse', () => {
+    const objs = () => world([
+      { mesh: 1, material: 2, pos: [0, 0, -9] }, { mesh: 2, material: 0, pos: [0, 0, -3] }, { mesh: 1, material: 1, pos: [0, 0, -20] },
+      { mesh: 1, material: 0, pos: [0, 0, -7] }, { mesh: 0, material: 4, pos: [0, 0, -5] }, { mesh: 0, material: 4, pos: [0, 0, -50] },
+    ]);
+    const order = (q: RenderQueues) => q.ordered.map((l) => Array.from(l.slots.subarray(0, l.count)));
+
+    it('reuses every queue when nothing changed, with identical output', () => {
+      const rw = objs(), b = new RenderQueueBuilder(), q = new RenderQueues();
+      b.build(rw, null, rw.count, materials, meshes, cam, 'sorted', q);
+      const first = order(q);
+      expect(b.sortsReused).toBe(0);
+      const q2 = new RenderQueues();
+      b.build(rw, null, rw.count, materials, meshes, cam, 'sorted', q2);
+      expect(b.sortsReused).toBe(2);   // opaque + transparent (the alpha-mask queue is empty)
+      expect(order(q2)).toEqual(first);
+    });
+
+    it('sorts again when an object moves, a material changes or the camera moves', () => {
+      const rw = objs(), b = new RenderQueueBuilder(), q = new RenderQueues();
+      b.build(rw, null, rw.count, materials, meshes, cam, 'sorted', q);
+      rw.boundsSphere[2] = -40;                                  // object 0 moves far away: its depth bucket changes
+      b.build(rw, null, rw.count, materials, meshes, cam, 'sorted', q);
+      expect(b.sortsReused).toBe(1);                             // only the transparent queue is unchanged
+      const fresh = new RenderQueues();
+      new RenderQueueBuilder().build(rw, null, rw.count, materials, meshes, cam, 'sorted', fresh);
+      expect(order(q)).toEqual(order(fresh));
+      rw.materialId[1] = 1;                                      // material swap
+      b.build(rw, null, rw.count, materials, meshes, cam, 'sorted', q);
+      const fresh2 = new RenderQueues();
+      new RenderQueueBuilder().build(rw, null, rw.count, materials, meshes, cam, 'sorted', fresh2);
+      expect(order(q)).toEqual(order(fresh2));
+      b.build(rw, null, rw.count, materials, meshes, { position: [0, 0, -45], far: 100 }, 'sorted', q);   // camera moves: transparent distances change
+      const fresh3 = new RenderQueues();
+      new RenderQueueBuilder().build(rw, null, rw.count, materials, meshes, { position: [0, 0, -45], far: 100 }, 'sorted', fresh3);
+      expect(order(q)).toEqual(order(fresh3));
+    });
+
+    it('handles a changing object count', () => {
+      const b = new RenderQueueBuilder(), q = new RenderQueues();
+      const rw = objs();
+      b.build(rw, null, rw.count, materials, meshes, cam, 'sorted', q);
+      b.build(rw, null, rw.count - 2, materials, meshes, cam, 'sorted', q);
+      const fresh = new RenderQueues();
+      new RenderQueueBuilder().build(rw, null, rw.count - 2, materials, meshes, cam, 'sorted', fresh);
+      expect(order(q)).toEqual(order(fresh));
+    });
+  });
+
   it('respects a visible subset', () => {
     const rw = world([{ mesh: 0, material: 0 }, { mesh: 0, material: 0 }, { mesh: 0, material: 0 }]);
     const q = new RenderQueues();
