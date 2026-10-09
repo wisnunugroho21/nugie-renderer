@@ -21,10 +21,15 @@ function setup() {
   return { post, created };
 }
 
+import { Mat4 } from '../src/math/Mat4';
+
+const PROJ = Mat4.perspective(Mat4.create(), Math.PI / 3, 16 / 9, 0.1, 100);
+
 function passOrder(post: PostProcessor): string[] {
   const graph = new RenderGraph();
   graph.addPass({ name: 'main', writes: ['sceneColor'], sideEffect: true, execute: () => {} });
-  post.addPasses(graph);
+  if (post.needsAux) graph.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
+  post.addPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthSamples: 1 });
   graph.compile();
   return graph.order;
 }
@@ -102,6 +107,54 @@ describe('PostProcessor targets and passes', () => {
     post.configure({ bloom: { levels: 8 } });
     post.ensureTargets(64, 64, 1);
     expect(created.filter((t) => t.label.startsWith('post-bloom')).length).toBe(3);   // log2(64) - 3
+  });
+
+  it('merges ssao / ssr settings, clamps them, and keeps them off by default', () => {
+    const { post } = setup();
+    expect(post.settings.ssao.enabled).toBe(false);
+    expect(post.settings.ssr.enabled).toBe(false);
+    expect(post.needsAux).toBe(false);
+    post.configure({ ssao: { radius: 1.2, samples: 99 }, ssr: true });
+    expect(post.settings.ssao).toMatchObject({ enabled: true, radius: 1.2, samples: 32, power: DEFAULT_POST_SETTINGS.ssao.power });
+    expect(post.settings.ssr.enabled).toBe(true);
+    expect(post.needsAux).toBe(true);
+    post.configure({ ssao: false, ssr: { steps: 1 } });
+    expect(post.settings.ssao.enabled).toBe(false);
+    expect(post.settings.ssr.steps).toBe(8);
+    post.disable();
+    expect(post.needsAux).toBe(false);                       // the screen-space effects need the chain
+  });
+
+  it('allocates the aux, depth, AO and reflection targets only for the effects that are on', () => {
+    const { post, created } = setup();
+    post.configure({ ssao: true });
+    post.ensureTargets(640, 360, 1);
+    const labels = created.map((t) => t.label);
+    expect(labels).toEqual(expect.arrayContaining(['post-aux', 'post-view-depth', 'post-ao-0', 'post-ao-1']));
+    expect(labels).not.toContain('post-ssr');
+    expect(labels).not.toContain('post-aux-msaa');
+    expect(created.find((t) => t.label === 'post-view-depth')!.format).toBe('r32float');
+    expect(created.find((t) => t.label === 'post-ao-0')!.format).toBe('r8unorm');
+
+    created.length = 0;
+    post.configure({ ssao: false, ssr: true, msaa: 4 });
+    post.ensureTargets(640, 360, 4);
+    const l2 = created.map((t) => t.label);
+    expect(l2).toEqual(expect.arrayContaining(['post-aux', 'post-aux-msaa', 'post-view-depth', 'post-ssr']));
+    expect(l2).not.toContain('post-ao-0');
+    expect(created.find((t) => t.label === 'post-aux-msaa')).toMatchObject({ format: 'rgba16float', sampleCount: 4 });
+  });
+
+  it('orders aux -> depth -> ssao(+blur) / ssr -> composite', () => {
+    const { post } = setup();
+    post.configure({ ssao: true, ssr: true, fxaa: true });
+    post.ensureTargets(512, 512, 1);
+    const order = passOrder(post);
+    expect(order).toEqual(['main', 'aux', 'post-depth', 'post-ssao', 'post-ssao-blur-h', 'post-ssao-blur-v', 'post-ssr', 'post-composite', 'post-fxaa']);
+
+    post.configure({ ssao: false, fxaa: false });
+    post.ensureTargets(512, 512, 1);
+    expect(passOrder(post)).toEqual(['main', 'aux', 'post-depth', 'post-ssr', 'post-composite']);
   });
 
   it('declares bloom -> composite -> fxaa in dependency order, skipping unused stages', () => {

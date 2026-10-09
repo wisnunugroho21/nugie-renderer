@@ -9,6 +9,10 @@ import commonFuncs from './common_funcs.wgsl?raw';
 import commonColor from './common_color.wgsl?raw';
 import commonOutput from './common_output.wgsl?raw';
 import postSrc from './post.wgsl?raw';
+import postCommon from './post_common.wgsl?raw';
+import postDepthSrc from './post_depth.wgsl?raw';
+import ssaoSrc from './ssao.wgsl?raw';
+import ssrSrc from './ssr.wgsl?raw';
 import particlesCommon from './particles_common.wgsl?raw';
 import ribbonsCommon from './ribbons_common.wgsl?raw';
 import brdfSrc from './brdf.wgsl?raw';
@@ -22,6 +26,9 @@ import errorSrc from './error.wgsl?raw';
 export const PBR_SOURCE = pbrSrc;
 export const ERROR_SOURCE = errorSrc;
 export const POST_SOURCE = postSrc;
+export const POST_DEPTH_SOURCE = postDepthSrc;
+export const SSAO_SOURCE = ssaoSrc;
+export const SSR_SOURCE = ssrSrc;
 export const COMMON_PRELUDE = '//#include common\n//#include common_output\n//#include lighting\n//#include ibl_eval\n';
 
 /**
@@ -37,6 +44,7 @@ export function registerEngineShaderChunks(shaders: ShaderManager): void {
   shaders.registerChunk('common_bind_object', commonBindObject);
   shaders.registerChunk('common_color', commonColor);
   shaders.registerChunk('common_output', commonOutput);
+  shaders.registerChunk('post_common', postCommon);
   shaders.registerChunk('common_funcs', commonFuncs);
   shaders.registerChunk('particles_common', particlesCommon);
   shaders.registerChunk('ribbons_common', ribbonsCommon);

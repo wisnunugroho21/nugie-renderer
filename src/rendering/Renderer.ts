@@ -22,11 +22,17 @@ import { HiZ } from './HiZ';
 import { RenderGraph } from './RenderGraph';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
-import { PostProcessor, HDR_FORMAT } from './post/PostProcessor';
+import { PostProcessor, HDR_FORMAT, AUX_FORMAT } from './post/PostProcessor';
 import { ClusterGrid } from './lighting/ClusterGrid';
 import { LightData } from './lighting/LightData';
 import { RendererStats } from '../profiling/RendererStats';
 import type { RenderWorld } from './RenderWorld';
+import { Camera } from './Camera';
+import { RenderTarget, RENDER_TARGET_FORMAT, type RenderTargetDesc } from './RenderTarget';
+import { RenderView, type RenderViewOptions } from './RenderView';
+import { mirrorView, planeToView, obliqueProjection, cubeFaceView, cubeFaceProjection } from './viewMath';
+import { VisibilitySystem } from '../visibility/VisibilitySystem';
+import type { TextureRef } from './materials/Material';
 import type { VisibleSet } from '../visibility/VisibilitySystem';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -44,6 +50,36 @@ interface FrameState {
   /** GPU culling is active; the first `nCullBatches` batches go through it. */
   gpuCull: boolean;
   nCullBatches: number;
+}
+
+/** Everything an off-screen render needs besides the scene: a camera and the colour / depth views to draw into. */
+interface ViewJob {
+  camera: Camera;
+  colorView: GPUTextureView;
+  depthView: GPUTextureView;
+  width: number;
+  height: number;
+  /** Mirrored camera: triangle winding is reversed. */
+  flipWinding: boolean;
+  clearColor: { r: number; g: number; b: number; a: number };
+  skybox: boolean;
+  visibility: VisibilitySystem;
+  /** Objects whose material samples this texture are skipped (a target must not be read while it is written). */
+  excludeRef: TextureRef | null;
+  exclude: ((entity: number) => boolean) | null;
+}
+
+/** Per-variant (normal / mirrored winding) scratch state of off-screen renders, swapped in while a view is drawn. */
+interface ViewScratch {
+  target: PassTarget;
+  queueBuilder: RenderQueueBuilder;
+  queues: RenderQueues;
+  batches: BatchList;
+  frame: FrameState;
+  pipeCache: (GPURenderPipeline | undefined)[];
+  pipeSort: number[];
+  pipeFailed: boolean[];
+  slots: Uint32Array;
 }
 
 /** Strategy used to turn the visible set into draw calls (benchmark A compares these). */
@@ -96,6 +132,8 @@ export class Renderer {
   private msaaWarned = false;
   private depthTexture!: GPUTexture;
   private depthView!: GPUTextureView;
+  /** Depth-only view of the depth buffer for sampling in post passes (SSAO / SSR). */
+  private depthSampleView!: GPUTextureView;
   private target: PassTarget;
   private frameBuffer: GPUBuffer;
   private frameBG: GPUBindGroup;
@@ -198,7 +236,13 @@ export class Renderer {
   /** Unique id: bind-group cache keys must not collide between renderers sharing one GPU context. */
   private readonly id = Renderer.nextId++;
   private baker: IBLBaker | null = null;
-  private skyPipeline: GPURenderPipeline | null = null;
+  private skyPipelines = new Map<string, GPURenderPipeline>();
+  /** Off-screen views (mirrors, minimaps, security cameras ...), rendered before the main view every frame. Add with `addView`. */
+  readonly views: RenderView[] = [];
+  private renderTargets: RenderTarget[] = [];
+  private viewScratch = new Map<boolean, ViewScratch>();
+  private probeVisibility = new VisibilitySystem();
+  private lastTime = 0;
   /** Draw the bound environment as the background (when one is set). */
   showSkybox = true;
 
@@ -254,7 +298,10 @@ export class Renderer {
 
   /** The (lazily created) pipeline that draws the environment cube map as a full-screen background behind the geometry. */
   private skyboxPipeline(): GPURenderPipeline {
-    return (this.skyPipeline ??= (() => {
+    const key = `${this.target.colorFormat}|${this.target.sampleCount}`;
+    let pipe = this.skyPipelines.get(key);
+    if (!pipe) {
+      pipe = (() => {
       const module = this.gpu.resources.shaders.get('skybox', skyboxSource, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false });
       return this.gpu.device.createRenderPipeline({
         label: 'skybox', layout: this.gpu.device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene] }),
@@ -264,7 +311,10 @@ export class Renderer {
         depthStencil: { format: this.target.depthFormat ?? DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
         multisample: { count: this.target.sampleCount },
       });
-    })());
+      })();
+      this.skyPipelines.set(key, pipe);
+    }
+    return pipe;
   }
 
   /** LOD group that `meshId` belongs to (any of its levels), for GPU LOD. */
@@ -288,6 +338,199 @@ export class Renderer {
     return out;
   }
   private pendingLod = false;
+
+  // ---- render-to-texture: render targets, off-screen views, probe capture -------------------------------------------------------------
+
+  /** Create an off-screen colour + depth buffer for a {@link RenderView} to draw into (see `RenderTarget.ref` for using it as a texture). */
+  createRenderTarget(desc: RenderTargetDesc = {}): RenderTarget {
+    const t = new RenderTarget(this.gpu, desc);
+    t.onResized = (rt) => this.materials.textureChanged(rt.ref);
+    this.renderTargets.push(t);
+    return t;
+  }
+
+  /** Destroy a render target (and the views drawing into it). Remove the materials that sample it first. */
+  destroyRenderTarget(t: RenderTarget): void {
+    for (const v of this.views.filter((x) => x.target === t)) this.removeView(v);
+    const i = this.renderTargets.indexOf(t);
+    if (i >= 0) this.renderTargets.splice(i, 1);
+    t.destroy();
+  }
+
+  /**
+   * Register an off-screen render of the scene from another camera. It runs every frame (or every `interval`th) before the main view,
+   * in registration order, so a view can show the result of an earlier one.
+   */
+  addView(o: RenderViewOptions): RenderView {
+    const v = new RenderView(o);
+    this.views.push(v);
+    this.gpu.resources.pipelines.unfreeze();   // the view's pipelines are created on first use
+    return v;
+  }
+
+  /** Stop rendering a view (its target stays alive). */
+  removeView(v: RenderView): void {
+    const i = this.views.indexOf(v);
+    if (i >= 0) this.views.splice(i, 1);
+  }
+
+  /** Render every due view into its target. Called by `render` after the main view's data is uploaded and its batches are built. */
+  private renderViews(rw: RenderWorld, time: number): void {
+    for (const t of this.renderTargets) if (t.scale) t.resize(this.gpu.canvas.width * t.scale, this.gpu.canvas.height * t.scale);
+    const due: RenderView[] = [];
+    for (const v of this.views) {
+      if (!v.enabled) continue;
+      if (++v.frameCounter >= v.interval) { v.frameCounter = 0; due.push(v); }
+    }
+    if (due.length === 0) return;
+    const mainFrame = this.frameData.slice();
+    for (const v of due) {
+      if (v.mirror) {
+        if (!rw.hasCamera) continue;
+        this.setupMirrorCamera(v, rw.camera);
+      }
+      this.renderJob({
+        camera: v.camera, colorView: v.target.view, depthView: v.target.depthView, width: v.target.width, height: v.target.height,
+        flipWinding: v.mirror !== null, clearColor: v.clearColor ?? this.clearColor, skybox: v.skybox, visibility: v.visibility,
+        excludeRef: v.target.ref, exclude: v.exclude,
+      }, rw, time);
+      v.lastDrawn = this.viewScratch.get(v.mirror !== null)?.frame.total ?? 0;
+    }
+    // the main view continues with its own uniforms (queue order: view writes, view submit, then these writes, main submit)
+    this.frameData.set(mainFrame);
+    this.gpu.queue.writeBuffer(this.frameBuffer, 0, this.frameData);
+    this.sceneResources.restoreUniform();
+  }
+
+  /** Point a mirror view's camera at the main camera's reflection (oblique near plane = the mirror plane). */
+  private setupMirrorCamera(v: RenderView, main: Camera): void {
+    const m = v.mirror!;
+    const mv = mirrorView(new Float32Array(16), main.view, m.point, m.normal);
+    const plane = planeToView(mv, m.point, m.normal);
+    const proj = obliqueProjection(new Float32Array(16), main.projection, plane);
+    v.camera.setMatrices(mv, proj, main.near, main.far);
+  }
+
+  /** Scratch state for off-screen renders with the given winding. */
+  private scratchFor(flip: boolean): ViewScratch {
+    let s = this.viewScratch.get(flip);
+    if (!s) {
+      s = {
+        target: { colorFormat: RENDER_TARGET_FORMAT, depthFormat: DEPTH_FORMAT, sampleCount: 1, flipWinding: flip },
+        queueBuilder: new RenderQueueBuilder(), queues: new RenderQueues(), batches: new BatchList(),
+        frame: { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0 },
+        pipeCache: [], pipeSort: [], pipeFailed: [], slots: new Uint32Array(0),
+      };
+      this.viewScratch.set(flip, s);
+    }
+    return s;
+  }
+
+  /** Cull for the job's camera, then drop excluded objects and objects whose material samples the job's target. */
+  private viewSlots(rw: RenderWorld, job: ViewJob, scratch: ViewScratch): { slots: Uint32Array | null; count: number } {
+    const proxy = Object.create(rw, { camera: { value: job.camera } }) as RenderWorld;   // culling reads rw.camera only
+    const vis = job.visibility.update(proxy);
+    if (!job.excludeRef && !job.exclude) return vis;
+    const n = vis.slots ? vis.count : rw.count;
+    if (scratch.slots.length < n) scratch.slots = new Uint32Array(Math.max(n, scratch.slots.length * 2, 256));
+    let bad: Uint8Array | null = null;
+    if (job.excludeRef) {
+      for (const m of this.materials.materials) {
+        if (m.textures.includes(job.excludeRef)) { bad ??= new Uint8Array(this.materials.materials.length); bad[m.id] = 1; }
+      }
+    }
+    let c = 0;
+    for (let i = 0; i < n; i++) {
+      const slot = vis.slots ? vis.slots[i] : i;
+      if (bad && bad[rw.materialId[slot]]) continue;
+      if (job.exclude && job.exclude(rw.entityIndex[slot])) continue;
+      scratch.slots[c++] = slot;
+    }
+    return { slots: scratch.slots, count: c };
+  }
+
+  /**
+   * Render the scene once from `job.camera` into the job's colour / depth views, as a self-contained mini frame: own frame uniform,
+   * CPU culling, queues and batches (appended to this frame's instance ring), one command buffer, one submit. Queue order makes the
+   * per-job uniform writes safe; callers restore the main view's uniforms afterwards. Shading is linear HDR (no tone mapping), lighting
+   * is the plain light loop (no clusters, no fog volume), shadows are the main view's. Particles, ribbons and post-processing are skipped.
+   */
+  private renderJob(job: ViewJob, rw: RenderWorld, time: number): void {
+    const { device, queue } = this.gpu;
+    const scratch = this.scratchFor(job.flipWinding);
+    const slots = this.viewSlots(rw, job, scratch);
+    const saved = {
+      target: this.target, targetPre: this.targetPre, pipeCache: this.pipeCache, pipeSort: this.pipeSort, pipeFailed: this.pipeFailed,
+      queues: this.queues, batches: this.batches, frame: this.frame, prepass: this.prepassActive, gpuCulling: this.gpuCulling,
+    };
+    this.target = scratch.target; this.targetPre = scratch.target;
+    this.pipeCache = scratch.pipeCache; this.pipeSort = scratch.pipeSort; this.pipeFailed = scratch.pipeFailed;
+    this.queues = scratch.queues; this.batches = scratch.batches; this.frame = scratch.frame;
+    this.prepassActive = false; this.gpuCulling = 'off';
+    try {
+      const cam = job.camera, fd = this.frameData;
+      fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32);
+      fd.set(cam.position, 48); fd[51] = time;
+      fd[52] = job.width; fd[53] = job.height; fd[54] = cam.near; fd[55] = cam.far;
+      fd[56] = 1;                                   // linear HDR output: the colour is used as a texture, not displayed directly
+      queue.writeBuffer(this.frameBuffer, 0, fd);
+      this.sceneResources.writeViewUniform();
+
+      scratch.queueBuilder.build(rw, slots.slots, slots.count, this.materials.materials, this.meshes.records, cam, this.batching === 'unsorted' ? 'none' : 'sorted', this.queues);
+      this.buildBatches(rw, true);
+
+      const enc = device.createCommandEncoder({ label: 'view' });
+      const pass = enc.beginRenderPass({
+        label: 'view',
+        colorAttachments: [{ view: job.colorView, clearValue: Renderer.srgbToLinear(job.clearColor), loadOp: 'clear', storeOp: 'store' }],
+        depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
+      });
+      if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0);
+      if (job.skybox && this.showSkybox && this.sceneResources.env.enabled) {
+        pass.setPipeline(this.skyboxPipeline());
+        pass.setBindGroup(0, this.frameBG); pass.setBindGroup(1, this.sceneResources.bindGroup);
+        pass.draw(3);
+      }
+      pass.end();
+      queue.submit([enc.finish()]);
+    } finally {
+      this.target = saved.target; this.targetPre = saved.targetPre;
+      this.pipeCache = saved.pipeCache; this.pipeSort = saved.pipeSort; this.pipeFailed = saved.pipeFailed;
+      this.queues = saved.queues; this.batches = saved.batches; this.frame = saved.frame;
+      this.prepassActive = saved.prepass; this.gpuCulling = saved.gpuCulling;
+    }
+  }
+
+  /**
+   * Capture a reflection probe: render the scene from `position` into the six faces of a cube map and bake it into an
+   * {@link Environment} (diffuse irradiance + prefiltered specular). Use it with `setEnvironment` (image-based lighting for the
+   * whole scene) - e.g. capture inside a room once, or re-capture every few seconds. Call between frames with the current `rw`.
+   */
+  captureEnvironment(rw: RenderWorld, position: ArrayLike<number>, o: { size?: number; near?: number; far?: number; skybox?: boolean; exclude?: (entity: number) => boolean } = {}): Environment {
+    const size = o.size ?? 128, near = o.near ?? 0.1, far = o.far ?? 500;
+    const source = this.ibl.createCaptureCube(size);
+    const depth = this.gpu.resources.textures.create({ label: 'probe-depth', size: [size, size], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT });
+    const depthView = depth.createView();
+    this.gpu.resources.pipelines.unfreeze();
+    this.probeVisibility.mode = 'linear';
+    const cam = new Camera();
+    const view = new Float32Array(16), proj = cubeFaceProjection(new Float32Array(16), near, far);
+    const mainFrame = this.frameData.slice();
+    for (let face = 0; face < 6; face++) {
+      cubeFaceView(view, face, position[0], position[1], position[2]);
+      cam.setMatrices(view, proj, near, far);
+      this.renderJob({
+        camera: cam, colorView: source.createView({ dimension: '2d', baseArrayLayer: face, arrayLayerCount: 1, baseMipLevel: 0, mipLevelCount: 1 }),
+        depthView, width: size, height: size, flipWinding: true, clearColor: this.clearColor, skybox: o.skybox ?? true,
+        visibility: this.probeVisibility, excludeRef: null, exclude: o.exclude ?? null,
+      }, rw, this.lastTime);
+    }
+    this.frameData.set(mainFrame);
+    this.gpu.queue.writeBuffer(this.frameBuffer, 0, this.frameData);
+    this.sceneResources.restoreUniform();
+    this.gpu.resources.textures.destroy(depth);
+    return this.ibl.bakeCube(source, size);
+  }
 
   /** Create the GPU particle system bound to this renderer's frame layout / render target. */
   enableParticles(): ParticleSystem {
@@ -324,7 +567,7 @@ export class Renderer {
     this.targetPre.colorFormat = colorFormat; this.targetPre.sampleCount = samples;
     this.extrasTarget.colorFormat = colorFormat; this.extrasTarget.sampleCount = samples;
     this.pipeCache.length = 0; this.pipeSort.length = 0; this.pipeFailed.length = 0;
-    this.skyPipeline = null;
+    this.skyPipelines.clear();
     this.particles?.retarget();
     for (const rs of this.ribbonSystems) rs.retarget();
     if (!first) {
@@ -341,6 +584,7 @@ export class Renderer {
       label: 'depth', size: [Math.max(1, width), Math.max(1, height)], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING, sampleCount: this.target.sampleCount,
     });
     this.depthView = this.depthTexture.createView();
+    this.depthSampleView = this.depthTexture.createView({ aspect: 'depth-only' });
   }
 
   /** Pipeline for (material, mesh deform variant); cached per pair to avoid rebuilding key strings per batch. */
@@ -398,6 +642,7 @@ export class Renderer {
     st.cpu.culling = visible?.cullMs ?? 0;
     if (this.pendingLod) { st.lodCounts.set(this.lod.counts); st.lodCulled = this.lod.culled; this.pendingLod = false; }
 
+    this.lastTime = time;
     const lights = this.uploadFrameData(rw, scene, time, visible, vCount);
     const t1 = performance.now();
     st.cpu.upload = t1 - t0;
@@ -410,6 +655,7 @@ export class Renderer {
     this.buildBatches(rw);
     const t3 = performance.now();
     st.cpu.batching = t3 - t2;
+    this.renderViews(rw, time);
 
     const enc = device.createCommandEncoder();
     this.profiler.beginFrame();
@@ -471,11 +717,11 @@ export class Renderer {
    * per-frame ring buffer; also prepares GPU culling and shadow caster data and counts state switches.
    * Results are stored in `this.frame` for {@link recordPasses}.
    */
-  private buildBatches(rw: RenderWorld): void {
+  private buildBatches(rw: RenderWorld, view = false): void {
     const st = this.stats;
     const lists = this.queues.ordered;
     const total = lists[0].count + lists[1].count + lists[2].count;
-    this.instanceAlloc.beginFrame();
+    if (!view) this.instanceAlloc.beginFrame();   // off-screen views append to the current frame's region
     const byteOffset = this.instanceAlloc.allocate(Math.max(total, 1) * INSTANCE_BYTES);
     if (byteOffset % INSTANCE_BYTES !== 0) throw new Error('instance buffer offset is not record-aligned');
     const local = this.instanceAlloc.localOffset(byteOffset) / 4;
@@ -491,10 +737,10 @@ export class Renderer {
       this.culler ??= new GPUCuller(this.gpu);
       this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD && this.gpuCulling !== 'hiz' ? (m) => this.lodGroupOfMesh(m) : undefined);
     }
-    if (rw.hasCamera) this.shadows.prepare(rw, this.instanceAlloc);
+    if (rw.hasCamera && !view) this.shadows.prepare(rw, this.instanceAlloc);
     this.instanceAlloc.flush();
-    st.bufferUploadBytes = this.instanceAlloc.bytesUploadedThisFrame + this.transformBuffer.lastUploadBytes;
-    if (this.batching !== 'unsorted') {
+    if (!view) st.bufferUploadBytes = this.instanceAlloc.bytesUploadedThisFrame + this.transformBuffer.lastUploadBytes;
+    if (!view && this.batching !== 'unsorted') {
       for (const l of lists) {
         const c = countSwitches(l, rw, this.materials.materials, this.meshes.records);
         st.pipelineSwitches += c.pipeline; st.materialSwitches += c.material; st.meshSwitches += c.mesh;
@@ -532,9 +778,39 @@ export class Renderer {
     }
     if (twoPhase) this.addTwoPhaseMainPasses(g, rw);
     else this.addMainPass(g, rw, prepass);
-    this.post.addPasses(g);
+    if (this.post.needsAux) this.addAuxPass(g, rw);
+    this.post.addPasses(g, { projection: cam.projection, depthView: this.depthSampleView, depthSamples: this.target.sampleCount });
     g.compile();
     g.execute(enc);
+  }
+
+  /**
+   * After the main pass: redraw opaque + alpha-masked PBR batches into the aux target (view-space normal, roughness, metallic) against
+   * the finished depth buffer. SSAO and SSR read it; pixels it does not cover (custom shaders, sky) fall back to depth-derived normals / no reflection.
+   */
+  private addAuxPass(g: RenderGraph, rw: RenderWorld): void {
+    g.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: (enc) => {
+      const ap = enc.beginRenderPass({
+        label: 'aux', colorAttachments: [this.post.auxColorAttachment()],
+        depthStencilAttachment: { view: this.depthView, depthReadOnly: true },
+      });
+      if (rw.hasCamera && this.frame.total > 0) {
+        ap.setBindGroup(0, this.frameBG); ap.setBindGroup(1, this.sceneResources.bindGroup); ap.setBindGroup(3, this.objectBindGroup());
+        ap.setVertexBuffer(0, this.meshes.vertexBuffer); ap.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+        let pp: GPURenderPipeline | null = null, pm = -1;
+        const b = this.batches;
+        for (let i = 0; i < b.count; i++) {
+          if (b.queue[i] > 1) continue;   // blended surfaces have no depth to reflect from or occlude with
+          const mesh = this.meshes.get(b.meshId[i]);
+          const pipe = this.materials.getAuxPipeline(b.materialId[i], mesh.deformMask, this.target.depthFormat ?? DEPTH_FORMAT, this.target.sampleCount, AUX_FORMAT);
+          if (!pipe) continue;
+          if (pipe !== pp) { ap.setPipeline(pipe); pp = pipe; }
+          if (b.materialId[i] !== pm) { ap.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); pm = b.materialId[i]; }
+          ap.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+        }
+      }
+      ap.end();
+    } });
   }
 
   /** Depth-only pass over opaque + alpha-masked batches (lets the main pass shade each pixel once, and feeds the in-frame Hi-Z). */
@@ -658,9 +934,12 @@ export class Renderer {
 
   /** Clear colour as the main pass target expects it (the HDR target holds linear values, the swap chain sRGB-encoded ones). */
   private mainClearValue(): GPUColor {
-    if (!this.post.enabled) return this.clearColor;
+    return this.post.enabled ? Renderer.srgbToLinear(this.clearColor) : this.clearColor;
+  }
+
+  /** sRGB-encoded colour -> linear (HDR targets hold linear values). */
+  private static srgbToLinear(c: { r: number; g: number; b: number; a: number }): GPUColor {
     const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
-    const c = this.clearColor;
     return { r: lin(c.r), g: lin(c.g), b: lin(c.b), a: c.a };
   }
 

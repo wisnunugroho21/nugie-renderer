@@ -25,6 +25,8 @@ export interface PassTarget {
   sampleCount: number;
   /** Depth was laid down by a prepass: opaque / alpha-masked pipelines test 'equal' and do not write depth. */
   depthEqual?: boolean;
+  /** The view is mirrored (planar reflection): triangle winding is reversed, so front faces are clockwise. */
+  flipWinding?: boolean;
 }
 
 export class MaterialError extends Error {
@@ -296,6 +298,32 @@ export class MaterialManager {
     return p;
   }
 
+  private auxPipelines = new Map<string, GPURenderPipeline>();
+
+  /**
+   * Pipeline of the "aux" pass that writes view-space normal / roughness / metallic for SSAO and SSR (opaque and alpha-masked PBR
+   * materials only: returns null for custom shaders and blended materials). Depth-tests against the main pass depth, writes none.
+   */
+  getAuxPipeline(id: number, deformMask: number, depthFormat: GPUTextureFormat, sampleCount: number, auxFormat: GPUTextureFormat): GPURenderPipeline | null {
+    const m = this.materials[id];
+    if (m.failed || m.shaderId !== 'pbr' || m.queue === 'transparent') return null;
+    const features = m.features | deformFeatures(deformMask);
+    const key = `${ShaderManager.key(m.shaderId, featureDefines(features))}|${m.vertexEntry}|${m.state.cullMode}|${depthFormat}|${sampleCount}|${auxFormat}`;
+    let p = this.auxPipelines.get(key);
+    if (p) return p;
+    const module = this.res.shaders.get(m.shaderId, PBR_SOURCE, featureDefines(features));
+    p = this.device.createRenderPipeline({
+      label: `aux:${key}`, layout: this.layouts.pipelineLayout,
+      vertex: { module, entryPoint: m.vertexEntry, buffers: toGPUVertexBuffers(STANDARD_VERTEX_LAYOUT) },
+      fragment: { module, entryPoint: 'fs_aux', targets: [{ format: auxFormat }] },
+      primitive: { topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: 'ccw' },
+      depthStencil: { format: depthFormat, depthWriteEnabled: false, depthCompare: 'less-equal' },
+      multisample: { count: sampleCount },
+    });
+    this.auxPipelines.set(key, p);
+    return p;
+  }
+
   /** A streamed texture changed its GPU view: invalidate the bind groups of the materials that use it. */
   textureChanged(ref: TextureRef): void { for (const m of this.materials) if (m.textures.includes(ref)) m.version++; }
 
@@ -331,7 +359,7 @@ export class MaterialManager {
       shader: ShaderManager.key(m.shaderId, featureDefines(m.features | deformFeatures(deformMask))),
       vertexEntry: m.vertexEntry, fragmentEntry: target.colorFormat ? m.fragmentEntry : null,
       vertexLayout: STANDARD_VERTEX_LAYOUT,
-      topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: 'ccw',
+      topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: target.flipWinding ? 'cw' : 'ccw',
       depth: { format: target.depthFormat, write: this.depthWrite(m, target), compare: this.depthCompare(m, target) },
       targets: target.colorFormat ? [{ format: target.colorFormat, blend: m.state.blend }] : [],
       sampleCount: target.sampleCount, layout: 'engine-v1',
@@ -349,7 +377,7 @@ export class MaterialManager {
       fragment: target.colorFormat
         ? { module, entryPoint: m.fragmentEntry, targets: [{ format: target.colorFormat, blend: m.state.blend ?? undefined }] }
         : undefined,
-      primitive: { topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: 'ccw' },
+      primitive: { topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: target.flipWinding ? 'cw' : 'ccw' },
       depthStencil: { format: target.depthFormat, depthWriteEnabled: this.depthWrite(m, target), depthCompare: this.depthCompare(m, target) },
       multisample: { count: target.sampleCount },
     };

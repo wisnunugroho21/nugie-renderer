@@ -40,7 +40,7 @@ export const DEFAULT_SHADOW_CONFIG: ShadowConfig = {
 };
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth32float';
-const FRAME_FLOATS = 56;
+const FRAME_FLOATS = 60;
 
 interface Layer { index: number; vp: Float32Array; batches: BatchList; count: number }
 

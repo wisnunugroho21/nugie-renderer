@@ -30,8 +30,8 @@ function run(gpu: GPUContext, rs: RibbonSystem, frames: number, drive: (f: numbe
 async function render(gpu: GPUContext, rs: RibbonSystem, layouts: ReturnType<typeof createBindLayouts>, time: number): Promise<(x: number, y: number) => number> {
   const { device } = gpu;
   const cam = new Camera(); cam.position.set([0, 0, 4]); cam.target.set([0, 0, 0]); cam.aspect = 1; cam.update();
-  const fd = new Float32Array(56); fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32); fd.set(cam.position, 48); fd[51] = time; fd[52] = 64; fd[53] = 64;
-  const buf = gpu.resources.buffers.create('frame', 224, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  const fd = new Float32Array(60); fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32); fd.set(cam.position, 48); fd[51] = time; fd[52] = 64; fd[53] = 64;
+  const buf = gpu.resources.buffers.create('frame', 240, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   device.queue.writeBuffer(buf, 0, fd);
   const bg = device.createBindGroup({ layout: layouts.frame, entries: [{ binding: 0, resource: { buffer: buf } }] });
   const color = gpu.resources.textures.create({ size: [64, 64], format: TARGET.colorFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });

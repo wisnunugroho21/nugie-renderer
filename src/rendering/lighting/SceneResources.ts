@@ -202,6 +202,21 @@ export class SceneResources {
     }
   }
 
+  /**
+   * Write the scene uniform for an off-screen view: the last frame's uniform with clustered shading and the fog volume switched off
+   * (both belong to the main camera). Undo with {@link restoreUniform}.
+   */
+  writeViewUniform(): void {
+    const copy = new ArrayBuffer(SCENE_UNIFORM_BYTES);
+    new Uint8Array(copy).set(new Uint8Array(this.uniformData));
+    new Uint32Array(copy)[7] = 0;
+    new Float32Array(copy)[43] = 0;
+    this.gpu.device.queue.writeBuffer(this.uniform, 0, copy);
+  }
+
+  /** Re-write the uniform of the last {@link writeUniform} (after off-screen views changed it). */
+  restoreUniform(): void { this.gpu.device.queue.writeBuffer(this.uniform, 0, this.uniformData); }
+
   /** Write the scene uniform (every frame; 144 bytes). */
   writeUniform(p: SceneUniformParams): void {
     const f = this.f32, u = this.u32;

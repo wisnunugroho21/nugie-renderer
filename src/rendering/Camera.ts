@@ -39,6 +39,30 @@ export class Camera {
     return true;
   }
 
+  /**
+   * Use explicit matrices (planar mirrors, orthographic maps, cube faces ...). `position`, `fovY` and `aspect` are derived from them
+   * (so LOD and sorting keep working); `near` / `far` must match the projection.
+   */
+  setMatrices(view: ArrayLike<number>, projection: ArrayLike<number>, near: number, far: number): this {
+    this.view.set(view as Float32Array);
+    this.projection.set(projection as Float32Array);
+    this.near = near; this.far = far;
+    Mat4.multiply(this.viewProjection, this.projection, this.view);
+    this.frustum.setFromViewProjection(this.viewProjection);
+    const inv = Mat4.invert(TMP, this.view);
+    if (inv) { this.position[0] = inv[12]; this.position[1] = inv[13]; this.position[2] = inv[14]; }
+    const p5 = Math.abs(this.projection[5]);
+    if (p5 > 1e-6) { this.fovY = 2 * Math.atan(1 / p5); this.aspect = p5 / (Math.abs(this.projection[0]) || p5); }
+    return this;
+  }
+
+  /** Orthographic top-down map camera (looking down -Y, -Z at the top of the image) centred on (cx, cz), covering `halfWidth` world units left and right of it. */
+  topDownOrthographic(cx: number, cz: number, halfWidth: number, aspect = 1, height = 100, near = 0.1, far = 400): this {
+    const view = Mat4.lookAt(Mat4.create(), cx, height, cz, cx, 0, cz, 0, 0, -1);
+    const proj = Mat4.ortho(Mat4.create(), -halfWidth, halfWidth, -halfWidth / aspect, halfWidth / aspect, near, far);
+    return this.setMatrices(view, proj, near, far);
+  }
+
   /** Recompute view, projection, view-projection and frustum from `position`, `target`, `fovY`, `aspect`, `near` and `far`. */
   update(): this {
     const p = this.position, t = this.target;

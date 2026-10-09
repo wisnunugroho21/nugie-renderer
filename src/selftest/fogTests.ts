@@ -34,7 +34,7 @@ async function bakeFog(gpu: GPUContext, opts: { density: number; g: number; ambi
   fog.resize(512, 512);   // 64 x 64 columns
   fog.applySettings();
   scene.writeUniform({ lightCount: lights.count, globalCount: lights.globalCount, clusterNear: 0.1, clusterFar: 50, ambientSky: [0, 0, 0], ambientGround: [0, 0, 0] });
-  const frameBuf = r.buffers.create('fog-test-frame', 224, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  const frameBuf = r.buffers.create('fog-test-frame', 240, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   const frameBG = device.createBindGroup({ layout: layouts.frame, entries: [{ binding: 0, resource: { buffer: frameBuf } }] });
   const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   const enc = device.createCommandEncoder();

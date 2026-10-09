@@ -235,7 +235,8 @@ Tone mapping is built into the PBR shader (ACES).
 ### Post-processing and anti-aliasing
 
 ```ts
-engine.renderer.post.configure({ msaa: 4, fxaa: true, bloom: { intensity: 0.25, threshold: 1 }, toneMapper: 'neutral', exposure: 1.2, vignette: 0.25 });
+engine.renderer.post.configure({ msaa: 4, fxaa: true, bloom: { intensity: 0.25, threshold: 1 }, toneMapper: 'neutral', exposure: 1.2, vignette: 0.25,
+                                 ssao: { radius: 0.6, intensity: 1 }, ssr: { intensity: 1, maxRoughness: 0.5 } });
 engine.renderer.post.disable();                 // back to direct rendering
 // or from the start:  await Engine.create(canvas, { post: { msaa: 4, bloom: true } });
 ```
@@ -249,6 +250,14 @@ Two independent switches:
 * **MSAA** (`msaa: 4`): a 4x multisampled colour + depth target resolved automatically. Works with or without the chain.
   It is disabled (with a console warning) while `gpuCulling` is `'hiz'` / `'hiz2'` because the Hi-Z pyramid samples a single-sample depth buffer; use FXAA there.
 
+**SSAO** (`ssao: true` or `{ radius, bias, intensity, power, samples }`) darkens creases and contact points: normal-oriented hemisphere sampling against the
+depth buffer, then a depth-aware blur. It multiplies the final lit image (it cannot tell direct from ambient light), so keep `intensity` moderate in brightly lit scenes.
+**SSR** (`ssr: true` or `{ intensity, maxDistance, thickness, maxRoughness, steps, stride }`) reflects what is on screen in glossy opaque PBR surfaces: a ray march through
+the depth buffer with bisection refinement; the weight follows Fresnel, smoothness and screen-edge fade, and it blends over the IBL reflection (misses keep the environment).
+Both read an "aux" target (view-space normal, roughness, metallic) that the renderer draws after the main pass: opaque and alpha-masked **PBR** materials only. Custom
+shaders get depth-derived normals for SSAO and no SSR; blended surfaces (glass, particles) are invisible to both and are not reflected. Costs: one extra draw of the opaque batches
+plus a few full-screen passes. Limits: no off-screen reflections, reflected glossy surfaces are not blurred by roughness, and no temporal filtering (the sample noise is hidden by a blur).
+
 Notes:
 
 * Post-processing off (the default) is exactly the old path: shaders tone map and sRGB-encode themselves into the swap chain.
@@ -257,8 +266,40 @@ Notes:
 * With the chain on, blending (glass, particles) happens in linear light, so transparent objects look slightly different from the direct path.
   `renderer.clearColor` is converted from sRGB to linear for the HDR target.
 * Changing `enabled` or `msaa` rebuilds pipelines on the next frame: set them before `await renderer.warmup()` to avoid a hitch.
-* Not included: SSAO, depth of field, SSR, TAA / SMAA, outlines.
-* URL switches for the demos: `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1`.
+* Not included: depth of field, TAA / SMAA, outlines.
+* URL switches for the demos: `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1`, `ssao=<intensity>`, `ssr=<intensity>`.
+
+### Render-to-texture: mirrors, minimaps, security cameras, probes
+
+```ts
+// planar mirror: a canvas-sized target, the main camera reflected in the plane, and the material that shows it
+const mirror = engine.createMirror({ point: [0, 0, -6], normal: [0, 0, 1] }, { tint: [0.92, 0.96, 1] });
+engine.spawnObject({ mesh: quad, material: mirror.material, position: [0, 2.6, -6], scale: [12, 5.2, 1] });   // a quad lying in that plane
+
+// any other camera into a texture: a top-down minimap on a "monitor"
+const target = engine.createRenderTarget({ width: 256, height: 256 });
+const view = engine.addView({ target, interval: 2, skybox: false });        // interval 2: render every other frame
+view.camera.topDownOrthographic(playerX, playerZ, 9);                       // update it whenever the player moves
+const screen = renderer.materials.createPBR({ baseColor: [0, 0, 0, 1], emissive: [1, 1, 1], textures: { emissive: target.ref } });
+
+// reflection probe: render the scene from a point into a cube map, bake it, light everything with it
+renderer.setEnvironment(engine.captureEnvironment([0, 1.5, 0], { size: 128, exclude: (e) => e === chromeSphere }));
+```
+
+* **`RenderTarget`** (`engine.createRenderTarget`): colour (linear HDR `rgba16float`) + depth. `target.ref` is a `TextureRef` for any material slot (an emissive or
+  base-colour texture on a PBR material, texture slot 0 of a custom one). `scale: 1` follows the canvas size (materials are refreshed on resize), `readPixels()` reads it back.
+* **`RenderView`** (`engine.addView`): renders the scene from `view.camera` into the target every frame (or every `interval`th), before the main view, in the order added.
+  Set the camera with `camera.position / target / fovY / aspect` + `update()`, `camera.setMatrices(view, projection, near, far)` or `camera.topDownOrthographic(...)`.
+  `mirror: { point, normal }` renders the main camera reflected in a plane instead (oblique near plane, reversed winding), `exclude(entity)` leaves objects out.
+* **No feedback loops**: objects whose material samples the target are skipped in that view automatically (a mirror never draws itself). A view that shows another target sees it as rendered earlier in the same frame when it was added later, otherwise as of the previous frame.
+* **What a view draws**: opaque, alpha-masked and blended meshes with direct lighting from every light (plain light loop, no clusters), image-based lighting, the skybox and the
+  main view's shadow maps (cascades are fitted to the main camera, so shadows can be missing far from it). Not drawn: particles, ribbons, fog, post-processing, MSAA.
+  Custom WGSL materials should end with `outputColor(...)` (as for post-processing) so they write linear HDR into the target.
+* **Mirror material** (`createMirrorMaterial`) shows the target at the surface's own screen position, so use it with `mirror` views (or as a "window"). The target should have the canvas aspect.
+* **Probe** (`engine.captureEnvironment`): six 90 degree faces rendered in the WebGPU cube-map orientation, then irradiance + prefiltered specular baked by the IBL baker. It is one
+  environment for the whole scene (no per-object probe volumes); a single capture point makes nearby objects look huge in the skybox, so capture at a distance or hide it (`sky=0`).
+* Cost: each view is a full extra pass over the scene (culling, sorting, draws): keep views small, use `interval`, and `cull` the cheap way. Demo: `/?scene=rtt&env=sky` (add `probe=1`; P re-captures).
+* Tests: `tests/viewMath.test.ts` (reflection, oblique plane, cube-face orientation against the WebGPU sampling rules, ortho map).
 
 ### glTF models and animation
 
@@ -396,7 +437,8 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 
 ## 9. Known limitations (see `PROGRESS.md` for the full list)
 
-* No SSAO / DOF / SSR / TAA (bloom, tone mapping, FXAA and MSAA exist, see "Post-processing and anti-aliasing").
+* Off-screen views do not draw particles / fog / post-processing; no per-object reflection probes or portals with recursion.
+* No DOF / TAA / SMAA (bloom, tone mapping, SSAO, SSR, FXAA and MSAA exist, see "Post-processing and anti-aliasing"); SSR is screen-space only.
 * No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).

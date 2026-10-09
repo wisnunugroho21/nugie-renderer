@@ -1,28 +1,6 @@
 // Full-screen post-processing passes: bloom (prefilter, downsample, upsample), composite (exposure, tone mapping, grading, sRGB) and FXAA.
-// One shared bind layout: sampler, texA, texB and a 64-byte parameter block (a, b, c, d) per pass.
-//#include common_color
-
-struct Params { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32> };
-
-@group(0) @binding(0) var samp: sampler;
-@group(0) @binding(1) var texA: texture_2d<f32>;
-@group(0) @binding(2) var texB: texture_2d<f32>;
-@group(0) @binding(3) var<uniform> P: Params;
-
-struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
-
-@vertex
-fn vs_full(@builtin(vertex_index) vi: u32) -> VOut {
-  let p = vec2<f32>(f32((vi << 1u) & 2u), f32(vi & 2u));
-  var o: VOut;
-  o.pos = vec4<f32>(p * 2.0 - 1.0, 0.0, 1.0);
-  o.uv = vec2<f32>(p.x, 1.0 - p.y);
-  return o;
-}
-
-fn src(uv: vec2<f32>) -> vec3<f32> { return textureSampleLevel(texA, samp, uv, 0.0).rgb; }
-
-fn luma709(c: vec3<f32>) -> f32 { return dot(c, vec3<f32>(0.2126, 0.7152, 0.0722)); }
+// Bind layout and helpers: post_common.
+//#include post_common
 
 // ---- bloom ----------------------------------------------------------------------------------------------------------------------
 // a = (1/srcWidth, 1/srcHeight, threshold, soft knee)
@@ -120,10 +98,13 @@ fn hash12(p: vec2<f32>) -> f32 {
 }
 
 // ---- composite ------------------------------------------------------------------------------------------------------------------
-// b = (exposure, bloom intensity, vignette, saturation), c = (contrast, tone mapper id, bloom on, dither amount), d.x = aspect ratio
+// b = (exposure, bloom intensity, vignette, saturation), c = (contrast, tone mapper id, bloom on, dither amount), d = (aspect ratio, ssao on, ssr on, 0), texC = SSR, texD = SSAO
 @fragment
 fn fs_composite(in: VOut) -> @location(0) vec4<f32> {
-  var c = textureLoad(texA, vec2<i32>(in.pos.xy), 0).rgb;
+  let px = vec2<i32>(in.pos.xy);
+  var c = textureLoad(texA, px, 0).rgb;
+  if (P.d.y > 0.5) { c *= textureLoad(texD, px, 0).r; }                          // SSAO (blurred occlusion)
+  if (P.d.z > 0.5) { let r = textureLoad(texC, px, 0); c = mix(c, r.rgb, r.a); }   // SSR (reflected radiance, weight)
   if (P.c.z > 0.5) { c += textureSampleLevel(texB, samp, in.uv, 0.0).rgb * P.b.y; }
   c = tonemap(c * P.b.x, u32(P.c.y));
   var s = linearToSrgb(c);

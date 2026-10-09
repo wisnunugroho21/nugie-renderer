@@ -33,20 +33,8 @@ fn vs_main(in: VertexInput) -> VSOut {
   return out;
 }
 
-@fragment
-fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) vec4<f32> {
-  let m = materials[in.materialIndex];
-  let base = textureSample(texBaseColor, materialSampler, in.uv) * m.baseColor;
-
-  if ALPHA_MASK {
-    if (base.a < m.alphaCutoff) { discard; }
-  }
-
-  let mr = textureSample(texMetalRough, materialSampler, in.uv);
-  let metallic = clamp(m.metallic * mr.b, 0.0, 1.0);
-  let roughness = m.roughness * mr.g;
-  let occlusion = 1.0 + m.occlusionStrength * (textureSample(texOcclusion, materialSampler, in.uv).r - 1.0);
-
+// Shading normal (geometric normal, flipped for back faces, perturbed by the normal map when present).
+fn surfaceNormal(in: VSOut, frontFacing: bool, m: MaterialRecord) -> vec3<f32> {
   var N = normalize(in.worldNormal);
   if (!frontFacing) { N = -N; } // double-sided back faces
   if HAS_NORMAL_MAP {
@@ -70,6 +58,24 @@ fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) 
     let tn = textureSample(texNormal, materialSampler, in.uv).xyz * 2.0 - 1.0;
     N = normalize(T * tn.x * m.normalScale + B * tn.y * m.normalScale + N * tn.z);
   }
+  return N;
+}
+
+@fragment
+fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) vec4<f32> {
+  let m = materials[in.materialIndex];
+  let base = textureSample(texBaseColor, materialSampler, in.uv) * m.baseColor;
+
+  if ALPHA_MASK {
+    if (base.a < m.alphaCutoff) { discard; }
+  }
+
+  let mr = textureSample(texMetalRough, materialSampler, in.uv);
+  let metallic = clamp(m.metallic * mr.b, 0.0, 1.0);
+  let roughness = m.roughness * mr.g;
+  let occlusion = 1.0 + m.occlusionStrength * (textureSample(texOcclusion, materialSampler, in.uv).r - 1.0);
+
+  let N = surfaceNormal(in, frontFacing, m);
 
   let V = normalize(frame.cameraPosition.xyz - in.worldPos);
   let s = makeSurface(base.rgb, metallic, roughness, N, V);
@@ -103,4 +109,28 @@ fn fs_shadow(in: VSOut) {
   if ALPHA_MASK {
     if (a < m.alphaCutoff) { discard; }
   }
+}
+
+// Octahedral encoding of a unit vector into [-1, 1]^2.
+fn octEncode(n: vec3<f32>) -> vec2<f32> {
+  let p = n.xy / (abs(n.x) + abs(n.y) + abs(n.z));
+  if (n.z >= 0.0) { return p; }
+  return (vec2<f32>(1.0) - abs(p.yx)) * vec2<f32>(select(-1.0, 1.0, p.x >= 0.0), select(-1.0, 1.0, p.y >= 0.0));
+}
+
+// Surface data for screen-space effects (SSAO / SSR), drawn after the main pass: rg = octahedral VIEW-space normal in [0, 1],
+// b = roughness, a = 0.5 + 0.5 * metallic (a >= 0.5 marks a written pixel; the target is cleared to a = 0).
+@fragment
+fn fs_aux(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) vec4<f32> {
+  let m = materials[in.materialIndex];
+  if ALPHA_MASK {
+    let a = textureSample(texBaseColor, materialSampler, in.uv).a * m.baseColor.a;
+    if (a < m.alphaCutoff) { discard; }
+  }
+  let mr = textureSample(texMetalRough, materialSampler, in.uv);
+  let metallic = clamp(m.metallic * mr.b, 0.0, 1.0);
+  let roughness = clamp(m.roughness * mr.g, 0.0, 1.0);
+  let N = surfaceNormal(in, frontFacing, m);
+  let nv = normalize((frame.view * vec4<f32>(N, 0.0)).xyz);
+  return vec4<f32>(octEncode(nv) * 0.5 + vec2<f32>(0.5), roughness, 0.5 + 0.5 * metallic);
 }

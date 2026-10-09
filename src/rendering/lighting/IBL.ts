@@ -78,8 +78,8 @@ export class IBLBaker {
   }
 
   /** Create an rgba16float cube texture usable as storage, sampled and copy source / destination. */
-  private cube(label: string, size: number, mips: number): GPUTexture {
-    return this.gpu.resources.textures.create({ label, size: [size, size, 6], format: 'rgba16float', mipLevelCount: mips, usage: SRC_USAGE });
+  private cube(label: string, size: number, mips: number, extraUsage = 0): GPUTexture {
+    return this.gpu.resources.textures.create({ label, size: [size, size, 6], format: 'rgba16float', mipLevelCount: mips, usage: SRC_USAGE | extraUsage });
   }
 
   /** A 2D-array view of one mip of `t` for storage writes. */
@@ -125,6 +125,16 @@ export class IBLBaker {
       { binding: 0, resource: eq.createView() }, { binding: 1, resource: this.sampler }, { binding: 2, resource: this.storageView(source, 0) },
     ], size, size, 6);
     return this.bake(enc, source, size);
+  }
+
+  /** An empty source cube (full mip chain) whose faces can be rendered into (mip 0, layers 0..5); finish it with {@link bakeCube}. */
+  createCaptureCube(size: number): GPUTexture {
+    return this.cube('env-capture', size, mipLevelCount(size, size), GPUTextureUsage.RENDER_ATTACHMENT);
+  }
+
+  /** Bake a source cube whose mip 0 has been filled (e.g. by rendering the scene into its six faces) into an environment. */
+  bakeCube(source: GPUTexture, size: number): Environment {
+    return this.bake(this.gpu.device.createCommandEncoder({ label: 'ibl-capture' }), source, size);
   }
 
   /** Radiance .hdr file contents -> baked environment. */

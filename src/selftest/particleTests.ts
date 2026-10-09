@@ -171,9 +171,9 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
       name: 'particles: billboard rendering (4 orientations x alpha/additive) draws something at the screen centre',
       run: async () => {
         const { device } = gpu;
-        const frameBuf = gpu.resources.buffers.create('frame', 224, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+        const frameBuf = gpu.resources.buffers.create('frame', 240, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
         const cam = new Camera(); cam.position.set([0, 0, 4]); cam.target.set([0, 0, 0]); cam.aspect = 1; cam.update();
-        const fd = new Float32Array(56); fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32); fd.set(cam.position, 48); fd[52] = 64; fd[53] = 64; fd[54] = cam.near; fd[55] = cam.far;
+        const fd = new Float32Array(60); fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32); fd.set(cam.position, 48); fd[52] = 64; fd[53] = 64; fd[54] = cam.near; fd[55] = cam.far;
         device.queue.writeBuffer(frameBuf, 0, fd);
         const { system, layouts } = setup(gpu);
         const frameBG = device.createBindGroup({ layout: layouts.frame, entries: [{ binding: 0, resource: { buffer: frameBuf } }] });
@@ -211,9 +211,9 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
       name: 'particles: mesh particles render through ONE indirect indexed draw',
       run: async () => {
         const { device } = gpu;
-        const frameBuf = gpu.resources.buffers.create('frame2', 224, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+        const frameBuf = gpu.resources.buffers.create('frame2', 240, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
         const cam = new Camera(); cam.position.set([0, 0, 4]); cam.aspect = 1; cam.update();
-        const fd = new Float32Array(56); fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32); fd.set(cam.position, 48);
+        const fd = new Float32Array(60); fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32); fd.set(cam.position, 48);
         device.queue.writeBuffer(frameBuf, 0, fd);
         const { system, layouts, meshes } = setup(gpu);
         const frameBG = device.createBindGroup({ layout: layouts.frame, entries: [{ binding: 0, resource: { buffer: frameBuf } }] });

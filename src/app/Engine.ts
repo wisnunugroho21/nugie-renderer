@@ -18,6 +18,10 @@ import { BitSet } from '../core/BitSet';
 import { Mat4 } from '../math/Mat4';
 import { raycastWorld, rayFromNDC, type Ray, type RayHit, type RaycastOptions } from '../picking/Raycaster';
 import type { PostSettingsInput } from '../rendering/post/PostProcessor';
+import type { RenderTarget, RenderTargetDesc } from '../rendering/RenderTarget';
+import type { RenderView, RenderViewOptions, MirrorPlane } from '../rendering/RenderView';
+import { createMirrorMaterial, type MirrorMaterialOptions } from '../rendering/materials/MirrorMaterial';
+import type { Environment } from '../rendering/lighting/IBL';
 import type { GPUContext } from '../gpu/GPUContext';
 
 /** Options for {@link Engine.create}. Every field is optional. */
@@ -250,6 +254,41 @@ export class Engine {
   /** Object under a canvas point (`screenRay` + `raycast`): `engine.pick(e.clientX, e.clientY)?.entity`. */
   pick(clientX: number, clientY: number, opts?: RaycastOptions): RayHit | null {
     return this.raycast(this.screenRay(clientX, clientY), opts);
+  }
+
+  // ---- render-to-texture ----------------------------------------------------------------------------------------------------
+
+  /** Create an off-screen colour + depth buffer (linear HDR). Use `target.ref` as a material texture; see {@link addView}. */
+  createRenderTarget(desc?: RenderTargetDesc): RenderTarget { return this.renderer.createRenderTarget(desc); }
+
+  /**
+   * Render the scene from another camera into a render target every frame (minimaps, security cameras, portals, mirrors).
+   * `engine.addView({ target, camera })`, then point `view.camera` somewhere each frame (`camera.position`, `camera.target`, `camera.update()`)
+   * and show `target.ref` on a material. Views run before the main view, in the order they were added.
+   */
+  addView(o: RenderViewOptions): RenderView { return this.renderer.addView(o); }
+
+  /** Stop rendering a view. */
+  removeView(v: RenderView): void { this.renderer.removeView(v); }
+
+  /**
+   * A planar mirror in one call: a canvas-sized render target, a view of the main camera reflected in `plane` (kept in sync every
+   * frame) and the material that shows it. Give the returned `material` to a quad lying in the plane. Mirrors do not show other mirrors
+   * or particles / fog (see {@link RenderView}).
+   */
+  createMirror(plane: MirrorPlane, o: MirrorMaterialOptions & { scale?: number; exclude?: (entity: number) => boolean } = {}): { target: RenderTarget; view: RenderView; material: number } {
+    const target = this.renderer.createRenderTarget({ scale: o.scale ?? 1, label: o.name ?? 'mirror' });
+    const view = this.renderer.addView({ target, mirror: plane, exclude: o.exclude });
+    const material = createMirrorMaterial(this.renderer.materials, target.ref, o);
+    return { target, view, material };
+  }
+
+  /**
+   * Reflection probe: render the scene from `position` into a cube map and bake it for image-based lighting. Pass the result to
+   * `renderer.setEnvironment(env)` (whole-scene IBL and skybox). Needs at least one rendered frame; re-capture whenever the surroundings change.
+   */
+  captureEnvironment(position: readonly [number, number, number], o?: { size?: number; near?: number; far?: number; skybox?: boolean; exclude?: (entity: number) => boolean }): Environment {
+    return this.renderer.captureEnvironment(this.renderWorld, position, o);
   }
 
   /** Register a custom per-frame system (e.g. physics sync, AI, a new feature) to run at the given phase of every frame. */

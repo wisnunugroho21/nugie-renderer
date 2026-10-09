@@ -25,7 +25,7 @@ export { LightType } from './ecs/components/LightStore';
 export { RenderFlags } from './ecs/components/MeshRendererStore';
 
 // --- rendering --------------------------------------------------------------------------------------------------------
-export { PostProcessor, DEFAULT_POST_SETTINGS, type PostSettings, type PostSettingsInput, type BloomSettings, type ToneMapper } from './rendering/post/PostProcessor';
+export { PostProcessor, DEFAULT_POST_SETTINGS, type PostSettings, type PostSettingsInput, type BloomSettings, type SSAOSettings, type SSRSettings, type ToneMapper } from './rendering/post/PostProcessor';
 export { Renderer, DEFAULT_SCENE, type SceneSettings, type BatchingMode } from './rendering/Renderer';
 export { createCube, createPlane, createUVSphere, type MeshData } from './rendering/primitives';
 export type { PBRMaterialDesc, CustomMaterialDesc, TextureRef, AlphaMode } from './rendering/materials/Material';
@@ -38,6 +38,13 @@ export { generateLODChain, simplifyMesh } from './geometry/LODGenerator';
 export { generateLODChainAsync } from './workers/GeometryJobs';
 export { WorkerPool } from './workers/WorkerPool';
 export { FrameBudgetQueue } from './workers/FrameBudgetQueue';
+
+// --- render-to-texture ---------------------------------------------------------------------------------------------------
+export { RenderTarget, RENDER_TARGET_FORMAT, type RenderTargetDesc } from './rendering/RenderTarget';
+export { RenderView, type RenderViewOptions, type MirrorPlane } from './rendering/RenderView';
+export { Camera } from './rendering/Camera';
+export { createMirrorMaterial, type MirrorMaterialOptions } from './rendering/materials/MirrorMaterial';
+export { reflectionMatrix, mirrorView, planeToView, obliqueProjection, flipX, cubeFaceView, cubeFaceProjection, CUBE_FACES } from './rendering/viewMath';
 
 // --- picking ----------------------------------------------------------------------------------------------------------
 export { raycastWorld, rayFromNDC, rayAABB, rayMesh, type Ray, type RayHit, type RaycastOptions, type CpuGeometry } from './picking/Raycaster';
