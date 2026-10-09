@@ -29,7 +29,7 @@ fn fs_main(in: PulseOut) -> @location(0) vec4<f32> {
   let n = normalize(in.normal);
   let rim = pow(1.0 - abs(n.z), 2.0);
   let c = param_tint(m.paramBase).rgb * (0.4 + rim * 2.0);
-  return vec4<f32>(linearToSrgb(tonemapACES(c)), 1.0);
+  return vec4<f32>(outputColor(c), 1.0);
 }
 `;
 

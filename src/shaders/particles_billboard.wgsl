@@ -3,6 +3,7 @@
 //#include common_types
 //#include common_bind_frame
 //#include common_color
+//#include common_output
 //#include particles_common
 
 struct RenderParams {
@@ -105,5 +106,5 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
   let c = texel * in.color;
   if (c.a < 0.004) { discard; }
   // same display transform as the PBR pass (until the HDR post-process chain exists)
-  return vec4<f32>(linearToSrgb(tonemapACES(c.rgb)), c.a);
+  return vec4<f32>(outputColor(c.rgb), c.a);
 }

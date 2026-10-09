@@ -17,6 +17,7 @@ import { LightType } from '../ecs/components/LightStore';
 import { BitSet } from '../core/BitSet';
 import { Mat4 } from '../math/Mat4';
 import { raycastWorld, rayFromNDC, type Ray, type RayHit, type RaycastOptions } from '../picking/Raycaster';
+import type { PostSettingsInput } from '../rendering/post/PostProcessor';
 import type { GPUContext } from '../gpu/GPUContext';
 
 /** Options for {@link Engine.create}. Every field is optional. */
@@ -28,6 +29,8 @@ export interface EngineOptions {
   far?: number;
   /** Freeze the pipeline cache after this many frames so late pipeline creation is reported (0 = never). Default 30. */
   freezePipelinesAfterFrames?: number;
+  /** Post-processing / anti-aliasing to enable from the start (same shape as `renderer.post.configure`), e.g. `{ msaa: 4 }` or `{ bloom: true, fxaa: true }`. */
+  post?: PostSettingsInput & { enabled?: boolean };
 }
 
 /** Wall-clock cost (ms) of the CPU phases of the last frame, shown by the HUD. */
@@ -142,6 +145,7 @@ export class Engine {
     this.gpu = app.gpu;
     this.freezeAfter = options.freezePipelinesAfterFrames ?? 30;
     this.renderer = new Renderer(this.gpu);
+    if (options.post) this.renderer.post.configure(options.post);
     app.onResize = (w, h) => this.renderer.resize(w, h);
 
     this.transformSystem = new TransformSystem(this.world.transforms);

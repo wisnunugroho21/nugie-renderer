@@ -5,6 +5,7 @@
 //#include common_types
 //#include common_bind_frame
 //#include common_color
+//#include common_output
 //#include ribbons_common
 
 @group(1) @binding(0) var<storage, read> ribbons: array<RibbonDesc>;
@@ -91,5 +92,5 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
   let texel = textureSample(ribbonTexture, ribbonSampler, in.uv);
   let c = texel * in.color;
   if (c.a < 0.004) { discard; }
-  return vec4<f32>(linearToSrgb(tonemapACES(c.rgb)), c.a);
+  return vec4<f32>(outputColor(c.rgb), c.a);
 }

@@ -3,6 +3,7 @@
 //
 // (lighting pulls in the shared BRDF core)
 //#include common
+//#include common_output
 //#include lighting
 //#include ibl_eval
 
@@ -91,7 +92,7 @@ fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) 
 
   var alpha = 1.0;
   if ALPHA_BLEND { alpha = base.a; }
-  return vec4<f32>(linearToSrgb(tonemapACES(color)), alpha);
+  return vec4<f32>(outputColor(color), alpha);
 }
 
 // Depth-only fragment stage for alpha-masked casters in shadow passes.

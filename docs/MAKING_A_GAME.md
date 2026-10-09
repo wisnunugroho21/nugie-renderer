@@ -232,6 +232,34 @@ renderer.clearColor = { r: 0.05, g: 0.06, b: 0.09, a: 1 };         // background
 
 Tone mapping is built into the PBR shader (ACES).
 
+### Post-processing and anti-aliasing
+
+```ts
+engine.renderer.post.configure({ msaa: 4, fxaa: true, bloom: { intensity: 0.25, threshold: 1 }, toneMapper: 'neutral', exposure: 1.2, vignette: 0.25 });
+engine.renderer.post.disable();                 // back to direct rendering
+// or from the start:  await Engine.create(canvas, { post: { msaa: 4, bloom: true } });
+```
+
+Two independent switches:
+
+* **The post chain** (`configure` turns it on; `disable()` / `enabled: false` turns it off): the scene is rendered as linear HDR (`rgba16float`),
+  then **bloom** (13-tap Karis prefilter, dual-filter pyramid, tent upsample) is added, **exposure** and a **tone mapper**
+  (`aces` = the engine's classic look, `reinhard`, `neutral` = Khronos PBR Neutral, `none`) are applied, followed by saturation / contrast / vignette
+  (display space), sRGB encoding with a 1-LSB dither, and optionally **FXAA**. Bloom settings: `threshold`, `knee`, `intensity`, `radius`, `levels`.
+* **MSAA** (`msaa: 4`): a 4x multisampled colour + depth target resolved automatically. Works with or without the chain.
+  It is disabled (with a console warning) while `gpuCulling` is `'hiz'` / `'hiz2'` because the Hi-Z pyramid samples a single-sample depth buffer; use FXAA there.
+
+Notes:
+
+* Post-processing off (the default) is exactly the old path: shaders tone map and sRGB-encode themselves into the swap chain.
+* **Custom WGSL materials** should end with `return vec4(outputColor(linearColor), alpha)` (provided by the engine prelude) instead of calling
+  `linearToSrgb(tonemapACES(..))` themselves; otherwise their colour is tone mapped twice while the chain is on.
+* With the chain on, blending (glass, particles) happens in linear light, so transparent objects look slightly different from the direct path.
+  `renderer.clearColor` is converted from sRGB to linear for the HDR target.
+* Changing `enabled` or `msaa` rebuilds pipelines on the next frame: set them before `await renderer.warmup()` to avoid a hitch.
+* Not included: SSAO, depth of field, SSR, TAA / SMAA, outlines.
+* URL switches for the demos: `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1`.
+
 ### glTF models and animation
 
 ```ts
@@ -368,6 +396,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 
 ## 9. Known limitations (see `PROGRESS.md` for the full list)
 
+* No SSAO / DOF / SSR / TAA (bloom, tone mapping, FXAA and MSAA exist, see "Post-processing and anti-aliasing").
 * No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).

@@ -25,6 +25,7 @@ export { LightType } from './ecs/components/LightStore';
 export { RenderFlags } from './ecs/components/MeshRendererStore';
 
 // --- rendering --------------------------------------------------------------------------------------------------------
+export { PostProcessor, DEFAULT_POST_SETTINGS, type PostSettings, type PostSettingsInput, type BloomSettings, type ToneMapper } from './rendering/post/PostProcessor';
 export { Renderer, DEFAULT_SCENE, type SceneSettings, type BatchingMode } from './rendering/Renderer';
 export { createCube, createPlane, createUVSphere, type MeshData } from './rendering/primitives';
 export type { PBRMaterialDesc, CustomMaterialDesc, TextureRef, AlphaMode } from './rendering/materials/Material';

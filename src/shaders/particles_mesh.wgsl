@@ -4,6 +4,7 @@
 //#include common_types
 //#include common_bind_frame
 //#include common_color
+//#include common_output
 //#include particles_common
 
 struct RenderParams {
@@ -84,5 +85,5 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
   let hemi = 0.35 + 0.65 * (n.y * 0.5 + 0.5);
   let lit = in.color.rgb * (hemi * 0.6 + max(dot(n, sun), 0.0) * 1.2);
   if (in.color.a < 0.004) { discard; }
-  return vec4<f32>(linearToSrgb(tonemapACES(lit)), in.color.a);
+  return vec4<f32>(outputColor(lit), in.color.a);
 }

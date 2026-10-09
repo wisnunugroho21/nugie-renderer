@@ -53,7 +53,8 @@ export class RibbonSystem {
   private descU32: Uint32Array;
   private updateBG: GPUBindGroup;
   private renderBG: GPUBindGroup;
-  private pipeline: GPURenderPipeline;
+  private pipeline!: GPURenderPipeline;
+  private rebuildPipeline!: () => void;
   private layout: GPUBindGroupLayout;
   private dirty = new Set<number>();
   /** Ribbons whose descriptor has been uploaded once: from then on the GPU OWNS their trail state (head/count). */
@@ -107,7 +108,7 @@ export class RibbonSystem {
     const blend: GPUBlendState = blendMode === 'additive'
       ? { color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' }, alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' } }
       : { color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' } };
-    this.pipeline = res.pipelines.getRender({
+    this.rebuildPipeline = (): void => { this.pipeline = res.pipelines.getRender({
       shader: 'ribbons-render', vertexEntry: 'vs_main', fragmentEntry: 'fs_main', vertexLayout: [], topology: 'triangle-list', cullMode: 'none',
       depth: { format: t.depthFormat, write: false, compare: 'less-equal' }, targets: [{ format: t.colorFormat, blend }], sampleCount: t.sampleCount, layout: `ribbons-${blendMode}`,
     }, () => {
@@ -118,8 +119,12 @@ export class RibbonSystem {
         primitive: { topology: 'triangle-list', cullMode: 'none' },
         depthStencil: { format: t.depthFormat, depthWriteEnabled: false, depthCompare: 'less-equal' }, multisample: { count: t.sampleCount },
       });
-    });
+    }); };
+    this.rebuildPipeline();
   }
+
+  /** The shared target changed (MSAA / HDR): re-resolve the render pipeline. */
+  retarget(): void { this.rebuildPipeline(); }
 
   /** Soft-edged streak (alpha falls off toward the ribbon's edges), generated on the CPU. */
   private defaultStreak(): TextureRef {

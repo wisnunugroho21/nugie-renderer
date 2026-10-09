@@ -16,6 +16,7 @@ struct Frame {
   projection: mat4x4<f32>,
   cameraPosition: vec4<f32>,   // xyz position, w = time (seconds)
   viewport: vec4<f32>,         // width, height, near, far
+  postFlags: vec4<f32>,        // x = 1: the target is linear HDR (post-processing composes it); 0: shaders tone map + sRGB encode themselves
 };
 
 // Light types (Light.directionType.w)

@@ -22,6 +22,7 @@ import { HiZ } from './HiZ';
 import { RenderGraph } from './RenderGraph';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
+import { PostProcessor, HDR_FORMAT } from './post/PostProcessor';
 import { ClusterGrid } from './lighting/ClusterGrid';
 import { LightData } from './lighting/LightData';
 import { RendererStats } from '../profiling/RendererStats';
@@ -87,6 +88,12 @@ export class Renderer {
   batching: BatchingMode = 'instanced';
   clearColor = { r: 0.05, g: 0.06, b: 0.09, a: 1 };
 
+  /** Post-processing and anti-aliasing (HDR scene target, bloom, tone mapping, FXAA, MSAA). Off by default: `renderer.post.configure({ ... })`. */
+  readonly post: PostProcessor;
+  /** Colour / depth target of the particle and ribbon pipelines; mutated in place when the framebuffer configuration changes. */
+  private extrasTarget: { colorFormat: GPUTextureFormat; depthFormat: GPUTextureFormat; sampleCount: number };
+  private fbKey = '';
+  private msaaWarned = false;
   private depthTexture!: GPUTexture;
   private depthView!: GPUTextureView;
   private target: PassTarget;
@@ -94,7 +101,7 @@ export class Renderer {
   private frameBG: GPUBindGroup;
   private transformBuffer: TransformBuffer;
   private instanceAlloc: DynamicBufferAllocator;
-  private frameData = new Float32Array(56);
+  private frameData = new Float32Array(60);
 
   private queueBuilder = new RenderQueueBuilder();
   private queues = new RenderQueues();
@@ -135,6 +142,8 @@ export class Renderer {
     this.lod = new LODSystem(this.lodLibrary);
     this.target = { colorFormat: gpu.format, depthFormat: DEPTH_FORMAT, sampleCount: 1 };
     this.targetPre = { ...this.target, depthEqual: true };
+    this.extrasTarget = { colorFormat: gpu.format, depthFormat: DEPTH_FORMAT, sampleCount: 1 };
+    this.post = new PostProcessor(gpu);
 
     this.frameBuffer = r.buffers.create('FrameUniformBuffer', this.frameData.byteLength, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     this.sceneResources = new SceneResources(gpu, this.layouts);
@@ -203,6 +212,7 @@ export class Renderer {
 
   /** Pre-build the main-pass pipelines of all PBR materials (async, no frame hitch). Call after creating materials. */
   warmup(deformMasks: number[] = [0, 1, 2, 3]): Promise<number> {
+    this.syncFramebuffer();
     return this.materials.warmup(this.prepassActive || this.depthPrepass ? this.targetPre : this.target, deformMasks);
   }
 
@@ -252,6 +262,7 @@ export class Renderer {
         fragment: { module, entryPoint: 'fs_main', targets: [{ format: this.target.colorFormat ?? this.gpu.format }] },
         primitive: { topology: 'triangle-list' },
         depthStencil: { format: this.target.depthFormat ?? DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
+        multisample: { count: this.target.sampleCount },
       });
     })());
   }
@@ -280,15 +291,46 @@ export class Renderer {
 
   /** Create the GPU particle system bound to this renderer's frame layout / render target. */
   enableParticles(): ParticleSystem {
-    this.particles ??= new ParticleSystem(this.gpu, this.layouts, this.meshes, { colorFormat: this.gpu.format, depthFormat: this.target.depthFormat, sampleCount: this.target.sampleCount });
+    this.syncFramebuffer();
+    this.particles ??= new ParticleSystem(this.gpu, this.layouts, this.meshes, this.extrasTarget);
     return this.particles;
   }
 
   /** Create a ribbon system (trails, beams/chains, flat streaks) bound to this renderer's frame layout / render target. */
   createRibbonSystem(config: RibbonSystemConfig): RibbonSystem {
-    const rs = new RibbonSystem(this.gpu, this.layouts, { colorFormat: this.gpu.format, depthFormat: this.target.depthFormat, sampleCount: this.target.sampleCount }, config);
+    this.syncFramebuffer();
+    const rs = new RibbonSystem(this.gpu, this.layouts, this.extrasTarget, config);
     this.ribbonSystems.push(rs);
     return rs;
+  }
+
+  /**
+   * Bring the main targets in line with `post`: HDR vs swap-chain colour format and the MSAA sample count (forced to 1 while
+   * in-frame Hi-Z is on, which samples the depth buffer). When anything changed, cached pipelines are dropped and rebuilt on demand.
+   */
+  private syncFramebuffer(): void {
+    const hiz = this.gpuCulling === 'hiz' || this.gpuCulling === 'hiz2';
+    let samples: number = this.post.settings.msaa;
+    if (hiz && samples > 1) {
+      if (!this.msaaWarned) { this.msaaWarned = true; console.warn("MSAA is disabled while gpuCulling is 'hiz' / 'hiz2' (the Hi-Z pyramid reads a single-sample depth buffer); use post.fxaa instead."); }
+      samples = 1;
+    }
+    const colorFormat = this.post.enabled ? HDR_FORMAT : this.gpu.format;
+    const key = colorFormat + '|' + samples;
+    if (key === this.fbKey) return;
+    const first = this.fbKey === '';
+    this.fbKey = key;
+    this.target.colorFormat = colorFormat; this.target.sampleCount = samples;
+    this.targetPre.colorFormat = colorFormat; this.targetPre.sampleCount = samples;
+    this.extrasTarget.colorFormat = colorFormat; this.extrasTarget.sampleCount = samples;
+    this.pipeCache.length = 0; this.pipeSort.length = 0; this.pipeFailed.length = 0;
+    this.skyPipeline = null;
+    this.particles?.retarget();
+    for (const rs of this.ribbonSystems) rs.retarget();
+    if (!first) {
+      this.gpu.resources.pipelines.unfreeze();      // a deliberate configuration change is not a steady-state violation
+      if (this.depthTexture) this.resize(this.gpu.canvas.width, this.gpu.canvas.height);
+    }
   }
 
   /** Recreate the depth buffer for a `width` x `height` backbuffer (called by the app on canvas resize; `render` also self-corrects). */
@@ -296,7 +338,7 @@ export class Renderer {
     const { resources: r } = this.gpu;
     if (this.depthTexture) r.textures.destroy(this.depthTexture);
     this.depthTexture = r.textures.create({
-      label: 'depth', size: [Math.max(1, width), Math.max(1, height)], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      label: 'depth', size: [Math.max(1, width), Math.max(1, height)], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING, sampleCount: this.target.sampleCount,
     });
     this.depthView = this.depthTexture.createView();
   }
@@ -343,7 +385,9 @@ export class Renderer {
   render(rw: RenderWorld, scene: SceneSettings = DEFAULT_SCENE, time = 0, visible: VisibleSet | null = null): void {
     const { device, queue } = this.gpu;
     const st = this.stats;
-    if (this.depthTexture.width !== this.gpu.canvas.width || this.depthTexture.height !== this.gpu.canvas.height) this.resize(this.gpu.canvas.width, this.gpu.canvas.height);   // keep depth matched to the swapchain
+    this.syncFramebuffer();
+    if (this.depthTexture.width !== this.gpu.canvas.width || this.depthTexture.height !== this.gpu.canvas.height || this.depthTexture.sampleCount !== this.target.sampleCount) this.resize(this.gpu.canvas.width, this.gpu.canvas.height);   // keep depth matched to the swapchain
+    this.post.ensureTargets(this.gpu.canvas.width, this.gpu.canvas.height, this.target.sampleCount);
     st.reset();
     const t0 = performance.now();
     const vCount = visible ? visible.count : rw.count;
@@ -388,6 +432,7 @@ export class Renderer {
     fd.set(cam.viewProjection, 0); fd.set(cam.view, 16); fd.set(cam.projection, 32);
     fd.set(cam.position, 48); fd[51] = time;
     fd[52] = this.gpu.canvas.width; fd[53] = this.gpu.canvas.height; fd[54] = cam.near; fd[55] = cam.far;
+    fd[56] = this.post.enabled ? 1 : 0;
     queue.writeBuffer(this.frameBuffer, 0, fd);
     // Lights come from the ECS (rw.lights). If the scene defines none, fall back to the legacy SceneSettings sun + ambient.
     let L = rw.lights;
@@ -487,6 +532,7 @@ export class Renderer {
     }
     if (twoPhase) this.addTwoPhaseMainPasses(g, rw);
     else this.addMainPass(g, rw, prepass);
+    this.post.addPasses(g);
     g.compile();
     g.execute(enc);
   }
@@ -505,7 +551,7 @@ export class Renderer {
       for (let i = 0; i < b.count; i++) {
         if (b.queue[i] > 1) continue;   // transparent surfaces never write depth
         const mesh = this.meshes.get(b.meshId[i]);
-        const pipe = this.materials.getPrepassPipeline(b.materialId[i], mesh.deformMask, this.target.depthFormat ?? DEPTH_FORMAT);
+        const pipe = this.materials.getPrepassPipeline(b.materialId[i], mesh.deformMask, this.target.depthFormat ?? DEPTH_FORMAT, this.target.sampleCount);
         if (pipe !== pp) { dp.setPipeline(pipe); pp = pipe; }
         if (b.materialId[i] !== pm) { dp.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); pm = b.materialId[i]; }
         dp.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
@@ -607,13 +653,31 @@ export class Renderer {
   /** Resources the main pass(es) read, declared so the render graph orders them after their producers. */
   private static readonly MAIN_READS = ['shadowMap', 'clusterGrid', 'particles', 'ribbons', 'lights', 'fogVolume'];
 
+  /** Name of the graph resource the main pass(es) produce: the swap chain, or the HDR scene target when the post chain is on. */
+  private get colorResource(): string { return this.post.enabled ? 'sceneColor' : 'backbuffer'; }
+
+  /** Clear colour as the main pass target expects it (the HDR target holds linear values, the swap chain sRGB-encoded ones). */
+  private mainClearValue(): GPUColor {
+    if (!this.post.enabled) return this.clearColor;
+    const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+    const c = this.clearColor;
+    return { r: lin(c.r), g: lin(c.g), b: lin(c.b), a: c.a };
+  }
+
+  /** Colour attachment of the main pass: swap chain or HDR scene target, through the multisampled buffer (resolved) when MSAA is on. */
+  private mainColorAttachment(clear: boolean): GPURenderPassColorAttachment {
+    const final = this.post.enabled ? this.post.sceneView : this.gpu.context.getCurrentTexture().createView();
+    const loadOp = clear ? 'clear' : 'load';
+    if (this.target.sampleCount > 1) return { view: this.post.msaaView, resolveTarget: final, clearValue: this.mainClearValue(), loadOp, storeOp: 'discard' };
+    return { view: final, clearValue: this.mainClearValue(), loadOp, storeOp: 'store' };
+  }
+
   /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
   private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
-    const { context } = this.gpu;
-    g.addPass({ name: 'main', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: ['backbuffer'], sideEffect: true, execute: (enc) => {
+    g.addPass({ name: 'main', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main', timestampWrites: this.profiler.writes('main'),
-        colorAttachments: [{ view: context.getCurrentTexture().createView(), clearValue: this.clearColor, loadOp: 'clear', storeOp: 'store' }],
+        colorAttachments: [this.mainColorAttachment(true)],
         depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: prepass ? 'load' : 'clear', depthStoreOp: 'store' },
       });
       if (rw.hasCamera && this.frame.total > 0) this.drawGeometry(pass, 'all', 0);
@@ -627,15 +691,12 @@ export class Renderer {
    * Hi-Z pyramid; cull-B tests everything else against it; phase B draws the newly visible rest (loads the targets) plus extras.
    */
   private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
-    const { context } = this.gpu;
     const cam = rw.camera, f = this.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
-    let colorView: GPUTextureView | null = null;
     g.addPass({ name: 'main-A', reads: [...Renderer.MAIN_READS, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
-      colorView = context.getCurrentTexture().createView();
       const pass = enc.beginRenderPass({
         label: 'main-A', timestampWrites: this.profiler.writes('mainA'),
-        colorAttachments: [{ view: colorView, clearValue: this.clearColor, loadOp: 'clear', storeOp: 'store' }],
+        colorAttachments: [this.mainColorAttachment(true)],
         depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
       });
       if (f.total > 0) this.drawGeometry(pass, 'culled', 0);
@@ -644,10 +705,10 @@ export class Renderer {
     g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture.createView(), this.profiler.writes('hiz')) });
     g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
       execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
-    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', 'particles', 'ribbons'], writes: ['backbuffer'], sideEffect: true, execute: (enc) => {
+    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', 'particles', 'ribbons'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main-B', timestampWrites: this.profiler.writes('mainB'),
-        colorAttachments: [{ view: colorView!, loadOp: 'load', storeOp: 'store' }],
+        colorAttachments: [this.mainColorAttachment(false)],
         depthStencilAttachment: { view: this.depthView, depthLoadOp: 'load', depthStoreOp: 'store' },
       });
       if (f.total > 0) { this.drawGeometry(pass, 'culled', this.culler!.virtualCount); this.drawGeometry(pass, 'rest', 0); }

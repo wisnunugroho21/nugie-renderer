@@ -274,12 +274,12 @@ export class MaterialManager {
   private prepassPipelines = new Map<string, GPURenderPipeline>();
 
   /** Depth-only pipeline matching the main pass geometry exactly (same vertex shader, no bias); alpha-masked PBR keeps cutouts. */
-  getPrepassPipeline(id: number, deformMask: number, depthFormat: GPUTextureFormat): GPURenderPipeline {
+  getPrepassPipeline(id: number, deformMask: number, depthFormat: GPUTextureFormat, sampleCount = 1): GPURenderPipeline {
     let m = this.materials[id];
     if (m.failed) m = this.materials[this.errorMaterial];
     const features = m.features | deformFeatures(deformMask);
     const masked = m.shaderId === 'pbr' && m.queue === 'alphaMask';
-    const key = `${ShaderManager.key(m.shaderId, featureDefines(features))}|${m.vertexEntry}|${masked}|${m.state.cullMode}|${depthFormat}`;
+    const key = `${ShaderManager.key(m.shaderId, featureDefines(features))}|${m.vertexEntry}|${masked}|${m.state.cullMode}|${depthFormat}|${sampleCount}`;
     let p = this.prepassPipelines.get(key);
     if (p) return p;
     const source = m.shaderId === 'pbr' ? PBR_SOURCE : this.customSources.get(m.shaderId)!;
@@ -290,6 +290,7 @@ export class MaterialManager {
       fragment: masked ? { module, entryPoint: 'fs_shadow', targets: [] } : undefined,
       primitive: { topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: 'ccw' },
       depthStencil: { format: depthFormat, depthWriteEnabled: true, depthCompare: m.state.depthCompare },
+      multisample: { count: sampleCount },
     });
     this.prepassPipelines.set(key, p);
     return p;

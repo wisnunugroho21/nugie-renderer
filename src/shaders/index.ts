@@ -7,6 +7,8 @@ import commonBindMaterial from './common_bind_material.wgsl?raw';
 import commonBindObject from './common_bind_object.wgsl?raw';
 import commonFuncs from './common_funcs.wgsl?raw';
 import commonColor from './common_color.wgsl?raw';
+import commonOutput from './common_output.wgsl?raw';
+import postSrc from './post.wgsl?raw';
 import particlesCommon from './particles_common.wgsl?raw';
 import ribbonsCommon from './ribbons_common.wgsl?raw';
 import brdfSrc from './brdf.wgsl?raw';
@@ -19,7 +21,8 @@ import errorSrc from './error.wgsl?raw';
 
 export const PBR_SOURCE = pbrSrc;
 export const ERROR_SOURCE = errorSrc;
-export const COMMON_PRELUDE = '//#include common\n//#include lighting\n//#include ibl_eval\n';
+export const POST_SOURCE = postSrc;
+export const COMMON_PRELUDE = '//#include common\n//#include common_output\n//#include lighting\n//#include ibl_eval\n';
 
 /**
  * Register shared WGSL chunks (`//#include name`). `common` = types + all four bind groups + shared functions;
@@ -33,6 +36,7 @@ export function registerEngineShaderChunks(shaders: ShaderManager): void {
   shaders.registerChunk('common_bind_material', commonBindMaterial);
   shaders.registerChunk('common_bind_object', commonBindObject);
   shaders.registerChunk('common_color', commonColor);
+  shaders.registerChunk('common_output', commonOutput);
   shaders.registerChunk('common_funcs', commonFuncs);
   shaders.registerChunk('particles_common', particlesCommon);
   shaders.registerChunk('ribbons_common', ribbonsCommon);

@@ -48,6 +48,8 @@ export class ParticlePool {
   finalizeBG!: GPUBindGroup;
   renderBG!: GPUBindGroup;
   pipeline!: GPURenderPipeline;
+  /** Re-resolve `pipeline` for the system's current colour / depth target (after MSAA or HDR changes). */
+  rebuildPipeline!: () => void;
 
   cur = 0;
   frame = 0;
@@ -312,6 +314,7 @@ export class ParticleSystem {
       : blendMode === 'alpha'
         ? { color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' } }
         : undefined;
+    const buildPipeline = (): void => {
     const t = this.target;
     pool.pipeline = res.pipelines.getRender({
       shader: isBillboard ? 'particles-billboard' : 'particles-mesh', vertexEntry: 'vs_main', fragmentEntry: 'fs_main',
@@ -330,6 +333,9 @@ export class ParticleSystem {
         multisample: { count: t.sampleCount },
       });
     });
+    };
+    buildPipeline();
+    pool.rebuildPipeline = buildPipeline;
     this.pools.push(pool);
     return pool;
   }
@@ -340,4 +346,7 @@ export class ParticleSystem {
   encodeCompute(enc: GPUCommandEncoder): void { for (const p of this.pools) p.encodeCompute(enc); }
   /** Record every pool's indirect draw into the main render pass. */
   encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void { for (const p of this.pools) p.encodeDraw(pass, frameBG); }
+
+  /** The shared target changed (MSAA / HDR): re-resolve every pool's render pipeline. */
+  retarget(): void { for (const p of this.pools) p.rebuildPipeline(); }
 }

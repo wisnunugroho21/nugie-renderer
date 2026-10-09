@@ -1,5 +1,6 @@
 // Environment background: one fullscreen triangle at the far plane, drawn after opaque geometry (depth test <=, no write).
 //#include ibl_eval
+//#include common_output
 
 struct SkyOut {
   @builtin(position) clip: vec4<f32>,
@@ -23,5 +24,5 @@ fn fs_main(in: SkyOut) -> @location(0) vec4<f32> {
   let world = normalize(transpose(r) * v);
   var c = textureSampleLevel(envSpecular, envSampler, rotateY(world, -scene.env.y), 0.0).rgb * scene.env.x;
   c = applyFog(c, in.clip.xy, scene.fogParams.w);   // sky sits behind the whole fog volume
-  return vec4<f32>(linearToSrgb(tonemapACES(c)), 1.0);
+  return vec4<f32>(outputColor(c), 1.0);
 }
