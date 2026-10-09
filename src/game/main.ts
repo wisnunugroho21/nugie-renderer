@@ -45,6 +45,14 @@ async function main(): Promise<void> {
   const tilt = Quat.fromAxisAngle(Quat.create(), 1, 0, 0, -0.5);
   world.transforms.setRotation(engine.camera, tilt[0], tilt[1], tilt[2], tilt[3]);
 
+  // --- picking: click an object to see what the ray hit (engine.pick = screen ray + raycast)
+  canvas.addEventListener('pointerdown', (e) => {
+    const hit = engine.pick(e.clientX, e.clientY);
+    document.getElementById('msg')!.textContent = hit
+      ? `hit entity ${hit.entity} at ${hit.distance.toFixed(2)} m, point (${hit.point.map((v) => v.toFixed(1)).join(', ')})`
+      : 'nothing under the pointer';
+  });
+
   const pos = { x: 0, z: 0 };
   const SPEED = 6;   // metres per second
 

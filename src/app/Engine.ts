@@ -15,6 +15,8 @@ import { TextureLoader } from '../assets/TextureLoader';
 import { RenderFlags } from '../ecs/components/MeshRendererStore';
 import { LightType } from '../ecs/components/LightStore';
 import { BitSet } from '../core/BitSet';
+import { Mat4 } from '../math/Mat4';
+import { raycastWorld, rayFromNDC, type Ray, type RayHit, type RaycastOptions } from '../picking/Raycaster';
 import type { GPUContext } from '../gpu/GPUContext';
 
 /** Options for {@link Engine.create}. Every field is optional. */
@@ -217,6 +219,33 @@ export class Engine {
       added.push(i);
     });
     if (added.length) this.boundsSystem.update(added);
+  }
+
+  /**
+   * World-space ray through a point of the canvas, using the camera of the last rendered frame.
+   * @param clientX / clientY pointer position in CSS pixels (e.g. `PointerEvent.clientX / clientY`)
+   */
+  screenRay(clientX: number, clientY: number): Ray {
+    const r = this.canvas.getBoundingClientRect();
+    const nx = ((clientX - r.left) / r.width) * 2 - 1, ny = 1 - ((clientY - r.top) / r.height) * 2;
+    const inv = Mat4.invert(Mat4.create(), this.renderWorld.camera.viewProjection);
+    if (!inv) throw new Error('screenRay: the camera matrix is singular (has a frame been rendered yet?)');
+    return rayFromNDC(inv, nx, ny);
+  }
+
+  /** Nearest entity hit by `ray`, or null. Uses the bounds and transforms of the last frame; see {@link raycastWorld}. */
+  raycast(ray: Ray, opts?: RaycastOptions): RayHit | null {
+    return raycastWorld(this.world, this.renderer.meshes, ray, opts, true)[0] ?? null;
+  }
+
+  /** Every entity hit by `ray`, nearest first. */
+  raycastAll(ray: Ray, opts?: RaycastOptions): RayHit[] {
+    return raycastWorld(this.world, this.renderer.meshes, ray, opts);
+  }
+
+  /** Object under a canvas point (`screenRay` + `raycast`): `engine.pick(e.clientX, e.clientY)?.entity`. */
+  pick(clientX: number, clientY: number, opts?: RaycastOptions): RayHit | null {
+    return this.raycast(this.screenRay(clientX, clientY), opts);
   }
 
   /** Register a custom per-frame system (e.g. physics sync, AI, a new feature) to run at the given phase of every frame. */

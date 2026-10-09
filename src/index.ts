@@ -38,6 +38,9 @@ export { generateLODChainAsync } from './workers/GeometryJobs';
 export { WorkerPool } from './workers/WorkerPool';
 export { FrameBudgetQueue } from './workers/FrameBudgetQueue';
 
+// --- picking ----------------------------------------------------------------------------------------------------------
+export { raycastWorld, rayFromNDC, rayAABB, rayMesh, type Ray, type RayHit, type RaycastOptions, type CpuGeometry } from './picking/Raycaster';
+
 // --- assets -----------------------------------------------------------------------------------------------------------
 export { loadGLTF } from './assets/gltf/GLTFLoader';
 export { instantiateGLTF, type GLTFInstance, type InstantiateContext } from './assets/gltf/GLTFInstantiator';

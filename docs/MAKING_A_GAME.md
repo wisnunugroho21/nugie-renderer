@@ -265,6 +265,25 @@ world.particleEmitters.add(e, pool, pool.addEmitter({ shape: 'sphere', radius: 0
 Particles simulate entirely on the GPU (a million alive is fine). Mesh particles: `createPool({ maxCount, mesh: { meshId } })`.
 Ribbons/trails/beams: `renderer.createRibbonSystem(...)`. Full examples: `src/demos/particlesDemo.ts`.
 
+### Raycasting and picking
+
+```ts
+canvas.addEventListener('pointerdown', (e) => {
+  const hit = engine.pick(e.clientX, e.clientY);              // nearest object under the pointer, or null
+  if (hit) console.log(hit.entity, hit.distance, hit.point, hit.normal);
+});
+const down = engine.raycast({ origin: [x, 5, z], direction: [0, -1, 0] }, { maxDistance: 10, filter: (e) => e !== player });
+const all = engine.raycastAll(ray);                          // every hit, nearest first
+```
+
+CPU-side: a world-AABB broad phase, then exact triangle tests (Moller-Trumbore in mesh-local space, so any scale / rotation works).
+Options: `maxDistance`, `filter`, `skipHidden` (default true), `cullBackfaces`, `precise: false` (boxes only, cheapest). Notes:
+
+* Results reflect the bounds and transforms of the last frame; the first pick needs one rendered frame.
+* Meshes keep a CPU copy of their positions and indices (16 B per vertex-ish); set `renderer.meshes.keepCpuGeometry = false` before creating meshes to drop it (picking then uses boxes).
+* Skinned and morphed meshes are tested against their (padded) world AABB, `hit.triangle === -1`.
+* Particles, ribbons and lights are not pickable; the cost is linear in the number of renderers, fine for thousands, not for huge scenes.
+
 ### Level of detail, culling, streaming
 
 * **LOD:** `renderer.lodLibrary.create({ levels: [{ meshId, minScreenSize }, ...] })` then `world.lods.add(entity, groupId)`. Generate levels
@@ -349,7 +368,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 
 ## 9. Known limitations (see `PROGRESS.md` for the full list)
 
-* No built-in input, physics, audio or UI.
+* No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path); in-frame `hiz` cannot be combined with GPU LOD (use `hiz2`).
 * glTF: one UV set, no Draco/meshopt/KTX2; each material has one sampler.

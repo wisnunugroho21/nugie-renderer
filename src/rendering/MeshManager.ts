@@ -2,6 +2,7 @@ import type { BufferManager } from '../gpu/BufferManager';
 import { Arena } from '../gpu/Arena';
 import type { MeshData } from './primitives';
 import type { MorphTargetData } from '../assets/AssetTypes';
+import type { CpuGeometry } from '../picking/Raycaster';
 import { STANDARD_VERTEX_FLOATS, STANDARD_VERTEX_STRIDE } from './VertexLayouts';
 
 /** Deformation capability bits of a mesh (selects the vertex-shader variant). */
@@ -68,6 +69,13 @@ export class MeshManager {
   uploadedBytes = 0;
 
   private meshes: MeshRecord[] = [];
+  private cpu: (CpuGeometry | undefined)[] = [];
+  /**
+   * Keep a CPU copy of each static mesh's positions and indices (12 B per vertex + 4 B per index) so rays can hit its triangles
+   * (see `Engine.raycast`). Set to false BEFORE creating meshes to save that memory; picking then falls back to bounding boxes.
+   * Skinned / morphed meshes never keep a copy (their bind pose is not what is drawn).
+   */
+  keepCpuGeometry = true;
 
   /** Create the shared vertex / index arenas and the deform arena. */
   constructor(device: GPUDevice, buffers: BufferManager, initialVertices = 1 << 16, initialIndices = 1 << 18) {
@@ -91,6 +99,8 @@ export class MeshManager {
   get records(): MeshRecord[] { return this.meshes; }
   /** The record (ranges, bounds, deformation info) of mesh `id`. */
   get(id: number): MeshRecord { return this.meshes[id]; }
+  /** CPU triangles of mesh `id` for ray tests, or undefined (not kept, skinned or morphed). */
+  cpuGeometry(id: number): CpuGeometry | undefined { return this.cpu[id]; }
 
   /** Upload a mesh into the shared buffers and return its id. `deform` adds skin weights and / or morph target deltas. Throws if sizes do not match. */
   create(name: string, data: MeshData, deform?: MeshDeformData): number {
@@ -143,6 +153,14 @@ export class MeshManager {
     }
 
     const id = this.meshes.length;
+    if (this.keepCpuGeometry && deformMask === DeformMask.None) {
+      const positions = new Float32Array(vcount * 3);
+      for (let i = 0; i < vcount; i++) {
+        const o = i * STANDARD_VERTEX_FLOATS;
+        positions[i * 3] = data.vertices[o]; positions[i * 3 + 1] = data.vertices[o + 1]; positions[i * 3 + 2] = data.vertices[o + 2];
+      }
+      this.cpu[id] = { positions, indices: data.indices.slice() };
+    }
     this.meshes.push({
       id, name, vertexCount: vcount, indexCount: data.indices.length, baseVertex, firstIndex, bounds: computeBounds(data.vertices),
       deformMask, skinBase, morphBase, morphTargetCount: targets, morphMaxDisplacement: maxDisp,

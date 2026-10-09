@@ -1,7 +1,7 @@
 # WebGPU Renderer
 
 A data-oriented **WebGPU renderer and entity-component runtime** written in TypeScript. It gives a game everything it needs to put a
-3D world on screen — PBR materials, clustered lighting, shadows, image-based lighting, volumetric fog, glTF models, skeletal and morph
+3D world on screen — PBR materials, clustered lighting, shadows, image-based lighting, volumetric fog, glTF models, CPU raycasting / picking, skeletal and morph
 animation (blend trees, state machines, IK, motion matching), GPU particles and ribbons, LOD, culling and texture streaming — and
 leaves gameplay, input, physics and audio to you.
 
