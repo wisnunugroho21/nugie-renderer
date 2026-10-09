@@ -1,7 +1,7 @@
 import { GPUContext } from '../gpu/GPUContext';
 import { createBindLayouts } from '../gpu/BindLayouts';
 import { MeshManager } from '../rendering/MeshManager';
-import { JointMatrixBuffer } from '../rendering/JointMatrixBuffer';
+import { JointMatrixBuffer, JOINT_MATRIX_FLOATS, packJointMatrix } from '../rendering/JointMatrixBuffer';
 import { MorphWeightBuffer } from '../rendering/MorphWeightBuffer';
 import { RenderWorld } from '../rendering/RenderWorld';
 import { MipmapGenerator } from '../gpu/MipmapGenerator';
@@ -89,10 +89,13 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
 
     // --- random joint matrices + morph weights
     const jointOffset = joints.allocate(J);
+    const m4 = Mat4.create(), full = new Float32Array((jointOffset + J) * 16);
     for (let j = 0; j < J; j++) {
       const q = Quat.normalize(Quat.create(), [rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1)]);
       const s = rng.range(0.6, 1.4);
-      Mat4.compose(joints.cpu, rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1), q[0], q[1], q[2], q[3], s, s, s, (jointOffset + j) * 16);
+      Mat4.compose(m4, rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1), q[0], q[1], q[2], q[3], s, s, s);
+      packJointMatrix(joints.cpu, (jointOffset + j) * JOINT_MATRIX_FLOATS, m4);
+      m4.forEach((v, k) => { full[(jointOffset + j) * 16 + k] = v; });   // 4x4 copy for the CPU reference
     }
     joints.markDirty(jointOffset, J); joints.flush();
     const weights = [rng.range(0, 1), 0, rng.range(-0.5, 1)];
@@ -147,7 +150,7 @@ function deformParityTest(gpu: GPUContext, variant: { skin: boolean; morph: bool
     for (let i = 0; i < N; i++) {
       const ref = deformVertexRef(i, base[i],
         variant.morph ? { targets, weights } : null,
-        variant.skin ? { joints: joints0, weights: weights0, matrices: joints.cpu, jointOffset } : null);
+        variant.skin ? { joints: joints0, weights: weights0, matrices: full, jointOffset } : null);
       for (let c = 0; c < 3; c++) {
         maxErr = Math.max(maxErr, Math.abs(got[i * 12 + c] - ref.position[c]), Math.abs(got[i * 12 + 4 + c] - ref.normal[c]), Math.abs(got[i * 12 + 8 + c] - ref.tangent[c]));
       }

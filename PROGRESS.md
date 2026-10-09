@@ -28,7 +28,7 @@ Run: `npm run dev` (demos at `/` with `?scene=<name>`, starter game at `/game.ht
 | 16 | Animation runtime (STEP/LINEAR/CUBICSPLINE, Animator, AnimationSystem) | DONE - tests |
 | 17 | Skinning data (SkeletonAsset vs SkeletonInstance, JOINTS/WEIGHTS incl. _1) | DONE - tests |
 | 18 | Skeleton updates (convention documented + tested) | DONE - tests |
-| 19 | Shared JointMatrixBuffer (one buffer, sparse uploads) | DONE - tests, 1000 skeletons = 0 extra buffers |
+| 19 | Shared JointMatrixBuffer (one buffer, sparse uploads; affine 3x4 = 48 B per joint, skipped when a skeleton's matrices did not change) | DONE - tests, 1000 skeletons = 0 extra buffers |
 | 20 | GPU skinning | DONE - GPU parity self-test + browser |
 | 21-22 | Morph target data + shared morph buffers (deltas, compacted active targets) | DONE - tests |
 | 23 | GPU morphing | DONE - GPU parity self-test |

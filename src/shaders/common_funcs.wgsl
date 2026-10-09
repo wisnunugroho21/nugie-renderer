@@ -46,14 +46,18 @@ fn deformVertex(inst: Instance, vertexIndex: u32, position: vec3<f32>, normal: v
   if HAS_SKINNING {
     if (inst.jointCount > 0u) {
       let sd = deformData[inst.skinBase + local];
-      let skin =
-          jointMatrices[inst.jointOffset + skinJoint(sd.x, false)] * skinWeight(sd.z, false)
-        + jointMatrices[inst.jointOffset + skinJoint(sd.x, true)] * skinWeight(sd.z, true)
-        + jointMatrices[inst.jointOffset + skinJoint(sd.y, false)] * skinWeight(sd.w, false)
-        + jointMatrices[inst.jointOffset + skinJoint(sd.y, true)] * skinWeight(sd.w, true);
-      p = (skin * vec4<f32>(p, 1.0)).xyz;
-      n = normalize((skin * vec4<f32>(n, 0.0)).xyz);
-      if (dot(t, t) > 0.0) { t = normalize((skin * vec4<f32>(t, 0.0)).xyz); }
+      // blend the four joints' affine rows (row r of joint j is jointMatrices[(jointOffset + j) * 3 + r])
+      let j0 = (inst.jointOffset + skinJoint(sd.x, false)) * 3u; let w0 = skinWeight(sd.z, false);
+      let j1 = (inst.jointOffset + skinJoint(sd.x, true)) * 3u;  let w1 = skinWeight(sd.z, true);
+      let j2 = (inst.jointOffset + skinJoint(sd.y, false)) * 3u; let w2 = skinWeight(sd.w, false);
+      let j3 = (inst.jointOffset + skinJoint(sd.y, true)) * 3u;  let w3 = skinWeight(sd.w, true);
+      let r0 = jointMatrices[j0] * w0 + jointMatrices[j1] * w1 + jointMatrices[j2] * w2 + jointMatrices[j3] * w3;
+      let r1 = jointMatrices[j0 + 1u] * w0 + jointMatrices[j1 + 1u] * w1 + jointMatrices[j2 + 1u] * w2 + jointMatrices[j3 + 1u] * w3;
+      let r2 = jointMatrices[j0 + 2u] * w0 + jointMatrices[j1 + 2u] * w1 + jointMatrices[j2 + 2u] * w2 + jointMatrices[j3 + 2u] * w3;
+      let ph = vec4<f32>(p, 1.0);
+      p = vec3<f32>(dot(r0, ph), dot(r1, ph), dot(r2, ph));
+      n = normalize(vec3<f32>(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n)));
+      if (dot(t, t) > 0.0) { t = normalize(vec3<f32>(dot(r0.xyz, t), dot(r1.xyz, t), dot(r2.xyz, t))); }
     }
   }
 

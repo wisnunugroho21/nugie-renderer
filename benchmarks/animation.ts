@@ -25,15 +25,18 @@ const KEYS = 61;   // 2 s at 30 Hz
 
 /** Stand-in for the GPU joint buffer: a plain growing Float32Array. */
 class FakeJoints {
-  cpu = new Float32Array(16 * 4096);
+  cpu = new Float32Array(12 * 4096);
   private used = 1;
+  private dirty = 0;
+  /** Matrices marked for upload since the last call. */
+  dirtyCount(): number { const d = this.dirty; this.dirty = 0; return d; }
   allocate(n: number): number {
     const o = this.used; this.used += n;
-    if (this.used * 16 > this.cpu.length) { const c = new Float32Array(Math.max(this.cpu.length * 2, this.used * 16)); c.set(this.cpu); this.cpu = c; }
+    if (this.used * 12 > this.cpu.length) { const c = new Float32Array(Math.max(this.cpu.length * 2, this.used * 12)); c.set(this.cpu); this.cpu = c; }
     return o;
   }
   release(): void {}
-  markDirty(): void {}
+  markDirty(_offset: number, count: number): void { this.dirty += count; }
 }
 
 /** Parent of joint i in a skeleton of chains of 8 joints hanging off the root. */
@@ -60,9 +63,9 @@ function makeClip(J: number, seed: number): AnimationClip {
   return new AnimationClip('walk', channels);
 }
 
-interface Crowd { world: World; ts: TransformSystem; anim: AnimationSystem; skel: SkeletonSystem; clip: AnimationClip; layout: PoseLayout; rest: Pose; }
+interface Crowd { joints: FakeJoints; roots: number[]; world: World; ts: TransformSystem; anim: AnimationSystem; skel: SkeletonSystem; clip: AnimationClip; layout: PoseLayout; rest: Pose; }
 
-function buildCrowd(N: number, J: number, mode: 'animator' | 'controller'): Crowd {
+function buildCrowd(N: number, J: number, mode: 'animator' | 'controller' | 'paused' | 'moving'): Crowd {
   const world = new World(), t = world.transforms;
   const layout = new PoseLayout(J, undefined, Array.from({ length: J }, (_, i) => parentOf(i)));
   const rest = new Pose(layout);
@@ -74,8 +77,10 @@ function buildCrowd(N: number, J: number, mode: 'animator' | 'controller'): Crow
   const joints = new FakeJoints();
   const ts = new TransformSystem(t), anim = new AnimationSystem(world), skel = new SkeletonSystem(world, joints as unknown as JointMatrixBuffer);
   const side = Math.ceil(Math.sqrt(N));
+  const roots: number[] = [];
   for (let n = 0; n < N; n++) {
     const root = entityIndex(world.create());
+    roots.push(root);
     t.add(root, (n % side) * 2, 0, Math.floor(n / side) * 2);
     const nodes = Array.from({ length: J }, () => entityIndex(world.create()));
     nodes.forEach((e, j) => { t.add(e, rest.t[j * 3], rest.t[j * 3 + 1], rest.t[j * 3 + 2]); t.setParent(e, parentOf(j) < 0 ? root : nodes[parentOf(j)]); });
@@ -83,8 +88,10 @@ function buildCrowd(N: number, J: number, mode: 'animator' | 'controller'): Crow
     t.add(mesh); t.setParent(mesh, root);
     world.skins.add(mesh, new SkeletonInstance(asset, mesh, Int32Array.from(nodes)));
     const inst = new AnimatedInstance(layout, Int32Array.from(nodes), [clip], rest);
-    if (mode === 'animator') {
-      const a = Animator.attach(world, root, inst, 0); a.time = (n * 0.137) % clip.duration; a.setLoop(true).play();
+    if (mode === 'animator' || mode === 'paused') {
+      const a = Animator.attach(world, root, inst, 0); a.time = (n * 0.137) % clip.duration; a.setLoop(true).setSpeed(mode === 'paused' ? 0 : 1).play();
+    } else if (mode === 'moving') {
+      // a posed character that is only translated as a whole (moving platform, root motion done elsewhere)
     } else {
       const sm = new StateMachine(layout, rest, [{ name: 'walk', motion: new ClipMotion(clip) }], [], 0);
       const c = new AnimationController(layout, rest, new AnimationParams(), [{ name: 'base', stateMachine: sm }], 0);
@@ -94,24 +101,29 @@ function buildCrowd(N: number, J: number, mode: 'animator' | 'controller'): Crow
   }
   ts.update();
   skel.update(ts.updated);
-  return { world, ts, anim, skel, clip, layout, rest };
+  return { joints, roots, world, ts, anim, skel, clip, layout, rest };
 }
 
-function run(label: string, N: number, J: number, mode: 'animator' | 'controller'): void {
+function run(label: string, N: number, J: number, mode: 'animator' | 'controller' | 'paused' | 'moving'): void {
   const c = buildCrowd(N, J, mode);
   const frames = 60, dt = 1 / 60;
-  for (let i = 0; i < 10; i++) { c.anim.update(dt); c.ts.update(); c.skel.update(c.ts.updated); }
-  let a = 0, x = 0, k = 0;
+  const t = c.world.transforms;
+  const move = () => { if (mode === 'moving') for (const r of c.roots) t.setPosition(r, t.positionX[r] + 0.01, 0, t.positionZ[r]); };
+  for (let i = 0; i < 10; i++) { move(); c.anim.update(dt); c.ts.update(); c.skel.update(c.ts.updated); }
+  let a = 0, x = 0, k = 0, upload = 0;
+  c.joints.dirtyCount();   // forget the allocation / warm-up uploads
   for (let f = 0; f < frames; f++) {
+    move();
     const t0 = performance.now(); c.anim.update(dt);
     const t1 = performance.now(); c.ts.update();
     const t2 = performance.now(); c.skel.update(c.ts.updated);
     const t3 = performance.now();
     a += t1 - t0; x += t2 - t1; k += t3 - t2;
+    upload += c.joints.dirtyCount();
   }
   a /= frames; x /= frames; k /= frames;
   const total = a + x + k, joints = N * J;
-  console.log(`${label.padEnd(30)} ${String(N).padStart(5)} x ${String(J).padStart(3)}  anim ${a.toFixed(3).padStart(7)}  xform ${x.toFixed(3).padStart(7)}  skeleton ${k.toFixed(3).padStart(7)}  total ${total.toFixed(3).padStart(7)} ms   ${(total * 1e6 / joints).toFixed(0).padStart(5)} ns/joint   (${c.anim.nodesWritten} nodes written, ${c.ts.matricesUpdated} matrices, ${c.skel.updatedJoints} skin joints)`);
+  console.log(`${label.padEnd(30)} ${String(N).padStart(5)} x ${String(J).padStart(3)}  anim ${a.toFixed(3).padStart(7)}  xform ${x.toFixed(3).padStart(7)}  skeleton ${k.toFixed(3).padStart(7)}  total ${total.toFixed(3).padStart(7)} ms   ${(total * 1e6 / joints).toFixed(0).padStart(5)} ns/joint   (${c.anim.nodesWritten} nodes written, ${c.ts.matricesUpdated} matrices, ${c.skel.updatedJoints} skin joints, ${(upload / frames * 48 / 1024).toFixed(0)} KB uploaded/frame)`);
 }
 
 console.log('\n== Animation CPU cost per frame (ms): clip sampling + ECS writes / transform hierarchy / skinning matrices ==');
@@ -121,6 +133,8 @@ for (const mode of ['animator', 'controller'] as const) {
   run(`${mode}`, N * 5, J, mode);
   run(`${mode}`, N, 24, mode);
 }
+run('animator, speed 0', N, J, 'paused');
+run('posed, moved as a whole', N, J, 'moving');
 
 // micro: sampling alone (no ECS), to separate sampling cost from the write-back
 {

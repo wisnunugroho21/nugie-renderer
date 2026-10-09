@@ -42,6 +42,10 @@ export class AnimationSystem {
       a.time[i] = r.time;
       if (r.finished) a.flags[i] = (f & ~AnimatorFlags.Playing) | AnimatorFlags.Finished;
 
+      // Same clip at the same time as last frame (speed 0, a clamped end, ...): the pose in the ECS is already right, so sample nothing and
+      // dirty nothing (no transform, skeleton or bounds recomputation downstream).
+      if (a.sampledTime[i] === r.time && a.sampledClip[i] === a.clip[i]) return;
+      a.sampledTime[i] = r.time; a.sampledClip[i] = a.clip[i];
       clip.sample(r.time, pose, a.hints[i]);
 
       const nodes = clip.animatedNodes, layout = inst.layout;

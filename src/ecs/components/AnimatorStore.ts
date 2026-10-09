@@ -15,15 +15,22 @@ export class AnimatorStore extends ComponentStore {
   pose: (Pose | undefined)[] = [];
   /** Per-animator, per-channel key hints (sequential playback fast-path). */
   hints: (Int32Array | undefined)[] = [];
+  /** Time and clip the pose was last sampled and written at (NaN / -1 = never): an animator that is still at the same time has nothing new to write. */
+  sampledTime = new Float32Array(0);
+  sampledClip = new Int32Array(0);
 
   /** Grow the per-entity playback arrays. */
   protected grow(n: number): void {
     this.clip = growI32(this.clip, n); this.time = growF32(this.time, n); this.speed = growF32(this.speed, n); this.flags = growU8(this.flags, n);
+    const oldTimes = this.sampledTime.length;
+    this.sampledTime = growF32(this.sampledTime, n); this.sampledClip = growI32(this.sampledClip, n, -1);
+    this.sampledTime.fill(NaN, oldTimes);
   }
   /** Drop the animator's instance / pose / hints and zero its playback state. */
   protected reset(i: number): void {
     this.instance[i] = undefined; this.pose[i] = undefined; this.hints[i] = undefined;
     this.clip[i] = 0; this.time[i] = 0; this.speed[i] = 0; this.flags[i] = 0;
+    this.sampledTime[i] = NaN; this.sampledClip[i] = -1;
   }
 
   /** Attach a single-clip animator: starts looping at speed 1 on `clip` (not yet playing until the Playing flag is set by `Animator.play`). */
@@ -33,6 +40,7 @@ export class AnimatorStore extends ComponentStore {
     this.instance[i] = instance;
     this.pose[i] = instance.rest.clone();
     this.clip[i] = clip; this.time[i] = 0; this.speed[i] = 1; this.flags[i] = AnimatorFlags.Loop;
+    this.sampledTime[i] = NaN; this.sampledClip[i] = -1;
     this.hints[i] = new Int32Array(instance.clips[clip]?.channels.length ?? 0);
   }
 }

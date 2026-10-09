@@ -14,6 +14,7 @@ import { entityIndex } from '../src/ecs/Entity';
 import { Mat4 } from '../src/math/Mat4';
 import { Quat } from '../src/math/Quat';
 import { bitsToFloat } from '../src/rendering/MorphPacking';
+import { JOINT_MATRIX_BYTES, unpackJointMatrix } from '../src/rendering/JointMatrixBuffer';
 import { STANDARD_VERTEX_FLOATS as F } from '../src/rendering/VertexLayouts';
 
 const close = (a: ArrayLike<number>, b: ArrayLike<number>, eps = 1e-4) => { for (let i = 0; i < b.length; i++) expect(Math.abs(a[i] - b[i])).toBeLessThan(eps); };
@@ -89,7 +90,7 @@ describe('joint matrix convention: inverse(ownerWorld) * jointWorld * inverseBin
     it(`bind pose: ownerWorld * jointMatrix == identity (owner at ${JSON.stringify(pose)})`, () => {
       const { t, g, owner, inst } = rig(pose);
       for (let j = 0; j < 3; j++) {
-        const jm = g.joints.cpu.subarray((inst.jointOffset + j) * 16, (inst.jointOffset + j) * 16 + 16);
+        const jm = new Float32Array(16); unpackJointMatrix(jm, g.joints.cpu, inst.jointOffset + j);
         const fin = Mat4.multiply(Mat4.create(), t.worldMatrices.subarray(owner * 16, owner * 16 + 16) as unknown as number[], jm as unknown as number[]);
         close(fin, Mat4.create(), 1e-4);
       }
@@ -102,7 +103,7 @@ describe('joint matrix convention: inverse(ownerWorld) * jointWorld * inverseBin
     t.setRotation(joints[1], bend[0], bend[1], bend[2], bend[3]);
     ts.update(); sk.update(ts.updated);
     const bindPoint = [0, 1.5, 0]; // a vertex in world/bind space near joint 1
-    const jm = g.joints.cpu.subarray((inst.jointOffset + 1) * 16, (inst.jointOffset + 1) * 16 + 16);
+    const jm = new Float32Array(16); unpackJointMatrix(jm, g.joints.cpu, inst.jointOffset + 1);
     const skinned = Mat4.transformPoint([0, 0, 0], jm as unknown as number[], bindPoint[0], bindPoint[1], bindPoint[2]);
     const world = Mat4.transformPoint([0, 0, 0], t.worldMatrices.subarray(owner * 16, owner * 16 + 16) as unknown as number[], skinned[0], skinned[1], skinned[2]);
     // reference: jointWorld(1) * inverse(jointWorld_bind(1)) applied to the bind point
@@ -188,7 +189,30 @@ describe('SkeletonSystem dirty propagation', () => {
     c.g.joints.flush();
     const w = c.g.writes.filter((x) => x.label === 'JointMatrixBuffer');
     expect(w.length).toBe(2);
-    expect(c.g.joints.uploadBytes).toBe(3 * 4 * 64);
+    expect(c.g.joints.uploadBytes).toBe(3 * 4 * JOINT_MATRIX_BYTES);
+  });
+});
+
+describe('skeleton updates are skipped when nothing changed', () => {
+  it('a character moved as a rigid whole recomputes its matrices but uploads nothing', () => {
+    const { g, w, t, ts, sk, owner, joints } = rig({ p: [1, 2, 3], s: 1.5, yaw: 0.4 });
+    const root = entityIndex(w.create());
+    t.add(root);
+    t.setParent(owner, root); t.setParent(joints[0], root);
+    ts.update(); sk.update(ts.updated);
+    g.joints.flush(); g.writes.length = 0; g.joints.beginFrame();
+    t.setPosition(root, 40, -3, 7);
+    ts.update(); sk.update(ts.updated);
+    g.joints.flush();
+    expect(sk.updatedSkeletons).toBe(1);
+    expect(sk.unchangedSkeletons).toBe(1);
+    expect(g.joints.uploadBytes).toBe(0);
+    // a real pose change still uploads
+    t.setPosition(joints[1], 0, 3, 0);
+    ts.update(); sk.update(ts.updated);
+    g.joints.flush();
+    expect(sk.unchangedSkeletons).toBe(0);
+    expect(g.joints.uploadBytes).toBe(3 * JOINT_MATRIX_BYTES);
   });
 });
 
@@ -196,13 +220,14 @@ describe('JointMatrixBuffer', () => {
   it('reserves matrix 0 as identity and grows with a full re-upload', () => {
     const g = makeFakeGPU();
     const jb = g.joints;
-    expect(Array.from(jb.cpu.subarray(0, 16))).toEqual(Array.from(Mat4.create()));
+    const m0 = new Float32Array(16); unpackJointMatrix(m0, jb.cpu, 0);
+    expect(Array.from(m0)).toEqual(Array.from(Mat4.create()));
     jb.flush(); g.writes.length = 0;
     const gen = jb.generation;
     const off = jb.allocate(5000);
     expect(jb.generation).toBe(gen + 1);
     jb.flush();
-    expect(g.writes[0].bytes).toBe((off + 5000) * 64 >= 5001 * 64 ? jb.usedMatrices * 64 : 0);
+    expect(g.writes[0].bytes).toBe((off + 5000) * JOINT_MATRIX_BYTES >= 5001 * JOINT_MATRIX_BYTES ? jb.usedMatrices * JOINT_MATRIX_BYTES : 0);
     expect(g.writes.length).toBe(1);
   });
 });
