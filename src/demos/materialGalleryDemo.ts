@@ -1,5 +1,5 @@
 import type { Demo, DemoContext } from './Demo';
-import { createUVSphere, createCube, createPlane, type MeshData } from '../rendering/primitives';
+import { createUVSphere, createCube, createPlane } from '../rendering/primitives';
 import { createPlaneGrid, createIcosahedron, createTorusKnot } from '../rendering/shapes';
 import type { TextureRef, PBRMaterialDesc } from '../rendering/materials/Material';
 import { LightType } from '../ecs/components/LightStore';
@@ -110,10 +110,8 @@ export const materialGalleryDemo: Demo = (ctx) => {
   const gem = renderer.meshes.create('gem', createIcosahedron(0.5, 0));
   const knot = renderer.meshes.create('knot', createTorusKnot({ radius: 0.32, tube: 0.1 }));
   const cube = renderer.meshes.create('cube', createCube());
-  const unit = (m: MeshData) => m;
-  void unit;
 
-  const items: { name: string; row: number; col: number; mesh: number; desc: PBRMaterialDesc; scale?: number; tilt?: boolean; pad?: number }[] = [];
+  const items: { name: string; row: number; col: number; mesh: number; desc: PBRMaterialDesc; scale?: number; pad?: number }[] = [];
   const labels: { name: string; x: number; z: number }[] = [];
 
   const build = async (): Promise<void> => {
@@ -142,7 +140,7 @@ export const materialGalleryDemo: Demo = (ctx) => {
     items.push({ name: 'normal map', row: 1, col: 0, mesh: sphere, desc: { baseColor: [1, 1, 1, 1], roughness: 0.7, metallic: 0, textures: { baseColor: color, normal } } });
     items.push({ name: 'bump', row: 1, col: 1, mesh: sphere, desc: { baseColor: [1, 1, 1, 1], roughness: 0.7, metallic: 0, bumpScale: 0.06, textures: { baseColor: color, height } } });
     items.push({ name: 'parallax', row: 1, col: 2, mesh: cube, desc: { baseColor: [1, 1, 1, 1], roughness: 0.7, metallic: 0, parallaxScale: 0.06, textures: { baseColor: color, height, normal } } });
-    items.push({ name: 'displace', row: 1, col: 3, mesh: grid, desc: { baseColor: [0.75, 0.55, 0.4, 1], roughness: 0.8, metallic: 0, displacementScale: 0.35, bumpScale: 0.03, textures: { baseColor: color, height } }, scale: 2, tilt: false, pad: 0.4 });
+    items.push({ name: 'displace', row: 1, col: 3, mesh: grid, desc: { baseColor: [0.75, 0.55, 0.4, 1], roughness: 0.8, metallic: 0, displacementScale: 0.35, bumpScale: 0.03, textures: { baseColor: color, height } }, scale: 2, pad: 0.4 });
     items.push({ name: 'alpha map', row: 1, col: 4, mesh: cube, desc: { baseColor: [0.3, 0.8, 0.5, 1], roughness: 0.4, metallic: 0, doubleSided: true, textures: { alpha } } });
     items.push({ name: 'height ball', row: 1, col: 5, mesh: rich, desc: { baseColor: [0.75, 0.55, 0.4, 1], roughness: 0.8, metallic: 0, displacementScale: 0.12, textures: { height } } });
     items.push({ name: 'packed coat', row: 1, col: 6, mesh: sphere, desc: { baseColor: [0.15, 0.4, 0.9, 1], metallic: 0.2, roughness: 0.6, clearcoat: 1, clearcoatRoughness: 0.03, textures: { aux: packed } } });

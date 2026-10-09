@@ -72,16 +72,13 @@ export const shapesDemo: Demo = (ctx) => {
   const mark = ctx.createLineSystem({ depthTest: false, width: 3 });      // retained: a screen-over-everything marker
   mark.cross([0, 0.02, 0], 0.6, [1, 1, 1, 0.9]);
 
-  let font: Awaited<ReturnType<typeof ctx.createFont>> | null = null;
   let labels: ReturnType<ReturnType<typeof ctx.createTextSystem>['addText']>[] = [];
   let hud: ReturnType<ReturnType<typeof ctx.createTextSystem>['addText']> | null = null;
   ctx.createFont({ family: 'sans-serif', weight: 'bold', size: 64 }).then((f) => {
-    font = f;
     const world3d = ctx.createTextSystem(f);
     labels = shapes.map(([name]) => world3d.addText(f, name, { position: [0, 0, 0], size: 0.45, color: [1, 1, 1, 1], anchor: [0.5, 0] }));
     const screen = ctx.createTextSystem(f, { space: 'screen' });
     hud = screen.addText(f, 'shapes demo', { position: [12, 12, 0], size: 20, color: [1, 1, 1, 0.95] });
-    void font;
   });
   createImageBitmap(makeGlowCanvas()).then((bmp) => {
     const sparkles = ctx.createSpriteSystem({ texture: ctx.textures.upload('sparkle', bmp, false), blend: 'additive' });

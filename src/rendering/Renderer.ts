@@ -316,20 +316,18 @@ export class Renderer {
   private skyboxPipeline(): GPURenderPipeline {
     const key = `${this.target.colorFormat}|${this.target.sampleCount}`;
     let pipe = this.skyPipelines.get(key);
-    if (!pipe) {
-      pipe = (() => {
-      const module = this.gpu.resources.shaders.get('skybox', skyboxSource, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false });
-      return this.gpu.device.createRenderPipeline({
-        label: 'skybox', layout: this.gpu.device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene] }),
-        vertex: { module, entryPoint: 'vs_main' },
-        fragment: { module, entryPoint: 'fs_main', targets: [{ format: this.target.colorFormat ?? this.gpu.format }] },
-        primitive: { topology: 'triangle-list' },
-        depthStencil: { format: this.target.depthFormat ?? DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
-        multisample: { count: this.target.sampleCount },
-      });
-      })();
-      this.skyPipelines.set(key, pipe);
-    }
+    if (pipe) return pipe;
+    const { device } = this.gpu;
+    const module = this.gpu.resources.shaders.get('skybox', skyboxSource, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false });
+    pipe = device.createRenderPipeline({
+      label: 'skybox', layout: device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene] }),
+      vertex: { module, entryPoint: 'vs_main' },
+      fragment: { module, entryPoint: 'fs_main', targets: [{ format: this.target.colorFormat ?? this.gpu.format }] },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: { format: this.target.depthFormat ?? DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
+      multisample: { count: this.target.sampleCount },
+    });
+    this.skyPipelines.set(key, pipe);
     return pipe;
   }
 

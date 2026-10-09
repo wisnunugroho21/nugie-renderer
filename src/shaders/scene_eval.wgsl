@@ -129,15 +129,21 @@ fn shadowedLight(light: Light, s: SurfaceInfo, P: vec3<f32>, viewZ: f32) -> vec3
 // Direct lighting from every light that can reach this fragment: the global prefix always, then either this fragment's
 // cluster list (clustered shading) or every remaining light (naive loop).
 fn shadeLights(s: SurfaceInfo, P: vec3<f32>, fragXY: vec2<f32>, viewZ: f32) -> vec3<f32> {
+  // One loop (and so one inlined copy of the shading code): indices 0..globalN-1 are the global lights, the rest come from the cell list or the plain range.
   var color = vec3<f32>(0.0);
   let total = scene.counts.x;
   let globalN = min(scene.counts.y, total);
-  for (var i = 0u; i < globalN; i = i + 1u) { color += shadowedLight(lights[i], s, P, viewZ); }
-  if (scene.clusterGrid.w == 1u) {
-    let cell = clusterGrid[clusterIndexOf(fragXY, viewZ)];
-    for (var k = 0u; k < cell.y; k = k + 1u) { color += shadowedLight(lights[clusterIndices[cell.x + k]], s, P, viewZ); }
-  } else {
-    for (var i = globalN; i < total; i = i + 1u) { color += shadowedLight(lights[i], s, P, viewZ); }
+  let clustered = scene.clusterGrid.w == 1u;
+  var cell = vec2<u32>(0u);
+  var count = total;
+  if (clustered) {
+    cell = clusterGrid[clusterIndexOf(fragXY, viewZ)].xy;
+    count = globalN + cell.y;
+  }
+  for (var n = 0u; n < count; n = n + 1u) {
+    var li = n;
+    if (clustered && n >= globalN) { li = clusterIndices[cell.x + n - globalN]; }
+    color += shadowedLight(lights[li], s, P, viewZ);
   }
   return color;
 }
