@@ -48,6 +48,7 @@ src/app/         Engine (what a game uses), Application (device + frame loop + r
 src/ecs/         World, entities, component stores (components/), per-frame systems (systems/)
 src/rendering/   Renderer (frame orchestration: queues -> batches -> pass graph), RenderExtractor, RenderWorld, materials/, lighting/, shadows/,
                  post/ (post-processing, transmission copy), overlay/ (lines, points, sprites, text), GPU culling, primitives.
+                 RenderFeature (the plug-in point: particles, ribbons, overlays and your own features), post/FullscreenEffect.
                  Small collaborators of Renderer: FrameUniform (per-view uniform), Skybox, GPULodIndex, lighting/LegacySceneLights, streaming/StreamingDriver
 src/assets/      glTF/GLB loading + instantiation, texture loading, RGBE (.hdr)
 src/animation/   clips, animator, graph/ (state machines, blend trees), ik/, motionmatching/, root motion
@@ -510,9 +511,45 @@ touching the renderer. Shared WGSL lives in `src/shaders/` (`common*.wgsl` descr
 **A new demo / experiment**: add a file in `src/demos/` exporting a `Demo` (`(ctx) => (time, dt) => void`) and register it in
 `src/demos/index.ts`; open it with `/?scene=<name>`.
 
-**A new render pass** (post effect, extra shadow-like pass): add it in `Renderer.recordPasses` with the render graph —
-`g.addPass({ name, reads: [...], writes: [...], execute: (encoder) => ... })`. Declared reads/writes decide the order and unused passes are
-dropped. Passes are created in small `add*Pass` methods in `src/rendering/Renderer.ts`.
+**A new rendering feature** (a GPU simulation, a custom draw, a debug visualisation, a post effect): implement `RenderFeature` and register it with
+`renderer.addFeature(feature)` - no change to the renderer. Every hook is optional; the particles, ribbons and the line / point / sprite systems are built
+the same way (see `src/rendering/RenderFeature.ts`).
+
+```ts
+const feature: RenderFeature = {
+  name: 'my-feature',
+  drawOrder: 150,                       // inside the main pass; lower draws first (particles 100, ribbons 200, overlays 300)
+  produces: ['myData'],                 // graph resources its passes write; the main pass waits for them
+  prepare(frame)  { /* upload this frame's uniforms (frame.time, frame.camera) */ },
+  addPasses(graph, frame) {             // compute / render passes, ordered by the declared reads and writes
+    graph.addPass({ name: 'my-sim', writes: ['myData'], execute: (enc) => { /* dispatch */ } });
+  },
+  drawMain(pass, frame) {               // after the scene geometry and sky; set frame.frameBindGroup as group 0
+    pass.setPipeline(pipeline); pass.setBindGroup(0, frame.frameBindGroup); pass.draw(3);
+  },
+  retarget() { pipeline = null; },      // the main pass's format / sample count changed (HDR, MSAA): rebuild pipelines from frame.target
+  endFrame() { /* clear immediate-mode data */ },
+};
+renderer.addFeature(feature);           // renderer.removeFeature(feature) to unplug it
+```
+
+`src/demos/featureDemo.ts` (`/?scene=feature`) is a complete, runnable template: a backdrop drawn in the main pass and a post effect.
+
+**A new post effect**: a feature with `addPostPasses` (runs on the linear HDR scene colour, before bloom and tone mapping; needs
+`renderer.post.configure({})`). `FullscreenEffect` turns one WGSL function into a pass - it supplies the pipeline, a scratch texture and the copy back:
+
+```ts
+const fx = new FullscreenEffect(engine.gpu, { label: 'grade', wgsl: `
+  fn effect(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return vec4<f32>(color.rgb * params[0].x, color.a); }` });   // params = fx.params
+renderer.addFeature({ name: 'grade',
+  addPostPasses: (g, f) => g.addPass({ name: 'grade', reads: ['sceneColor'], writes: ['sceneColor'], execute: (enc) => fx.run(enc, f.sceneTexture) }) });
+```
+
+Effects that need their own multi-pass chain (blurs at several resolutions, screen-space techniques with several inputs) can create their own textures and
+passes in `addPostPasses` the same way; the built-in SSAO / SSR / bloom live in `src/rendering/post/PostProcessor.ts` if you want to extend those instead.
+
+**A rendering pass inside the renderer itself** (shadow-like passes that need its private state): add it in `Renderer.recordPasses` with
+`g.addPass({ name, reads, writes, execute })`; passes are created in small `add*Pass` methods in `src/rendering/Renderer.ts`.
 
 **Tests**: pure CPU logic goes in `tests/*.test.ts` (Vitest); GPU kernels get a `SelfTest` in `src/selftest/` compared against a CPU reference.
 

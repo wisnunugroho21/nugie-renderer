@@ -269,7 +269,7 @@ export class PostProcessor {
 
     const RT = GPUTextureUsage.RENDER_ATTACHMENT, TB = GPUTextureUsage.TEXTURE_BINDING;
     if (this.enabled) {
-      this.scene = make('post-scene', w, h, HDR_FORMAT, RT | TB | GPUTextureUsage.COPY_SRC);
+      this.scene = make('post-scene', w, h, HDR_FORMAT, RT | TB | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST);   // COPY_DST: features may write the scene colour back (FullscreenEffect)
       if (fxaa) this.ldr = make('post-ldr', w, h, this.gpu.format, RT | TB);
       for (let i = 0, lw = w, lh = h; i < levels; i++) {
         lw = Math.max(1, (lw + 1) >> 1); lh = Math.max(1, (lh + 1) >> 1);

@@ -39,6 +39,7 @@ import { RenderView, type RenderViewOptions } from './RenderView';
 import { mirrorView, planeToView, obliqueProjection, cubeFaceView, cubeFaceProjection } from './viewMath';
 import { VisibilitySystem } from '../visibility/VisibilitySystem';
 import type { Overlay } from './overlay/Overlay';
+import { FeatureRegistry, particleFeature, ribbonFeature, overlayFeature, type RenderFeature, type FeatureFrame } from './RenderFeature';
 import { LineSystem, type LineSystemOptions } from './overlay/LineSystem';
 import { PointSystem, type PointSystemOptions } from './overlay/PointSystem';
 import { SpriteSystem, type SpriteSystemOptions } from './overlay/SpriteSystem';
@@ -175,6 +176,7 @@ export class Renderer {
     this.transmission = new TransmissionCopy(gpu, this.sceneResources);
     this.streaming = new StreamingDriver(this.materials);
     this.gpuLodIndex = new GPULodIndex(this.lodLibrary);
+    this.featureFrame = { camera: new Camera(), hasCamera: false, time: 0, frameBindGroup: this.frameUniform.bindGroup, sceneBindGroup: this.sceneResources.bindGroup, target: this.target };
 
     this.transformBuffer = new TransformBuffer(device, r.buffers);
     this.joints = new JointMatrixBuffer(device, r.buffers);
@@ -229,8 +231,12 @@ export class Renderer {
   /** Off-screen views (mirrors, minimaps, security cameras ...), rendered before the main view every frame. Add with `addView`. */
   readonly views: RenderView[] = [];
   private renderTargets: RenderTarget[] = [];
-  /** Lines, points, sprites and text drawn after the scene (see createLineSystem / createPointSystem / createSpriteSystem). */
-  private overlays: Overlay[] = [];
+  /** Pluggable rendering features (particles, ribbons, overlays and anything added with `addFeature`). */
+  private readonly features = new FeatureRegistry();
+  /** The feature of each overlay created through `createLineSystem` / `createPointSystem` / `createSpriteSystem`. */
+  private overlayFeatures = new Map<Overlay, RenderFeature>();
+  /** Handed to the features' hooks; filled in at the start of every frame. */
+  private featureFrame!: FeatureFrame;
   private viewScratch = new Map<boolean, ViewScratch>();
   private probeVisibility = new VisibilitySystem();
   private lastTime = 0;
@@ -283,7 +289,7 @@ export class Renderer {
   createLineSystem(o?: LineSystemOptions): LineSystem {
     this.syncFramebuffer();
     const s = new LineSystem(this.gpu, this.layouts, this.extrasTarget, o);
-    this.overlays.push(s);
+    this.addOverlay(s);
     return s;
   }
 
@@ -291,7 +297,7 @@ export class Renderer {
   createPointSystem(o?: PointSystemOptions): PointSystem {
     this.syncFramebuffer();
     const s = new PointSystem(this.gpu, this.layouts, this.extrasTarget, o);
-    this.overlays.push(s);
+    this.addOverlay(s);
     return s;
   }
 
@@ -299,15 +305,31 @@ export class Renderer {
   createSpriteSystem(o: SpriteSystemOptions): SpriteSystem {
     this.syncFramebuffer();
     const s = new SpriteSystem(this.gpu, this.layouts, this.extrasTarget, o);
-    this.overlays.push(s);
+    this.addOverlay(s);
     return s;
   }
 
   /** Stop drawing a line / point / sprite system. */
   removeOverlay(o: Overlay): void {
-    const i = this.overlays.indexOf(o);
-    if (i >= 0) this.overlays.splice(i, 1);
+    const f = this.overlayFeatures.get(o);
+    if (f) { this.features.remove(f); this.overlayFeatures.delete(o); }
   }
+
+  private addOverlay(o: Overlay): void { this.overlayFeatures.set(o, this.features.add(overlayFeature(o))); }
+
+  // ---- features -----------------------------------------------------------------------------------------------------------------
+
+  /**
+   * Plug a {@link RenderFeature} into the frame: it can upload data, add compute / render passes to the graph, draw in the main pass and
+   * react to HDR / MSAA changes, without any change to the renderer. Returns the feature.
+   */
+  addFeature<T extends RenderFeature>(feature: T): T {
+    this.gpu.resources.pipelines.unfreeze();   // the feature may create pipelines on first use
+    return this.features.add(feature);
+  }
+
+  /** Unregister a feature (its GPU resources stay with the feature: destroy them yourself). */
+  removeFeature(feature: RenderFeature): boolean { return this.features.remove(feature); }
 
   // ---- render-to-texture: render targets, off-screen views, probe capture -------------------------------------------------------------
 
@@ -496,7 +518,10 @@ export class Renderer {
   /** Create the GPU particle system bound to this renderer's frame layout / render target. */
   enableParticles(): ParticleSystem {
     this.syncFramebuffer();
-    this.particles ??= new ParticleSystem(this.gpu, this.layouts, this.meshes, this.extrasTarget);
+    if (!this.particles) {
+      this.particles = new ParticleSystem(this.gpu, this.layouts, this.meshes, this.extrasTarget);
+      this.features.add(particleFeature(this.particles));
+    }
     return this.particles;
   }
 
@@ -504,6 +529,7 @@ export class Renderer {
   createRibbonSystem(config: RibbonSystemConfig): RibbonSystem {
     this.syncFramebuffer();
     const rs = new RibbonSystem(this.gpu, this.layouts, this.extrasTarget, config);
+    this.features.add(ribbonFeature(rs, this.ribbonSystems.length));
     this.ribbonSystems.push(rs);
     return rs;
   }
@@ -529,9 +555,7 @@ export class Renderer {
     this.extrasTarget.colorFormat = colorFormat; this.extrasTarget.sampleCount = samples;
     this.pipeCache.length = 0; this.pipeSort.length = 0; this.pipeFailed.length = 0;
     this.skybox.retarget();
-    for (const o of this.overlays) o.retarget();
-    this.particles?.retarget();
-    for (const rs of this.ribbonSystems) rs.retarget();
+    this.features.retarget();
     if (!first) {
       this.gpu.resources.pipelines.unfreeze();      // a deliberate configuration change is not a steady-state violation
       if (this.depthTexture) this.resize(this.gpu.canvas.width, this.gpu.canvas.height);
@@ -624,11 +648,12 @@ export class Renderer {
 
     const enc = device.createCommandEncoder();
     this.profiler.beginFrame();
-    for (const o of this.overlays) o.flush();
+    this.fillFeatureFrame(rw, time);
+    this.features.prepare(this.featureFrame);
     this.recordPasses(enc, rw, lights, time);
     this.profiler.resolve(enc);
     queue.submit([enc.finish()]);
-    for (const o of this.overlays) if (o.autoClear) o.clear();
+    this.features.endFrame();
     const t4 = performance.now();
     st.cpu.encoding = t4 - t3;
     st.cpu.total = t4 - t0;
@@ -740,8 +765,7 @@ export class Renderer {
     if (f.useClusters && rw.hasCamera) {
       g.addPass({ name: 'clusters', reads: ['lights'], writes: ['clusterGrid'], execute: (e) => this.clusters.encode(e, cam.view, cam.projection[0], cam.projection[5], cam.near, cam.far, L, this.profiler.writes('clusters')) });
     }
-    if (this.particles) g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.particles!.encodeCompute(e) });   // emit/simulate/compact before any draw reads them
-    if (this.ribbonSystems.length) g.addPass({ name: 'ribbons-update', writes: ['ribbons'], execute: (e) => { for (const rs of this.ribbonSystems) rs.encodeCompute(e); } });
+    this.features.addPasses(g, this.featureFrame);
     const twoPhase = f.gpuCull && this.gpuCulling === 'hiz2';
     const prepass = this.depthPrepass && rw.hasCamera && f.total > 0;
     this.prepassActive = prepass;
@@ -754,6 +778,7 @@ export class Renderer {
     if (twoPhase) this.addTwoPhaseMainPasses(g, rw);
     else this.addMainPass(g, rw, prepass);
     if (this.post.needsAux) this.addAuxPass(g, rw);
+    if (this.post.enabled) this.features.addPostPasses(g, { ...this.featureFrame, sceneTexture: this.post.sceneTexture, width: this.gpu.canvas.width, height: this.gpu.canvas.height });
     this.post.addPasses(g, { projection: cam.projection, depthView: this.depthSampleView, depthSamples: this.target.sampleCount });
     g.compile();
     g.execute(enc);
@@ -898,13 +923,21 @@ export class Renderer {
   /** Draws that follow opaque + transparent geometry in the main pass: skybox (unless drawn separately), particles, ribbons, overlays. */
   private drawExtras(pass: GPURenderPassEncoder, rw: RenderWorld, sky = true): void {
     if (sky) this.drawSky(pass, rw);
-    if (rw.hasCamera && this.particles && this.particles.pools.length) this.particles.encodeDraw(pass, this.frameUniform.bindGroup);   // after opaque + transparent geometry
-    if (rw.hasCamera) for (const rs of this.ribbonSystems) rs.encodeDraw(pass, this.frameUniform.bindGroup);                            // one draw per ribbon system
-    if (rw.hasCamera) for (const o of this.overlays) o.encodeDraw(pass, this.frameUniform.bindGroup);                                    // lines / points / sprites / text on top
+    this.features.drawMain(pass, this.featureFrame);   // after opaque + transparent geometry: particles, ribbons, lines / points / sprites / text, custom features
+  }
+
+  /** Update the per-frame object handed to the features' hooks. */
+  private fillFeatureFrame(rw: RenderWorld, time: number): void {
+    const f = this.featureFrame;
+    f.camera = rw.camera; f.hasCamera = rw.hasCamera; f.time = time;
+    f.sceneBindGroup = this.sceneResources.bindGroup;
   }
 
   /** Resources the main pass(es) read, declared so the render graph orders them after their producers. */
-  private static readonly MAIN_READS = ['shadowMap', 'clusterGrid', 'particles', 'ribbons', 'lights', 'fogVolume'];
+  private static readonly MAIN_READS = ['shadowMap', 'clusterGrid', 'lights', 'fogVolume'];
+
+  /** Resources the main pass(es) read: the engine's own plus whatever the registered features produce. */
+  private get mainReads(): string[] { return [...Renderer.MAIN_READS, ...this.features.producedResources]; }
 
   /** Name of the graph resource the main pass(es) produce: the swap chain, or the HDR scene target when the post chain is on. */
   private get colorResource(): string { return this.post.enabled ? 'sceneColor' : 'backbuffer'; }
@@ -937,7 +970,7 @@ export class Renderer {
       { view: this.depthView, depthClearValue: 1, depthLoadOp: load ? 'load' : 'clear', depthStoreOp: 'store' });
     if (!this.transmissionActive) {
       // opaque + alpha-masked, then the sky, then blended / transmissive surfaces, then particles / ribbons / overlays
-      g.addPass({ name: 'main', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
+      g.addPass({ name: 'main', reads: [...this.mainReads, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
         const pass = enc.beginRenderPass({
           label: 'main', timestampWrites: this.profiler.writes('main'),
           colorAttachments: [this.mainColorAttachment(true)], depthStencilAttachment: depthAttachment(prepass),
@@ -951,7 +984,7 @@ export class Renderer {
       return;
     }
     // Screen-space transmission: finish the opaque scene + sky, copy it (with mips), then draw what refracts it.
-    g.addPass({ name: 'main-opaque', reads: [...Renderer.MAIN_READS, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
+    g.addPass({ name: 'main-opaque', reads: [...this.mainReads, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main-opaque', timestampWrites: this.profiler.writes('main'),
         colorAttachments: [this.mainColorAttachment(true, true)], depthStencilAttachment: depthAttachment(prepass),
@@ -961,7 +994,7 @@ export class Renderer {
       pass.end();
     } });
     g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.transmission.copyFrom(enc, this.post.sceneTexture) });
-    g.addPass({ name: 'main-late', reads: ['transmissionTex', 'particles', 'ribbons'], writes: ['sceneColor'], execute: (enc) => {
+    g.addPass({ name: 'main-late', reads: ['transmissionTex', ...this.features.producedResources], writes: ['sceneColor'], execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main-late', colorAttachments: [this.mainColorAttachment(false)], depthStencilAttachment: depthAttachment(true),
       });
@@ -978,7 +1011,7 @@ export class Renderer {
   private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
     const cam = rw.camera, f = this.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
-    g.addPass({ name: 'main-A', reads: [...Renderer.MAIN_READS, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
+    g.addPass({ name: 'main-A', reads: [...this.mainReads, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main-A', timestampWrites: this.profiler.writes('mainA'),
         colorAttachments: [this.mainColorAttachment(true)],
@@ -990,7 +1023,7 @@ export class Renderer {
     g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthView, this.profiler.writes('hiz')) });
     g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
       execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
-    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', 'particles', 'ribbons'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
+    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', ...this.features.producedResources], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
       const pass = enc.beginRenderPass({
         label: 'main-B', timestampWrites: this.profiler.writes('mainB'),
         colorAttachments: [this.mainColorAttachment(false)],

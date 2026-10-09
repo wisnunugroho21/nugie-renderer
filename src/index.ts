@@ -54,6 +54,9 @@ export { PointSystem, type PointSystemOptions } from './rendering/overlay/PointS
 export { SpriteSystem, TextHandle, spriteSheetUV, type SpriteSystemOptions, type SpriteDesc, type TextOptions } from './rendering/overlay/SpriteSystem';
 export { createFont, layoutText, DEFAULT_CHARS, type Font, type FontMetrics, type FontOptions, type GlyphInfo, type GlyphQuad, type TextLayout, type TextLayoutOptions } from './rendering/overlay/Font';
 export type { Overlay, Color, Vec3 as Point3 } from './rendering/overlay/Overlay';
+export type { RenderFeature, FeatureFrame, PostFeatureFrame } from './rendering/RenderFeature';
+export { FullscreenEffect, type FullscreenEffectOptions } from './rendering/post/FullscreenEffect';
+export { RenderGraph, type PassDesc } from './rendering/RenderGraph';
 
 // --- render-to-texture ---------------------------------------------------------------------------------------------------
 export { RenderTarget, RENDER_TARGET_FORMAT, type RenderTargetDesc } from './rendering/RenderTarget';

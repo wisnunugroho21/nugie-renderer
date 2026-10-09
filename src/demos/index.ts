@@ -11,11 +11,12 @@ import { animationGraphDemo } from './animationGraphDemo';
 import { renderTargetDemo } from './renderTargetDemo';
 import { shapesDemo } from './shapesDemo';
 import { materialGalleryDemo } from './materialGalleryDemo';
+import { featureDemo } from './featureDemo';
 
 /** Demo registry: the `?scene=<name>` URL parameter selects an entry. Add new demos here. */
 export const DEMOS: Record<string, Demo> = {
   materials: materialsDemo, gltf: gltfDemo, character: characterDemo, particles: particlesDemo,
-  lod: lodDemo, lights: lightsDemo, occlusion: occlusionDemo, streaming: streamingDemo, animgraph: animationGraphDemo, rtt: renderTargetDemo, shapes: shapesDemo, gallery: materialGalleryDemo,
+  lod: lodDemo, lights: lightsDemo, occlusion: occlusionDemo, streaming: streamingDemo, animgraph: animationGraphDemo, rtt: renderTargetDemo, shapes: shapesDemo, gallery: materialGalleryDemo, feature: featureDemo,
 };
 
 /** Demo used when `?scene=` is missing or unknown. */
