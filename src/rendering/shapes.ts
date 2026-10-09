@@ -1,4 +1,5 @@
 import type { MeshData } from './primitives';
+import { sub, add, mul, dot, cross, len, norm, type Tuple3 } from '../math/Tuple3';
 import { STANDARD_VERTEX_FLOATS as F } from './VertexLayouts';
 
 /**
@@ -8,14 +9,7 @@ import { STANDARD_VERTEX_FLOATS as F } from './VertexLayouts';
  * flat. All sizes are options with sensible defaults, so `createCylinder()` is a unit-diameter, unit-height cylinder.
  */
 
-type V3 = [number, number, number];
-const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const mul = (a: V3, s: number): V3 => [a[0] * s, a[1] * s, a[2] * s];
-const dot = (a: V3, b: V3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const len = (a: V3): number => Math.hypot(a[0], a[1], a[2]);
-const norm = (a: V3, fallback: V3 = [0, 1, 0]): V3 => { const l = len(a); return l > 1e-12 ? [a[0] / l, a[1] / l, a[2] / l] : fallback; };
+type V3 = Tuple3;
 /** Any unit vector perpendicular to `n`. */
 const perpendicular = (n: V3): V3 => norm(Math.abs(n[0]) < 0.9 ? cross(n, [1, 0, 0]) : cross(n, [0, 1, 0]));
 

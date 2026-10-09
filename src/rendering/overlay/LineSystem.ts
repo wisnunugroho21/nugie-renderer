@@ -1,6 +1,7 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import type { BindLayouts } from '../../gpu/BindLayouts';
 import { LINES_SOURCE, registerEngineShaderChunks } from '../../shaders';
+import { sub, mul, len, norm, basisFromNormal } from '../../math/Tuple3';
 import { StorageArray, type Overlay, type OverlayTarget, type Color, type Vec3 } from './Overlay';
 
 export interface LineSystemOptions {
@@ -159,7 +160,7 @@ export class LineSystem implements Overlay {
     d[o + 4] = b[0]; d[o + 5] = b[1]; d[o + 6] = b[2]; d[o + 7] = width;
     d[o + 8] = ca[0]; d[o + 9] = ca[1]; d[o + 10] = ca[2]; d[o + 11] = ca[3] ?? 1;
     d[o + 12] = cb[0]; d[o + 13] = cb[1]; d[o + 14] = cb[2]; d[o + 15] = cb[3] ?? 1;
-    d[o + 16] = startDist; d[o + 17] = startDist + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); d[o + 18] = 0; d[o + 19] = 0;
+    d[o + 16] = startDist; d[o + 17] = startDist + len(sub(b, a)); d[o + 18] = 0; d[o + 19] = 0;
     this.n++; this.dirty = true;
     return this;
   }
@@ -167,7 +168,7 @@ export class LineSystem implements Overlay {
   /** Connected segments through `points` (like three.js `Line`); `closed` joins the last point back to the first (`LineLoop`). */
   polyline(points: ReadonlyArray<Vec3>, color: Color = this.color, width: number = this.width, closed = false): this {
     let dist = 0;                                     // the dash pattern runs on across the joints
-    const seg = (a: Vec3, b: Vec3) => { this.gradient(a, b, color, color, width, dist); dist += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); };
+    const seg = (a: Vec3, b: Vec3) => { this.gradient(a, b, color, color, width, dist); dist += len(sub(b, a)); };
     for (let i = 0; i + 1 < points.length; i++) seg(points[i], points[i + 1]);
     if (closed && points.length > 2) seg(points[points.length - 1], points[0]);
     return this;
@@ -198,14 +199,10 @@ export class LineSystem implements Overlay {
 
   /** A circle of `radius` around `centre` in the plane with the given `normal`. */
   circle(centre: Vec3, normal: Vec3, radius: number, color: Color = this.color, segments = 32, width: number = this.width): this {
-    const nl = Math.hypot(normal[0], normal[1], normal[2]) || 1, n: Vec3 = [normal[0] / nl, normal[1] / nl, normal[2] / nl];
-    const ref: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-    let ux = n[1] * ref[2] - n[2] * ref[1], uy = n[2] * ref[0] - n[0] * ref[2], uz = n[0] * ref[1] - n[1] * ref[0];
-    const ul = Math.hypot(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul;
-    const vx = n[1] * uz - n[2] * uy, vy = n[2] * ux - n[0] * uz, vz = n[0] * uy - n[1] * ux;
+    const [u, v] = basisFromNormal(norm(normal));
     const pt = (k: number): Vec3 => {
       const a = (k / segments) * Math.PI * 2, c = Math.cos(a) * radius, s = Math.sin(a) * radius;
-      return [centre[0] + ux * c + vx * s, centre[1] + uy * c + vy * s, centre[2] + uz * c + vz * s];
+      return [centre[0] + u[0] * c + v[0] * s, centre[1] + u[1] * c + v[1] * s, centre[2] + u[2] * c + v[2] * s];
     };
     for (let k = 0; k < segments; k++) this.line(pt(k), pt(k + 1), color, width);
     return this;
@@ -218,17 +215,14 @@ export class LineSystem implements Overlay {
 
   /** A line with an arrow head at `to` (head length `head`, default 15% of the length). */
   arrow(from: Vec3, to: Vec3, color: Color = this.color, head?: number, width: number = this.width): this {
-    const d = [to[0] - from[0], to[1] - from[1], to[2] - from[2]], l = Math.hypot(d[0], d[1], d[2]);
+    const d = sub(to, from), l = len(d);
     this.line(from, to, color, width);
     if (l < 1e-9) return this;
-    const h = head ?? l * 0.15, u = [d[0] / l, d[1] / l, d[2] / l];
-    const ref: Vec3 = Math.abs(u[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-    let px = u[1] * ref[2] - u[2] * ref[1], py = u[2] * ref[0] - u[0] * ref[2], pz = u[0] * ref[1] - u[1] * ref[0];
-    const pl = Math.hypot(px, py, pz) || 1; px /= pl; py /= pl; pz /= pl;
-    const qx = u[1] * pz - u[2] * py, qy = u[2] * px - u[0] * pz, qz = u[0] * py - u[1] * px;
-    const back: Vec3 = [to[0] - u[0] * h, to[1] - u[1] * h, to[2] - u[2] * h], r = h * 0.4;
+    const h = head ?? l * 0.15, u = mul(d, 1 / l);
+    const [p, q] = basisFromNormal(u);
+    const back = sub(to, mul(u, h)), r = h * 0.4;
     for (const [sx, sy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      this.line(to, [back[0] + (px * sx + qx * sy) * r, back[1] + (py * sx + qy * sy) * r, back[2] + (pz * sx + qz * sy) * r], color, width);
+      this.line(to, [back[0] + (p[0] * sx + q[0] * sy) * r, back[1] + (p[1] * sx + q[1] * sy) * r, back[2] + (p[2] * sx + q[2] * sy) * r], color, width);
     }
     return this;
   }

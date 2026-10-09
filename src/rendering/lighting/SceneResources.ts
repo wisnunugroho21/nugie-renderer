@@ -65,9 +65,11 @@ export class SceneResources {
   private bg: GPUBindGroup | null = null;
   private shadowBg: GPUBindGroup | null = null;
   private volumeBg: GPUBindGroup | null = null;
-  private dummyFogView!: GPUTextureView;
-  private dummyShadowView: GPUTextureView;
-  private defaultTransmission!: GPUTextureView;
+  // 1x1 stand-ins that keep every binding valid until the real resource exists (or while it must not be sampled)
+  private readonly dummyFogView: GPUTextureView;
+  private readonly dummyShadowView: GPUTextureView;
+  private readonly defaultTransmission: GPUTextureView;
+  private readonly defaultCube: GPUTextureView;
   private lightCapacity = 256;
   private lightsVersion = -1;
   private uniformData = new ArrayBuffer(SCENE_UNIFORM_BYTES);
@@ -88,12 +90,13 @@ export class SceneResources {
     this.shadowMap = shadow.createView({ dimension: '2d-array' });
     this.dummyShadowView = this.shadowMap;
     this.shadowSampler = r.samplers.get({ compare: 'less', magFilter: 'linear', minFilter: 'linear' });
-    /** A 1x1 black cube-map view used until a real environment is set. */
-    const cube = () => r.textures.create({ label: 'env-default', size: [1, 1, 6], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }).createView({ dimension: 'cube' });
-    this.envIrradiance = cube(); this.envSpecular = cube();
-    /** A 1x1 default 2D texture view. */
+    // a 1x1 black cube map stands in until a real environment is set
+    this.defaultCube = r.textures.create({ label: 'env-default', size: [1, 1, 6], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }).createView({ dimension: 'cube' });
+    this.envIrradiance = this.defaultCube; this.envSpecular = this.defaultCube;
     const tex2 = (label: string) => r.textures.create({ label, size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING }).createView();
-    this.brdfLut = tex2('brdf-default'); this.transmission = tex2('transmission-default'); this.defaultTransmission = this.transmission;
+    this.brdfLut = tex2('brdf-default');
+    this.defaultTransmission = tex2('transmission-default');
+    this.transmission = this.defaultTransmission;
     // LTC inverse-matrix table (offline fit, tools/fitLTC.ts): rgb = (ia, ib, ic)
     const ltc = r.textures.create({ label: 'ltc-matrix', size: [LTC_SIZE, LTC_SIZE], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
     const half = new Uint16Array(LTC_SIZE * LTC_SIZE * 4), one = floatToHalf(1);
@@ -163,11 +166,10 @@ export class SceneResources {
   /** Bind the shadow map array and the light matrices buffer (called by the ShadowSystem). */
   setShadowResources(map: GPUTextureView, matrices: GPUBuffer): void { this.shadowMap = map; this.shadowMatrices = matrices; this.invalidate(); }
 
-
-  /** Bind the split-sum BRDF LUT (used by IBL and by area-light specular). */
   /** Bind the fog volume produced by VolumetricFog (null restores the 'no fog' default). */
   setFogVolume(view: GPUTextureView | null): void {
-    if (view) this.fogVolume = view; else this.fog.enabled = false;
+    this.fogVolume = view ?? this.dummyFogView;
+    if (!view) this.fog.enabled = false;
     this.invalidate();
   }
 
@@ -181,10 +183,7 @@ export class SceneResources {
       if (brdfLut) this.brdfLut = brdfLut.createView();
       this.env = { enabled: true, intensity, rotation, mipCount: env.specularMipCount };
     } else {
-      const { r } = { r: this.gpu.resources };
-      /** A 1x1 black cube-map view used until a real environment is set. */
-      const cube = () => r.textures.create({ label: 'env-default', size: [1, 1, 6], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }).createView({ dimension: 'cube' });
-      this.envIrradiance = cube(); this.envSpecular = cube();
+      this.envIrradiance = this.defaultCube; this.envSpecular = this.defaultCube;
       this.env = { enabled: false, intensity: 1, rotation: 0, mipCount: 1 };
     }
     this.invalidate();

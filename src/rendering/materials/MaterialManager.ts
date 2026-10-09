@@ -16,7 +16,7 @@ import {
   generateParamAccessors, hashString, layoutParams, packParams, validateCustomShader, type ParamLayout,
 } from './CustomShader';
 
-const RECORD_WORDS = 16; // 64 bytes (matches MaterialRecord in common.wgsl)
+const RECORD_WORDS = 16; // 64 bytes (matches MaterialRecord in common_types.wgsl)
 const TEX_SLOTS = TEXTURE_SLOT_COUNT;
 
 export interface PassTarget {
@@ -41,8 +41,8 @@ const ALPHA_BLEND: GPUBlendState = {
 };
 
 /**
- * Shared material runtime. Every material (PBR, emissive, custom) is one 64-byte record in ONE shared MaterialBuffer; custom
- * parameters live in the same buffer, in a region after the records (viewed as vec4s: see `paramVec4` in common_funcs.wgsl).
+ * Shared material runtime. Every material (PBR, custom, error) is one 64-byte record in ONE shared MaterialBuffer; custom
+ * parameters live in the same buffer, in a region after the records (viewed as vec4s: see `paramVec4` in common_bind_material.wgsl).
  * Material id == record index. Per-material GPU state is only a (cached) bind group of textures.
  */
 export class MaterialManager {
@@ -55,7 +55,7 @@ export class MaterialManager {
   readonly defaultMaterial: number;
   readonly errorMaterial: number;
 
-  materialBuffer!: GPUBuffer;
+  materialBuffer: GPUBuffer;
 
   private recCap = 64;
   private recBuf = new ArrayBuffer(this.recCap * RECORD_WORDS * 4);
@@ -73,19 +73,24 @@ export class MaterialManager {
   private layouts_ = new Map<string, ParamLayout>(); // by shaderId
   private customSources = new Map<string, string>(); // shaderId -> full WGSL
   private sortIds = new Map<string, number>();
+  // depth-only / aux / shadow pipelines, created on first use
+  private prepassPipelines = new Map<string, GPURenderPipeline>();
+  private auxPipelines = new Map<string, GPURenderPipeline>();
+  private shadowPipelines = new Map<string, GPURenderPipeline>();
   private defaults!: { white: TextureRef; flatNormal: TextureRef; blackCube: GPUTextureView };
 
   /** Create the shared material / parameter buffers, the 1x1 default textures, the default PBR material and the error material. */
   constructor(private device: GPUDevice, private res: GPUResources, private layouts: BindLayouts) {
     registerEngineShaderChunks(res.shaders);
     this.createDefaultTextures();
-    this.allocateBuffers();
+    this.materialBuffer = this.makeMaterialBuffer();
     this.defaultMaterial = this.createPBR({ name: 'default', baseColor: [0.8, 0.8, 0.8, 1], metallic: 0, roughness: 0.6 });
     this.errorMaterial = this.createErrorMaterial();
   }
 
   // ---------------------------------------------------------------- creation
 
+  /** Create a PBR material (any shading model; the description selects the shader variant). Returns its id. */
   createPBR(desc: PBRMaterialDesc = {}): number {
     const t = desc.textures;
     const alphaMode = desc.alphaMode ?? (t?.alpha ? 'BLEND' : 'OPAQUE');
@@ -297,7 +302,7 @@ export class MaterialManager {
 
   /**
    * Cached render pipeline for a material in a given pass target. `deformMask` (DeformMask bits, from the MESH)
-   * selects the static / skinned / morphed / skinned+morphed vertex variant. Never creates one if already cached.
+   * selects the static / skinned / morphed / skinned+morphed vertex variant. Built on first use and cached after that (`warmup` builds them ahead of time).
    */
   getPipeline(id: number, target: PassTarget, deformMask = 0): GPURenderPipeline {
     let m = this.materials[id];
@@ -312,8 +317,6 @@ export class MaterialManager {
   private depthWrite(m: Material, t: PassTarget): boolean { return this.prepassed(m, t) ? false : m.state.depthWrite; }
   /** 'equal' after a prepass; otherwise the material's own comparison. */
   private depthCompare(m: Material, t: PassTarget): GPUCompareFunction { return this.prepassed(m, t) ? 'equal' : m.state.depthCompare; }
-
-  private prepassPipelines = new Map<string, GPURenderPipeline>();
 
   /** Depth-only pipeline matching the main pass geometry exactly (same vertex shader, no bias); alpha-masked PBR keeps cutouts. */
   getPrepassPipeline(id: number, deformMask: number, depthFormat: GPUTextureFormat, sampleCount = 1): GPURenderPipeline {
@@ -337,8 +340,6 @@ export class MaterialManager {
     this.prepassPipelines.set(key, p);
     return p;
   }
-
-  private auxPipelines = new Map<string, GPURenderPipeline>();
 
   /**
    * Pipeline of the "aux" pass that writes view-space normal / roughness / metallic for SSAO and SSR (opaque and alpha-masked PBR
@@ -369,8 +370,6 @@ export class MaterialManager {
 
   private static nextId = 0;
   private readonly managerId = MaterialManager.nextId++;
-  private shadowPipelines = new Map<string, GPURenderPipeline>();
-
   /** Depth-only pipeline for rendering this material into a shadow map (alpha-masked PBR keeps its cutout via fs_shadow). */
   getShadowPipeline(id: number, deformMask: number, depthFormat: GPUTextureFormat): GPURenderPipeline {
     let m = this.materials[id];
@@ -538,10 +537,6 @@ export class MaterialManager {
   /** Allocate the single GPU storage buffer: material records followed by the custom-parameter region. */
   private makeMaterialBuffer(): GPUBuffer {
     return this.res.buffers.create('MaterialBuffer', this.recCap * RECORD_WORDS * 4 + this.paramCapVec4 * 16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-  }
-  /** Create the shared material buffer. */
-  private allocateBuffers(): void {
-    this.materialBuffer = this.makeMaterialBuffer();
   }
 
   /** Create the 1x1 white and flat-normal textures bound to unused material slots. */
