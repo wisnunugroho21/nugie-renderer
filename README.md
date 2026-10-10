@@ -147,6 +147,7 @@ PROGRESS.md         Implementation status, measured results, known limitations
 ```
 
 For extension points and ownership rules, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For the complete startup-to-pixels trace, read [docs/RENDERER_WALKTHROUGH.md](docs/RENDERER_WALKTHROUGH.md).
 The [review and benchmark report](docs/CODE_REVIEW.md) records the verified fixes, measurements and remaining limits.
 
 ## Testing

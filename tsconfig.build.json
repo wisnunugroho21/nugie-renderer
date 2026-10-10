@@ -9,5 +9,5 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/main.ts", "src/demo", "src/game", "src/bench", "src/selftest", "src/**/*.worker.ts"]
+  "exclude": ["src/main.ts", "src/demos", "src/game", "src/bench", "src/selftest", "src/**/*.worker.ts"]
 }

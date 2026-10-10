@@ -17,7 +17,7 @@ The project keeps simulation data, render preparation, GPU resource ownership an
 | `visibility`, `picking` | Frustum/BVH/LOD decisions and CPU intersection queries | Operate on bounds and extracted data |
 | `streaming` | Texture residency decisions and uploads | Pure `StreamPolicy` plus a `StreamingDriver` adapter |
 | `particles`, `shaders` | GPU simulations and WGSL kernels | Feature adapters and GPU reference self-tests |
-| `demo`, `game`, `selftest`, `bench` | Examples, GPU validation and browser performance workloads | Add a focused example or validation workload |
+| `demos`, `game`, `selftest`, `bench` | Examples, GPU validation and browser performance workloads | Add a focused example or validation workload |
 
 ## Frame flow
 

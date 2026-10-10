@@ -14,7 +14,7 @@ async function verifyModules(directory = 'src') {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
-      if (!['demo', 'game', 'bench', 'selftest'].includes(entry.name)) count += await verifyModules(path);
+      if (!['demos', 'game', 'bench', 'selftest'].includes(entry.name)) count += await verifyModules(path);
     } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') && entry.name !== 'main.ts' && !entry.name.endsWith('.worker.ts')) {
       const output = join('dist', path.slice(4, -3));
       assert.ok(existsSync(`${output}.js`), `Missing runtime module: ${path}`);
@@ -36,4 +36,7 @@ const queue = new PriorityQueue((a, b) => a - b);
 queue.push(2); queue.push(1);
 assert.equal(queue.pop(), 1);
 assert.equal(queue.pop(), 2);
+for (const directory of ['demos', 'game', 'bench', 'selftest']) {
+  assert.ok(!existsSync(join('dist', directory)), `Application code leaked into library: ${directory}`);
+}
 console.log(`Package imports passed; ${await verifyModules()} runtime/declaration pairs verified.`);

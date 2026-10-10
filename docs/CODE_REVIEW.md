@@ -33,7 +33,7 @@ The glTF matrix/sparse behavior follows the [Khronos glTF 2.0 accessor specifica
 - Browser GPU self-tests: 34/34 pass, with no uncaptured GPU validation errors.
 - Render-to-texture demo smoke check: HUD reports zero GPU errors and zero pipelines created after freeze; captured warning/error logs are empty.
 - Browser draw-submission and GPU culling benchmark suites complete with empty warning/error logs.
-- Public/deep package import checks pass and all 177 runtime/declaration pairs are present. Packaging dry run passes; dependency audit reports zero known vulnerabilities.
+- Public/deep package import checks pass and all 161 library runtime/declaration pairs are present (demo and validation entry modules are excluded). Packaging dry run passes; dependency audit reports zero known vulnerabilities.
 
 New tests exercise RAF lifetime, invalid identities/capacities, hierarchy traversal and singular reparenting, worker failure cleanup and cancellation, graph invalidation and deep traversal, static BVH changes, picking bounds, streaming callback/reference changes, texture failure retry/cleanup, padded/sparse glTF accessors, and GPU allocation/cache/accounting behavior. CPU resource tests use fake GPU objects; the browser suite supplies actual shader execution and validation coverage.
 
