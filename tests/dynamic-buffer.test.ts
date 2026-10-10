@@ -96,3 +96,33 @@ describe('instance buffer alignment (48-byte records in a ring)', () => {
     expect(a.allocate(RECORD) % RECORD).toBe(0);
   });
 });
+
+it('rejects invalid buffer options and allocations before changing state', () => {
+  const { res, alloc } = setup();
+  const options = { label: 'invalid', usage: 128, capacity: 256 };
+  for (const frames of [0, -1, 1.5, NaN]) {
+    expect(() => new DynamicBufferAllocator(res.device, res.buffers, { ...options, frames })).toThrow(/frames/);
+  }
+  for (const capacity of [0, -1, Infinity]) {
+    expect(() => new DynamicBufferAllocator(res.device, res.buffers, { ...options, capacity })).toThrow(/capacity/);
+  }
+  for (const size of [-1, 1.5, NaN, Infinity]) expect(() => alloc.allocate(size)).toThrow(/size/);
+  expect(() => alloc.allocate(4, 0)).toThrow(/alignment/);
+  expect(alloc.allocate(4)).toBe(0);
+});
+
+it('reports actual four-byte aligned uploads and enforces device limits before growth', () => {
+  const s = setup(256);
+  s.alloc.write(new Uint8Array([1, 2, 3]));
+  s.alloc.flush();
+  expect(s.writes[0].size).toBe(4);
+  expect(s.alloc.bytesUploadedThisFrame).toBe(4);
+  const device = s.res.device;
+  Object.defineProperty(device, 'limits', { value: { maxBufferSize: 1024, maxStorageBufferBindingSize: 512 } });
+  const allocator = new DynamicBufferAllocator(device, s.res.buffers, { label: 'limited', usage: 128, capacity: 256 });
+  const generation = allocator.generation;
+  expect(() => allocator.allocate(513)).toThrow(/device limit/);
+  expect(allocator.generation).toBe(generation);
+  expect(allocator.allocate(512)).toBe(0);
+  expect(allocator.buffer.size).toBe(512);
+});

@@ -118,3 +118,13 @@ describe('rayFromNDC', () => {
     expect(rayFromNDC(inv, 0, 1).direction[1]).toBeGreaterThan(0);
   });
 });
+
+it('uses animated bounds padding exactly once for bounds-only picking', () => {
+  const s = setup();
+  const object = s.spawn(s.cube, [0, 0, -5]);
+  s.world.bounds.padding[object] = 1;
+  s.update();
+  const hit = raycastWorld(s.world, s.meshes, ray([0, 0, 0], [0, 0, -1]), { precise: false })[0];
+  expect(hit.distance).toBeCloseTo(3.5);
+  expect(raycastWorld(s.world, s.meshes, ray([2, 0, 0], [0, 0, -1]), { precise: false })).toEqual([]);
+});

@@ -137,10 +137,8 @@ export function raycastWorld(world: World, meshes: MeshManager, ray: Ray, opts: 
   BitSet.forEachAnd([mr.has, bounds.has, tr.has], (e) => {
     if (skipHidden && (mr.flags[e] & RenderFlags.Hidden)) return;
     if (opts.filter && !opts.filter(e)) return;
-    // Padded AABB (animated bounds grow by `padding`).
-    const w = bounds.world, pad = bounds.padding[e], o = e * 6;
-    const box = [w[o] - pad, w[o + 1] - pad, w[o + 2] - pad, w[o + 3] + pad, w[o + 4] + pad, w[o + 5] + pad];
-    const entry = rayAABB(ray, box, 0, limit);
+    // BoundsSystem already applies animated padding to the cached world AABB.
+    const entry = rayAABB(ray, bounds.world, e * 6, limit);
     if (entry < 0) return;
 
     const rec = meshes.get(mr.meshId[e]);

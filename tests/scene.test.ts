@@ -40,6 +40,31 @@ describe('Mat4.decompose', () => {
 });
 
 describe('groups', () => {
+  it('missing transform queries terminate and invalid indices do not alias a live group', () => {
+    const { world } = setup();
+    const group = createGroup(world);
+    createGroup(world, { parent: group });
+    for (const root of [-1, 100000, NaN, 0.5, 0x100000000]) {
+      expect(childrenOf(world, root)).toEqual([]);
+      expect(descendantsOf(world, root)).toEqual([]);
+      expect(rootOf(world, root)).toBe(-1);
+      expect(destroyTree(world, root)).toBe(0);
+      expect(() => worldPosition(world, root)).toThrow('Transform does not exist');
+    }
+  });
+
+  it('rejects preserving world pose under a singular parent without changing the hierarchy', () => {
+    const { world, update } = setup();
+    const original = createGroup(world, { position: [2, 0, 0] });
+    const singular = createGroup(world, { scale: 0 });
+    const child = createGroup(world, { parent: original, position: [1, 0, 0] });
+    update();
+    const before = wm(world, child);
+    expect(() => setParent(world, child, singular, true)).toThrow('singular parent');
+    expect(world.transforms.parent[child]).toBe(original);
+    update();
+    expect(wm(world, child)).toEqual(before);
+  });
   it('children, descendants, root, names and cycles', () => {
     const { world } = setup();
     const top = createGroup(world, { name: 'top' });

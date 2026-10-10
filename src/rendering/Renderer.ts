@@ -3,8 +3,9 @@ import { DynamicBufferAllocator } from '../gpu/DynamicBufferAllocator';
 import { createBindLayouts, type BindLayouts } from '../gpu/BindLayouts';
 import { MeshManager } from './MeshManager';
 import { MaterialManager, type PassTarget } from './materials/MaterialManager';
-import { RenderQueueBuilder, RenderQueues, countSwitches } from './RenderQueue';
-import { BatchList, INSTANCE_BYTES, INSTANCE_WORDS, buildBatches } from './BatchBuilder';
+import { countSwitches } from './RenderQueue';
+import { RenderDrawState } from './RenderDrawState';
+import { INSTANCE_BYTES, INSTANCE_WORDS, buildBatches } from './BatchBuilder';
 import { TransformBuffer } from './TransformBuffer';
 import { JointMatrixBuffer } from './JointMatrixBuffer';
 import { MorphWeightBuffer } from './MorphWeightBuffer';
@@ -48,23 +49,6 @@ import type { VisibleSet } from '../visibility/VisibilitySystem';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
-/** Per-frame batch state shared between the build phase and pass recording (one reused instance, no per-frame allocation). */
-interface FrameState {
-  /** Clustered light assignment is active this frame. */
-  useClusters: boolean;
-  /** Objects in all queues / in the opaque + alpha-mask queues (the ones GPU culling covers). */
-  total: number;
-  total01: number;
-  /** Byte offset of this frame's instance records in the ring buffer. */
-  byteOffset: number;
-  instData: Uint32Array;
-  /** GPU culling is active; the first `nCullBatches` batches go through it. */
-  gpuCull: boolean;
-  nCullBatches: number;
-  /** A visible opaque batch uses a transmissive material. */
-  transmissive: boolean;
-}
-
 /** Everything an off-screen render needs besides the scene: a camera and the colour / depth views to draw into. */
 interface ViewJob {
   camera: Camera;
@@ -85,13 +69,7 @@ interface ViewJob {
 /** Per-variant (normal / mirrored winding) scratch state of off-screen renders, swapped in while a view is drawn. */
 interface ViewScratch {
   target: PassTarget;
-  queueBuilder: RenderQueueBuilder;
-  queues: RenderQueues;
-  batches: BatchList;
-  frame: FrameState;
-  pipeCache: (GPURenderPipeline | undefined)[];
-  pipeSort: number[];
-  pipeFailed: boolean[];
+  state: RenderDrawState;
   slots: Uint32Array;
 }
 
@@ -142,21 +120,11 @@ export class Renderer {
   private transformBuffer: TransformBuffer;
   private instanceAlloc: DynamicBufferAllocator;
 
-  private queueBuilder = new RenderQueueBuilder();
-  private queues = new RenderQueues();
-  private batches = new BatchList();
-
-  /** Batch state of the frame being rendered (filled by buildBatches, read while recording passes). */
-  private frame: FrameState = { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0, transmissive: false };
+  private drawState = new RenderDrawState();
   /** Sun + ambient lights built from `SceneSettings`, used when the scene defines no lights. */
   private legacyLights = new LegacySceneLights();
 
   private targetPre: PassTarget;
-  // per-(material, deform variant) pipeline cache (avoids rebuilding key strings per batch)
-  private pipeCache: (GPURenderPipeline | undefined)[] = [];
-  private pipeSort: number[] = [];
-  private pipeFailed: boolean[] = [];
-
   /** Create every GPU-side manager for `gpu`: bind layouts, mesh / material managers, transform / joint / morph / instance buffers, scene resources, light clusters, shadows and the profiler. */
   constructor(private gpu: GPUContext) {
     const { device, resources: r } = gpu;
@@ -386,7 +354,7 @@ export class Renderer {
         flipWinding: v.mirror !== null, clearColor: v.clearColor ?? this.clearColor, skybox: v.skybox, visibility: v.visibility,
         excludeRef: v.target.ref, exclude: v.exclude,
       }, rw, time);
-      v.lastDrawn = this.viewScratch.get(v.mirror !== null)?.frame.total ?? 0;
+      v.lastDrawn = this.viewScratch.get(v.mirror !== null)?.state.frame.total ?? 0;
     }
     // the main view continues with its own uniforms (queue order: view writes, view submit, then these writes, main submit)
     this.frameUniform.restore(mainFrame);
@@ -408,9 +376,7 @@ export class Renderer {
     if (!s) {
       s = {
         target: { colorFormat: RENDER_TARGET_FORMAT, depthFormat: DEPTH_FORMAT, sampleCount: 1, flipWinding: flip },
-        queueBuilder: new RenderQueueBuilder(), queues: new RenderQueues(), batches: new BatchList(),
-        frame: { useClusters: false, total: 0, total01: 0, byteOffset: 0, instData: new Uint32Array(0), gpuCull: false, nCullBatches: 0, transmissive: false },
-        pipeCache: [], pipeSort: [], pipeFailed: [], slots: new Uint32Array(0),
+        state: new RenderDrawState(), slots: new Uint32Array(0),
       };
       this.viewScratch.set(flip, s);
     }
@@ -451,19 +417,19 @@ export class Renderer {
     const scratch = this.scratchFor(job.flipWinding);
     const slots = this.viewSlots(rw, job, scratch);
     const saved = {
-      target: this.target, targetPre: this.targetPre, pipeCache: this.pipeCache, pipeSort: this.pipeSort, pipeFailed: this.pipeFailed,
-      queues: this.queues, batches: this.batches, frame: this.frame, prepass: this.prepassActive, gpuCulling: this.gpuCulling,
+      target: this.target, targetPre: this.targetPre, state: this.drawState,
+      prepass: this.prepassActive, gpuCulling: this.gpuCulling,
     };
     this.target = scratch.target; this.targetPre = scratch.target;
-    this.pipeCache = scratch.pipeCache; this.pipeSort = scratch.pipeSort; this.pipeFailed = scratch.pipeFailed;
-    this.queues = scratch.queues; this.batches = scratch.batches; this.frame = scratch.frame;
+    this.drawState = scratch.state;
+
     this.prepassActive = false; this.gpuCulling = 'off';
     try {
       const cam = job.camera;
       this.frameUniform.writeView(cam, time, job.width, job.height, true);   // linear HDR output: the colour is used as a texture; no opaque copy, so views refract the environment
       this.sceneResources.writeViewUniform();
 
-      scratch.queueBuilder.build(rw, slots.slots, slots.count, this.materials.materials, this.meshes.records, cam, this.batching === 'unsorted' ? 'none' : 'sorted', this.queues);
+      scratch.state.queueBuilder.build(rw, slots.slots, slots.count, this.materials.materials, this.meshes.records, cam, this.batching === 'unsorted' ? 'none' : 'sorted', this.drawState.queues);
       this.buildBatches(rw, true);
 
       const enc = device.createCommandEncoder({ label: 'view' });
@@ -472,15 +438,15 @@ export class Renderer {
         colorAttachments: [{ view: job.colorView, clearValue: Renderer.srgbToLinear(job.clearColor), loadOp: 'clear', storeOp: 'store' }],
         depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
       });
-      if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'early');
+      if (this.drawState.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'early');
       if (job.skybox && this.showSkybox && this.sceneResources.env.enabled) this.skybox.draw(pass, this.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup);
-      if (this.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'late');
+      if (this.drawState.frame.total > 0) this.drawGeometry(pass, 'all', 0, 'late');
       pass.end();
       queue.submit([enc.finish()]);
     } finally {
       this.target = saved.target; this.targetPre = saved.targetPre;
-      this.pipeCache = saved.pipeCache; this.pipeSort = saved.pipeSort; this.pipeFailed = saved.pipeFailed;
-      this.queues = saved.queues; this.batches = saved.batches; this.frame = saved.frame;
+      this.drawState = saved.state;
+
       this.prepassActive = saved.prepass; this.gpuCulling = saved.gpuCulling;
     }
   }
@@ -553,7 +519,7 @@ export class Renderer {
     this.target.colorFormat = colorFormat; this.target.sampleCount = samples;
     this.targetPre.colorFormat = colorFormat; this.targetPre.sampleCount = samples;
     this.extrasTarget.colorFormat = colorFormat; this.extrasTarget.sampleCount = samples;
-    this.pipeCache.length = 0; this.pipeSort.length = 0; this.pipeFailed.length = 0;
+    this.drawState.pipelines.clear();
     this.skybox.retarget();
     this.features.retarget();
     if (!first) {
@@ -575,14 +541,8 @@ export class Renderer {
 
   /** Pipeline for (material, mesh deform variant); cached per pair to avoid rebuilding key strings per batch. */
   private pipelineFor(materialId: number, deformMask: number): GPURenderPipeline {
-    const m = this.materials.get(materialId);
-    const slot = materialId * 4 + deformMask;
     if (this.prepassActive) return this.materials.getPipeline(materialId, this.targetPre, deformMask);
-    const cached = this.pipeCache[slot];
-    if (cached && this.pipeSort[slot] === m.pipelineSortId && this.pipeFailed[slot] === m.failed) return cached;
-    const p = this.materials.getPipeline(materialId, this.target, deformMask);
-    this.pipeCache[slot] = p; this.pipeSort[slot] = m.pipelineSortId; this.pipeFailed[slot] = m.failed;
-    return p;
+    return this.drawState.pipelines.get(this.materials, this.target, materialId, deformMask);
   }
 
   /** Bind group 3 (transforms, instance records, joints, morph data). `culled` selects the GPU-compacted instance buffer; cached by buffer generations so it is rebuilt only when a buffer is recreated. */
@@ -633,15 +593,15 @@ export class Renderer {
     const t1 = performance.now();
     st.cpu.upload = t1 - t0;
 
-    this.queueBuilder.build(rw, visible ? visible.slots : null, vCount, this.materials.materials, this.meshes.records, rw.camera,
-      this.batching === 'unsorted' ? 'none' : 'sorted', this.queues);
+    this.drawState.queueBuilder.build(rw, visible ? visible.slots : null, vCount, this.materials.materials, this.meshes.records, rw.camera,
+      this.batching === 'unsorted' ? 'none' : 'sorted', this.drawState.queues);
     const t2 = performance.now();
     st.cpu.sorting = t2 - t1;
 
     this.buildBatches(rw);
     const t3 = performance.now();
     st.cpu.batching = t3 - t2;
-    this.transmissionActive = this.post.enabled && this.frame.transmissive && rw.hasCamera && !(this.frame.gpuCull && this.gpuCulling === 'hiz2');
+    this.transmissionActive = this.post.enabled && this.drawState.frame.transmissive && rw.hasCamera && !(this.drawState.frame.gpuCull && this.gpuCulling === 'hiz2');
     if (this.transmissionActive) this.transmission.ensure(this.gpu.canvas.width, this.gpu.canvas.height);
     this.frameUniform.setTransmission(this.transmissionActive, this.transmission.maxMip);
     this.renderViews(rw, time);
@@ -675,7 +635,7 @@ export class Renderer {
     if (this.fog && rw.hasCamera) { this.fog.resize(this.gpu.canvas.width, this.gpu.canvas.height); this.fog.applySettings(); }
     this.sceneResources.syncLights(L);
     const useClusters = this.clusteredShading && L.count > L.globalCount;
-    this.frame.useClusters = useClusters;
+    this.drawState.frame.useClusters = useClusters;
     if (useClusters) this.clusters.resize(this.gpu.canvas.width, this.gpu.canvas.height);
     this.sceneResources.writeUniform({
       lightCount: L.count, globalCount: L.globalCount, clustered: useClusters, clusterDims: useClusters ? this.clusters.dims : undefined, clusterTileSize: this.clusters.config.tileSize,
@@ -702,11 +662,11 @@ export class Renderer {
   /**
    * Turn the sorted queues into batches (one per mesh+material run) and write their instance records straight into the
    * per-frame ring buffer; also prepares GPU culling and shadow caster data and counts state switches.
-   * Results are stored in `this.frame` for {@link recordPasses}.
+   * Results are stored in `this.drawState.frame` for {@link recordPasses}.
    */
   private buildBatches(rw: RenderWorld, view = false): void {
     const st = this.stats;
-    const lists = this.queues.ordered;
+    const lists = this.drawState.queues.ordered;
     const total = lists[0].count + lists[1].count + lists[2].count;
     if (!view) this.instanceAlloc.beginFrame();   // off-screen views append to the current frame's region
     const byteOffset = this.instanceAlloc.allocate(Math.max(total, 1) * INSTANCE_BYTES);
@@ -715,14 +675,14 @@ export class Renderer {
     const instData = this.instanceAlloc.uint32.subarray(local, local + total * INSTANCE_WORDS);
     const gpuCull = this.gpuCulling !== 'off' && rw.hasCamera && total > 0;
     if (gpuCull && this.sphereScratch.length < total * 4) this.sphereScratch = new Float32Array(Math.max(total * 4, this.sphereScratch.length * 2));
-    buildBatches(lists, rw, this.meshes.records, instData, byteOffset / INSTANCE_BYTES, this.batching === 'instanced' ? 'instanced' : 'individual', this.batches, gpuCull ? this.sphereScratch : undefined);
+    buildBatches(lists, rw, this.meshes.records, instData, byteOffset / INSTANCE_BYTES, this.batching === 'instanced' ? 'instanced' : 'individual', this.drawState.batches, gpuCull ? this.sphereScratch : undefined);
     // GPU culling covers the leading opaque / alpha-mask batches (queue id < 2); transparent batches stay on the CPU path.
     let nCullBatches = 0;
-    if (gpuCull) while (nCullBatches < this.batches.count && this.batches.queue[nCullBatches] < 2) nCullBatches++;
+    if (gpuCull) while (nCullBatches < this.drawState.batches.count && this.drawState.batches.queue[nCullBatches] < 2) nCullBatches++;
     const total01 = lists[0].count + lists[1].count;
     if (gpuCull) {
       this.culler ??= new GPUCuller(this.gpu);
-      this.culler.prepare(this.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD ? (m) => this.gpuLodIndex.groupOf(m) : undefined);
+      this.culler.prepare(this.drawState.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD ? (m) => this.gpuLodIndex.groupOf(m) : undefined);
     }
     if (rw.hasCamera && !view) this.shadows.prepare(rw, this.instanceAlloc);
     this.instanceAlloc.flush();
@@ -733,14 +693,14 @@ export class Renderer {
         st.pipelineSwitches += c.pipeline; st.materialSwitches += c.material; st.meshSwitches += c.mesh;
       }
     }
-    const f = this.frame;
+    const f = this.drawState.frame;
     f.total = total; f.total01 = total01; f.byteOffset = byteOffset; f.instData = instData; f.gpuCull = gpuCull; f.nCullBatches = nCullBatches;
     this.markLateBatches();
   }
 
   /** Flag the batches drawn after the opaque geometry + sky (blended surfaces, transmissive materials) and note whether transmission is needed. */
   private markLateBatches(): void {
-    const b = this.batches, mats = this.materials.materials;
+    const b = this.drawState.batches, mats = this.materials.materials;
     if (b.late.length < b.count) b.late = new Uint8Array(Math.max(b.count, b.late.length * 2));
     let transmissive = false;
     for (let i = 0; i < b.count; i++) {
@@ -748,7 +708,7 @@ export class Renderer {
       b.late[i] = b.queue[i] === 2 || t ? 1 : 0;
       if (t) transmissive = true;
     }
-    this.frame.transmissive = transmissive;
+    this.drawState.frame.transmissive = transmissive;
   }
 
   /**
@@ -756,7 +716,7 @@ export class Renderer {
    * then compile and execute it into `enc`. The graph orders passes by their declared reads/writes and drops unused ones.
    */
   private recordPasses(enc: GPUCommandEncoder, rw: RenderWorld, L: LightData, time: number): void {
-    const cam = rw.camera, f = this.frame;
+    const cam = rw.camera, f = this.drawState.frame;
     const g = this.graph;
     g.reset();
     if (rw.hasCamera && this.shadows.layers.length) {
@@ -794,11 +754,11 @@ export class Renderer {
         label: 'aux', colorAttachments: [this.post.auxColorAttachment()],
         depthStencilAttachment: { view: this.depthView, depthReadOnly: true },
       });
-      if (rw.hasCamera && this.frame.total > 0) {
+      if (rw.hasCamera && this.drawState.frame.total > 0) {
         ap.setBindGroup(0, this.frameUniform.bindGroup); ap.setBindGroup(1, this.sceneResources.bindGroup); ap.setBindGroup(3, this.objectBindGroup());
         ap.setVertexBuffer(0, this.meshes.vertexBuffer); ap.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
         let pp: GPURenderPipeline | null = null, pm = -1;
-        const b = this.batches;
+        const b = this.drawState.batches;
         for (let i = 0; i < b.count; i++) {
           if (b.queue[i] > 1) continue;   // blended surfaces have no depth to reflect from or occlude with
           const mesh = this.meshes.get(b.meshId[i]);
@@ -823,7 +783,7 @@ export class Renderer {
       dp.setBindGroup(0, this.frameUniform.bindGroup); dp.setBindGroup(1, this.sceneResources.bindGroup); dp.setBindGroup(3, this.objectBindGroup());
       dp.setVertexBuffer(0, this.meshes.vertexBuffer); dp.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
       let pp: GPURenderPipeline | null = null, pm = -1;
-      const b = this.batches;
+      const b = this.drawState.batches;
       for (let i = 0; i < b.count; i++) {
         if (b.queue[i] > 1) continue;   // transparent surfaces never write depth
         const mesh = this.meshes.get(b.meshId[i]);
@@ -844,7 +804,7 @@ export class Renderer {
    * `frustum`: frustum cull only.
    */
   private addCullingPasses(g: RenderGraph, rw: RenderWorld, twoPhase: boolean): void {
-    const cam = rw.camera, f = this.frame;
+    const cam = rw.camera, f = this.drawState.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
     if (twoPhase) {
       this.hiz ??= new HiZ(this.gpu);
@@ -868,7 +828,7 @@ export class Renderer {
    * Without GPU culling every batch is drawn directly.
    */
   private drawGeometry(pass: GPURenderPassEncoder, which: 'all' | 'culled' | 'rest', argBase: number, part: 'all' | 'early' | 'late' = 'all'): void {
-    const f = this.frame, st = this.stats, gpuCull = f.gpuCull;
+    const f = this.drawState.frame, st = this.stats, gpuCull = f.gpuCull;
     const mats = this.materials.materials;
     /** early = opaque / alpha-masked geometry, late = blended + transmissive (drawn after the sky and, with transmission, after the opaque copy). */
     const skip = (late: boolean): boolean => (part === 'early' && late) || (part === 'late' && !late);
@@ -896,7 +856,7 @@ export class Renderer {
     }
     if (which === 'culled') return;
     if (gpuCull && which === 'all') pass.setBindGroup(3, this.objectBindGroup());   // remaining batches use the uncompacted records
-    const b = this.batches;
+    const b = this.drawState.batches;
     let curMesh = -1;
     for (let i = gpuCull ? f.nCullBatches : 0; i < b.count; i++) {
       if (skip(b.late[i] === 1)) continue;
@@ -964,7 +924,7 @@ export class Renderer {
   /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
   private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
     const geometry = (pass: GPURenderPassEncoder, part: 'early' | 'late'): void => {
-      if (rw.hasCamera && this.frame.total > 0) this.drawGeometry(pass, 'all', 0, part);
+      if (rw.hasCamera && this.drawState.frame.total > 0) this.drawGeometry(pass, 'all', 0, part);
     };
     const depthAttachment = (load: boolean): GPURenderPassDepthStencilAttachment => (
       { view: this.depthView, depthClearValue: 1, depthLoadOp: load ? 'load' : 'clear', depthStoreOp: 'store' });
@@ -1009,7 +969,7 @@ export class Renderer {
    * Hi-Z pyramid; cull-B tests everything else against it; phase B draws the newly visible rest (loads the targets) plus extras.
    */
   private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
-    const cam = rw.camera, f = this.frame;
+    const cam = rw.camera, f = this.drawState.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
     g.addPass({ name: 'main-A', reads: [...this.mainReads, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
       const pass = enc.beginRenderPass({

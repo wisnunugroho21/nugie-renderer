@@ -44,3 +44,35 @@ describe('RenderGraph', () => {
     expect(() => c.compile()).toThrow(/cycle/);
   });
 });
+
+describe('RenderGraph regression cases', () => {
+  const encoder = null as unknown as GPUCommandEncoder;
+  it('supports an external resource being read and overwritten by the first pass', () => {
+    const graph = new RenderGraph();
+    graph.addPass({ name: 'first', reads: ['history'], writes: ['history'], execute: noop });
+    graph.addPass({ name: 'second', reads: ['history'], writes: ['history'], sideEffect: true, execute: noop });
+    expect(graph.compile()).toEqual(['first', 'second']);
+  });
+  it('invalidates execution after mutation or a failed recompile', () => {
+    const graph = new RenderGraph();
+    const log: string[] = [];
+    graph.addPass({ name: 'first', reads: ['future'], writes: ['first'], sideEffect: true, execute: () => log.push('first') });
+    graph.compile();
+    graph.execute(encoder);
+    graph.addPass({ name: 'cycle', reads: ['first'], writes: ['future'], execute: noop });
+    expect(() => graph.execute(encoder)).toThrow(/compile/);
+    expect(() => graph.compile()).toThrow(/cycle/);
+    expect(() => graph.execute(encoder)).toThrow(/compile/);
+    expect(graph.order).toEqual([]);
+    expect(log).toEqual(['first']);
+  });
+  it('handles deep dependency chains without overflowing the call stack', () => {
+    const graph = new RenderGraph();
+    for (let i = 0; i < 15000; i++) {
+      graph.addPass({ name: String(i), reads: i ? [String(i - 1)] : [], writes: [String(i)], sideEffect: i === 14999, execute: noop });
+    }
+    expect(graph.compile()).toHaveLength(15000);
+    expect(graph.order[0]).toBe('0');
+    expect(graph.order[14999]).toBe('14999');
+  });
+});

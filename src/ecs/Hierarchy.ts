@@ -39,6 +39,7 @@ export function createGroup(world: World, o: GroupOptions = {}): number {
 /** Direct children of `i` (most recently attached first). */
 export function childrenOf(world: World, i: number): number[] {
   const t = world.transforms, out: number[] = [];
+  if (!t.has.has(i)) return out;
   for (let c = t.firstChild[i]; c !== -1; c = t.nextSibling[c]) out.push(c);
   return out;
 }
@@ -46,6 +47,7 @@ export function childrenOf(world: World, i: number): number[] {
 /** Visit every descendant of `root` (children, grandchildren, ...; `root` itself is not visited), parents before children. */
 export function forEachDescendant(world: World, root: number, fn: (index: number) => void): void {
   const t = world.transforms, stack: number[] = [];
+  if (!t.has.has(root)) return;
   for (let c = t.firstChild[root]; c !== -1; c = t.nextSibling[c]) stack.push(c);
   while (stack.length > 0) {
     const i = stack.pop()!;
@@ -61,9 +63,10 @@ export function descendantsOf(world: World, root: number): number[] {
   return out;
 }
 
-/** The root of `i`'s tree (`i` itself when it has no parent). */
+/** The root of `i`'s tree (`i` itself when it has no parent), or -1 for a missing transform. */
 export function rootOf(world: World, i: number): number {
   const t = world.transforms;
+  if (!t.has.has(i)) return -1;
   while (t.parent[i] !== -1) i = t.parent[i];
   return i;
 }
@@ -83,7 +86,8 @@ export function setParent(world: World, child: number, parent: number, keepWorld
     for (let k = 0; k < 16; k++) LOC[k] = w[child * 16 + k];
     if (parent >= 0) {
       for (let k = 0; k < 16; k++) TMP[k] = w[parent * 16 + k];
-      if (Mat4.invert(INV, TMP)) Mat4.multiply(LOC, INV, LOC);
+      if (!Mat4.invert(INV, TMP)) throw new Error('Cannot preserve world transform under a singular parent');
+      Mat4.multiply(LOC, INV, LOC);
     }
     t.setParent(child, parent);
     Mat4.decompose(LOC, P, Q, S);
@@ -100,6 +104,7 @@ export function setParent(world: World, child: number, parent: number, keepWorld
  * and cameras are not affected).
  */
 export function setVisible(world: World, root: number, visible: boolean): void {
+  if (!world.transforms.has.has(root)) return;
   const mr = world.meshRenderers;
   const apply = (i: number): void => {
     if (!mr.has.has(i)) return;
@@ -123,6 +128,7 @@ export function destroyTree(world: World, root: number): number {
 
 /** World-space position of entity `i` (from the last transform update). */
 export function worldPosition(world: World, i: number, out: ArrayLike<number> & { [k: number]: number } = [0, 0, 0]): typeof out {
+  if (!world.transforms.has.has(i)) throw new Error('Transform does not exist');
   const w = world.transforms.worldMatrices;
   out[0] = w[i * 16 + 12]; out[1] = w[i * 16 + 13]; out[2] = w[i * 16 + 14];
   return out;

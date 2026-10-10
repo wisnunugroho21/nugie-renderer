@@ -144,3 +144,28 @@ describe('RenderExtractor', () => {
     expect(xs.size).toBe(1000);
   });
 });
+
+it('invalidates static BVH membership when only the Static flag changes', async () => {
+  const { VisibilitySystem } = await import('../src/visibility/VisibilitySystem');
+  const s = setup();
+  const camera = entityIndex(s.world.create());
+  s.world.transforms.add(camera, 0, 0, 10);
+  s.world.cameras.add(camera, Math.PI / 3, 0.1, 100);
+  const object = s.spawn(0);
+  s.world.meshRenderers.flags[object.i] |= RenderFlags.Static;
+  s.frame();
+  const visibility = new VisibilitySystem();
+  visibility.mode = 'bvh';
+  visibility.update(s.rw);
+  const version = s.rw.structureVersion;
+  s.world.meshRenderers.flags[object.i] &= ~RenderFlags.Static;
+  s.world.transforms.setPosition(object.i, 10000, 0, 0);
+  s.frame();
+  expect(s.rw.structureVersion).toBe(version + 1);
+  expect(visibility.update(s.rw).count).toBe(0);
+  expect(visibility.bvhRebuilds).toBe(2);
+  s.world.meshRenderers.flags[object.i] |= RenderFlags.Static;
+  s.frame();
+  visibility.update(s.rw);
+  expect(visibility.bvhRebuilds).toBe(3);
+});

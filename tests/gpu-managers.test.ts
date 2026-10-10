@@ -136,3 +136,31 @@ describe('Buffers / textures / samplers', () => {
     expect(estimateTextureBytes(4, 4, 1, 'rgba8unorm', 3)).toBe(64 + 16 + 4);
   });
 });
+
+it('accounts for MSAA samples and shrinking 3D mip depth in texture memory statistics', () => {
+  const resources = new GPUResources(fakeDevice().device);
+  const texture = resources.textures.create({ size: [8, 4], format: 'rgba8unorm', usage: 16, sampleCount: 4 });
+  expect(resources.stats.textureBytes).toBe(8 * 4 * 4 * 4);
+  resources.textures.destroy(texture);
+  expect(resources.stats.textureBytes).toBe(0);
+  expect(estimateTextureBytes(4, 4, 4, 'rgba8unorm', 3, '3d')).toBe((64 + 8 + 1) * 4);
+  expect(estimateTextureBytes(4, 4, 4, 'rgba8unorm', 3)).toBe((16 + 4 + 1) * 4 * 4);
+});
+
+it('shares concurrent pipeline warmups and retries after a rejected factory', async () => {
+  const resources = new GPUResources(fakeDevice().device);
+  let made = 0;
+  let finish!: (pipeline: GPURenderPipeline) => void;
+  const create = () => { made++; return new Promise<GPURenderPipeline>((resolve) => { finish = resolve; }); };
+  const first = resources.pipelines.primeRender(baseKey, create);
+  const second = resources.pipelines.primeRender(baseKey, create);
+  await Promise.resolve();
+  expect(made).toBe(1);
+  finish({} as GPURenderPipeline);
+  await Promise.all([first, second]);
+  expect(resources.stats.pipelineCreations).toBe(1);
+  const other = { ...baseKey, cullMode: 'front' as const };
+  await expect(resources.pipelines.primeRender(other, async () => { throw new Error('compile failed'); })).rejects.toThrow('compile failed');
+  await resources.pipelines.primeRender(other, async () => ({} as GPURenderPipeline));
+  expect(resources.stats.pipelineCreations).toBe(2);
+});

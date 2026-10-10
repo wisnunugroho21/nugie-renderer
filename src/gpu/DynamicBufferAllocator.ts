@@ -32,6 +32,7 @@ export class DynamicBufferAllocator {
 
   readonly frames: number;
   readonly alignment: number;
+  private readonly maxBytes: number;
   private capacity: number;
   private cpu: ArrayBuffer;
   private f32View: Float32Array;
@@ -49,7 +50,13 @@ export class DynamicBufferAllocator {
   ) {
     this.frames = opts.frames ?? 3;
     this.alignment = opts.alignment ?? 256;
+    if (!Number.isSafeInteger(this.frames) || this.frames < 1) throw new RangeError('Dynamic buffer frames must be a positive integer');
+    if (!Number.isSafeInteger(this.alignment) || this.alignment < 4 || this.alignment % 4 !== 0) throw new RangeError('Dynamic buffer alignment must be a positive multiple of four');
+    if (!Number.isSafeInteger(opts.capacity ?? 64 * 1024) || (opts.capacity ?? 64 * 1024) < 1) throw new RangeError('Dynamic buffer capacity must be a positive integer');
+    const limits = (device as { limits?: GPUSupportedLimits }).limits;
+    this.maxBytes = Math.min(limits?.maxBufferSize ?? Infinity, opts.usage & GPUBufferUsage.STORAGE ? limits?.maxStorageBufferBindingSize ?? Infinity : Infinity);
     this.capacity = alignUp(opts.capacity ?? 64 * 1024, this.alignment);
+    if (this.capacity > this.maxBytes) throw new RangeError('Dynamic buffer capacity exceeds the device limit');
     this.cpu = new ArrayBuffer(this.capacity);
     this.f32View = new Float32Array(this.cpu);
     this.u32View = new Uint32Array(this.cpu);
@@ -86,8 +93,11 @@ export class DynamicBufferAllocator {
 
   /** Reserve `size` bytes; returns the byte offset into `buffer` (aligned to `alignment`). */
   allocate(size: number, alignment = this.alignment): number {
+    if (!Number.isSafeInteger(size) || size < 0) throw new RangeError('Dynamic buffer size must be a nonnegative integer');
+    if (!Number.isSafeInteger(alignment) || alignment < 1) throw new RangeError('Dynamic buffer allocation alignment must be a positive integer');
     const local = alignUp(this.head, alignment);
     const end = local + size;
+    if (!Number.isSafeInteger(end) || alignUp(end, 4) > this.maxBytes) throw new RangeError('Dynamic buffer allocation exceeds the device limit');
     if (end > this.capacity) this.grow(end);
     this.head = end;
     this.allocationsThisFrame++;
@@ -112,15 +122,19 @@ export class DynamicBufferAllocator {
   /** Upload this frame's used range with a single writeBuffer. */
   flush(): void {
     if (this.head === 0) return;
-    this.device.queue.writeBuffer(this.buffer, 0, this.cpu, 0, alignUp(this.head, 4));
-    this.bytesUploadedThisFrame = this.head;
-    this.totalBytesUploaded += this.head;
+    const bytes = alignUp(this.head, 4);
+    this.device.queue.writeBuffer(this.buffer, 0, this.cpu, 0, bytes);
+    this.bytesUploadedThisFrame = bytes;
+    this.totalBytesUploaded += bytes;
   }
 
   /** Double the capacity until `required` bytes fit, keeping the CPU contents and recreating the current frame's GPU buffer. Earlier offsets of this frame stay valid. */
   private grow(required: number): void {
     let cap = this.capacity;
     while (cap < required) cap *= 2;
+    cap = Math.min(cap, Math.floor(this.maxBytes / this.alignment) * this.alignment);
+    // The tail can use the remaining four-byte aligned space even if the device limit is not allocation-aligned.
+    if (cap < required) cap = alignUp(required, 4);
     const old = this.cpu;
     this.cpu = new ArrayBuffer(cap);
     new Uint8Array(this.cpu).set(new Uint8Array(old, 0, this.head));

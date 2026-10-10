@@ -1,8 +1,6 @@
-/**
- * Small promise-based worker pool. `run` queues a job, hands it to an idle worker (one job at a time per worker) and resolves with
- * the worker's reply. Transferables move buffers without copying. Jobs are processed in FIFO order; `priority` (higher first) lets
- * urgent work overtake queued work.
- */
+import { PriorityQueue } from '../core/PriorityQueue';
+
+/** The subset of a Worker needed by the pool (also usable by test doubles). */
 export interface WorkerLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
   terminate(): void;
@@ -10,65 +8,110 @@ export interface WorkerLike {
   onerror: ((e: unknown) => void) | null;
 }
 
-interface Job { msg: unknown; transfer: Transferable[]; priority: number; seq: number; resolve: (v: unknown) => void; reject: (e: unknown) => void; }
+interface Job {
+  msg: unknown;
+  transfer: Transferable[];
+  priority: number;
+  seq: number;
+  resolve: (value: unknown) => void;
+  reject: (error: unknown) => void;
+}
+interface WorkerSlot { worker: WorkerLike; job: Job | null; }
 
+function defaultSize(): number {
+  const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4;
+  return Math.max(1, Math.min(4, (cores || 4) - 1));
+}
+
+/** Promise-based worker pool: one job per worker, higher priority first, FIFO ties.
+ * A job-level error reply rejects only that job. A worker error closes the pool: a worker
+ * whose script failed to load cannot process further jobs, so none are left waiting forever.
+ */
 export class WorkerPool {
-  private workers: { w: WorkerLike; job: Job | null }[] = [];
-  private queue: Job[] = [];
+  private workers: WorkerSlot[] = [];
+  private queue = new PriorityQueue<Job>((a, b) => b.priority - a.priority || a.seq - b.seq);
   private seq = 0;
+  private closed: Error | null = null;
+  private pumping = false;
   completed = 0;
-  /** Highest number of jobs that were ever in flight at once (diagnostics / tests). */
+  /** Highest number of jobs that were ever in flight at once. */
   peakBusy = 0;
 
-  /** Spawn `size` workers from `factory` (default: min(4, cores - 1), at least 1). */
-  constructor(factory: () => WorkerLike, size = Math.max(1, Math.min(4, (typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 4) - 1))) {
-    for (let i = 0; i < size; i++) {
-      const slot = { w: factory(), job: null as Job | null };
-      slot.w.onmessage = (e) => {
-        const j = slot.job; slot.job = null; this.completed++;
-        const d = e.data as { error?: string } | null;
-        if (j) { if (d && typeof d === 'object' && 'error' in d && d.error) j.reject(new Error(d.error)); else j.resolve(e.data); }
-        this.pump();
-      };
-      slot.w.onerror = (e) => { const j = slot.job; slot.job = null; if (j) j.reject(e instanceof Error ? e : new Error(String((e as { message?: string })?.message ?? e))); this.pump(); };
-      this.workers.push(slot);
+  constructor(factory: () => WorkerLike, size = defaultSize()) {
+    if (!Number.isInteger(size) || size < 1) throw new RangeError('WorkerPool size must be a positive integer');
+    try {
+      for (let i = 0; i < size; i++) {
+        const slot: WorkerSlot = { worker: factory(), job: null };
+        this.workers.push(slot);
+        slot.worker.onmessage = (event) => {
+          const job = slot.job;
+          if (!job || this.closed) return;
+          slot.job = null;
+          this.completed++;
+          const data = event.data as { error?: string } | null;
+          if (data && typeof data === 'object' && data.error) job.reject(new Error(data.error));
+          else job.resolve(event.data);
+          this.pump();
+        };
+        slot.worker.onerror = (error) => {
+          this.close(error instanceof Error ? error : new Error(String((error as { message?: string })?.message ?? error)));
+        };
+      }
+    } catch (error) {
+      this.terminate();
+      throw error;
     }
   }
 
-  /** Number of workers. */
   get size(): number { return this.workers.length; }
-  /** Jobs queued but not yet handed to a worker. */
   get pending(): number { return this.queue.length; }
 
-  /** Queue a job: `msg` is posted to the next idle worker (buffers listed in `transfer` are moved, not copied). Resolves with the worker's reply, rejects on `{error}` replies or worker errors. */
+  /** Transferables are moved rather than copied. Rejects immediately after termination. */
   run<T>(msg: unknown, transfer: Transferable[] = [], priority = 0): Promise<T> {
+    if (this.closed) return Promise.reject(this.closed);
     return new Promise<T>((resolve, reject) => {
-      this.queue.push({ msg, transfer, priority, seq: this.seq++, resolve: resolve as (v: unknown) => void, reject });
+      this.queue.push({ msg, transfer, priority, seq: this.seq++, resolve: resolve as (value: unknown) => void, reject });
       this.pump();
     });
   }
 
-  /** Hand queued jobs (highest priority, then oldest) to every idle worker. */
   private pump(): void {
-    for (const slot of this.workers) {
-      if (slot.job || this.queue.length === 0) continue;
-      let best = 0;
-      for (let i = 1; i < this.queue.length; i++) {
-        const a = this.queue[i], b = this.queue[best];
-        if (a.priority > b.priority || (a.priority === b.priority && a.seq < b.seq)) best = i;
+    if (this.pumping || this.closed) return;
+    this.pumping = true;
+    try {
+      for (const slot of this.workers) {
+        while (!this.closed && !slot.job && this.queue.length) {
+          const job = this.queue.pop()!;
+          slot.job = job;
+          this.peakBusy = Math.max(this.peakBusy, this.workers.reduce((n, s) => n + Number(s.job !== null), 0));
+          try {
+            slot.worker.postMessage(job.msg, job.transfer);
+          } catch (error) {
+            // DataCloneError (or an invalid transferable) must not poison the slot.
+            if (slot.job === job) slot.job = null;
+            job.reject(error);
+          }
+        }
       }
-      const job = this.queue.splice(best, 1)[0];
-      slot.job = job;
-      slot.w.postMessage(job.msg, job.transfer);
-      this.peakBusy = Math.max(this.peakBusy, this.workers.filter((s) => s.job).length);
+    } finally {
+      this.pumping = false;
     }
   }
 
-  /** Terminate every worker; in-flight and queued jobs are rejected so their promises never hang. */
-  terminate(): void {
-    const err = new Error('WorkerPool terminated');
-    for (const s of this.workers) { s.w.terminate(); s.job?.reject(err); s.job = null; }
-    for (const j of this.queue) j.reject(err);
-    this.workers = []; this.queue.length = 0;
+  private close(error: Error): void {
+    if (this.closed) return;
+    this.closed = error;
+    for (const slot of this.workers) {
+      slot.worker.onmessage = null;
+      slot.worker.onerror = null;
+      slot.job?.reject(error);
+      slot.job = null;
+      slot.worker.terminate();
+    }
+    while (this.queue.length) this.queue.pop()!.reject(error);
+    this.workers.length = 0;
   }
+
+  /** Reject running, queued and future jobs and release every worker. Idempotent. */
+  terminate(): void { this.close(new Error('WorkerPool terminated')); }
 }

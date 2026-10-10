@@ -14,3 +14,15 @@ describe('buildMipChain', () => {
     expect(buildMipChain(px, 2, 2, true)[1].data[3]).toBe(255);   // alpha stays linear
   });
 });
+
+it('handles 1D textures, retains the base bytes, and rejects malformed images', () => {
+  const rgba = new Uint8Array([0, 10, 20, 30, 100, 110, 120, 130]);
+  for (const [width, height] of [[2, 1], [1, 2]]) {
+    const chain = buildMipChain(rgba, width, height, false);
+    expect(chain[0].data).toBe(rgba);
+    expect(Array.from(chain[1].data)).toEqual([50, 60, 70, 80]);
+  }
+  expect(() => buildMipChain(rgba, 0, 2, false)).toThrow(/dimensions/);
+  expect(() => buildMipChain(rgba, 1.5, 2, false)).toThrow(/dimensions/);
+  expect(() => buildMipChain(rgba, 2, 2, false)).toThrow(/bytes/);
+});

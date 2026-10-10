@@ -10,15 +10,16 @@ import type { TextureStreamer, StreamedTexture } from './TextureStreamer';
 export class StreamingDriver {
   /** The attached streamer, or null. */
   streamer: TextureStreamer | null = null;
-  /** Streamed textures used by each material (computed once per material). */
-  private refs = new Map<number, StreamedTexture[]>();
+  private coverage = new Map<number, number>();
+  private readonly viewChanged = (t: StreamedTexture): void => this.materials.textureChanged(t);
 
   constructor(private materials: MaterialManager) {}
 
   /** Attach (or detach with null) a streamer. */
   attach(s: TextureStreamer | null): void {
-    this.streamer = s; this.refs.clear();
-    if (s) s.onViewChanged = (t) => this.materials.textureChanged(t);
+    if (this.streamer?.onViewChanged === this.viewChanged) this.streamer.onViewChanged = null;
+    this.streamer = s;
+    if (s) s.onViewChanged = this.viewChanged;
   }
 
   /** Report per-material screen coverage to the streamer, then apply its plan (before the frame's bind groups are used). */
@@ -27,22 +28,20 @@ export class StreamingDriver {
     if (!s) return;
     s.beginFrame();
     const cam = rw.camera, tanHalf = Math.tan(cam.fovY / 2), sph = rw.boundsSphere;
-    const px = new Map<number, number>();
+    const px = this.coverage;
+    px.clear();
     for (let n = 0; n < visibleCount; n++) {
-      const slot = visible ? visible.slots![n] : n;
+      const slot = visible?.slots ? visible.slots[n] : n;
       const dx = sph[slot * 4] - cam.position[0], dy = sph[slot * 4 + 1] - cam.position[1], dz = sph[slot * 4 + 2] - cam.position[2];
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz), r = sph[slot * 4 + 3];
       const pixels = d <= r ? canvasHeight : (r / (d * tanHalf)) * canvasHeight;
       const m = rw.materialId[slot];
       if (pixels > (px.get(m) ?? 0)) px.set(m, pixels);
     }
-    for (const [m, pixels] of px) {
-      let refs = this.refs.get(m);
-      if (!refs) {
-        refs = this.materials.get(m).textures.filter((t): t is StreamedTexture => !!t && s.textures.includes(t as StreamedTexture));
-        this.refs.set(m, refs);
-      }
-      for (const t of refs) s.touch(t, pixels);
+    const streamed = new Set(s.textures);
+    // Material textures and streamer membership can change after the first visible frame.
+    for (const [m, pixels] of px) for (const t of this.materials.get(m).textures) {
+      if (t && streamed.has(t as StreamedTexture)) s.touch(t as StreamedTexture, pixels);
     }
     s.update();
   }

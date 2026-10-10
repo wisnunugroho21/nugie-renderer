@@ -136,7 +136,7 @@ export const Mat4 = {
    * Split a TRS matrix (no shear) into position (3), unit quaternion x, y, z, w (4) and scale (3); a mirroring matrix gets a negative
    * x scale. Inverse of `compose`.
    */
-  decompose(m: M4, pos: M4, quat: M4, scale: M4, off = 0): void {
+  decompose(m: ArrayLike<number>, pos: M4, quat: M4, scale: M4, off = 0): void {
     let sx = hypot3(m[off], m[off + 1], m[off + 2]);
     const sy = hypot3(m[off + 4], m[off + 5], m[off + 6]), sz = hypot3(m[off + 8], m[off + 9], m[off + 10]);
     const det = m[off] * (m[off + 5] * m[off + 10] - m[off + 6] * m[off + 9]) - m[off + 4] * (m[off + 1] * m[off + 10] - m[off + 2] * m[off + 9])

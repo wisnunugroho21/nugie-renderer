@@ -28,7 +28,13 @@ export class TextureLoader {
   load(key: string, image: ImageAsset, srgb: boolean): Promise<TextureRef> {
     const k = `${key}|${srgb ? 'srgb' : 'linear'}`;
     let p = this.inflight.get(k);
-    if (!p) { p = this.loadImpl(k, image, srgb); this.inflight.set(k, p); }
+    if (!p) {
+      p = this.loadImpl(k, image, srgb).catch((error: unknown) => {
+        this.inflight.delete(k); // transient fetch / decode failures can be retried
+        throw error;
+      });
+      this.inflight.set(k, p);
+    }
     return p;
   }
 
@@ -44,18 +50,24 @@ export class TextureLoader {
 
   /** Upload an already decoded bitmap (also used for procedural textures). */
   upload(id: string, bitmap: ImageBitmap, srgb: boolean): TextureRef {
-    const { device, queue, resources } = this.gpu;
+    const { queue, resources } = this.gpu;
     const format: GPUTextureFormat = srgb ? 'rgba8unorm-srgb' : 'rgba8unorm';
     const mips = mipLevelCount(bitmap.width, bitmap.height);
-    const texture = resources.textures.create({
-      label: id, size: [bitmap.width, bitmap.height], format, mipLevelCount: mips,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    queue.copyExternalImageToTexture({ source: bitmap, flipY: false }, { texture }, [bitmap.width, bitmap.height]);
-    this.mips.generate(texture, format, mips);
-    bitmap.close();
+    let texture: GPUTexture | undefined;
+    try {
+      texture = resources.textures.create({
+        label: id, size: [bitmap.width, bitmap.height], format, mipLevelCount: mips,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      queue.copyExternalImageToTexture({ source: bitmap, flipY: false }, { texture }, [bitmap.width, bitmap.height]);
+      this.mips.generate(texture, format, mips);
+    } catch (error) {
+      if (texture) resources.textures.destroy(texture);
+      throw error;
+    } finally {
+      bitmap.close();
+    }
     this.uploads++;
-    void device;
     return { id, view: texture.createView() };
   }
 }

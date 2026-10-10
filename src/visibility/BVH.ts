@@ -27,6 +27,7 @@ export class BVH {
 
   /** Build a BVH over the objects `ids`; `aabbs` holds their boxes and `aabbOffset(id)` gives each box's float offset. `leafSize` = max objects per leaf. */
   static build(ids: ArrayLike<number>, aabbs: ArrayLike<number>, aabbOffset: (id: number) => number, leafSize = 4): BVH {
+    if (!Number.isInteger(leafSize) || leafSize < 1) throw new RangeError('BVH leafSize must be a positive integer');
     const bvh = new BVH();
     const n = ids.length;
     const maxNodes = Math.max(1, 2 * n);
@@ -87,7 +88,7 @@ export class BVH {
     if (this.nodeCount === 0) return outOffset;
     const p = frustum.planes, b = this.bounds, first = this.first, cnt = this.count, order = this.order;
     let sp = 0, c = outOffset, visited = 0, tested = 0;
-    const stack = this.stack, masks = this.maskStack;
+    let stack = this.stack, masks = this.maskStack;
     stack[0] = 0; masks[0] = 0; sp = 1; // mask bit set => plane already satisfied by ancestor
     while (sp > 0) {
       sp--;
@@ -127,7 +128,10 @@ export class BVH {
           if (ok) out[c++] = order[k];
         }
       } else {
-        if (sp + 2 > stack.length) this.growStack();
+        if (sp + 2 > stack.length) {
+          this.growStack();
+          stack = this.stack; masks = this.maskStack;
+        }
         stack[sp] = first[node] + 1; masks[sp] = mask; sp++;
         stack[sp] = first[node]; masks[sp] = mask; sp++;
       }
