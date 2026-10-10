@@ -396,8 +396,7 @@ export class Engine {
    * @param update optional per-frame gameplay callback `(time, dt)`
    */
   start(update?: (time: number, dt: number) => void): void {
-    this.app.onFrame = (dt) => {
-      const time = performance.now() / 1000;
+    this.app.onFrame = (dt, time) => {
       update?.(time, dt);
       this.frame(dt, time);
       this.onFrameEnd?.(dt, time);

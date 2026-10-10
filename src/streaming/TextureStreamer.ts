@@ -3,33 +3,8 @@ import { mipLevelCount } from '../gpu/TextureManager';
 import type { TextureRef } from '../rendering/materials/Material';
 import { StreamPolicy, mipBytes, type StreamConfig, type StreamEntry } from './StreamPolicy';
 
-export interface MipImage { width: number; height: number; data: Uint8Array; }
-
-/** 8-bit sRGB value -> linear light in [0, 1]. */
-const toLinear = (v: number): number => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
-/** Linear light in [0, 1] -> 8-bit sRGB value. */
-const toSrgb = (c: number): number => Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055));
-const LUT = Float32Array.from({ length: 256 }, (_, i) => toLinear(i));
-
-/** Full RGBA8 mip chain with a box filter. sRGB colour is averaged in linear light (alpha and data textures are averaged directly). */
-export function buildMipChain(rgba: Uint8Array, width: number, height: number, srgb: boolean): MipImage[] {
-  const chain: MipImage[] = [{ width, height, data: rgba }];
-  let cur = chain[0];
-  while (cur.width > 1 || cur.height > 1) {
-    const w = Math.max(1, cur.width >> 1), h = Math.max(1, cur.height >> 1), out = new Uint8Array(w * h * 4);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const x0 = Math.min(x * 2, cur.width - 1), x1 = Math.min(x * 2 + 1, cur.width - 1), y0 = Math.min(y * 2, cur.height - 1), y1 = Math.min(y * 2 + 1, cur.height - 1);
-      const o = (y * w + x) * 4;
-      for (let c = 0; c < 4; c++) {
-        const s = [cur.data[(y0 * cur.width + x0) * 4 + c], cur.data[(y0 * cur.width + x1) * 4 + c], cur.data[(y1 * cur.width + x0) * 4 + c], cur.data[(y1 * cur.width + x1) * 4 + c]];
-        out[o + c] = srgb && c < 3 ? toSrgb((LUT[s[0]] + LUT[s[1]] + LUT[s[2]] + LUT[s[3]]) / 4) : Math.round((s[0] + s[1] + s[2] + s[3]) / 4);
-      }
-    }
-    cur = { width: w, height: h, data: out };
-    chain.push(cur);
-  }
-  return chain;
-}
+import { buildMipChain, type MipImage } from '../assets/MipChain';
+export { buildMipChain, type MipImage } from '../assets/MipChain';
 
 /** A texture whose resident mip range changes over time. Materials hold this object as their TextureRef. */
 export class StreamedTexture implements TextureRef {

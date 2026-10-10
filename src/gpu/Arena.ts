@@ -27,6 +27,8 @@ export class Arena {
     private device: GPUDevice, private buffers: BufferManager, readonly label: string, private usage: GPUBufferUsageFlags,
     readonly elementBytes: number, initialCapacity: number,
   ) {
+    if (!Number.isSafeInteger(elementBytes) || elementBytes <= 0 || elementBytes % 4 !== 0) throw new RangeError('Arena elementBytes must be a positive multiple of four');
+    if (!Number.isSafeInteger(initialCapacity) || initialCapacity < 0) throw new RangeError('Arena initialCapacity must be a nonnegative integer');
     const lim = (device as { limits?: GPUSupportedLimits }).limits;
     let max = Infinity;
     if (lim) {
@@ -34,7 +36,9 @@ export class Arena {
       if (usage & GPUBufferUsage.STORAGE) max = Math.min(max, lim.maxStorageBufferBindingSize);
     }
     this.maxBytes = max;
-    this.capacity = Math.max(1, initialCapacity);
+    // Initial capacity is a growth hint; start smaller on devices with tighter buffer limits.
+    this.capacity = Math.max(1, Math.min(initialCapacity, Math.floor(this.maxBytes / elementBytes)));
+    if (this.capacity * elementBytes > this.maxBytes) throw new ArenaCapacityError(label, this.capacity * elementBytes, this.maxBytes);
     this.buffer = this.make();
   }
 
@@ -51,14 +55,15 @@ export class Arena {
    * can never fit. Lets callers that allocate from several arenas check everything before taking any space.
    */
   ensureRoom(count: number): void {
+    if (!Number.isSafeInteger(count) || count < 0) throw new RangeError('Arena allocation count must be a nonnegative integer');
     const need = this.used + count;
     if (need > this.capacity) this.grow(need);
   }
 
   /** Reserve `count` elements; returns the element offset. */
   alloc(count: number): number {
+    this.ensureRoom(count);
     const need = this.used + count;
-    if (need > this.capacity) this.grow(need);
     const off = this.used;
     this.used = need;
     return off;

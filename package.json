@@ -10,10 +10,14 @@
     "test": "vitest run",
     "bench": "tsx benchmarks/run.ts",
     "bench:anim": "tsx benchmarks/animation.ts",
+    "bench:maintenance": "tsx benchmarks/maintenance.ts",
+    "check": "npm run typecheck && npm test && npm run build && npm run build:lib && npm run verify:package",
+    "verify:package": "node scripts/verify-package.mjs",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
-    "prepack": "npm run typecheck && npm test && npm run build:lib"
+    "prepack": "npm run typecheck && npm test && npm run build:lib && npm run verify:package"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "@webgpu/types": "^0.1.74",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
@@ -22,6 +26,9 @@
   },
   "description": "WebGPU renderer with an ECS runtime: PBR, clustered lighting, shadows, fog, GPU-driven culling, animation, particles, glTF",
   "license": "MIT",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "sideEffects": false,
   "main": "./dist/index.js",
   "module": "./dist/index.js",

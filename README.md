@@ -22,14 +22,14 @@ engine.start((time, dt) => {                                      // your gamepl
 
 ## Requirements
 
-* A current Node.js LTS (build tooling only)
+* Node.js 20.19+ or 22.12+ (build tooling only; see `package.json` for the supported range)
 * A browser with **WebGPU**: recent Chrome or Edge (desktop). The engine works within WebGPU's default limit of 8 storage buffers per
   shader stage (the vertex stage uses 6).
 
 ## Quick start
 
 ```bash
-npm install
+npm ci
 npm run dev        # http://localhost:5173/
 ```
 
@@ -51,6 +51,10 @@ Demo URL switches: `env=sky`, `hdr=<url>`, `envI=<intensity>`, `sky=0`, `fog=<de
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests (Vitest, Node, no GPU needed) |
 | `npm run bench` | CPU micro-benchmarks (transform update, culling, motion matching) |
+| `npm run bench:anim` | CPU animation and skeleton crowd benchmarks |
+| `npm run bench:maintenance` | Task queues, texture streaming policy and CPU mip generation |
+| `npm run check` | Type-check, unit tests, demo/library builds and package verification |
+| `npm run verify:package` | Check built public/deep imports and runtime/declaration pairs |
 
 ## Using it as an npm package
 
@@ -58,7 +62,7 @@ The renderer builds as an ES-module library (`dist/`, one file per source module
 geometry worker emitted as an asset).
 
 ```bash
-# in this repo: build and pack (prepack runs typecheck + tests + build:lib)
+# in this repo: build and pack (prepack runs typecheck + tests + build:lib + verify:package)
 npm pack                                   # -> nugie-renderer-0.1.0.tgz
 
 # in your game project (Vite + TypeScript)
@@ -74,8 +78,8 @@ import { Mat4 } from 'nugie-renderer/math/Mat4';                          // any
   `generateLODChainAsync` is emitted next to the library files and picked up by your build.
 * **Types:** TypeScript 5.x needs `"types": ["@webgpu/types"]` in your tsconfig (`npm i -D @webgpu/types`; it is an optional peer
   dependency). Recent TypeScript versions already ship WebGPU types. Use `"moduleResolution": "Bundler"`; `isolatedModules` is fine.
-* **Publishing:** `package.json` is no longer `private` and has `"license": "UNLICENSED"` as a placeholder - choose your license and
-  name (`@yourscope/nugie-renderer`), then `npm version patch && npm publish` (or publish to a private registry / GitHub Packages).
+* **Publishing:** the package uses the MIT license. Choose your package name (`@yourscope/nugie-renderer`), then
+  `npm version patch && npm publish` (or publish to a private registry / GitHub Packages).
 * **Developing both at once:** `npm link` in this repo and `npm link nugie-renderer` in the game, then `npm run build:lib` after
   engine changes (or point the game at the source with a Vite alias to `../nugie-renderer/src/index.ts`).
 * Verified: a separate Vite + TypeScript project installed from the packed tarball compiles under `isolatedModules`, builds, and runs
@@ -141,6 +145,10 @@ benchmarks/ tools/  CPU benchmarks; offline tools (LTC table fit, LOD timing)
 docs/               MAKING_A_GAME.md
 PROGRESS.md         Implementation status, measured results, known limitations
 ```
+
+For extension points and ownership rules, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For the complete startup-to-pixels trace, read [docs/RENDERER_WALKTHROUGH.md](docs/RENDERER_WALKTHROUGH.md).
+The [review and benchmark report](docs/CODE_REVIEW.md) records the verified fixes, measurements and remaining limits.
 
 ## Testing
 

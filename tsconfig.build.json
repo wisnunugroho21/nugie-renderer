@@ -8,6 +8,6 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "files": ["src/index.ts"],
-  "include": []
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/main.ts", "src/demos", "src/game", "src/bench", "src/selftest", "src/**/*.worker.ts"]
 }

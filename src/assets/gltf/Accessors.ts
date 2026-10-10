@@ -35,7 +35,7 @@ export function readAccessorFloat(doc: GLTFDocument, index: number): { data: Flo
   const comps = componentCount(acc.type);
   const out = new Float32Array(acc.count * comps);
   forEachElement(doc, acc, comps, acc.normalized === true, (i, c, v) => { out[i * comps + c] = v; });
-  applySparse(doc, acc, comps, (i, c, v) => { out[i * comps + c] = v; });
+  applySparse(doc, acc, comps, acc.normalized === true, (i, c, v) => { out[i * comps + c] = v; });
   return { data: out, count: acc.count, components: comps };
 }
 
@@ -45,7 +45,7 @@ export function readAccessorUint(doc: GLTFDocument, index: number): { data: Uint
   const comps = componentCount(acc.type);
   const out = new Uint32Array(acc.count * comps);
   forEachElement(doc, acc, comps, false, (i, c, v) => { out[i * comps + c] = v; });
-  applySparse(doc, acc, comps, (i, c, v) => { out[i * comps + c] = v; });
+  applySparse(doc, acc, comps, false, (i, c, v) => { out[i * comps + c] = v; });
   return { data: out, count: acc.count, components: comps };
 }
 
@@ -53,6 +53,8 @@ export function readAccessorUint(doc: GLTFDocument, index: number): { data: Uint
 export function getAccessor(doc: GLTFDocument, index: number): GLTFAccessor {
   const acc = doc.json.accessors?.[index];
   if (!acc) throw new GLTFError(`Accessor ${index} does not exist`);
+  nonnegativeInteger(acc.count, 'Accessor count');
+  if (!COMPONENT_BYTES[acc.componentType]) throw new GLTFError(`Unsupported componentType ${acc.componentType}`);
   return acc;
 }
 
@@ -63,39 +65,72 @@ function viewBytes(doc: GLTFDocument, viewIndex: number): { bytes: Uint8Array; s
   const buf = doc.buffers[view.buffer];
   if (!buf) throw new GLTFError(`buffer ${view.buffer} does not exist`);
   const start = view.byteOffset ?? 0;
+  nonnegativeInteger(start, 'bufferView offset');
+  nonnegativeInteger(view.byteLength, 'bufferView length');
+  nonnegativeInteger(view.byteStride ?? 0, 'bufferView stride');
   if (start + view.byteLength > buf.byteLength) throw new GLTFError(`bufferView ${viewIndex} exceeds its buffer`);
   return { bytes: buf.subarray(start, start + view.byteLength), stride: view.byteStride ?? 0 };
+}
+
+function nonnegativeInteger(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < 0) throw new GLTFError(`${label} must be a nonnegative integer`);
+}
+
+/** Matrix columns start on four-byte boundaries; the final padding bytes may be omitted. */
+function elementLayout(acc: GLTFAccessor, comps: number): { offsets: number[]; stride: number; size: number } {
+  const bytes = COMPONENT_BYTES[acc.componentType];
+  const rows = acc.type.startsWith('MAT') ? Math.sqrt(comps) : comps;
+  const columns = acc.type.startsWith('MAT') ? rows : 1;
+  const columnBytes = columns > 1 ? Math.ceil(rows * bytes / 4) * 4 : rows * bytes;
+  const offsets = Array.from({ length: comps }, (_, c) => Math.floor(c / rows) * columnBytes + (c % rows) * bytes);
+  return { offsets, stride: columns * columnBytes, size: offsets[comps - 1] + bytes };
+}
+
+function checkRange(base: number, step: number, count: number, size: number, byteLength: number, label: string): void {
+  nonnegativeInteger(base, `${label} offset`);
+  if (base > byteLength || (count > 0 && base + step * (count - 1) + size > byteLength)) {
+    throw new GLTFError(`${label} exceeds its bufferView`);
+  }
 }
 
 /** Visit every component of every element of a dense accessor (honours byteStride / byteOffset); a missing bufferView means all zeros. */
 function forEachElement(doc: GLTFDocument, acc: GLTFAccessor, comps: number, normalized: boolean, cb: (i: number, c: number, v: number) => void): void {
   if (acc.bufferView === undefined) return; // zero-initialized (valid when sparse provides values)
   const { bytes, stride } = viewBytes(doc, acc.bufferView);
-  const cb_ = COMPONENT_BYTES[acc.componentType];
-  if (!cb_) throw new GLTFError(`Unsupported componentType ${acc.componentType}`);
-  const elementSize = cb_ * comps;
-  const step = stride || elementSize;
+  const layout = elementLayout(acc, comps);
+  const step = stride || layout.stride;
+  if (step < layout.stride || step % COMPONENT_BYTES[acc.componentType] !== 0) throw new GLTFError('Invalid accessor byteStride');
   const base = acc.byteOffset ?? 0;
-  if (acc.count > 0 && base + step * (acc.count - 1) + elementSize > bytes.byteLength) throw new GLTFError('Accessor exceeds its bufferView');
+  checkRange(base, step, acc.count, layout.size, bytes.byteLength, 'Accessor');
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let i = 0; i < acc.count; i++) {
     const o = base + i * step;
-    for (let c = 0; c < comps; c++) cb(i, c, readComponent(dv, o + c * cb_, acc.componentType, normalized));
+    for (let c = 0; c < comps; c++) cb(i, c, readComponent(dv, o + layout.offsets[c], acc.componentType, normalized));
   }
 }
 
 /** Overwrite the accessor values listed by its `sparse` substitution (indices + replacement values) through `set`. */
-function applySparse(doc: GLTFDocument, acc: GLTFAccessor, comps: number, set: (i: number, c: number, v: number) => void): void {
+function applySparse(doc: GLTFDocument, acc: GLTFAccessor, comps: number, normalized: boolean, set: (i: number, c: number, v: number) => void): void {
   const sp = acc.sparse;
   if (!sp) return;
+  nonnegativeInteger(sp.count, 'Sparse count');
+  if (sp.count > acc.count) throw new GLTFError('Sparse count exceeds accessor count');
+  if (![ComponentType.Uint8, ComponentType.Uint16, ComponentType.Uint32].includes(sp.indices.componentType)) {
+    throw new GLTFError('Sparse indices must use an unsigned integer componentType');
+  }
   const idxView = viewBytes(doc, sp.indices.bufferView), valView = viewBytes(doc, sp.values.bufferView);
   const idxDV = new DataView(idxView.bytes.buffer, idxView.bytes.byteOffset, idxView.bytes.byteLength);
   const valDV = new DataView(valView.bytes.buffer, valView.bytes.byteOffset, valView.bytes.byteLength);
-  const ib = COMPONENT_BYTES[sp.indices.componentType], vb = COMPONENT_BYTES[acc.componentType];
-  const norm = acc.normalized === true;
+  const ib = COMPONENT_BYTES[sp.indices.componentType], layout = elementLayout(acc, comps);
+  const indexBase = sp.indices.byteOffset ?? 0, valueBase = sp.values.byteOffset ?? 0;
+  checkRange(indexBase, ib, sp.count, ib, idxView.bytes.byteLength, 'Sparse indices');
+  checkRange(valueBase, layout.stride, sp.count, layout.size, valView.bytes.byteLength, 'Sparse values');
+  let previous = -1;
   for (let k = 0; k < sp.count; k++) {
-    const target = readComponent(idxDV, (sp.indices.byteOffset ?? 0) + k * ib, sp.indices.componentType, false);
+    const target = readComponent(idxDV, indexBase + k * ib, sp.indices.componentType, false);
     if (target >= acc.count) throw new GLTFError('Sparse index out of range');
-    for (let c = 0; c < comps; c++) set(target, c, readComponent(valDV, (sp.values.byteOffset ?? 0) + (k * comps + c) * vb, acc.componentType, norm));
+    if (target <= previous) throw new GLTFError('Sparse indices must be strictly increasing');
+    previous = target;
+    for (let c = 0; c < comps; c++) set(target, c, readComponent(valDV, valueBase + k * layout.stride + layout.offsets[c], acc.componentType, normalized));
   }
 }

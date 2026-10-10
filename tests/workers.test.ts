@@ -84,3 +84,57 @@ describe('geometry jobs', () => {
     expect(levels[1].triangles).toBeLessThan(levels[0].triangles);
   });
 });
+
+describe('worker lifecycle regressions', () => {
+  it.each([0, -1, 1.5, NaN, Infinity])('rejects invalid size %s', (size) => {
+    expect(() => new WorkerPool(() => fakeWorker([]), size)).toThrow(/positive integer/);
+  });
+  it('rejects new jobs after termination', async () => {
+    const pool = new WorkerPool(() => fakeWorker([]));
+    pool.terminate(); pool.terminate();
+    await expect(pool.run({ value: 1 })).rejects.toThrow('terminated');
+    expect(pool.pending).toBe(0);
+  });
+  it('recovers a slot after synchronous postMessage failure, including queued jobs', async () => {
+    let worker!: WorkerLike;
+    const pool = new WorkerPool(() => (worker = {
+      onmessage: null, onerror: null, terminate() {},
+      postMessage(value) { if (value === 'bad') throw new Error('clone failed'); },
+    }), 1);
+    const first = pool.run('first');
+    const bad = pool.run('bad');
+    const last = pool.run('last');
+    worker.onmessage!({ data: 1 });
+    await expect(bad).rejects.toThrow('clone failed');
+    worker.onmessage!({ data: 3 });
+    expect(await first).toBe(1);
+    expect(await last).toBe(3);
+    expect(pool.pending).toBe(0);
+    pool.terminate();
+  });
+  it('rejects every job when a worker fails to load', async () => {
+    let worker!: WorkerLike;
+    const pool = new WorkerPool(() => (worker = {
+      onmessage: null, onerror: null, terminate() {}, postMessage() {},
+    }), 1);
+    const running = pool.run(1), queued = pool.run(2);
+    worker.onerror!({ message: 'script failed' });
+    await expect(running).rejects.toThrow('script failed');
+    await expect(queued).rejects.toThrow('script failed');
+    await expect(pool.run(3)).rejects.toThrow('script failed');
+  });
+  it('cleans up workers if factory creation fails partway through', () => {
+    let terminated = 0, calls = 0;
+    expect(() => new WorkerPool(() => {
+      if (++calls === 2) throw new Error('factory failed');
+      return { onmessage: null, onerror: null, postMessage() {}, terminate() { terminated++; } };
+    }, 2)).toThrow('factory failed');
+    expect(terminated).toBe(1);
+  });
+  it('cannot cancel an executing task to hide its error', async () => {
+    const queue = new FrameBudgetQueue();
+    const task = queue.enqueue(() => { task.cancel(); throw new Error('task failed'); });
+    queue.runFrame(10);
+    await expect(task.done).rejects.toThrow('task failed');
+  });
+});

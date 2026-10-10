@@ -8,11 +8,14 @@ const BYTES_PER_PIXEL: Partial<Record<GPUTextureFormat, number>> = {
 };
 
 /** Estimated GPU bytes for a full mip chain (or `mips` levels). */
-export function estimateTextureBytes(w: number, h: number, layers: number, format: GPUTextureFormat, mips: number): number {
+export function estimateTextureBytes(w: number, h: number, layers: number, format: GPUTextureFormat, mips: number, dimension: GPUTextureDimension = '2d'): number {
   const bpp = BYTES_PER_PIXEL[format] ?? 4;
   let total = 0;
-  for (let m = 0; m < mips; m++) total += Math.max(1, w >> m) * Math.max(1, h >> m) * bpp;
-  return total * layers;
+  for (let m = 0; m < mips; m++) {
+    const depth = dimension === '3d' ? Math.max(1, layers >> m) : layers;
+    total += Math.max(1, w >> m) * Math.max(1, h >> m) * depth * bpp;
+  }
+  return total;
 }
 
 /** Number of mip levels of a full chain for a `w` x `h` base size. */
@@ -32,7 +35,7 @@ export class TextureManager {
   create(desc: GPUTextureDescriptor): GPUTexture {
     const t = this.device.createTexture(desc);
     const size = Array.isArray(desc.size) ? desc.size : [(desc.size as GPUExtent3DDict).width, (desc.size as GPUExtent3DDict).height ?? 1, (desc.size as GPUExtent3DDict).depthOrArrayLayers ?? 1];
-    const bytes = estimateTextureBytes(size[0], size[1] ?? 1, size[2] ?? 1, desc.format, desc.mipLevelCount ?? 1);
+    const bytes = estimateTextureBytes(size[0], size[1] ?? 1, size[2] ?? 1, desc.format, desc.mipLevelCount ?? 1, desc.dimension) * (desc.sampleCount ?? 1);
     this.live.set(t, bytes);
     this.stats.textures = this.live.size;
     this.stats.textureBytes += bytes;

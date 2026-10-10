@@ -16,6 +16,7 @@ export class Application {
   frame = 0;
   private last = 0;
   private running = false;
+  private loopGeneration = 0;
   private rafId = 0;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -38,15 +39,22 @@ export class Application {
   start(): void {
     if (this.running) return;
     this.running = true;
+    const generation = ++this.loopGeneration;
     this.last = performance.now();
     /** One animation frame: compute dt, run `onFrame`, schedule the next frame. */
     const tick = (now: number) => {
-      if (!this.running) return;
+      if (!this.running || generation !== this.loopGeneration) return;
       const dt = (now - this.last) / 1000;
       this.last = now;
-      this.onFrame(dt, now / 1000);
+      try {
+        this.onFrame(dt, now / 1000);
+      } catch (error) {
+        if (generation === this.loopGeneration) this.stop();
+        throw error;
+      }
       this.frame++;
-      this.rafId = requestAnimationFrame(tick);
+      // A callback may stop or restart the loop. Only its current generation may reschedule.
+      if (this.running && generation === this.loopGeneration) this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);
   }
@@ -54,6 +62,7 @@ export class Application {
   /** Stop the loop; the pending animation frame is cancelled so a later `start()` cannot run two loops. */
   stop(): void {
     this.running = false;
+    this.loopGeneration++;
     cancelAnimationFrame(this.rafId);
   }
 

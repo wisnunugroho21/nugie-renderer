@@ -405,3 +405,56 @@ describe('animations', () => {
     expect(Array.from(c.values)).toEqual([0, 0, 1, 1]);
   });
 });
+
+it('decomposes glTF zero-scale matrices into finite values using the shared math implementation', async () => {
+  const { decomposeMatrix } = await import('../src/assets/gltf/GLTFLoader');
+  const result = decomposeMatrix([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1]);
+  expect(result.t).toEqual([2, 3, 4]);
+  expect(result.s).toEqual([0, 1, 1]);
+  expect(result.r.every(Number.isFinite)).toBe(true);
+});
+
+describe('accessor matrix layout and sparse validation regressions', () => {
+  it.each([
+    ['MAT2', 5121, new Uint8Array([1, 2, 99, 99, 3, 4]), [1, 2, 3, 4]],
+    ['MAT3', 5121, new Uint8Array([1, 2, 3, 99, 4, 5, 6, 99, 7, 8, 9]), [1, 2, 3, 4, 5, 6, 7, 8, 9]],
+    ['MAT3', 5123, new Uint8Array(new Uint16Array([1, 2, 3, 99, 4, 5, 6, 99, 7, 8, 9]).buffer), [1, 2, 3, 4, 5, 6, 7, 8, 9]],
+  ] as const)('decodes %s with component type %s and omitted trailing padding', (type, componentType, bytes, expected) => {
+    const builder = new GLBBuilder();
+    const view = builder.view(bytes);
+    const accessor = builder.accessorOnView(view, 0, componentType, 1, type);
+    const doc = parseGLTFSync(builder);
+    expect(Array.from(readAccessorFloat(doc, accessor).data)).toEqual(expected);
+  });
+  it('uses matrix column padding for sparse replacement values', () => {
+    const b = new GLBBuilder();
+    const indices = b.view(new Uint8Array([1]));
+    const values = b.view(new Uint8Array([1, 2, 99, 99, 3, 4]));
+    b.json.accessors.push({ componentType: 5121, count: 2, type: 'MAT2', sparse: {
+      count: 1, indices: { bufferView: indices, componentType: 5121 }, values: { bufferView: values },
+    } });
+    expect(Array.from(readAccessorFloat(parseGLTFSync(b), 0).data)).toEqual([0, 0, 0, 0, 1, 2, 3, 4]);
+  });
+  it('preserves integer sparse values when normalization is requested only in float decoding', () => {
+    const b = new GLBBuilder();
+    const accessor = b.accessor(new Uint8Array([10, 20]), 'SCALAR', { normalized: true });
+    const indices = b.view(new Uint8Array([1]));
+    const values = b.view(new Uint8Array([128]));
+    b.json.accessors[accessor].sparse = { count: 1, indices: { bufferView: indices, componentType: 5121 }, values: { bufferView: values } };
+    const doc = parseGLTFSync(b);
+    expect(Array.from(readAccessorUint(doc, accessor).data)).toEqual([10, 128]);
+    close(readAccessorFloat(doc, accessor).data, [10 / 255, 128 / 255]);
+  });
+  it('rejects sparse truncation, duplicate indices and negative offsets with glTF errors', () => {
+    const b = new GLBBuilder();
+    const accessor = b.accessor(new Uint8Array([1, 2]), 'SCALAR');
+    const indices = b.view(new Uint8Array([1, 1]));
+    const values = b.view(new Uint8Array([3, 4]));
+    b.json.accessors[accessor].sparse = { count: 2, indices: { bufferView: indices, componentType: 5121 }, values: { bufferView: values } };
+    expect(() => readAccessorFloat(parseGLTFSync(b), accessor)).toThrow(/strictly increasing/);
+    b.json.bufferViews[values].byteLength = 1;
+    expect(() => readAccessorFloat(parseGLTFSync(b), accessor)).toThrow(/Sparse values exceeds/);
+    b.json.accessors[accessor].byteOffset = -1;
+    expect(() => readAccessorFloat(parseGLTFSync(b), accessor)).toThrow(GLTFError);
+  });
+});

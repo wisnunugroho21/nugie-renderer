@@ -1,3 +1,4 @@
+import { Mat4 } from '../../math/Mat4';
 import { parseGLTF, GLTFError, type GLTFDocument, type ResourceResolver } from './GLTFParser';
 import { loadMeshes } from './GLTFMeshLoader';
 import { loadMaterials } from './GLTFMaterialLoader';
@@ -8,31 +9,11 @@ import type { CameraAsset, GLTFAsset, NodeAsset } from '../AssetTypes';
 
 /** Decompose a column-major TRS matrix into translation / rotation (xyzw) / scale. */
 export function decomposeMatrix(m: ArrayLike<number>): { t: [number, number, number]; r: [number, number, number, number]; s: [number, number, number] } {
-  let sx = Math.hypot(m[0], m[1], m[2]);
-  const sy = Math.hypot(m[4], m[5], m[6]), sz = Math.hypot(m[8], m[9], m[10]);
-  // negative determinant => flip one axis
-  const det = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5]);
-  if (det < 0) sx = -sx;
-  const r00 = m[0] / sx, r10 = m[1] / sx, r20 = m[2] / sx;
-  const r01 = m[4] / sy, r11 = m[5] / sy, r21 = m[6] / sy;
-  const r02 = m[8] / sz, r12 = m[9] / sz, r22 = m[10] / sz;
-  const trace = r00 + r11 + r22;
-  let x: number, y: number, z: number, w: number;
-  if (trace > 0) {
-    const s = Math.sqrt(trace + 1) * 2;
-    w = 0.25 * s; x = (r21 - r12) / s; y = (r02 - r20) / s; z = (r10 - r01) / s;
-  } else if (r00 > r11 && r00 > r22) {
-    const s = Math.sqrt(1 + r00 - r11 - r22) * 2;
-    w = (r21 - r12) / s; x = 0.25 * s; y = (r01 + r10) / s; z = (r02 + r20) / s;
-  } else if (r11 > r22) {
-    const s = Math.sqrt(1 + r11 - r00 - r22) * 2;
-    w = (r02 - r20) / s; x = (r01 + r10) / s; y = 0.25 * s; z = (r12 + r21) / s;
-  } else {
-    const s = Math.sqrt(1 + r22 - r00 - r11) * 2;
-    w = (r10 - r01) / s; x = (r02 + r20) / s; y = (r12 + r21) / s; z = 0.25 * s;
-  }
-  const l = Math.hypot(x, y, z, w) || 1;
-  return { t: [m[12], m[13], m[14]], r: [x / l, y / l, z / l, w / l], s: [sx, sy, sz] };
+  const t: [number, number, number] = [0, 0, 0];
+  const r: [number, number, number, number] = [0, 0, 0, 1];
+  const s: [number, number, number] = [1, 1, 1];
+  Mat4.decompose(m, t, r, s);
+  return { t, r, s };
 }
 
 /**
@@ -93,7 +74,7 @@ export function convertDocument(doc: GLTFDocument): GLTFAsset {
   };
   const animations = loadAnimations(doc, morphCount, warn);
 
-  const scenes = (json.scenes ?? [{ nodes: nodes.filter((n) => n.parent === -1).map((n) => nodes.indexOf(n)) }]).map((s, i) => ({
+  const scenes = (json.scenes ?? [{ nodes: nodes.flatMap((n, i) => n.parent === -1 ? [i] : []) }]).map((s, i) => ({
     name: (s as { name?: string }).name ?? `scene${i}`, nodes: (s.nodes ?? []).slice(),
   }));
 
@@ -118,4 +99,3 @@ function assertAcyclic(nodes: NodeAsset[]): void {
     }
   }
 }
-

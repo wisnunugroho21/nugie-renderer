@@ -35,6 +35,7 @@ export function pipelineKeyString(k: PipelineKey): string {
 export class PipelineCache {
   private render = new Map<string, GPURenderPipeline>();
   private compute = new Map<string, GPUComputePipeline>();
+  private priming = new Map<string, Promise<void>>();
   private frozen = false;
   private warned = false;
 
@@ -57,10 +58,16 @@ export class PipelineCache {
   async primeRender(key: PipelineKey, createAsync: () => Promise<GPURenderPipeline>): Promise<void> {
     const k = pipelineKeyString(key);
     if (this.render.has(k)) return;
-    const p = await createAsync();
-    if (this.render.has(k)) return;   // lost a race with a synchronous creation
-    this.stats.pipelineCreations++;
-    this.render.set(k, p);
+    const pending = this.priming.get(k);
+    if (pending) return pending;
+    // Defer creation one microtask so the promise is registered even for synchronous factory failures.
+    const task = Promise.resolve().then(createAsync).then((pipeline) => {
+      if (this.render.has(k)) return; // lost a race with synchronous creation
+      this.stats.pipelineCreations++;
+      this.render.set(k, pipeline);
+    });
+    this.priming.set(k, task);
+    try { await task; } finally { this.priming.delete(k); }
   }
 
   /** Return the compute pipeline stored under the string `key`, creating it on a miss. */

@@ -1,3 +1,5 @@
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
+import type { RenderGraph } from '../rendering/RenderGraph';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { MeshManager } from '../rendering/MeshManager';
@@ -234,7 +236,10 @@ export class ParticlePool {
  *   system.encodeCompute(encoder)  GPU: emit / simulate / compact (indirect dispatch sized by the alive count)
  *   system.encodeDraw(pass, frame) GPU: one indirect draw per pool (alive count never read back)
  */
-export class ParticleSystem {
+export class ParticleSystem implements RenderFeature {
+  readonly name = 'particles';
+  order = FeatureOrder.particles;
+  readonly produces = ['particles'];
   readonly pools: ParticlePool[] = [];
   readonly simLayout: GPUBindGroupLayout;
   private spriteDefault: TextureRef | null = null;
@@ -339,6 +344,14 @@ export class ParticleSystem {
     this.pools.push(pool);
     return pool;
   }
+
+  // ---- RenderFeature hooks ----
+
+  /** Emit / simulate / compact in a compute pass, before any draw reads the particles. */
+  addPasses(g: RenderGraph): void { g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.encodeCompute(e) }); }
+
+  /** One indirect draw per pool, after the scene. */
+  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { if (this.pools.length) this.encodeDraw(pass, f.frameBindGroup); }
 
   /** CPU step for all pools (decide how many particles each emitter spawns this frame, upload emitter data). */
   update(dt: number, time: number): void { for (const p of this.pools) p.update(dt, time); }

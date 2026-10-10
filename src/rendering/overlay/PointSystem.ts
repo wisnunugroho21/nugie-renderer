@@ -1,7 +1,7 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import type { BindLayouts } from '../../gpu/BindLayouts';
 import { POINTS_SOURCE, registerEngineShaderChunks } from '../../shaders';
-import { StorageArray, type Overlay, type OverlayTarget, type Color, type Vec3 } from './Overlay';
+import { StorageArray, OverlaySystem, type OverlayTarget, type Color, type Vec3 } from './Overlay';
 
 export interface PointSystemOptions {
   /** Initial point capacity (grows automatically). */
@@ -28,9 +28,7 @@ const PT_FLOATS = 8;
  * Point clouds (three.js `Points`): many screen-facing discs / squares in one draw call. Points are positions + size + colour; there is
  * no texture (use a {@link SpriteSystem} for textured billboards). Retained until `clear()` unless `autoClear`.
  */
-export class PointSystem implements Overlay {
-  autoClear: boolean;
-  visible = true;
+export class PointSystem extends OverlaySystem {
   size: number;
   color: Color;
   readonly depthTest: boolean;
@@ -47,6 +45,7 @@ export class PointSystem implements Overlay {
   private layouts: BindLayouts;
 
   constructor(private gpu: GPUContext, layouts: BindLayouts, private target: OverlayTarget, o: PointSystemOptions = {}) {
+    super('points');
     registerEngineShaderChunks(gpu.resources.shaders);
     this.layouts = layouts;
     this.autoClear = o.autoClear ?? false;

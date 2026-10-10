@@ -3,6 +3,9 @@ import type { BindLayouts } from '../../gpu/BindLayouts';
 import { registerEngineShaderChunks } from '../../shaders';
 import volumetricSrc from '../../shaders/volumetric.wgsl?raw';
 import type { SceneResources } from './SceneResources';
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
+import type { RenderGraph } from '../RenderGraph';
+import { Mat4 } from '../../math/Mat4';
 
 export interface FogSettings {
   /** Extinction per world unit at height 0. */
@@ -26,7 +29,10 @@ const PARAM_BYTES = 64 + 3 * 16;
  * accumulated from the camera. A compute pass fills it each frame (directional + ranged lights, shadow-mapped); mesh and sky
  * shading apply it with one lookup (`applyFog` in scene_eval.wgsl).
  */
-export class VolumetricFog {
+export class VolumetricFog implements RenderFeature {
+  readonly name = 'volumetric-fog';
+  order = FeatureOrder.fog;
+  readonly produces = ['fogVolume'];
   enabled = true;
   settings: FogSettings = { ...DEFAULT_FOG };
   readonly tile = 8;
@@ -62,6 +68,28 @@ export class VolumetricFog {
   }
 
   private volLayout: GPUBindGroupLayout;
+
+  // ---- RenderFeature hooks ----
+
+  /** Size the volume for the canvas and mirror the settings into the scene uniform (before it is written). */
+  beginFrame(f: FeatureFrame): void {
+    if (!f.hasCamera) return;
+    this.resize(f.width, f.height);
+    this.applySettings();
+  }
+
+  /** The froxel fill pass: reads the shadow map and the light clusters. */
+  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+    if (!this.enabled || !f.hasCamera) return;
+    const cam = f.camera, camWorld = Mat4.invert(Mat4.create(), cam.view);
+    if (!camWorld) return;
+    graph.addPass({
+      name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'],
+      execute: (enc) => this.encode(enc, f.frameBindGroup, camWorld, cam.projection[0], cam.projection[5], cam.near, f.profiler.writes('fog')),
+    });
+  }
+
+  // ---- implementation ----
 
   /** Froxel grid size [x, y, z] (screen tiles x depth slices). */
   get froxels(): [number, number, number] { return this.dims; }

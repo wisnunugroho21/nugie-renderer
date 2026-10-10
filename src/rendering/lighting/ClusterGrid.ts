@@ -3,6 +3,8 @@ import { registerEngineShaderChunks } from '../../shaders';
 import cullSrc from '../../shaders/cluster_cull.wgsl?raw';
 import type { LightData } from './LightData';
 import type { SceneResources } from './SceneResources';
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
+import type { RenderGraph } from '../RenderGraph';
 
 export interface ClusterConfig {
   /** Tile size in pixels (screen-space cluster XY). */
@@ -23,7 +25,14 @@ const PARAMS_BYTES = 64 + 4 * 16;
  * cluster, the list of ranged lights that can reach it. The fragment shader then loops only over its own cluster's list
  * (plus the few global lights). Buffers are the same ones bound in the scene bind group (2 = grid, 3 = indices).
  */
-export class ClusterGrid {
+export class ClusterGrid implements RenderFeature {
+  readonly name = 'light-clusters';
+  order = FeatureOrder.clusters;
+  readonly produces = ['clusterGrid'];
+  /** false = every fragment loops over every light (the naive baseline). */
+  enabled = true;
+  /** Clustered shading is used this frame: it is `enabled` and the scene has ranged lights to assign. Set by `beginFrame`. */
+  active = false;
   dims: [number, number, number] = [1, 1, 1];
   private grid: GPUBuffer | null = null;
   private indices: GPUBuffer | null = null;
@@ -50,6 +59,26 @@ export class ClusterGrid {
       compute: { module: gpu.resources.shaders.get('cluster-cull', cullSrc), entryPoint: 'main' },
     });
   }
+
+  // ---- RenderFeature hooks ----
+
+  /** Decide whether clusters are used this frame and size the grid for the canvas (before the scene uniform is written). */
+  beginFrame(f: FeatureFrame): void {
+    this.active = this.enabled && f.lights.count > f.lights.globalCount;
+    if (this.active) this.resize(f.width, f.height);
+  }
+
+  /** The light-assignment compute pass. */
+  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+    if (!this.active || !f.hasCamera) return;
+    const cam = f.camera;
+    graph.addPass({
+      name: 'clusters', reads: ['lights'], writes: ['clusterGrid'],
+      execute: (enc) => this.encode(enc, cam.view, cam.projection[0], cam.projection[5], cam.near, cam.far, f.lights, f.profiler.writes('clusters')),
+    });
+  }
+
+  // ---- implementation ----
 
   /** Buffers for inspection by tests / tools. */
   get buffers(): { grid: GPUBuffer; indices: GPUBuffer; overflow: GPUBuffer } { return { grid: this.grid!, indices: this.indices!, overflow: this.overflowBuf }; }

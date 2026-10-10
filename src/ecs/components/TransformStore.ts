@@ -62,6 +62,7 @@ export class TransformStore extends ComponentStore {
   /** Add (or reset) a transform on entity index `i`. */
   add(i: number, px = 0, py = 0, pz = 0): void {
     this.ensureCapacity(i + 1);
+    if (this.has.has(i)) this.reset(i);
     this.has.set(i);
     this.positionX[i] = px; this.positionY[i] = py; this.positionZ[i] = pz;
     this.rotationX[i] = 0; this.rotationY[i] = 0; this.rotationZ[i] = 0; this.rotationW[i] = 1;
@@ -93,6 +94,8 @@ export class TransformStore extends ComponentStore {
 
   /** Reparent `child` under `parent` (-1 = root). Rejects cycles. */
   setParent(child: number, parent: number): void {
+    if (!Number.isInteger(child) || !this.has.has(child)) throw new Error('Child transform does not exist');
+    if (parent !== -1 && (!Number.isInteger(parent) || parent < 0 || !this.has.has(parent))) throw new Error('Parent transform does not exist');
     if (parent === child) throw new Error('Cannot parent an entity to itself');
     for (let p = parent; p !== -1; p = this.parent[p]) if (p === child) throw new Error('Reparenting would create a cycle');
     this.detach(child);

@@ -1,7 +1,8 @@
 import type { GPUContext } from '../../gpu/GPUContext';
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
 
-/** Something drawn into the main pass after the scene geometry (lines, points, sprites, text). Created through the renderer. */
-export interface Overlay {
+/** Something drawn into the main pass after the scene geometry (lines, points, sprites, text). Created through the renderer; a {@link RenderFeature}. */
+export interface Overlay extends RenderFeature {
   /** Upload CPU-side changes (called by the renderer once per frame, before the passes are recorded). */
   flush(): void;
   /** Record the draw call(s) into the main pass. */
@@ -14,6 +15,27 @@ export interface Overlay {
   clear(): void;
   /** Hide without destroying (default true). */
   visible: boolean;
+}
+
+/**
+ * Base of the line / point / sprite systems: wires the overlay methods to the feature hooks (upload before the passes, draw on top of the
+ * scene, clear after the frame when `autoClear`), so a subclass only implements `flush`, `encodeDraw`, `clear` and `retarget`.
+ */
+export abstract class OverlaySystem implements Overlay {
+  order = FeatureOrder.overlays;
+  autoClear = false;
+  visible = true;
+
+  constructor(readonly name: string) {}
+
+  abstract flush(): void;
+  abstract encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void;
+  abstract retarget(): void;
+  abstract clear(): void;
+
+  prepare(): void { this.flush(); }
+  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
+  endFrame(): void { if (this.autoClear) this.clear(); }
 }
 
 /** Colour with an optional alpha (default 1): linear HDR values, so components may exceed 1 (they bloom). */

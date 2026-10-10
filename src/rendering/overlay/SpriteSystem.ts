@@ -2,7 +2,7 @@ import type { GPUContext } from '../../gpu/GPUContext';
 import type { BindLayouts } from '../../gpu/BindLayouts';
 import type { TextureRef } from '../materials/Material';
 import { SPRITES_SOURCE, registerEngineShaderChunks } from '../../shaders';
-import { StorageArray, type Overlay, type OverlayTarget, type Color, type Vec3 } from './Overlay';
+import { StorageArray, OverlaySystem, type OverlayTarget, type Color, type Vec3 } from './Overlay';
 import { layoutText, type FontMetrics, type TextLayoutOptions } from './Font';
 
 export interface SpriteSystemOptions {
@@ -64,9 +64,7 @@ const MODE: Record<NonNullable<SpriteDesc['mode']>, number> = { camera: 0, 'axis
  * Sprites and glyphs are alpha blended and drawn after the scene (sorted only by creation order, so overlapping transparent sprites
  * should be added back to front).
  */
-export class SpriteSystem implements Overlay {
-  autoClear: boolean;
-  visible = true;
+export class SpriteSystem extends OverlaySystem {
   readonly space: 'world' | 'screen';
   readonly sizeUnit: 'world' | 'pixels';
   readonly depthTest: boolean;
@@ -88,6 +86,7 @@ export class SpriteSystem implements Overlay {
   private layouts: BindLayouts;
 
   constructor(private gpu: GPUContext, layouts: BindLayouts, private target: OverlayTarget, o: SpriteSystemOptions) {
+    super('sprites');
     registerEngineShaderChunks(gpu.resources.shaders);
     this.layouts = layouts;
     this.texture = o.texture;

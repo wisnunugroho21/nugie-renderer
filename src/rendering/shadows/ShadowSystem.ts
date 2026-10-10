@@ -11,6 +11,8 @@ import type { MaterialManager } from '../materials/MaterialManager';
 import type { MeshManager } from '../MeshManager';
 import type { RenderWorld } from '../RenderWorld';
 import type { Camera } from '../Camera';
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
+import type { RenderGraph } from '../RenderGraph';
 import { LightData, LIGHT_FLOATS, GPU_LIGHT_TYPE, SHADOW_REQUEST } from '../lighting/LightData';
 import type { SceneResources } from '../lighting/SceneResources';
 import { cascadeSplits, fitCascade, fitPoint, fitSpot } from './ShadowMath';
@@ -49,7 +51,10 @@ interface Layer { index: number; vp: Float32Array; batches: BatchList; count: nu
  * shadow-casting spot light). `assign` runs after the light list is final, `prepare` builds per-layer instance batches (before
  * the instance buffer is flushed) and `encode` renders the depth passes.
  */
-export class ShadowSystem {
+export class ShadowSystem implements RenderFeature {
+  readonly name = 'shadows';
+  order = FeatureOrder.shadows;
+  readonly produces = ['shadowMap'];
   enabled = true;
   readonly layerCount: number;
   readonly texture: GPUTexture;
@@ -160,8 +165,24 @@ export class ShadowSystem {
     this.layers.push({ index, vp, batches: new BatchList(), count: 0 });
   }
 
+  // ---- RenderFeature hooks ----
+
+  /** Give the frame's shadow-requesting lights their layers (before the lights are uploaded). */
+  beginFrame(f: FeatureFrame): void { this.assign(f.lights, f.camera); }
+
+  /** Cull and batch the casters of every layer into the instance ring (before it is flushed). */
+  buildInstances(f: FeatureFrame): void { if (f.hasCamera) this.buildCasterBatches(f.rw, f.instances); }
+
+  /** One depth pass per layer, ahead of everything that samples the shadow map. */
+  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+    if (!f.hasCamera || this.layers.length === 0) return;
+    graph.addPass({ name: 'shadows', writes: ['shadowMap'], execute: (enc) => this.encode(enc, f.objectBindGroup(), f.time, f.profiler) });
+  }
+
+  // ---- implementation ----
+
   /** Cull casters per layer and write their instance records. Call BEFORE `instanceAlloc.flush()`. */
-  prepare(rw: RenderWorld, instanceAlloc: DynamicBufferAllocator): void {
+  buildCasterBatches(rw: RenderWorld, instanceAlloc: DynamicBufferAllocator): void {
     this.stats.layers = this.layers.length; this.stats.casters = 0; this.stats.draws = 0;
     for (const layer of this.layers) {
       this.frustum.setFromViewProjection(layer.vp);

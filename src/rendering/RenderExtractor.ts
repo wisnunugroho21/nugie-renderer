@@ -81,8 +81,10 @@ export class RenderExtractor {
 
     // 3b. Per-frame light-weight fields (incl. skeleton joint range / morph pair range).
     let states = 0, targets = 0;
+    let staticMembershipChanged = false;
     for (let s = 0; s < rw.count; s++) {
       const e = rw.entityIndex[s];
+      if (((rw.flags[s] ^ mr.flags[e]) & RenderFlags.Static) !== 0) staticMembershipChanged = true;
       rw.meshId[s] = mr.meshId[e]; rw.materialId[s] = mr.materialId[e]; rw.flags[s] = mr.flags[e];
       rw.lodGroup[s] = lods.has.has(e) ? lods.group[e] : -1;
       const so = mr.skinOwner[e], inst = so >= 0 ? skins.get(so) : undefined;
@@ -133,7 +135,7 @@ export class RenderExtractor {
     if (camIdx >= 0 && cams.has.has(camIdx) && t.has.has(camIdx)) {
       rw.hasCamera = rw.camera.setFromWorldMatrix(t.worldMatrices, camIdx * 16, cams.fovY[camIdx], aspect, cams.near[camIdx], cams.far[camIdx]);
     }
-    rw.structureVersion += this.added + this.removed > 0 ? 1 : 0;
+    rw.structureVersion += this.added + this.removed > 0 || staticMembershipChanged ? 1 : 0;
   }
 
   /** Copy entity `e`'s world matrix and bounds into slot `s` (objects without bounds get an infinite sphere so they are never culled) and flag the slot for upload. */

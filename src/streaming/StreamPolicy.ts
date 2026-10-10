@@ -106,17 +106,22 @@ export class StreamPolicy {
     }
 
     const changes: StreamChange[] = [];
+    let resident = this.totalResidentBytes;
     // 2. downgrades (delayed unless over budget)
     for (let i = 0; i < es.length; i++) {
       const e = es[i];
       if (target[i] > e.resident) {
         e.wantsCoarserFor++;
-        const overBudget = this.totalResidentBytes > c.budgetBytes;
-        if (overBudget || e.wantsCoarserFor >= c.downgradeDelay) { changes.push({ id: e.id, from: e.resident, to: target[i] }); e.resident = target[i]; e.wantsCoarserFor = 0; }
+        const overBudget = resident > c.budgetBytes;
+        if (overBudget || e.wantsCoarserFor >= c.downgradeDelay) {
+          changes.push({ id: e.id, from: e.resident, to: target[i] });
+          resident -= residentBytes(e, e.resident) - residentBytes(e, target[i]);
+          e.resident = target[i]; e.wantsCoarserFor = 0;
+        }
       } else e.wantsCoarserFor = 0;
     }
     // 3. upgrades, most important first, within the upload budget and the memory budget
-    let uploaded = 0, resident = this.totalResidentBytes;
+    let uploaded = 0;
     const order = es.map((_, i) => i).filter((i) => target[i] < es[i].resident).sort((a, b) => es[b].pixels - es[a].pixels);
     for (const i of order) {
       const e = es[i];

@@ -45,7 +45,7 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
  */
 class GradientBackdrop implements RenderFeature {
   readonly name = 'gradient-backdrop';
-  drawOrder = 50;                                   // before particles (100), ribbons (200) and overlays (300)
+  order = 50;                                       // before particles (100), ribbons (200) and overlays (300)
   private params: GPUBuffer;
   private group: GPUBindGroup;
   private layout: GPUBindGroupLayout;

@@ -1,14 +1,27 @@
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { PassTarget } from './materials/MaterialManager';
+import type { SceneResources } from './lighting/SceneResources';
+import type { FeatureFrame, RenderFeature } from './RenderFeature';
 import skyboxSource from '../shaders/skybox.wgsl?raw';
 
-/** Draws the bound environment cube map as a full-screen background behind the geometry (one triangle, depth-tested, no depth writes). */
-export class Skybox {
+/**
+ * Draws the bound environment cube map as a full-screen background behind the geometry (one triangle, depth-tested, no depth writes).
+ * As a feature it paints in the `drawBackdrop` slot: after the opaque geometry, before blended surfaces (which write no depth and would
+ * otherwise be painted over).
+ */
+export class Skybox implements RenderFeature {
+  readonly name = 'skybox';
+  /** Draw the background when an environment is bound. */
+  visible = true;
   /** One pipeline per (colour format, sample count) of the target it draws into. */
   private pipelines = new Map<string, GPURenderPipeline>();
 
-  constructor(private gpu: GPUContext, private layouts: BindLayouts, private defaultDepthFormat: GPUTextureFormat) {}
+  constructor(private gpu: GPUContext, private layouts: BindLayouts, private defaultDepthFormat: GPUTextureFormat, private scene: SceneResources) {}
+
+  drawBackdrop(pass: GPURenderPassEncoder, f: FeatureFrame): void {
+    if (this.visible && this.scene.env.enabled) this.draw(pass, f.target, f.frameBindGroup, f.sceneBindGroup);
+  }
 
   /** Forget the cached pipelines (the framebuffer configuration changed). */
   retarget(): void { this.pipelines.clear(); }

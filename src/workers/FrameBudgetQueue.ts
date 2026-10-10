@@ -1,7 +1,9 @@
+import { PriorityQueue } from '../core/PriorityQueue';
+
 /** Handle to a queued task: cancel it before it runs, or await `done` (resolves after it ran or was cancelled). */
 export interface QueuedTask { cancel(): void; readonly done: Promise<void>; }
 
-interface Item { fn: () => void; priority: number; seq: number; cancelled: boolean; resolve: () => void; reject: (e: unknown) => void; }
+interface Item { fn: () => void; priority: number; seq: number; resolve: () => void; reject: (e: unknown) => void; }
 
 /**
  * Priority work queue that spreads main-thread work (GPU uploads, object instantiation ...) over frames: `runFrame(budgetMs)`
@@ -9,7 +11,7 @@ interface Item { fn: () => void; priority: number; seq: number; cancelled: boole
  * drains even when a single task is slower than the budget. Tasks can be cancelled before they run.
  */
 export class FrameBudgetQueue {
-  private items: Item[] = [];
+  private items = new PriorityQueue<Item>((a, b) => b.priority - a.priority || a.seq - b.seq);
   private seq = 0;
   /** Stats of the most recent runFrame(). */
   lastRun = { tasks: 0, ms: 0 };
@@ -25,20 +27,9 @@ export class FrameBudgetQueue {
   enqueue(fn: () => void, priority = 0): QueuedTask {
     let resolve!: () => void, reject!: (e: unknown) => void;
     const done = new Promise<void>((res, rej) => { resolve = res; reject = rej; });
-    const item: Item = { fn, priority, seq: this.seq++, cancelled: false, resolve, reject };
+    const item: Item = { fn, priority, seq: this.seq++, resolve, reject };
     this.items.push(item);
-    return { cancel: () => { item.cancelled = true; this.items = this.items.filter((i) => i !== item); resolve(); }, done };
-  }
-
-  /** Remove and return the highest-priority (then oldest) task. */
-  private next(): Item | undefined {
-    if (this.items.length === 0) return undefined;
-    let best = 0;
-    for (let i = 1; i < this.items.length; i++) {
-      const a = this.items[i], b = this.items[best];
-      if (a.priority > b.priority || (a.priority === b.priority && a.seq < b.seq)) best = i;
-    }
-    return this.items.splice(best, 1)[0];
+    return { cancel: () => { if (this.items.remove(item)) resolve(); }, done };
   }
 
   /** Run queued tasks for at most ~`budgetMs`. Returns the number of tasks executed. */
@@ -47,7 +38,7 @@ export class FrameBudgetQueue {
     let n = 0;
     while (this.items.length) {
       if (n > 0 && this.now() - t0 >= budgetMs) break;
-      const it = this.next()!;
+      const it = this.items.pop()!;
       try { it.fn(); it.resolve(); } catch (e) { it.reject(e); }
       n++;
     }

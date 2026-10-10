@@ -6,7 +6,8 @@ let pool: WorkerPool | null = null;
 
 /** The shared geometry worker pool (created on first use; null where Workers do not exist, e.g. Node tests). */
 export function geometryPool(): WorkerPool | null {
-  if (pool) return pool;
+  if (pool?.size) return pool;
+  pool = null; // a terminated or failed pool can be recreated on the next request
   if (typeof Worker === 'undefined') return null;
   pool = new WorkerPool(() => new Worker(new URL('./geometry.worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike);
   return pool;

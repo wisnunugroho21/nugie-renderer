@@ -110,3 +110,13 @@ describe('MeshManager reserves room in every arena first', () => {
     expect((mm as any).vertices.used).toBe(v0);
   });
 });
+
+it('clamps initial arena capacity to the device limit and rejects invalid allocations atomically', () => {
+  const { device, buffers, created } = setup({ maxBufferSize: 1000, maxStorageBufferBindingSize: 400 });
+  const arena = new Arena(device, buffers, 'small', GPUBufferUsage.STORAGE, 16, 1000);
+  expect(arena.capacityElements).toBe(25);
+  expect(created).toEqual([400]);
+  for (const count of [-1, 1.5, NaN, Infinity]) expect(() => arena.alloc(count)).toThrow(RangeError);
+  expect(arena.used).toBe(0);
+  expect(arena.alloc(1)).toBe(0);
+});

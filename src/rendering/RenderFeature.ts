@@ -1,51 +1,95 @@
 import type { Camera } from './Camera';
 import type { RenderGraph } from './RenderGraph';
+import type { RenderWorld } from './RenderWorld';
 import type { PassTarget } from './materials/MaterialManager';
-import type { ParticleSystem } from '../particles/ParticleSystem';
-import type { RibbonSystem } from '../particles/RibbonSystem';
-import type { Overlay } from './overlay/Overlay';
+import type { LightData } from './lighting/LightData';
+import type { VisibleSet } from '../visibility/VisibilitySystem';
+import type { DynamicBufferAllocator } from '../gpu/DynamicBufferAllocator';
+import type { GPUProfiler } from '../profiling/GPUProfiler';
+
+/**
+ * Where the built-in features sit among each other (lower runs first in every hook). Your own features default to `FeatureOrder.default`,
+ * which puts them after the scene-lighting features (shadows, clusters, fog) and before particles, ribbons and overlays.
+ */
+export const FeatureOrder = {
+  streaming: 0, shadows: 10, clusters: 20, fog: 30,
+  default: 100, particles: 100, ribbons: 200, overlays: 300,
+  postChain: 1000,
+} as const;
 
 /** What the renderer tells a feature about the frame being built. One object, updated in place every frame: do not keep it. */
 export interface FeatureFrame {
-  /** The main view's camera (valid when `hasCamera`). */
+  /** The extracted scene for this frame. */
+  rw: RenderWorld;
+  /** The main view's camera (`rw.camera`; valid when `hasCamera`). */
   camera: Camera;
   /** The scene has a camera this frame; without one nothing is drawn. */
   hasCamera: boolean;
   /** Seconds, as passed to `Renderer.render`. */
   time: number;
+  /** Canvas size in pixels. */
+  width: number;
+  height: number;
+  /** The light set used this frame (the scene's lights, or the legacy sun + ambient). `beginFrame` hooks may adjust it (shadows assign their slots). */
+  lights: LightData;
+  /** CPU visibility result for the main view (`null` = everything), and how many objects it lists. */
+  visible: VisibleSet | null;
+  visibleCount: number;
   /** Bind group 0 (the per-view frame uniform): set it before drawing with an engine pipeline layout. */
   frameBindGroup: GPUBindGroup;
   /** Bind group 1 (lights, shadows, environment): set it if the feature's shaders include `scene_eval`. */
   sceneBindGroup: GPUBindGroup;
+  /** Bind group 3 (transforms, instance records, joints, morph data), valid once the frame's instances are built. */
+  objectBindGroup(): GPUBindGroup;
   /** Colour / depth formats and sample count of the main pass, for building render pipelines. Changes with MSAA / HDR (see `retarget`). */
   target: PassTarget;
+  /** GPU timestamp queries: `profiler.writes('name')` for a pass's `timestampWrites`. */
+  profiler: GPUProfiler;
+  /** The per-frame instance-record ring buffer (see `buildInstances`). */
+  instances: DynamicBufferAllocator;
 }
 
-/** `FeatureFrame` plus the HDR scene colour, for features that post-process it (see `RenderFeature.addPostPasses`). */
+/** `FeatureFrame` plus what a post-processing feature needs (see `RenderFeature.addPostPasses`). */
 export interface PostFeatureFrame extends FeatureFrame {
   /** The linear HDR scene colour (rgba16float, single-sample, after MSAA resolve). Usable as a texture and as a copy destination / source. */
   sceneTexture: GPUTexture;
-  width: number;
-  height: number;
+  /** The camera's projection matrix (column-major). */
+  projection: ArrayLike<number>;
+  /** Depth-only view of the main depth buffer, for sampling (multisampled when `depthSamples` > 1). */
+  depthView: GPUTextureView;
+  depthSamples: number;
 }
 
 /**
- * A self-contained piece of rendering that plugs into the renderer without editing it: GPU particles, ribbons and the line / point / sprite
- * overlays are all features. Every hook is optional. Register with `renderer.addFeature(feature)`.
+ * A self-contained piece of rendering that plugs into the renderer without editing it. Shadows, light clusters, volumetric fog, the sky, texture
+ * streaming, GPU particles, ribbons, the line / point / sprite overlays and the built-in post-processing chain are all features; so is whatever you
+ * add with `renderer.addFeature(feature)`. Every hook is optional.
  *
- * Frame order of the hooks: `prepare` (CPU -> GPU uploads) -> `addPasses` (compute or render passes, ordered by the render graph from their
- * declared reads / writes) -> `drawMain` (inside the main pass, after the scene geometry and sky) -> `endFrame`.
+ * Order of the hooks within a frame:
+ *  1. `beginFrame`      CPU state the scene uniform will carry (assign shadow slots, size grids, report texture coverage ...)
+ *  2. `buildInstances`  extra instance records, before the instance buffer is uploaded
+ *  3. `prepare`         uploads that need the frame's batches
+ *  4. `addPasses`       compute / render passes, ordered by the render graph from their declared reads and writes
+ *  5. `addPostPasses`   post-processing on the HDR scene colour (only while the post chain is on)
+ *  6. `drawBackdrop`    inside the main pass, after the opaque geometry and before blended surfaces (the sky)
+ *  7. `drawMain`        inside the main pass, after the scene (particles, ribbons, overlays)
+ *  8. `endFrame`        after the frame was submitted
+ * `retarget` is called whenever the main pass's format or sample count changes. Within each hook, features run in `order`.
  */
 export interface RenderFeature {
   /** For diagnostics and `removeFeature`. */
   readonly name: string;
-  /** Position among the features inside the main pass: lower draws first (default 100). Built-ins: particles 100, ribbons 200, overlays 300. */
-  drawOrder?: number;
+  /** Position among the features in every hook: lower runs first (default `FeatureOrder.default`). */
+  order?: number;
   /**
-   * Graph resource names this feature's passes write and the main pass must wait for (e.g. `['myBuffer']`). The main pass declares them as
-   * reads, so a compute pass in `addPasses` that writes one of them always runs before the scene is drawn.
+   * Graph resource names this feature's passes write and the scene passes must wait for (e.g. `['shadowMap']`). The main pass declares them as
+   * reads, so a pass in `addPasses` that writes one of them always runs before the scene is drawn.
    */
   produces?: readonly string[];
+  /** Update CPU state that the scene uniform / lights depend on. Runs before the lights are uploaded; may modify `frame.lights`. */
+  beginFrame?(frame: FeatureFrame): void;
+  /** Write extra instance records with `frame.instances` (main view only). Runs before the instance buffer is flushed to the GPU. */
+  buildInstances?(frame: FeatureFrame): void;
   /** Upload CPU-side changes. Called once per frame, before the passes are recorded. */
   prepare?(frame: FeatureFrame): void;
   /** Declare this frame's passes in the graph (`graph.addPass({ name, reads, writes, execute })`). */
@@ -56,7 +100,9 @@ export interface RenderFeature {
    * `reads: ['sceneColor'], writes: ['sceneColor']`; {@link FullscreenEffect} does the rest for a per-pixel effect.
    */
   addPostPasses?(graph: RenderGraph, frame: PostFeatureFrame): void;
-  /** Record draw calls into the main pass. Skipped when the scene has no camera. */
+  /** Draw behind blended surfaces: after the opaque geometry, before the blended batches. Skipped when the scene has no camera. */
+  drawBackdrop?(pass: GPURenderPassEncoder, frame: FeatureFrame): void;
+  /** Record draw calls into the main pass, after the scene. Skipped when the scene has no camera. */
   drawMain?(pass: GPURenderPassEncoder, frame: FeatureFrame): void;
   /** The main pass's colour format or sample count changed (HDR, MSAA): re-create pipelines that target it. */
   retarget?(): void;
@@ -69,12 +115,12 @@ export class FeatureRegistry {
   private list: RenderFeature[] = [];
   private produced: string[] | null = null;
 
-  /** Add a feature (ignored when it is already registered). Features are kept sorted by `drawOrder`; equal orders keep registration order. */
+  /** Add a feature (ignored when it is already registered). Features are kept sorted by `order`; equal orders keep registration order. */
   add<T extends RenderFeature>(f: T): T {
     if (this.list.includes(f)) return f;
-    const order = f.drawOrder ?? 100;
+    const order = f.order ?? FeatureOrder.default;
     let i = this.list.length;
-    while (i > 0 && (this.list[i - 1].drawOrder ?? 100) > order) i--;
+    while (i > 0 && (this.list[i - 1].order ?? FeatureOrder.default) > order) i--;
     this.list.splice(i, 0, f);
     this.produced = null;
     return f;
@@ -89,49 +135,21 @@ export class FeatureRegistry {
     return true;
   }
 
-  /** Registered features in draw order. */
+  /** Registered features in `order`. */
   get all(): readonly RenderFeature[] { return this.list; }
 
-  /** Union of the features' `produces` (what the main pass has to wait for). */
+  /** Union of the features' `produces` (what the scene passes have to wait for). */
   get producedResources(): readonly string[] {
     return this.produced ??= [...new Set(this.list.flatMap((f) => f.produces ?? []))];
   }
 
+  beginFrame(frame: FeatureFrame): void { for (const f of this.list) f.beginFrame?.(frame); }
+  buildInstances(frame: FeatureFrame): void { for (const f of this.list) f.buildInstances?.(frame); }
   prepare(frame: FeatureFrame): void { for (const f of this.list) f.prepare?.(frame); }
   addPasses(graph: RenderGraph, frame: FeatureFrame): void { for (const f of this.list) f.addPasses?.(graph, frame); }
   addPostPasses(graph: RenderGraph, frame: PostFeatureFrame): void { for (const f of this.list) f.addPostPasses?.(graph, frame); }
+  drawBackdrop(pass: GPURenderPassEncoder, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawBackdrop?.(pass, frame); }
   drawMain(pass: GPURenderPassEncoder, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawMain?.(pass, frame); }
   retarget(): void { for (const f of this.list) f.retarget?.(); }
   endFrame(): void { for (const f of this.list) f.endFrame?.(); }
-}
-
-/** The GPU particle system as a feature: simulate / compact in a compute pass, one indirect draw per pool in the main pass. */
-export function particleFeature(ps: ParticleSystem): RenderFeature {
-  return {
-    name: 'particles', drawOrder: 100, produces: ['particles'],
-    addPasses: (g) => g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => ps.encodeCompute(e) }),   // emit / simulate / compact before any draw reads them
-    drawMain: (pass, f) => { if (ps.pools.length) ps.encodeDraw(pass, f.frameBindGroup); },
-    retarget: () => ps.retarget(),
-  };
-}
-
-/** A ribbon system as a feature: update its vertices in a compute pass, one draw call in the main pass. */
-export function ribbonFeature(rs: RibbonSystem, index: number): RenderFeature {
-  return {
-    name: `ribbons:${index}`, drawOrder: 200, produces: ['ribbons'],
-    addPasses: (g) => g.addPass({ name: `ribbons-update:${index}`, writes: ['ribbons'], execute: (e) => rs.encodeCompute(e) }),
-    drawMain: (pass, f) => rs.encodeDraw(pass, f.frameBindGroup),
-    retarget: () => rs.retarget(),
-  };
-}
-
-/** A line / point / sprite / text system as a feature: upload before the passes, draw on top of the scene, optionally clear after the frame. */
-export function overlayFeature(o: Overlay): RenderFeature {
-  return {
-    name: 'overlay', drawOrder: 300,
-    prepare: () => o.flush(),
-    drawMain: (pass, f) => o.encodeDraw(pass, f.frameBindGroup),
-    retarget: () => o.retarget(),
-    endFrame: () => { if (o.autoClear) o.clear(); },
-  };
 }

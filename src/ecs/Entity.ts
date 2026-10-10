@@ -28,8 +28,8 @@ export class EntityManager {
     let idx: number;
     if (this.freeList.length > 0) idx = this.freeList.pop()!;
     else {
+      if (this.next >= MAX_ENTITIES) throw new Error('Entity limit reached');
       idx = this.next++;
-      if (idx >= MAX_ENTITIES) throw new Error('Entity limit reached');
       if (idx >= this.generations.length) {
         const g = new Uint16Array(this.generations.length * 2); g.set(this.generations); this.generations = g;
         const a = new Uint8Array(this.alive.length * 2); a.set(this.alive); this.alive = a;
@@ -53,13 +53,13 @@ export class EntityManager {
 
   /** The current handle of the live entity in slot `index` (or -1 if the slot is free). Lets index-based code destroy entities. */
   handleOf(index: number): Entity {
-    if (index < 0 || index >= this.next || this.alive[index] !== 1) return NULL_ENTITY;
+    if (!Number.isInteger(index) || index < 0 || index >= this.next || this.alive[index] !== 1) return NULL_ENTITY;
     return ((this.generations[index] & GEN_MASK) << INDEX_BITS) | index;
   }
 
   /** True if `e` refers to a live entity (index in range, slot occupied, generation matches). */
   isAlive(e: Entity): boolean {
-    if (e < 0) return false;
+    if (!Number.isInteger(e) || e < 0 || e > 0x7fffffff) return false;
     const idx = entityIndex(e);
     return idx < this.next && this.alive[idx] === 1 && (this.generations[idx] & GEN_MASK) === entityGeneration(e);
   }

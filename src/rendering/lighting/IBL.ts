@@ -42,8 +42,6 @@ export class Environment {
   }
 }
 
-const SRC_USAGE = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC;
-
 /** Generates environments and the BRDF LUT with compute passes (all work is GPU-side; nothing is read back). */
 export class IBLBaker {
   static readonly SPECULAR_SIZE = 128;
@@ -79,7 +77,9 @@ export class IBLBaker {
 
   /** Create an rgba16float cube texture usable as storage, sampled and copy source / destination. */
   private cube(label: string, size: number, mips: number, extraUsage = 0): GPUTexture {
-    return this.gpu.resources.textures.create({ label, size: [size, size, 6], format: 'rgba16float', mipLevelCount: mips, usage: SRC_USAGE | extraUsage });
+    // Read WebGPU constants only when allocating, so importing the library is safe without a device.
+    const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | extraUsage;
+    return this.gpu.resources.textures.create({ label, size: [size, size, 6], format: 'rgba16float', mipLevelCount: mips, usage });
   }
 
   /** A 2D-array view of one mip of `t` for storage writes. */

@@ -1,3 +1,5 @@
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
+import type { RenderGraph } from '../rendering/RenderGraph';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { TextureRef } from '../rendering/materials/Material';
@@ -45,7 +47,11 @@ export const SEGMENT_FLOATS = 12;       // 48 bytes, mirrors `Segment`
  *   - trail/flat : a compute kernel advances each ribbon's history (commit when the head moved `minSegment`)
  *   - chain      : the CPU writes the ordered control points directly (beams, lightning)
  */
-export class RibbonSystem {
+export class RibbonSystem implements RenderFeature {
+  private static nextId = 0;
+  readonly name = `ribbons:${RibbonSystem.nextId++}`;
+  order = FeatureOrder.ribbons;
+  readonly produces = ['ribbons'];
   readonly descBuf: GPUBuffer;
   readonly segmentBuf: GPUBuffer;
   readonly updateParams: GPUBuffer;
@@ -213,6 +219,14 @@ export class RibbonSystem {
   }
 
   /** Record the compute pass that extends trails and writes new segments (skipped when there are no ribbons). */
+  // ---- RenderFeature hooks ----
+
+  /** Advance the trail histories on the GPU, before the draw reads them. */
+  addPasses(g: RenderGraph): void { g.addPass({ name: `${this.name}:update`, writes: ['ribbons'], execute: (e) => this.encodeCompute(e) }); }
+
+  /** One draw call, after the scene. */
+  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
+
   encodeCompute(enc: GPUCommandEncoder): void {
     if (this.count === 0) return;
     const pass = enc.beginComputePass({ label: 'ribbons-update' });

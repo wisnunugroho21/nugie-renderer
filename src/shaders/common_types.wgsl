@@ -37,7 +37,7 @@ struct Light {                  // 96 bytes (6 x vec4)
 struct Scene {
   counts: vec4<u32>,            // x = number of lights in the Light buffer
   clusterGrid: vec4<u32>,       // xyz = cluster dimensions, w = 1 when clustered shading is active (0 = loop over all lights)
-  clusterDepth: vec4<f32>,      // x = near, y = far, z = slices / ln(far / near), w = (unused)
+  clusterDepth: vec4<f32>,      // x = near, y = far, z = slices / ln(far / near), w = tile size in pixels
   env: vec4<f32>,               // x = intensity, y = rotation about +Y (radians), z = specular mip count, w = 1 when an environment is bound
   shadow: vec4<f32>,            // x = cascade count, y = PCF radius (texels), z = shadow normal bias, w = 1 when shadows are enabled
   cascadeSplits: vec4<f32>,     // view-space far distance of each cascade (up to 4)

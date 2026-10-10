@@ -8,6 +8,26 @@ import { BoundsSystem } from '../src/ecs/systems/BoundsSystem';
 import { Mat4 } from '../src/math/Mat4';
 
 describe('BitSet', () => {
+  it('rejects invalid writes without aliasing bit zero, and ignores invalid reads and clears', () => {
+    const bits = new BitSet();
+    bits.set(0);
+    for (const i of [-1, -0x100000000, NaN, Infinity, 0.5, 0x100000000]) {
+      expect(bits.has(i)).toBe(false);
+      bits.clear(i);
+      expect(() => bits.set(i)).toThrow(RangeError);
+      expect(bits.has(0)).toBe(true);
+    }
+    for (const size of [-1, NaN, Infinity, 0.5, 0x100000001]) {
+      expect(() => new BitSet(size)).toThrow(RangeError);
+      expect(() => bits.ensure(size)).toThrow(RangeError);
+    }
+  });
+
+  it('an empty intersection has no enumerable members', () => {
+    const out: number[] = [];
+    BitSet.forEachAnd([], i => out.push(i));
+    expect(out).toEqual([]);
+  });
   it('set/clear/has/grow/count', () => {
     const b = new BitSet(8);
     b.set(3); b.set(100); b.set(1000);
@@ -206,5 +226,40 @@ describe('TransformStore.setRotation', () => {
     expect(Math.hypot(t.rotationX[0], t.rotationY[0], t.rotationZ[0], t.rotationW[0])).toBeCloseTo(1, 6);
     t.setRotation(0, 0, 0, 0, 0);
     expect([t.rotationX[0], t.rotationY[0], t.rotationZ[0], t.rotationW[0]]).toEqual([0, 0, 0, 1]);
+  });
+});
+
+describe('entity and hierarchy validation regressions', () => {
+  it('rejects malformed handles rather than aliasing live entities', () => {
+    const world = new World();
+    const entity = world.create();
+    for (const handle of [NaN, Infinity, 0.5, entity + 2 ** 31, entity + 2 ** 32]) {
+      expect(world.isAlive(handle)).toBe(false);
+      expect(world.destroy(handle)).toBe(false);
+    }
+    expect(world.isAlive(entity)).toBe(true);
+  });
+  it('rejects missing parents and children without changing the hierarchy', () => {
+    const { w, idx } = makeWorld(2);
+    w.transforms.setParent(idx[1], idx[0]);
+    for (const parent of [-2, 100000, NaN, 0.5]) {
+      expect(() => w.transforms.setParent(idx[1], parent)).toThrow(/Parent/);
+    }
+    expect(() => w.transforms.setParent(100000, -1)).toThrow(/Child/);
+    expect(w.transforms.parent[idx[1]]).toBe(idx[0]);
+  });
+  it('resetting an existing transform detaches it and orphans its children coherently', () => {
+    const { w, idx, sys } = makeWorld(3);
+    const t = w.transforms;
+    t.setParent(idx[1], idx[0]); t.setParent(idx[2], idx[1]);
+    sys.update();
+    t.add(idx[1], 5, 0, 0);
+    sys.update();
+    expect(t.firstChild[idx[0]]).toBe(-1);
+    expect(t.parent[idx[1]]).toBe(-1);
+    expect(t.parent[idx[2]]).toBe(-1);
+    expect(t.depth[idx[2]]).toBe(0);
+    expect(t.worldMatrices[idx[1] * 16 + 12]).toBe(5);
+    expect(t.worldMatrices[idx[2] * 16 + 12]).toBe(2);
   });
 });

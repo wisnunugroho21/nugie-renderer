@@ -1,9 +1,9 @@
 import type { GPUContext } from '../gpu/GPUContext';
+import { DEPTH_FORMAT } from './formats';
 import type { TextureRef } from './materials/Material';
 
 /** Format of render targets: linear HDR radiance (no tone mapping, no sRGB encoding), so the colour can be used as a texture. */
 export const RENDER_TARGET_FORMAT: GPUTextureFormat = 'rgba16float';
-const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
 export interface RenderTargetDesc {
   /** Size in pixels. With `scale` set these are only the initial size. */

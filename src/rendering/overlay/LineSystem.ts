@@ -2,7 +2,7 @@ import type { GPUContext } from '../../gpu/GPUContext';
 import type { BindLayouts } from '../../gpu/BindLayouts';
 import { LINES_SOURCE, registerEngineShaderChunks } from '../../shaders';
 import { sub, mul, len, norm, basisFromNormal } from '../../math/Tuple3';
-import { StorageArray, type Overlay, type OverlayTarget, type Color, type Vec3 } from './Overlay';
+import { StorageArray, OverlaySystem, type OverlayTarget, type Color, type Vec3 } from './Overlay';
 
 export interface LineSystemOptions {
   /** Initial segment capacity (grows automatically). */
@@ -38,9 +38,7 @@ const SEG_FLOATS = 20;     // a (xyz, width), b (xyz, width), colorA, colorB, di
  * engine.addSystem({ update: () => { lines.box(min, max, [1, 0.4, 0]); lines.axes([0, 0, 0], 1); } }, 'afterTransforms');
  * ```
  */
-export class LineSystem implements Overlay {
-  autoClear: boolean;
-  visible = true;
+export class LineSystem extends OverlaySystem {
   width: number;
   color: Color;
   readonly depthTest: boolean;
@@ -61,6 +59,7 @@ export class LineSystem implements Overlay {
   private pipeline!: GPURenderPipeline;
 
   constructor(private gpu: GPUContext, layouts: BindLayouts, private target: OverlayTarget, o: LineSystemOptions = {}) {
+    super('lines');
     registerEngineShaderChunks(gpu.resources.shaders);
     this.autoClear = o.autoClear ?? false;
     this.width = o.width ?? 1.5;

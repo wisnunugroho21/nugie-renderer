@@ -1,79 +1,129 @@
+import { PriorityQueue } from '../core/PriorityQueue';
+
 export interface PassDesc {
   name: string;
-  /** Logical resources this pass consumes / produces (free-form names, e.g. 'shadowMap', 'depth'). */
+  /** Logical resources consumed / produced (e.g. 'shadowMap', 'depth'). */
   reads?: string[];
   writes?: string[];
-  /** Keep the pass even if nothing consumes its outputs (e.g. the pass that writes the backbuffer). */
+  /** Keep the pass even if nothing consumes its outputs (e.g. the backbuffer). */
   sideEffect?: boolean;
-  execute: (enc: GPUCommandEncoder) => void;
+  execute: (encoder: GPUCommandEncoder) => void;
 }
 
-/**
- * Minimal frame graph: passes declare what they read and write; `compile` orders them so every producer runs before its
- * consumers (stable w.r.t. declaration order), keeps write-after-read / write-after-write order, rejects cycles and drops
- * passes whose results nobody uses. The renderer rebuilds it each frame (a handful of passes: the cost is negligible).
+type Dependencies = Set<number>[];
+
+/** Derive read/write hazards in declaration order. Forward reads consume later producers;
+ * a first read-modify-write consumes an external resource, then becomes its first producer.
+ */
+function dependenciesOf(passes: readonly PassDesc[]): Dependencies {
+  const dependencies: Dependencies = passes.map(() => new Set<number>());
+  const lastWriter = new Map<string, number>();
+  const readers = new Map<string, number[]>();
+  const writers = new Map<string, number[]>();
+  for (let i = 0; i < passes.length; i++) for (const resource of passes[i].writes ?? []) {
+    const list = writers.get(resource) ?? [];
+    list.push(i);
+    writers.set(resource, list);
+  }
+  for (let i = 0; i < passes.length; i++) {
+    const pass = passes[i];
+    for (const resource of pass.reads ?? []) {
+      const writer = lastWriter.get(resource);
+      if (writer !== undefined) dependencies[i].add(writer);
+      else if (!pass.writes?.includes(resource)) {
+        for (const producer of writers.get(resource) ?? []) dependencies[i].add(producer);
+        continue;
+      }
+      const list = readers.get(resource) ?? [];
+      list.push(i);
+      readers.set(resource, list);
+    }
+    for (const resource of pass.writes ?? []) {
+      const writer = lastWriter.get(resource);
+      if (writer !== undefined && writer !== i) dependencies[i].add(writer);
+      for (const reader of readers.get(resource) ?? []) if (reader !== i) dependencies[i].add(reader);
+      lastWriter.set(resource, i);
+      readers.set(resource, []);
+    }
+  }
+  return dependencies;
+}
+
+/** Keep side-effect passes and their transitive dependencies without recursive traversal. */
+function livePasses(passes: readonly PassDesc[], dependencies: Dependencies): Set<number> {
+  const live = new Set<number>();
+  const stack: number[] = [];
+  passes.forEach((pass, index) => { if (pass.sideEffect) stack.push(index); });
+  while (stack.length) {
+    const index = stack.pop()!;
+    if (live.has(index)) continue;
+    live.add(index);
+    for (const dependency of dependencies[index]) stack.push(dependency);
+  }
+  return live;
+}
+
+/** Stable Kahn sort: the lowest declaration index among ready passes always wins. */
+function orderedPasses(passes: readonly PassDesc[], dependencies: Dependencies, live: Set<number>): PassDesc[] {
+  const indegree = new Uint32Array(passes.length);
+  const users: number[][] = passes.map(() => []);
+  for (const index of live) for (const dependency of dependencies[index]) {
+    indegree[index]++;
+    users[dependency].push(index);
+  }
+  const ready = new PriorityQueue<number>((a, b) => a - b);
+  for (const index of live) if (indegree[index] === 0) ready.push(index);
+  const ordered: PassDesc[] = [];
+  while (ready.length) {
+    const index = ready.pop()!;
+    ordered.push(passes[index]);
+    for (const user of users[index]) if (--indegree[user] === 0) ready.push(user);
+  }
+  if (ordered.length !== live.size) {
+    const blocked = [...live].filter((index) => indegree[index] > 0).map((index) => passes[index].name);
+    throw new Error(`RenderGraph: dependency cycle between passes: ${blocked.join(', ')}`);
+  }
+  return ordered;
+}
+
+/** Frame graph: dependencies -> liveness -> stable ordering -> command recording.
+ * Recompile after changing passes. Failed compilation cannot replay an earlier graph.
  */
 export class RenderGraph {
   private passes: PassDesc[] = [];
-  /** Names of the passes in executed order after compile(). */
   order: string[] = [];
-  /** Passes removed by culling after compile(). */
   culled: string[] = [];
-  private compiled: PassDesc[] = [];
+  private compiled: PassDesc[] | null = null;
 
-  /** Remove all passes (call at the start of every frame). */
-  reset(): void { this.passes.length = 0; this.order.length = 0; this.culled.length = 0; this.compiled.length = 0; }
-
-  /** Declare a pass for this frame. */
-  addPass(p: PassDesc): void { this.passes.push(p); }
-
-  /** Derive pass order from the declared reads / writes (a stable topological sort), drop passes nothing depends on, and throw on cycles. Returns the names of culled passes. */
-  compile(): string[] {
-    const n = this.passes.length;
-    // dependency edges (a -> b means a must run before b), derived from declaration order per resource
-    const deps: Set<number>[] = Array.from({ length: n }, () => new Set<number>());
-    const lastWriter = new Map<string, number>(), readersSinceWrite = new Map<string, number[]>(), writersOf = new Map<string, number[]>();
-    this.passes.forEach((p, i) => { for (const r of p.writes ?? []) (writersOf.get(r) ?? writersOf.set(r, []).get(r)!).push(i); });
-    this.passes.forEach((p, i) => {
-      for (const r of p.reads ?? []) {
-        const w = lastWriter.get(r);
-        if (w !== undefined && w !== i) deps[i].add(w);
-        // nothing declared before this read writes `r`: it consumes the (later-declared) producer(s) instead
-        else if (w === undefined) { for (const j of writersOf.get(r) ?? []) if (j !== i) deps[i].add(j); continue; }
-        (readersSinceWrite.get(r) ?? readersSinceWrite.set(r, []).get(r)!).push(i);
-      }
-      for (const r of p.writes ?? []) {
-        const w = lastWriter.get(r);
-        if (w !== undefined && w !== i) deps[i].add(w);                    // write after write
-        for (const rd of readersSinceWrite.get(r) ?? []) if (rd !== i) deps[i].add(rd);   // write after read
-        lastWriter.set(r, i); readersSinceWrite.set(r, []);
-      }
-    });
-    // cull: keep side-effect passes and everything they (transitively) depend on
-    const keep = new Array<boolean>(n).fill(false);
-    /** Keep pass `i` and, recursively, every pass it depends on. */
-    const mark = (i: number): void => { if (keep[i]) return; keep[i] = true; deps[i].forEach(mark); };
-    this.passes.forEach((p, i) => { if (p.sideEffect) mark(i); });
-    // a pass with outputs that some kept pass reads is already kept through deps; passes with no outputs are only kept if sideEffect
-    this.culled = this.passes.filter((_, i) => !keep[i]).map((p) => p.name);
-    // stable topological order (Kahn, lowest declaration index first)
-    const indeg = new Array<number>(n).fill(0);
-    const users: number[][] = Array.from({ length: n }, () => []);
-    for (let i = 0; i < n; i++) if (keep[i]) for (const d of deps[i]) if (keep[d]) { indeg[i]++; users[d].push(i); }
-    const ready: number[] = [];
-    for (let i = 0; i < n; i++) if (keep[i] && indeg[i] === 0) ready.push(i);
-    const out: PassDesc[] = [];
-    while (ready.length) {
-      ready.sort((a, b) => a - b);
-      const i = ready.shift()!;
-      out.push(this.passes[i]);
-      for (const u of users[i]) if (--indeg[u] === 0) ready.push(u);
-    }
-    if (out.length !== keep.filter(Boolean).length) throw new Error('RenderGraph: dependency cycle between passes');
-    this.compiled = out;
-    return (this.order = out.map((p) => p.name));
+  reset(): void {
+    this.passes.length = 0;
+    this.invalidate();
   }
 
-  /** Run the compiled passes in order, recording into `enc`. */
-  execute(enc: GPUCommandEncoder): void { for (const p of this.compiled) p.execute(enc); }
+  addPass(pass: PassDesc): void {
+    this.passes.push(pass);
+    this.invalidate();
+  }
+
+  private invalidate(): void {
+    this.compiled = null;
+    this.order.length = 0;
+    this.culled.length = 0;
+  }
+
+  /** Compile the graph and return the execution order. Unused passes are listed in `culled`. */
+  compile(): string[] {
+    this.invalidate();
+    const dependencies = dependenciesOf(this.passes);
+    const live = livePasses(this.passes, dependencies);
+    const ordered = orderedPasses(this.passes, dependencies, live);
+    this.culled = this.passes.filter((_, index) => !live.has(index)).map((pass) => pass.name);
+    this.compiled = ordered;
+    return (this.order = ordered.map((pass) => pass.name));
+  }
+
+  execute(encoder: GPUCommandEncoder): void {
+    if (!this.compiled) throw new Error('RenderGraph: compile the graph before executing');
+    for (const pass of this.compiled) pass.execute(encoder);
+  }
 }
