@@ -48,8 +48,11 @@ src/app/         Engine (what a game uses), Application (device + frame loop + r
 src/ecs/         World, entities, component stores (components/), per-frame systems (systems/)
 src/rendering/   Renderer (frame orchestration: queues -> batches -> pass graph), RenderExtractor, RenderWorld, materials/, lighting/, shadows/,
                  post/ (post-processing, transmission copy), overlay/ (lines, points, sprites, text), GPU culling, primitives.
-                 RenderFeature (the plug-in point: particles, ribbons, overlays and your own features), post/FullscreenEffect.
-                 Small collaborators of Renderer: FrameUniform (per-view uniform), Skybox, GPULodIndex, lighting/LegacySceneLights, streaming/StreamingDriver
+                 RenderFeature (the plug-in point: shadows, light clusters, fog, sky, streaming, particles, ribbons, overlays, the post chain and
+                 your own features), post/FullscreenEffect.
+                 Small collaborators of Renderer: FrameUniform (per-view uniform), RenderDrawState (FrameState + per-view ViewState), OffscreenViews
+                 (render targets, views, probe capture), formats (shared texture formats), Skybox, GPULodIndex, lighting/LegacySceneLights,
+                 streaming/StreamingDriver
 src/assets/      glTF/GLB loading + instantiation, texture loading, RGBE (.hdr)
 src/animation/   clips, animator, graph/ (state machines, blend trees), ik/, motionmatching/, root motion
 src/particles/   GPU particle pools and ribbons

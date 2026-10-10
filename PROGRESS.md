@@ -89,6 +89,22 @@ Review pass over the modules, typecheck, 437 unit tests and the 34 GPU self-test
   bounds get their mesh's bounds automatically (`Engine.autoBounds`; `spawnObject` defaults to mesh bounds), so static objects always
   fit the BVH; deforming meshes still need explicit padded bounds.
 
+## Feature-hook restructuring (October 2026)
+
+Built-in rendering pieces now plug in through `RenderFeature` like user features. 599 unit tests, tsc, vite build and the 34 GPU
+self-tests pass; canvas hashes for the lights, rtt and feature demos (default, chain, ssao+ssr+bloom, msaa+fxaa, frustum, hiz2, fog, naive)
+are identical to before.
+
+* **Hooks:** `beginFrame`, `buildInstances`, `prepare`, `addPasses`, `addPostPasses`, `drawBackdrop`, `drawMain`, `retarget`, `endFrame`,
+  plus `order` (`FeatureOrder`, exported from `src/index.ts`) and `produces`. The old adapter functions are gone.
+* **Converted:** shadows, light clusters, volumetric fog, sky, texture streaming, the post chain, particles, ribbons and the line / point /
+  sprite overlays (shared `OverlaySystem` base). The renderer's hard-coded `MAIN_READS` list is now the registry's `producedResources`.
+* **`Renderer`** no longer swaps state for off-screen renders: `ViewState` (target, formats, draw state) is passed explicitly, and
+  `OffscreenViews` (new) owns render targets, views and probe capture. `formats.ts` holds the shared `DEPTH_FORMAT`.
+* **`PostProcessor.addChainPasses`** is one small method per effect (view depth, SSAO, SSR, bloom, composite, FXAA).
+* Docs: `MAKING_A_GAME.md` section 6 and file map, `ARCHITECTURE.md` and `RENDERER_WALKTHROUGH.md` describe the hook order and `ViewState`.
+* Known limitation: GPU-culled draws leave `stats.triangles` / `stats.instances` at 0.
+
 ## Storage-buffer budget and arena guard (October 2026)
 
 * **Vertex stage: 10 -> 6 storage buffers.** `deformData` is ONE arena for all skin weights and morph deltas (skin: 1 element per

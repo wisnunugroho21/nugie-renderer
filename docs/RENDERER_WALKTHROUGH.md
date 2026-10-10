@@ -167,13 +167,13 @@ The main frame finishes one encoder and submits one command buffer. Additional o
 
 ## 13. Offscreen views and other features
 
-Render targets let material textures display mirrors, minimaps and security cameras. Each due view uses its camera and CPU visibility, queues/batches appended to the current instance storage, a separate render pass and submission. Normal/mirrored scratch is reused by winding variant through `RenderDrawState`; it is not one independent scratch object per registered view. Uniform snapshots restore main-camera state afterwards. Views exclude materials sampling their own target to avoid feedback.
+Render targets let material textures display mirrors, minimaps and security cameras. Each due view uses its camera and CPU visibility, queues/batches appended to the current instance storage, a separate render pass and submission. `OffscreenViews` owns this bookkeeping and hands each draw to the renderer with an explicit `ViewState`. Normal/mirrored scratch is reused by winding variant through `RenderDrawState`; it is not one independent scratch object per registered view. Uniform snapshots restore main-camera state afterwards. Views exclude materials sampling their own target to avoid feedback.
 
 Mirror views reflect the camera, change triangle winding and use an oblique projection to clip at the mirror plane. Views use plain light loops and reuse main-view shadow resources; they skip particles/ribbons, fog, post-processing, GPU visibility and MSAA. Because they submit before the current main shadow pass, they generally sample shadow contents from the previous submitted main frame. Reflection probes render six cube faces and bake them into an environment.
 
 Particles use fixed-capacity GPU pools with state, ping-pong alive lists, dead lists, counters, emitters and indirect arguments. CPU code supplies spawn/emitter parameters; compute advances/recycles particles and builds the render list. Rendering uses indirect billboard or mesh draws. Ribbons retain history in shared segment rings, with compute advancing trails and CPU-supplied points for chains. Overlay systems batch thick lines, point sprites, textured sprites and font-atlas text.
 
-`RenderFeature` exposes prepare/upload, graph-pass, main draw, post-pass, retarget and end-of-frame hooks. `produces` declares dependencies of main drawing. Registry ordering is stable by draw order. Removing a feature does not destroy its owned GPU resources.
+`RenderFeature` exposes begin-frame, instance-building, prepare/upload, graph-pass, post-pass, backdrop, main draw, retarget and end-of-frame hooks. `produces` declares dependencies of main drawing. Registry ordering is stable by `order` (`FeatureOrder`); shadows, clusters, fog, sky, streaming, particles, ribbons, overlays and the post chain are all features. Removing a feature does not destroy its owned GPU resources.
 
 ## 14. Loading, streaming, picking and background work
 
