@@ -2,12 +2,15 @@ import type { MaterialManager } from '../rendering/materials/MaterialManager';
 import type { RenderWorld } from '../rendering/RenderWorld';
 import type { VisibleSet } from '../visibility/VisibilitySystem';
 import type { TextureStreamer, StreamedTexture } from './TextureStreamer';
+import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
 
 /**
  * Connects a {@link TextureStreamer} to the renderer: reports each material's on-screen coverage every frame (so mip residency follows what
  * is visible and how large), and rebuilds a material's bind group whenever one of its streamed textures changes its resident mips.
  */
-export class StreamingDriver {
+export class StreamingDriver implements RenderFeature {
+  readonly name = 'texture-streaming';
+  order = FeatureOrder.streaming;
   /** The attached streamer, or null. */
   streamer: TextureStreamer | null = null;
   private coverage = new Map<number, number>();
@@ -20,6 +23,11 @@ export class StreamingDriver {
     if (this.streamer?.onViewChanged === this.viewChanged) this.streamer.onViewChanged = null;
     this.streamer = s;
     if (s) s.onViewChanged = this.viewChanged;
+  }
+
+  /** Report the frame's coverage before any bind group of the frame is used. */
+  beginFrame(f: FeatureFrame): void {
+    if (this.streamer && f.hasCamera) this.update(f.rw, f.visible, f.visibleCount, f.height);
   }
 
   /** Report per-material screen coverage to the streamer, then apply its plan (before the frame's bind groups are used). */

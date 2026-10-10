@@ -29,7 +29,7 @@ function passOrder(post: PostProcessor): string[] {
   const graph = new RenderGraph();
   graph.addPass({ name: 'main', writes: ['sceneColor'], sideEffect: true, execute: () => {} });
   if (post.needsAux) graph.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
-  post.addPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthSamples: 1 });
+  post.addChainPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthSamples: 1 });
   graph.compile();
   return graph.order;
 }

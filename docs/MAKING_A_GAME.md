@@ -512,13 +512,29 @@ touching the renderer. Shared WGSL lives in `src/shaders/` (`common*.wgsl` descr
 `src/demos/index.ts`; open it with `/?scene=<name>`.
 
 **A new rendering feature** (a GPU simulation, a custom draw, a debug visualisation, a post effect): implement `RenderFeature` and register it with
-`renderer.addFeature(feature)` - no change to the renderer. Every hook is optional; the particles, ribbons and the line / point / sprite systems are built
-the same way (see `src/rendering/RenderFeature.ts`).
+`renderer.addFeature(feature)` - no change to the renderer. Every hook is optional. **The renderer's own parts use the same hooks**: shadows, light
+clusters, volumetric fog, the sky, texture streaming, particles, ribbons, the line / point / sprite overlays and the post-processing chain are all
+features (`renderer.features` lists them in run order), so reading one of them is the best documentation of a hook (see `src/rendering/RenderFeature.ts`).
+
+| Hook | Runs | Used by |
+|---|---|---|
+| `beginFrame(frame)` | before the lights / scene uniform are uploaded; may change `frame.lights` | shadows (assign slots), clusters and fog (size the grids), texture streaming |
+| `buildInstances(frame)` | before the instance buffer is uploaded (main view only) | shadows (caster batches) |
+| `prepare(frame)` | after the frame's batches are built | overlays (upload) |
+| `addPasses(graph, frame)` | while the pass graph is declared | shadow maps, clusters, fog, particle / ribbon simulation |
+| `addPostPasses(graph, frame)` | after the scene, before the built-in post chain (HDR chain on) | the post chain itself, your effects |
+| `drawBackdrop(pass, frame)` | main pass, after opaque geometry, before blended surfaces | the sky |
+| `drawMain(pass, frame)` | main pass, after the scene | particles, ribbons, overlays |
+| `retarget()` | the main pass's format / sample count changed | everything that owns a pipeline |
+| `endFrame()` | after the submit | overlays (`autoClear`) |
+
+Within every hook features run in `order` (`FeatureOrder`: streaming 0, shadows 10, clusters 20, fog 30, yours 100 by default, particles 100,
+ribbons 200, overlays 300, post chain 1000). `produces` names the graph resources a feature's passes write, so the scene passes wait for them.
 
 ```ts
 const feature: RenderFeature = {
   name: 'my-feature',
-  drawOrder: 150,                       // inside the main pass; lower draws first (particles 100, ribbons 200, overlays 300)
+  order: 150,                           // runs (in every hook) after features with a lower order
   produces: ['myData'],                 // graph resources its passes write; the main pass waits for them
   prepare(frame)  { /* upload this frame's uniforms (frame.time, frame.camera) */ },
   addPasses(graph, frame) {             // compute / render passes, ordered by the declared reads and writes
@@ -532,6 +548,9 @@ const feature: RenderFeature = {
 };
 renderer.addFeature(feature);           // renderer.removeFeature(feature) to unplug it
 ```
+
+`frame` (`FeatureFrame`) carries the scene (`rw`, `camera`, `lights`, `visible`), the canvas size, the bind groups (`frameBindGroup`,
+`sceneBindGroup`, `objectBindGroup()`), the main pass's `target` formats, the GPU `profiler` and the per-frame `instances` ring buffer.
 
 `src/demos/featureDemo.ts` (`/?scene=feature`) is a complete, runnable template: a backdrop drawn in the main pass and a post effect.
 

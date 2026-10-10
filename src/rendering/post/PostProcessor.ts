@@ -1,5 +1,6 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import type { RenderGraph } from '../RenderGraph';
+import { FeatureOrder, type PostFeatureFrame, type RenderFeature } from '../RenderFeature';
 import { POST_SOURCE, POST_DEPTH_SOURCE, SSAO_SOURCE, SSR_SOURCE, registerEngineShaderChunks } from '../../shaders';
 
 /** Tone mapping operator applied by the composite pass. */
@@ -115,6 +116,25 @@ export interface PostFrameInfo {
   depthSamples: number;
 }
 
+/** Per-frame values the chain's passes share (which effects run, the camera constants, what the composite reads). */
+interface ChainFrame {
+  settings: PostSettings;
+  scene: Target;
+  frame: PostFrameInfo;
+  near: number;
+  far: number;
+  /** Projection terms the depth-based passes use: (p00, p11, p22, p32). */
+  camE: number[];
+  /** Size of the scene target: (1/w, 1/h, w, h). */
+  camF: number[];
+  bloomOn: boolean;
+  ssaoOn: boolean;
+  ssrOn: boolean;
+  fxaa: boolean;
+  /** Graph resources the composite pass reads: grows as effects are added. */
+  reads: string[];
+}
+
 /**
  * Post-processing and anti-aliasing. Owns the offscreen scene target (optionally multisampled), the bloom chain, the screen-space
  * AO / reflection targets and the full-screen passes, and declares them in the render graph.
@@ -126,7 +146,10 @@ export interface PostFrameInfo {
  * Use `renderer.post.configure({...})`. Changing `enabled` / `msaa` re-creates pipelines on the next frame (set them before
  * `renderer.warmup()` to avoid that hitch).
  */
-export class PostProcessor {
+export class PostProcessor implements RenderFeature {
+  readonly name = 'post-chain';
+  /** After every other post feature: user effects work on the HDR colour before SSAO / SSR / bloom / tone mapping. */
+  order = FeatureOrder.postChain;
   readonly settings: PostSettings = cloneDefaults();
   /** Run the HDR post chain. */
   enabled = false;
@@ -362,116 +385,139 @@ export class PostProcessor {
     pass.setPipeline(pipe); pass.setBindGroup(0, group); pass.draw(3); pass.end();
   }
 
+  /** The post chain as a feature: runs after any user post feature (see `order`). */
+  addPostPasses(g: RenderGraph, f: PostFeatureFrame): void {
+    this.addChainPasses(g, { projection: f.projection, depthView: f.depthView, depthSamples: f.depthSamples });
+  }
+
   /**
    * Declare the post passes in `g`. Call after the main pass(es) (which write `'sceneColor'`) and the aux pass (`'auxTex'`).
-   * The final pass writes the swap chain (`'backbuffer'`).
+   * The final pass writes the swap chain (`'backbuffer'`). Passes are declared in a fixed order because parameter slots are assigned in
+   * declaration order, which keeps the bind groups (keyed by slot) valid across frames.
    */
-  addPasses(g: RenderGraph, frame: PostFrameInfo): void {
+  addChainPasses(g: RenderGraph, frame: PostFrameInfo): void {
     if (!this.enabled || !this.scene) return;
-    const s = this.settings, scene = this.scene, gpu = this.gpu;
-    const levels = this.bloomLevels;
-    const bloomOn = s.bloom.enabled && levels.length > 0;
-    const fxaa = s.fxaa && this.ldr !== null;
-    const vd = this.viewDepth, aux = this.aux;
-    const ssaoOn = s.ssao.enabled && this.ao !== null && vd !== null && aux !== null;
-    const ssrOn = s.ssr.enabled && this.ssrTarget !== null && vd !== null && aux !== null;
+    const c = this.chainFrame(frame, this.scene);
     this.usedSlots = 0;
-    const reads = ['sceneColor'];
+    this.addViewDepthPass(g, c);
+    if (c.ssaoOn) this.addSSAOPasses(g, c);
+    if (c.ssrOn) this.addSSRPass(g, c);
+    if (c.bloomOn) this.addBloomPass(g, c);
+    this.addCompositePass(g, c);
+    if (c.fxaa) this.addFXAAPass(g, c);
+    this.gpu.queue.writeBuffer(this.params, 0, this.paramData, 0, this.usedSlots * (PARAM_STRIDE / 4));
+  }
 
-    // Camera constants shared by the depth-based passes.
-    const proj = frame.projection;
-    const near = proj[14] / proj[10], far = proj[14] / (1 + proj[10]);
-    const camE = [proj[0], proj[5], proj[10], proj[14]];
-    const camF = [1 / scene.w, 1 / scene.h, scene.w, scene.h];
+  /** Work out which effects run this frame and the camera constants the depth-based passes share. */
+  private chainFrame(frame: PostFrameInfo, scene: Target): ChainFrame {
+    const s = this.settings, vd = this.viewDepth, aux = this.aux, proj = frame.projection;
+    return {
+      settings: s, scene, frame,
+      near: proj[14] / proj[10], far: proj[14] / (1 + proj[10]),
+      camE: [proj[0], proj[5], proj[10], proj[14]], camF: [1 / scene.w, 1 / scene.h, scene.w, scene.h],
+      bloomOn: s.bloom.enabled && this.bloomLevels.length > 0,
+      ssaoOn: s.ssao.enabled && this.ao !== null && vd !== null && aux !== null,
+      ssrOn: s.ssr.enabled && this.ssrTarget !== null && vd !== null && aux !== null,
+      fxaa: s.fxaa && this.ldr !== null,
+      reads: ['sceneColor'],
+    };
+  }
 
-    if (vd && aux) {
-      const ms = frame.depthSamples > 1;
-      const sl = this.slot([proj[10], proj[14], 0, 0]);
-      // the same (depth view, sample count, parameter slot) comes back every frame: keep the bind group instead of rebuilding it
-      let cached = this.depthGroup;
-      if (!cached || cached.view !== frame.depthView || cached.ms !== ms || cached.slot !== sl) {
-        cached = this.depthGroup = {
-          view: frame.depthView, ms, slot: sl,
-          bg: gpu.device.createBindGroup({
-            label: 'post:depth', layout: this.depthLayouts[ms ? 1 : 0],
-            entries: [
-              { binding: ms ? 1 : 0, resource: frame.depthView },
-              { binding: 2, resource: { buffer: this.params, offset: sl * PARAM_STRIDE, size: 16 } },
-            ],
-          }),
-        };
-      }
-      const bg = cached.bg;
-      g.addPass({ name: 'post-depth', reads: ['sceneColor'], writes: ['viewDepth'], execute: (e) => this.fullscreen(e, 'post-depth', vd.view, this.depthPipeline(ms), bg) });
+  /** Linearise the main depth buffer (SSAO / SSR read view-space depth). Needs the aux target, like the effects that use it. */
+  private addViewDepthPass(g: RenderGraph, c: ChainFrame): void {
+    const vd = this.viewDepth, { frame } = c;
+    if (!vd || !this.aux) return;
+    const proj = frame.projection, ms = frame.depthSamples > 1;
+    const sl = this.slot([proj[10], proj[14], 0, 0]);
+    // the same (depth view, sample count, parameter slot) comes back every frame: keep the bind group instead of rebuilding it
+    let cached = this.depthGroup;
+    if (!cached || cached.view !== frame.depthView || cached.ms !== ms || cached.slot !== sl) {
+      cached = this.depthGroup = {
+        view: frame.depthView, ms, slot: sl,
+        bg: this.gpu.device.createBindGroup({
+          label: 'post:depth', layout: this.depthLayouts[ms ? 1 : 0],
+          entries: [
+            { binding: ms ? 1 : 0, resource: frame.depthView },
+            { binding: 2, resource: { buffer: this.params, offset: sl * PARAM_STRIDE, size: 16 } },
+          ],
+        }),
+      };
     }
+    const bg = cached.bg;
+    g.addPass({ name: 'post-depth', reads: ['sceneColor'], writes: ['viewDepth'], execute: (e) => this.fullscreen(e, 'post-depth', vd.view, this.depthPipeline(ms), bg) });
+  }
 
-    if (ssaoOn) {
-      const [ao0, ao1] = this.ao!;
-      const a = s.ssao;
-      const sl = this.slot([a.radius, a.bias, a.intensity, a.power], [a.samples, 0, far, 0], [], [], camE, camF);
-      const grp = this.bindGroup(`ssao:${sl}`, sl, aux!.view, undefined, undefined, vd!.view);
-      g.addPass({ name: 'post-ssao', reads: ['viewDepth', 'auxTex'], writes: ['aoRaw'], execute: (e) => this.fullscreen(e, 'post-ssao', ao0.view, this.pipeline('ssao', SSAO_SOURCE, 'fs_ssao', AO_FORMAT), grp) });
-      const slH = this.slot([1, 0, 20, 0], [], [], [], camE, camF);
-      const gH = this.bindGroup(`blurh:${slH}`, slH, ao0.view, undefined, undefined, vd!.view);
-      g.addPass({ name: 'post-ssao-blur-h', reads: ['aoRaw', 'viewDepth'], writes: ['aoTmp'], execute: (e) => this.fullscreen(e, 'ssao-blur-h', ao1.view, this.pipeline('ssao', SSAO_SOURCE, 'fs_blur', AO_FORMAT), gH) });
-      const slV = this.slot([0, 1, 20, 0], [], [], [], camE, camF);
-      const gV = this.bindGroup(`blurv:${slV}`, slV, ao1.view, undefined, undefined, vd!.view);
-      g.addPass({ name: 'post-ssao-blur-v', reads: ['aoTmp', 'viewDepth'], writes: ['ao'], execute: (e) => this.fullscreen(e, 'ssao-blur-v', ao0.view, this.pipeline('ssao', SSAO_SOURCE, 'fs_blur', AO_FORMAT), gV) });
-      reads.push('ao');
+  /** Screen-space ambient occlusion: sample, then a horizontal and a vertical depth-aware blur. */
+  private addSSAOPasses(g: RenderGraph, c: ChainFrame): void {
+    const [ao0, ao1] = this.ao!, a = c.settings.ssao, aux = this.aux!, vd = this.viewDepth!;
+    const sl = this.slot([a.radius, a.bias, a.intensity, a.power], [a.samples, 0, c.far, 0], [], [], c.camE, c.camF);
+    const grp = this.bindGroup(`ssao:${sl}`, sl, aux.view, undefined, undefined, vd.view);
+    g.addPass({ name: 'post-ssao', reads: ['viewDepth', 'auxTex'], writes: ['aoRaw'], execute: (e) => this.fullscreen(e, 'post-ssao', ao0.view, this.pipeline('ssao', SSAO_SOURCE, 'fs_ssao', AO_FORMAT), grp) });
+    const slH = this.slot([1, 0, 20, 0], [], [], [], c.camE, c.camF);
+    const gH = this.bindGroup(`blurh:${slH}`, slH, ao0.view, undefined, undefined, vd.view);
+    g.addPass({ name: 'post-ssao-blur-h', reads: ['aoRaw', 'viewDepth'], writes: ['aoTmp'], execute: (e) => this.fullscreen(e, 'ssao-blur-h', ao1.view, this.pipeline('ssao', SSAO_SOURCE, 'fs_blur', AO_FORMAT), gH) });
+    const slV = this.slot([0, 1, 20, 0], [], [], [], c.camE, c.camF);
+    const gV = this.bindGroup(`blurv:${slV}`, slV, ao1.view, undefined, undefined, vd.view);
+    g.addPass({ name: 'post-ssao-blur-v', reads: ['aoTmp', 'viewDepth'], writes: ['ao'], execute: (e) => this.fullscreen(e, 'ssao-blur-v', ao0.view, this.pipeline('ssao', SSAO_SOURCE, 'fs_blur', AO_FORMAT), gV) });
+    c.reads.push('ao');
+  }
+
+  /** Screen-space reflections: a ray march against the scene colour and linear depth. */
+  private addSSRPass(g: RenderGraph, c: ChainFrame): void {
+    const r = c.settings.ssr, target = this.ssrTarget!;
+    const sl = this.slot([r.maxDistance, r.thickness, r.stride, r.steps], [r.intensity, r.maxRoughness, 0, c.far], [c.near, 0, 0, 0], [], c.camE, c.camF);
+    const grp = this.bindGroup(`ssr:${sl}`, sl, c.scene.view, this.aux!.view, undefined, this.viewDepth!.view);
+    g.addPass({ name: 'post-ssr', reads: ['sceneColor', 'viewDepth', 'auxTex'], writes: ['ssrTex'], execute: (e) => this.fullscreen(e, 'post-ssr', target.view, this.pipeline('ssr', SSR_SOURCE, 'fs_ssr', HDR_FORMAT), grp) });
+    c.reads.push('ssrTex');
+  }
+
+  /** Bloom: prefilter the bright parts, blur them down a mip chain, then add the levels back up. */
+  private addBloomPass(g: RenderGraph, c: ChainFrame): void {
+    const levels = this.bloomLevels, n = levels.length, b = c.settings.bloom, scene = c.scene;
+    const steps: ((enc: GPUCommandEncoder) => void)[] = [];
+    const pre = this.slot([1 / scene.w, 1 / scene.h, b.threshold, Math.max(b.knee, 1e-4)]);
+    const gPre = this.bindGroup(`pre:${pre}`, pre, scene.view);
+    steps.push((e) => this.fullscreen(e, 'bloom-prefilter', levels[0].view, this.postPipe('fs_prefilter', HDR_FORMAT), gPre));
+    for (let i = 1; i < n; i++) {
+      const sl = this.slot([1 / levels[i - 1].w, 1 / levels[i - 1].h, 0, 0]);
+      const grp = this.bindGroup(`down${i}:${sl}`, sl, levels[i - 1].view);
+      steps.push((e) => this.fullscreen(e, `bloom-down-${i}`, levels[i].view, this.postPipe('fs_down', HDR_FORMAT), grp));
     }
-
-    if (ssrOn) {
-      const r = s.ssr;
-      const sl = this.slot([r.maxDistance, r.thickness, r.stride, r.steps], [r.intensity, r.maxRoughness, 0, far], [near, 0, 0, 0], [], camE, camF);
-      const grp = this.bindGroup(`ssr:${sl}`, sl, scene.view, aux!.view, undefined, vd!.view);
-      const target = this.ssrTarget!;
-      g.addPass({ name: 'post-ssr', reads: ['sceneColor', 'viewDepth', 'auxTex'], writes: ['ssrTex'], execute: (e) => this.fullscreen(e, 'post-ssr', target.view, this.pipeline('ssr', SSR_SOURCE, 'fs_ssr', HDR_FORMAT), grp) });
-      reads.push('ssrTex');
+    for (let i = n - 1; i >= 1; i--) {
+      const sl = this.slot([b.radius / levels[i].w, b.radius / levels[i].h, 0, 0]);
+      const grp = this.bindGroup(`up${i}:${sl}`, sl, levels[i].view);
+      steps.push((e) => this.fullscreen(e, `bloom-up-${i}`, levels[i - 1].view, this.postPipe('fs_up', HDR_FORMAT, true), grp, true));
     }
+    g.addPass({ name: 'post-bloom', reads: ['sceneColor'], writes: ['bloomTex'], execute: (e) => { for (const st of steps) st(e); } });
+    c.reads.push('bloomTex');
+  }
 
-    // Parameter slots are assigned in declaration order so the bind groups (keyed by slot) stay valid across frames.
-    if (bloomOn) {
-      const n = levels.length;
-      const steps: ((enc: GPUCommandEncoder) => void)[] = [];
-      const pre = this.slot([1 / scene.w, 1 / scene.h, s.bloom.threshold, Math.max(s.bloom.knee, 1e-4)]);
-      const gPre = this.bindGroup(`pre:${pre}`, pre, scene.view);
-      steps.push((e) => this.fullscreen(e, 'bloom-prefilter', levels[0].view, this.postPipe('fs_prefilter', HDR_FORMAT), gPre));
-      for (let i = 1; i < n; i++) {
-        const sl = this.slot([1 / levels[i - 1].w, 1 / levels[i - 1].h, 0, 0]);
-        const grp = this.bindGroup(`down${i}:${sl}`, sl, levels[i - 1].view);
-        steps.push((e) => this.fullscreen(e, `bloom-down-${i}`, levels[i].view, this.postPipe('fs_down', HDR_FORMAT), grp));
-      }
-      for (let i = n - 1; i >= 1; i--) {
-        const sl = this.slot([s.bloom.radius / levels[i].w, s.bloom.radius / levels[i].h, 0, 0]);
-        const grp = this.bindGroup(`up${i}:${sl}`, sl, levels[i].view);
-        steps.push((e) => this.fullscreen(e, `bloom-up-${i}`, levels[i - 1].view, this.postPipe('fs_up', HDR_FORMAT, true), grp, true));
-      }
-      g.addPass({ name: 'post-bloom', reads: ['sceneColor'], writes: ['bloomTex'], execute: (e) => { for (const st of steps) st(e); } });
-      reads.push('bloomTex');
-    }
-
+  /** Composite everything: exposure, bloom, SSAO / SSR, tone mapping, grading, sRGB. Writes the swap chain, or the LDR target when FXAA follows. */
+  private addCompositePass(g: RenderGraph, c: ChainFrame): void {
+    const s = c.settings, scene = c.scene, levels = this.bloomLevels, gpu = this.gpu;
     const comp = this.slot(
       [0, 0, 0, 0],
       [s.exposure, s.bloom.intensity, s.vignette, s.saturation],
-      [s.contrast, TONE_MAPPER_ID[s.toneMapper], bloomOn ? 1 : 0, 1 / 255],
-      [scene.w / scene.h, ssaoOn ? 1 : 0, ssrOn ? 1 : 0, 0],
+      [s.contrast, TONE_MAPPER_ID[s.toneMapper], c.bloomOn ? 1 : 0, 1 / 255],
+      [scene.w / scene.h, c.ssaoOn ? 1 : 0, c.ssrOn ? 1 : 0, 0],
     );
-    const gComp = this.bindGroup(`comp:${comp}:${bloomOn}:${ssaoOn}:${ssrOn}`, comp, scene.view,
-      bloomOn ? levels[0].view : undefined, ssrOn ? this.ssrTarget!.view : undefined, ssaoOn ? this.ao![0].view : undefined);
-    const compTarget = fxaa ? this.ldr!.view : null;
+    const gComp = this.bindGroup(`comp:${comp}:${c.bloomOn}:${c.ssaoOn}:${c.ssrOn}`, comp, scene.view,
+      c.bloomOn ? levels[0].view : undefined, c.ssrOn ? this.ssrTarget!.view : undefined, c.ssaoOn ? this.ao![0].view : undefined);
+    const compTarget = c.fxaa ? this.ldr!.view : null;
     g.addPass({
-      name: 'post-composite', reads, writes: [fxaa ? 'ldr' : 'backbuffer'], sideEffect: !fxaa,
+      name: 'post-composite', reads: c.reads, writes: [c.fxaa ? 'ldr' : 'backbuffer'], sideEffect: !c.fxaa,
       execute: (e) => this.fullscreen(e, 'post-composite', compTarget ?? gpu.context.getCurrentTexture().createView(), this.postPipe('fs_composite', gpu.format), gComp),
     });
+  }
 
-    if (fxaa) {
-      const fx = this.slot([1 / scene.w, 1 / scene.h, 0, 0]);
-      const gFx = this.bindGroup(`fxaa:${fx}`, fx, this.ldr!.view);
-      g.addPass({
-        name: 'post-fxaa', reads: ['ldr'], writes: ['backbuffer'], sideEffect: true,
-        execute: (e) => this.fullscreen(e, 'post-fxaa', gpu.context.getCurrentTexture().createView(), this.postPipe('fs_fxaa', gpu.format), gFx),
-      });
-    }
-    gpu.queue.writeBuffer(this.params, 0, this.paramData, 0, this.usedSlots * (PARAM_STRIDE / 4));
+  /** FXAA on the composited image, into the swap chain. */
+  private addFXAAPass(g: RenderGraph, c: ChainFrame): void {
+    const gpu = this.gpu;
+    const fx = this.slot([1 / c.scene.w, 1 / c.scene.h, 0, 0]);
+    const gFx = this.bindGroup(`fxaa:${fx}`, fx, this.ldr!.view);
+    g.addPass({
+      name: 'post-fxaa', reads: ['ldr'], writes: ['backbuffer'], sideEffect: true,
+      execute: (e) => this.fullscreen(e, 'post-fxaa', gpu.context.getCurrentTexture().createView(), this.postPipe('fs_fxaa', gpu.format), gFx),
+    });
   }
 }
