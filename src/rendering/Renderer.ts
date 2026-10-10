@@ -727,7 +727,8 @@ export class Renderer {
     }
     this.features.addPasses(g, this.featureFrame);
     const twoPhase = f.gpuCull && this.gpuCulling === 'hiz2';
-    const prepass = this.depthPrepass && rw.hasCamera && f.total > 0;
+    // (two-phase culling builds its own depth in main-A and clears it, so a prepass would only switch the pipelines to depth 'equal' and break the image)
+    const prepass = this.depthPrepass && !twoPhase && rw.hasCamera && f.total > 0;
     this.prepassActive = prepass;
     if (prepass) this.addDepthPrepass(g);
     if (f.gpuCull) this.addCullingPasses(g, rw, twoPhase);
@@ -989,8 +990,12 @@ export class Renderer {
         colorAttachments: [this.mainColorAttachment(false)],
         depthStencilAttachment: { view: this.depthView, depthLoadOp: 'load', depthStoreOp: 'store' },
       });
-      if (f.total > 0) { this.drawGeometry(pass, 'culled', this.culler!.virtualCount); this.drawGeometry(pass, 'rest', 0); }
-      this.drawExtras(pass, rw);
+      // same order as the single main pass: opaque (GPU-culled), sky, then the blended batches the GPU path does not cover, then extras.
+      // (Drawing the sky last would paint over blended surfaces that sit in front of it: they write no depth.)
+      if (f.total > 0) this.drawGeometry(pass, 'culled', this.culler!.virtualCount);
+      this.drawSky(pass, rw);
+      if (f.total > 0) this.drawGeometry(pass, 'rest', 0);
+      this.drawExtras(pass, rw, false);
       pass.end();
     } });
   }
