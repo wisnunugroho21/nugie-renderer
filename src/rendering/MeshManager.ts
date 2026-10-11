@@ -4,6 +4,7 @@ import type { MeshData } from './primitives';
 import type { MorphTargetData } from '../assets/AssetTypes';
 import type { CpuGeometry } from '../picking/Raycaster';
 import { STANDARD_VERTEX_FLOATS, STANDARD_VERTEX_STRIDE } from './VertexLayouts';
+import { CompactVertexStream } from './CompactVertexStream';
 import { hypot3 } from '../math/hypot';
 
 /** Deformation capability bits of a mesh (selects the vertex-shader variant). */
@@ -81,54 +82,22 @@ export class MeshManager {
   keepCpuGeometry = true;
 
   /** Create the shared vertex / index arenas and the deform arena. */
-  constructor(private device: GPUDevice, private buffers: BufferManager, initialVertices = 1 << 16, initialIndices = 1 << 18) {
+  constructor(device: GPUDevice, buffers: BufferManager, initialVertices = 1 << 16, initialIndices = 1 << 18) {
     const storage = GPUBufferUsage.STORAGE;
     this.vertices = new Arena(device, buffers, 'mesh-vertices', GPUBufferUsage.VERTEX | storage, STANDARD_VERTEX_STRIDE, initialVertices);
     this.indices = new Arena(device, buffers, 'mesh-indices', GPUBufferUsage.INDEX | storage, 4, initialIndices);
     this.deform = new Arena(device, buffers, 'DeformDataBuffer', storage, 16, 2048);
+    this.compactStream = new CompactVertexStream(device, buffers, this.vertices);
   }
 
   /** The shared vertex buffer (all meshes live in it). */
   get vertexBuffer(): GPUBuffer { return this.vertices.buffer; }
-  private compact: GPUBuffer | null = null;
-  private compactVersion = -1;
-  private compactGeneration = -1;
-  private compactUsed = -1;
-  private compactPipeline: GPUComputePipeline | null = null;
+  private readonly compactStream: CompactVertexStream;
 
-  /** Lazily derived 24-byte position/normal stream. GPU packing keeps no additional CPU geometry copy. */
-  get compactVertexBuffer(): GPUBuffer {
-    const v = this.vertices;
-    if (this.compact && this.compactVersion === v.version && this.compactGeneration === v.generation && this.compactUsed === v.used) return this.compact;
-    if (!v.used) throw new Error('Cannot compact an empty vertex arena');
-    const bytes = v.used * 24;
-    if (!this.compact || this.compact.size < bytes) {
-      if (this.compact) this.buffers.destroy(this.compact);
-      this.compact = this.buffers.create('mesh-compact-vertices', bytes, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
-    }
-    if (!this.compactPipeline) {
-      const module = this.device.createShaderModule({ code: `
-        @group(0) @binding(0) var<storage, read> src: array<f32>;
-        @group(0) @binding(1) var<storage, read_write> dst: array<f32>;
-        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-          let i = gid.x + gid.y * 4194240u;
-          if (i >= arrayLength(&src) / 12u) { return; }
-          for (var k = 0u; k < 6u; k++) { dst[i * 6u + k] = src[i * 12u + k]; }
-        }` });
-      this.compactPipeline = this.device.createComputePipeline({ label: 'pack-position-normal', layout: 'auto', compute: { module, entryPoint: 'main' } });
-    }
-    const bg = this.device.createBindGroup({ layout: this.compactPipeline.getBindGroupLayout(0), entries: [
-      { binding: 0, resource: { buffer: v.buffer, size: v.used * STANDARD_VERTEX_STRIDE } },
-      { binding: 1, resource: { buffer: this.compact, size: bytes } },
-    ] });
-    const enc = this.device.createCommandEncoder({ label: 'pack-position-normal' });
-    const pass = enc.beginComputePass(); pass.setPipeline(this.compactPipeline); pass.setBindGroup(0, bg);
-    const groups = Math.ceil(v.used / 64);
-    pass.dispatchWorkgroups(Math.min(groups, 65535), Math.ceil(groups / 65535)); pass.end();
-    this.device.queue.submit([enc.finish()]);
-    this.compactVersion = v.version; this.compactGeneration = v.generation; this.compactUsed = v.used;
-    return this.compact;
-  }
+  /** Lazily derived 24-byte position/normal stream for the retained draw paths (see {@link CompactVertexStream}). */
+  get compactVertexBuffer(): GPUBuffer { return this.compactStream.buffer; }
+  /** False when the vertex arena is too large for the compact stream: the retained draw paths must not be used. */
+  get compactVerticesSupported(): boolean { return this.compactStream.supported; }
   /** The shared index buffer. */
   get indexBuffer(): GPUBuffer { return this.indices.buffer; }
   /** Sum of all arena generations: changes whenever ANY shared buffer is reallocated. */

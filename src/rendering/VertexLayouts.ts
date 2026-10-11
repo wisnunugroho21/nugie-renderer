@@ -37,3 +37,6 @@ export const RETAINED_VERTEX_LAYOUT: PipelineKey['vertexLayout'] = [{ stride: 24
     { location: 11, offset: 100, format: 'uint32' },
   ],
 }];
+
+/** Directional-lighting path without a packed instance stream: position and normal only (instances come from storage buffers). */
+export const DIRECTIONAL_VERTEX_LAYOUT: PipelineKey['vertexLayout'] = RETAINED_VERTEX_LAYOUT.slice(0, 1);

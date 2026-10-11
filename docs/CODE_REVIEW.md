@@ -21,7 +21,7 @@ The review covered the application/frame lifecycle, ECS and transform hierarchy,
 | Texture loading/mips | Failed promises blocked retry; bitmaps/textures leaked on failure. Cache entries are retryable and cleanup runs on error. CPU mip generation is a pure module, validates input dimensions/length, and avoids temporary per-channel arrays. |
 | glTF | Dense/sparse matrix padding was ignored; sparse integer reads applied normalization inconsistently. Shared layout decoding handles padded matrix columns and missing final padding; offsets, strides, sparse count/type/order/ranges are checked. Shared matrix decomposition avoids zero-scale NaNs and duplicate code. |
 | GPU allocation | Invalid sizes could corrupt arena usage or cause unbounded growth. Arena/ring allocators validate dimensions and enforce device limits. Texture accounting includes multisampling and 3D mip depth. Concurrent async pipeline priming shares work and failed creation is retryable. |
-| Tooling/package | The lockfile is committed, supported Node versions are declared, and `npm run check` runs the complete CPU/build/package validation path. Library tree shaking stripped deep-import exports and omitted unreferenced modules: all runtime modules are now entries with declarations. An import-time WebGPU global access is deferred until allocation. Node type definitions were added to check the library build config. A repeatable maintenance benchmark and architecture/extension guide were added. |
+| Tooling/package | Supported Node versions are declared (`package-lock.json` is deliberately git-ignored, so use `npm install`), and `npm run check` runs the complete CPU/build/package validation path. Library tree shaking stripped deep-import exports and omitted unreferenced modules: all runtime modules are now entries with declarations. An import-time WebGPU global access is deferred until allocation. Node type definitions were added to check the library build config. A repeatable maintenance benchmark and architecture/extension guide were added. |
 
 The glTF matrix/sparse behavior follows the [Khronos glTF 2.0 accessor specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#accessors), including four-byte matrix column alignment and strictly increasing sparse indices.
 
@@ -102,7 +102,7 @@ GPU visibility benchmark: 2,000 spheres, CPU culling disabled, eight warm-up and
 ## Reproduce
 
 ```sh
-npm ci
+npm install
 npm run check
 npm run bench
 npm run bench:anim
@@ -115,3 +115,17 @@ With the dev server running, open `/selftest.html`, `/bench.html` (draw suite), 
 ## Limits of this verification
 
 One local browser/device session does not establish support across all WebGPU implementations. CPU tests do not replace shader readbacks. Full device-loss/recovery, every asset extension, every demo setting and long-running memory/leak behavior were not exhaustively exercised. No visual redesign, shader-algorithm rewrite, dependency upgrade or public API renaming was included. The existing feature/system/material extension hooks remain the preferred way to add behavior.
+
+## Follow-up pass: retained static-scene paths (2026-10-11)
+
+Scope: the static-scene performance work (`RetainedDrawCache`, retained render bundles, directional/packed pipeline variants, compact vertex stream, gated uniform uploads) was reviewed line by line against the extraction, transform, material and shader code it depends on, then refactored for readability. No functional defect was found in that code: the review traced cache invalidation (extraction revisions, camera, LOD, material pipeline identity, mesh layout, ring-buffer generations), the cofactor/uniform-normal decision and the shader parity with the general path.
+
+| Area | Change |
+| --- | --- |
+| Draw-path flags | `retained` / `directional` / `uniformNormals` were three positional booleans threaded through `pipelineFor`, `DrawPipelineCache.get`, `getPipeline`, `pipelineKey` and `warmup`, plus a hand-computed cache slot (`materialId * 32 + ...`). They are now one frozen `DrawVariant` (allocation-free table), with entry-point and layout names derived in one place and an explicit, shared eligibility rule (`supportsSpecializedDraw`, previously duplicated in three conditions). |
+| `Renderer.drawGeometry` | One 90-line method mixed path selection, bundle caching, GPU-culled indirect draws and the batch loop. It is split into `resolveDrawPath`, `drawThroughBundle`, `drawIndirect`, `drawBatches` and `bindPipelineAndMaterial`, with typed `DrawPath` / `BoundState` / `DrawPart`; the 12-term `canRetain` expression became `canRetainDraws`. Draw order, state-change counts and statistics are unchanged. |
+| `RetainedDrawCache` | Index-addressed arrays (`key[0..6]`, `values[0..8]`, record stride `12`, word `25`) became named `ViewKey` / `MeshLayout` / `BatchDependency` structures and two pure helpers (`hasUniformNormals`, `packInstance`). |
+| Compact vertex stream | The inline WGSL string and its five bookkeeping fields moved out of `MeshManager` into `CompactVertexStream` with a real `.wgsl` file whose strides are pipeline constants taken from `VertexLayouts`. The packing step now fails closed: an arena larger than `maxStorageBufferBindingSize` disables the specialised paths (`compactVerticesSupported`) instead of raising a GPU validation error mid-frame. |
+| Tooling | `scripts/run-static-benchmark.mjs` required ripgrep (`rg`) only to hash the sources; it uses `git ls-files`. A stale tracked `nugie-renderer-0.1.0.tgz` (a git-ignored build artifact from an earlier version) was removed. |
+
+Validation: typecheck, 616 CPU tests (3 new for `DrawVariant`), production and library builds, package verification, 36/36 GPU self-tests (including compact-vertex and retained image parity) and the Three.js image-parity run (mean absolute error 0.00 / 0.04-0.06, unchanged) pass on the same Apple M1 / Chromium session as before.

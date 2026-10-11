@@ -3,8 +3,9 @@ import type { BindLayouts } from '../../gpu/BindLayouts';
 import { pipelineKeyString, type PipelineKey } from '../../gpu/PipelineCache';
 import { ShaderManager } from '../../gpu/ShaderManager';
 import { COMMON_PRELUDE, ERROR_SOURCE, PBR_SOURCE, registerEngineShaderChunks } from '../../shaders';
-import { STANDARD_VERTEX_LAYOUT, RETAINED_VERTEX_LAYOUT, toGPUVertexBuffers } from '../VertexLayouts';
+import { STANDARD_VERTEX_LAYOUT, RETAINED_VERTEX_LAYOUT, DIRECTIONAL_VERTEX_LAYOUT, toGPUVertexBuffers } from '../VertexLayouts';
 import { MaterialFeature, MaterialRecordFlags, featureDefines } from './MaterialFlags';
+import { STANDARD_VARIANT, drawVariant, isSpecialized, supportsSpecializedDraw, variantLayoutName, variantVertexEntry, type DrawVariant } from './DrawVariant';
 import { EXT_VEC4, needsExtParams, packPBRExt, pbrFeatureMask, type TexPresence } from './PBRExtension';
 import { DeformMask } from '../MeshManager';
 import {
@@ -326,11 +327,11 @@ export class MaterialManager {
    * Cached render pipeline for a material in a given pass target. `deformMask` (DeformMask bits, from the MESH)
    * selects the static / skinned / morphed / skinned+morphed vertex variant. Built on first use and cached after that (`warmup` builds them ahead of time).
    */
-  getPipeline(id: number, target: PassTarget, deformMask = 0, retained = false, directional = false, uniformNormals = false): GPURenderPipeline {
+  getPipeline(id: number, target: PassTarget, deformMask = 0, variant: DrawVariant = STANDARD_VARIANT): GPURenderPipeline {
     let m = this.materials[id];
     if (m.failed) m = this.materials[this.errorMaterial];
-    const key = this.pipelineKey(m, target, deformMask, retained, directional, uniformNormals);
-    return this.res.pipelines.getRender(key, () => this.createPipeline(m, target, key, deformMask));
+    const key = this.pipelineKey(m, target, deformMask, variant);
+    return this.res.pipelines.getRender(key, () => this.createPipeline(m, target, key, deformMask, variant));
   }
 
   /** True when the pass follows a depth prepass for this material (so it only shades pixels whose depth matches). */
@@ -414,33 +415,37 @@ export class MaterialManager {
     return p;
   }
 
-  /** The cache key identifying the pipeline for (material, pass target, deform variant). */
-  pipelineKey(m: Material, target: PassTarget, deformMask = 0, retained = false, directional = false, uniformNormals = false): PipelineKey {
-    if ((directional || retained) && (deformMask !== 0 || m.kind !== 'pbr' || m.shaderId !== 'pbr' || m.vertexEntry !== 'vs_main' || m.fragmentEntry !== 'fs_main' || m.features !== 0 || m.failed)) {
+  /** The cache key identifying the pipeline for (material, pass target, deform variant, draw path). */
+  pipelineKey(m: Material, target: PassTarget, deformMask = 0, variant: DrawVariant = STANDARD_VARIANT): PipelineKey {
+    if (isSpecialized(variant) && (deformMask !== 0 || !supportsSpecializedDraw(m))) {
       throw new MaterialError('Retained pipelines require an undeformed, map-free base PBR material');
     }
     return {
       shader: ShaderManager.key(m.shaderId, featureDefines(m.features | deformFeatures(deformMask))),
-      vertexEntry: retained ? 'vs_retained' : directional ? uniformNormals ? 'vs_directional_uniform' : 'vs_directional_storage' : m.vertexEntry, fragmentEntry: target.colorFormat ? (directional ? 'fs_retained_directional' : m.fragmentEntry) : null,
-      vertexLayout: retained ? RETAINED_VERTEX_LAYOUT : directional ? RETAINED_VERTEX_LAYOUT.slice(0, 1) : STANDARD_VERTEX_LAYOUT,
+      vertexEntry: variantVertexEntry(variant, m.vertexEntry),
+      fragmentEntry: target.colorFormat ? (variant.directional ? 'fs_retained_directional' : m.fragmentEntry) : null,
+      vertexLayout: variant.retained ? RETAINED_VERTEX_LAYOUT : variant.directional ? DIRECTIONAL_VERTEX_LAYOUT : STANDARD_VERTEX_LAYOUT,
       topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: target.flipWinding ? 'cw' : 'ccw',
       depth: { format: target.depthFormat, write: this.depthWrite(m, target), compare: this.depthCompare(m, target) },
       targets: target.colorFormat ? [{ format: target.colorFormat, blend: m.state.blend }] : [],
-      sampleCount: target.sampleCount, layout: directional ? retained ? 'engine-retained-directional' : 'engine-directional' : retained ? 'engine-retained-v1' : 'engine-v1',
+      sampleCount: target.sampleCount, layout: variantLayoutName(variant),
     };
   }
 
+  /** The bind-group layouts a draw path's pipeline layout is made of (see `variantLayoutName` for its cache name). */
+  private pipelineLayoutFor(variant: DrawVariant): GPUPipelineLayout {
+    if (variant.directional) return variant.retained ? this.layouts.retainedDirectionalPipeline : this.layouts.directionalPipeline;
+    if (variant.retained) return this.retainedLayout ??= this.device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene, this.layouts.material] });
+    return this.layouts.pipelineLayout;
+  }
+
   /** Build the descriptor for the selected shader entries, layout and target. */
-  private pipelineDescriptor(m: Material, key: PipelineKey, target: PassTarget, deformMask: number): GPURenderPipelineDescriptor {
+  private pipelineDescriptor(m: Material, key: PipelineKey, target: PassTarget, deformMask: number, variant: DrawVariant): GPURenderPipelineDescriptor {
     const source = m.shaderId === 'pbr' ? PBR_SOURCE : this.customSources.get(m.shaderId)!;
     const module = this.res.shaders.get(m.shaderId, source, featureDefines(m.features | deformFeatures(deformMask)));
     return {
       label: `${m.name}:${key.shader}`,
-      layout: key.fragmentEntry === 'fs_retained_directional'
-        ? (key.vertexEntry === 'vs_retained' ? this.layouts.retainedDirectionalPipeline : this.layouts.directionalPipeline)
-        : key.vertexEntry === 'vs_retained'
-        ? (this.retainedLayout ??= this.device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene, this.layouts.material] }))
-        : this.layouts.pipelineLayout,
+      layout: this.pipelineLayoutFor(variant),
       vertex: { module, entryPoint: key.vertexEntry, buffers: toGPUVertexBuffers(key.vertexLayout) },
       fragment: target.colorFormat
         ? { module, entryPoint: key.fragmentEntry ?? m.fragmentEntry, targets: [{ format: target.colorFormat, blend: m.state.blend ?? undefined }] }
@@ -457,29 +462,28 @@ export class MaterialManager {
    */
   async warmup(target: PassTarget, deformMasks: number[] = [0], retained: { directional?: boolean; packed?: boolean } = {}): Promise<number> {
     const jobs: Promise<void>[] = [], seen = new Set<string>();
-    const prime = (m: Material, dm: number, packed = false, directional = false, uniformNormals = false) => {
-      const key = this.pipelineKey(m, target, dm, packed, directional, uniformNormals), k = pipelineKeyString(key);
-      if (seen.has(k)) return;
+    const prime = (m: Material, dm: number, variant: DrawVariant = STANDARD_VARIANT) => {
+      const key = this.pipelineKey(m, target, dm, variant), k = pipelineKeyString(key);
+      if (seen.has(k)) return;   // many materials share one pipeline
       seen.add(k);
-      jobs.push(this.res.pipelines.primeRender(key, () => this.device.createRenderPipelineAsync(this.pipelineDescriptor(m, key, target, dm))));
+      jobs.push(this.res.pipelines.primeRender(key, () => this.device.createRenderPipelineAsync(this.pipelineDescriptor(m, key, target, dm, variant))));
     };
     for (const m of this.materials) {
       if (m.failed || m.kind === 'custom') continue;
       for (const dm of deformMasks) prime(m, dm);
-      if (!target.colorFormat || target.depthEqual || !deformMasks.includes(0) || m.kind !== 'pbr' || m.shaderId !== 'pbr'
-        || m.vertexEntry !== 'vs_main' || m.fragmentEntry !== 'fs_main' || m.features !== 0) continue;
-      if (retained.directional) { prime(m, 0, false, true); prime(m, 0, false, true, true); }
-      if (retained.packed) { prime(m, 0, true); if (retained.directional) prime(m, 0, true, true); }
+      if (!target.colorFormat || target.depthEqual || !deformMasks.includes(0) || !supportsSpecializedDraw(m)) continue;
+      if (retained.directional) { prime(m, 0, drawVariant({ directional: true })); prime(m, 0, drawVariant({ directional: true, uniformNormals: true })); }
+      if (retained.packed) { prime(m, 0, drawVariant({ retained: true })); if (retained.directional) prime(m, 0, drawVariant({ retained: true, directional: true })); }
     }
     await Promise.all(jobs);
     return jobs.length;
   }
 
   /** Create the render pipeline; custom shaders are wrapped in a validation error scope so a bad shader marks its materials `failed` (drawn with the error material) instead of crashing. */
-  private createPipeline(m: Material, target: PassTarget, key: PipelineKey, deformMask: number): GPURenderPipeline {
+  private createPipeline(m: Material, target: PassTarget, key: PipelineKey, deformMask: number, variant: DrawVariant): GPURenderPipeline {
     const guard = m.kind === 'custom';
     if (guard) this.device.pushErrorScope('validation');
-    const pipeline = this.device.createRenderPipeline(this.pipelineDescriptor(m, key, target, deformMask));
+    const pipeline = this.device.createRenderPipeline(this.pipelineDescriptor(m, key, target, deformMask, variant));
     if (guard) {
       this.device.popErrorScope().then((err) => {
         if (!err) return;

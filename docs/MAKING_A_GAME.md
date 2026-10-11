@@ -52,7 +52,8 @@ src/rendering/   Renderer (frame orchestration: queues -> batches -> pass graph)
                  your own features), post/FullscreenEffect.
                  Small collaborators of Renderer: FrameUniform (per-view uniform), RenderDrawState (FrameState + per-view ViewState), OffscreenViews
                  (render targets, views, probe capture), formats (shared texture formats), Skybox, GPULodIndex, lighting/LegacySceneLights,
-                 streaming/StreamingDriver
+                 streaming/StreamingDriver, RetainedDrawCache / RetainedRenderBundles (static-scene reuse), CompactVertexStream,
+                 materials/DrawVariant (which specialised draw path a pipeline serves)
 src/assets/      glTF/GLB loading + instantiation, texture loading, RGBE (.hdr)
 src/animation/   clips, animator, graph/ (state machines, blend trees), ik/, motionmatching/, root motion
 src/particles/   GPU particle pools and ribbons

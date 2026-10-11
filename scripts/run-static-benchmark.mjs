@@ -35,7 +35,7 @@ try {
   if (!result || (selftest ? !result.selftests?.length || result.selftests.some(t=>!t.ok) : result.rows.some(r=>r.skipped || r.imageMAE > 0.5)) || errors.some(e=>/validation|uncaptured|shader.*error/i.test(e))) throw new Error('Benchmark failed or mismatched images');
   result.url = url.href;
   const sourceHash = createHash('sha256');
-  const sourceFiles = execFileSync('rg', ['--files', 'src'], {encoding:'utf8'}).trim().split('\n').sort();
+  const sourceFiles = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'src'], {encoding:'utf8'}).trim().split('\n').sort();
   for (const file of sourceFiles) sourceHash.update(file).update(readFileSync(file));
   result.sourceSHA256 = sourceHash.digest('hex');
   result.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim();

@@ -27,6 +27,13 @@ Gameplay changes the `World`; render preparation consumes the flat `RenderWorld`
 
 The renderer uploads changed data, creates queues, sorts and batches draws, constructs the render graph, records passes, and submits. `RenderDrawState` owns the queue builder, queue storage, batches, pipeline lookups and frame scratch for one view; a `ViewState` pairs it with the view's target formats, sample count and winding. The renderer passes the `ViewState` explicitly to the methods that draw (`renderJob`, `pipelineFor`, `drawGeometry`, `buildBatches`) instead of swapping renderer fields. `OffscreenViews` owns render targets, registered views and probe capture, and asks the renderer to draw each job through the `ViewHost` interface. Target format/sample-count changes clear the pipeline lookup cache.
 
+Static-scene draw paths are layered on top of that flow and each has one owner:
+
+- `RetainedDrawCache` (per `RenderDrawState`) captures a frame's sorted queues, batches and instance records together with what they depended on (extraction revisions, camera position/far, material pipeline identity, mesh layout). `Renderer.canRetainDraws` decides whether a frame may be captured; `cache.matches` decides whether a later frame may reuse it.
+- `DrawVariant` (`rendering/materials`) names the draw path a pipeline serves: the standard storage-buffer path, `retained` (packed per-instance vertex stream), `directional` (cheap directional-only fragment stage) and the `uniformNormals` refinement. `MaterialManager.pipelineKey/getPipeline` and the per-view `DrawPipelineCache` take a `DrawVariant` instead of loose flags; `supportsSpecializedDraw` is the one eligibility rule.
+- `Renderer.resolveDrawPath` picks the variant for a view each frame, then `drawGeometry` records the draws: `drawThroughBundle` (render-bundle cache, `RetainedRenderBundles`), `drawIndirect` (GPU-culled batches) and `drawBatches` (direct instanced draws).
+- `CompactVertexStream` derives the 24-byte position/normal stream on the GPU (`shaders/pack_position_normal.wgsl`) from the shared vertex arena; `MeshManager.compactVertexBuffer` exposes it and `compactVerticesSupported` reports whether the arena fits a storage binding.
+
 `RenderGraph` compilation is split into hazard discovery, iterative liveness traversal, and stable topological ordering. Passes declare logical `reads` and `writes`; `sideEffect` retains outputs such as the backbuffer. Declare every dependency. After adding/resetting passes, compile before execute. A failed compilation invalidates the previous executable order. A first pass that reads and writes the same resource consumes its existing external contents; ordinary forward readers depend on later producers.
 
 ## Adding features

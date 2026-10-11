@@ -3,6 +3,7 @@ import { makeFakeGPU } from './helpers/fakeGPU';
 import { GLBBuilder } from './helpers/glbBuilder';
 import { loadGLTF } from '../src/assets/gltf/GLTFLoader';
 import { MaterialFeature, featureDefines } from '../src/rendering/materials/MaterialFlags';
+import { drawVariant } from '../src/rendering/materials/DrawVariant';
 import { EXT_VEC4, Ext, needsExtParams, packPBRExt, pbrFeatureMask } from '../src/rendering/materials/PBRExtension';
 import { TextureSlot, type PBRMaterialDesc, type TextureRef } from '../src/rendering/materials/Material';
 import type { Environment } from '../src/rendering/lighting/IBL';
@@ -295,16 +296,16 @@ describe('retained PBR pipelines', () => {
     const { materials: mm } = makeFakeGPU();
     const id = mm.createPBR(), m = mm.get(id);
     const target = { colorFormat: 'bgra8unorm', depthFormat: 'depth24plus', sampleCount: 1 } as const;
-    const base = mm.pipelineKey(m, target), vertex = mm.pipelineKey(m, target, 0, true), directional = mm.pipelineKey(m, target, 0, true, true);
+    const base = mm.pipelineKey(m, target), vertex = mm.pipelineKey(m, target, 0, drawVariant({ retained: true })), directional = mm.pipelineKey(m, target, 0, drawVariant({ retained: true, directional: true }));
     expect(vertex.vertexLayout[0].stride).toBe(24);
     expect(vertex.vertexLayout[1].stepMode).toBe('instance');
     expect(vertex.layout).not.toBe(base.layout);
     expect(vertex.vertexEntry).toBe('vs_retained');
     expect(directional.fragmentEntry).toBe('fs_retained_directional');
-    expect(() => mm.pipelineKey(m, target, 1, true)).toThrow('undeformed');
-    expect(mm.pipelineKey(m, target, 0, false, true).vertexEntry).toBe('vs_directional_storage');
+    expect(() => mm.pipelineKey(m, target, 1, drawVariant({ retained: true }))).toThrow('undeformed');
+    expect(mm.pipelineKey(m, target, 0, drawVariant({ directional: true })).vertexEntry).toBe('vs_directional_storage');
     mm.setPBR(id, { clearcoat: 1 });
-    expect(() => mm.pipelineKey(m, target, 0, true)).toThrow('map-free');
+    expect(() => mm.pipelineKey(m, target, 0, drawVariant({ retained: true }))).toThrow('map-free');
   });
 });
 
@@ -330,9 +331,8 @@ it('warms all enabled retained variants without creating pipelines after freeze'
   const target = { colorFormat: 'bgra8unorm', depthFormat: 'depth24plus', sampleCount: 1 } as const;
   await mm.warmup(target, [0], { directional: true, packed: true });
   res.pipelines.freeze();
-  mm.getPipeline(mm.defaultMaterial, target, 0, false, true);
-  mm.getPipeline(mm.defaultMaterial, target, 0, false, true, true);
-  mm.getPipeline(mm.defaultMaterial, target, 0, true, false);
-  mm.getPipeline(mm.defaultMaterial, target, 0, true, true);
+  for (const options of [{ directional: true }, { directional: true, uniformNormals: true }, { retained: true }, { retained: true, directional: true }]) {
+    mm.getPipeline(mm.defaultMaterial, target, 0, drawVariant(options));
+  }
   expect(res.stats.pipelineCreationsAfterFreeze).toBe(0);
 });

@@ -3,6 +3,10 @@ import { RetainedDrawCache } from './RetainedDrawCache';
 import { BatchList } from './BatchBuilder';
 import { RenderQueueBuilder, RenderQueues } from './RenderQueue';
 import type { MaterialManager, PassTarget } from './materials/MaterialManager';
+import { DRAW_VARIANT_COUNT, STANDARD_VARIANT, type DrawVariant } from './materials/DrawVariant';
+
+/** Mesh deform variants (static / skinned / morphed / both): the low two bits of `MeshRecord.deformMask`. */
+const DEFORM_VARIANTS = 4;
 
 /** Reused batch state shared by frame preparation and pass recording. */
 export interface FrameState {
@@ -25,12 +29,12 @@ class DrawPipelineCache {
   private sortIds: number[] = [];
   private failures: boolean[] = [];
 
-  get(materials: MaterialManager, target: PassTarget, materialId: number, deformMask: number, retained = false, directional = false, uniformNormals = false): GPURenderPipeline {
+  get(materials: MaterialManager, target: PassTarget, materialId: number, deformMask: number, variant: DrawVariant = STANDARD_VARIANT): GPURenderPipeline {
     const material = materials.get(materialId);
-    const slot = materialId * 32 + deformMask + (retained ? 4 : 0) + (directional ? 8 : 0) + (uniformNormals ? 16 : 0);
+    const slot = (materialId * DRAW_VARIANT_COUNT + variant.index) * DEFORM_VARIANTS + deformMask;
     const cached = this.pipelines[slot];
     if (cached && this.sortIds[slot] === material.pipelineSortId && this.failures[slot] === material.failed) return cached;
-    const pipeline = materials.getPipeline(materialId, target, deformMask, retained, directional, uniformNormals);
+    const pipeline = materials.getPipeline(materialId, target, deformMask, variant);
     this.pipelines[slot] = pipeline;
     this.sortIds[slot] = material.pipelineSortId;
     this.failures[slot] = material.failed;
