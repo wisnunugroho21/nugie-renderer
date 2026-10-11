@@ -19,6 +19,8 @@ export class Arena {
   /** Set once the arena passed 80% of `maxBytes` (a warning has been logged). */
   nearLimit = false;
   generation = 0;
+  /** Successful CPU writes, for derived GPU streams. */
+  version = 0;
   used = 0;
   private capacity: number;
 
@@ -72,6 +74,7 @@ export class Arena {
   /** Upload `data` at element offset `elementOffset` (a range previously returned by `alloc`). */
   write(elementOffset: number, data: ArrayBufferView): void {
     this.device.queue.writeBuffer(this.buffer, elementOffset * this.elementBytes, data.buffer, data.byteOffset, data.byteLength);
+    this.version++;
   }
 
   /** Double the capacity until `need` fits, copy the old contents on the GPU, destroy the old buffer and bump `generation`. */

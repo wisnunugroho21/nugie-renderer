@@ -62,6 +62,7 @@ export class SceneResources {
   /** Image-based lighting state mirrored into the scene uniform. */
   env = { enabled: false, intensity: 1, rotation: 0, mipCount: 1 };
 
+  private directionalBg: GPUBindGroup | null = null;
   private bg: GPUBindGroup | null = null;
   private shadowBg: GPUBindGroup | null = null;
   private volumeBg: GPUBindGroup | null = null;
@@ -75,6 +76,8 @@ export class SceneResources {
   private uniformData = new ArrayBuffer(SCENE_UNIFORM_BYTES);
   private f32 = new Float32Array(this.uniformData);
   private u32 = new Uint32Array(this.uniformData);
+  private uploadedUniform = new Uint32Array(SCENE_UNIFORM_BYTES / 4);
+  private uploadedUniformValid = false;
 
   /** Create the scene bind group's buffers, 1x1 default textures (so every binding is always valid) and the LTC lookup table. */
   constructor(private gpu: GPUContext, private layouts: BindLayouts) {
@@ -114,7 +117,14 @@ export class SceneResources {
   setClusterBuffers(grid: GPUBuffer, indices: GPUBuffer): void { this.clusterGrid = grid; this.clusterIndices = indices; this.invalidate(); }
 
   /** Invalidate the bind group (call after replacing any resource). */
-  invalidate(): void { this.bg = null; this.shadowBg = null; this.volumeBg = null; }
+  invalidate(): void { this.directionalBg = null; this.bg = null; this.shadowBg = null; this.volumeBg = null; }
+
+  get directionalBindGroup(): GPUBindGroup {
+    return this.directionalBg ??= this.gpu.device.createBindGroup({ layout: this.layouts.directionalScene, entries: [
+      { binding: 0, resource: { buffer: this.uniform } },
+      { binding: 1, resource: { buffer: this.lightBuffer } },
+    ] });
+  }
 
   /** The scene bind group (group 1), created lazily and rebuilt after any resource changed. */
   get bindGroup(): GPUBindGroup {
@@ -216,12 +226,22 @@ export class SceneResources {
     new Uint32Array(copy)[7] = 0;
     new Float32Array(copy)[43] = 0;
     this.gpu.device.queue.writeBuffer(this.uniform, 0, copy);
+    this.uploadedUniformValid = false;
   }
 
   /** Re-write the uniform of the last {@link writeUniform} (after off-screen views changed it). */
-  restoreUniform(): void { this.gpu.device.queue.writeBuffer(this.uniform, 0, this.uniformData); }
+  restoreUniform(): void { this.uploadUniform(); }
 
-  /** Write the scene uniform (every frame; 144 bytes). */
+  private uploadUniform(): void {
+    let changed = !this.uploadedUniformValid;
+    for (let i = 0; i < this.u32.length && !changed; i++) changed = this.u32[i] !== this.uploadedUniform[i];
+    if (!changed) return;
+    this.gpu.device.queue.writeBuffer(this.uniform, 0, this.uniformData);
+    this.uploadedUniform.set(this.u32);
+    this.uploadedUniformValid = true;
+  }
+
+  /** Update the scene uniform, uploading only when its contents changed. */
   writeUniform(p: SceneUniformParams): void {
     const f = this.f32, u = this.u32;
     f.fill(0);
@@ -241,6 +261,6 @@ export class SceneResources {
     const fg = this.fog;
     f[36] = fg.density; f[37] = fg.heightFalloff; f[38] = fg.anisotropy; f[39] = fg.far;
     f[40] = fg.ambient[0]; f[41] = fg.ambient[1]; f[42] = fg.ambient[2]; f[43] = fg.enabled ? 1 : 0;
-    this.gpu.device.queue.writeBuffer(this.uniform, 0, this.uniformData);
+    this.uploadUniform();
   }
 }

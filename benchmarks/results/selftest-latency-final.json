@@ -1,0 +1,199 @@
+{
+  "selftests": [
+    {
+      "name": "vertex_index includes baseVertex",
+      "ok": true,
+      "msg": "vertex_index includes baseVertex (engine assumption holds on this device)"
+    },
+    {
+      "name": "deformVertex parity: static",
+      "ok": true,
+      "msg": "max error 5.96e-8 over 1500 vertices"
+    },
+    {
+      "name": "deformVertex parity: morph only",
+      "ok": true,
+      "msg": "max error 2.49e-7 over 1500 vertices"
+    },
+    {
+      "name": "deformVertex parity: skin only",
+      "ok": true,
+      "msg": "max error 3.59e-4 over 1500 vertices"
+    },
+    {
+      "name": "deformVertex parity: morph -> skin",
+      "ok": true,
+      "msg": "max error 1.73e-4 over 1500 vertices"
+    },
+    {
+      "name": "mip generation: sRGB filtered in linear space",
+      "ok": true,
+      "msg": "mip1 = 188 (filtered in linear light then re-encoded)"
+    },
+    {
+      "name": "mip generation: linear data textures",
+      "ok": true,
+      "msg": "mip1 = 128 (plain average)"
+    },
+    {
+      "name": "lighting: area lights - diffuse form factor (exact) and LTC specular vs brute-force quadrature",
+      "ok": true,
+      "msg": "form factor max err 1.24e-6; specular / reference ratio 0.89..1.35 over 10 configs"
+    },
+    {
+      "name": "lighting: GPU attenuation / cone / direction match TS reference",
+      "ok": true,
+      "msg": "worst err 5.80e-7 over 512 cases"
+    },
+    {
+      "name": "ibl: BRDF LUT matches the CPU split-sum integration",
+      "ok": true,
+      "msg": "worst deviation 4.78e-4 over 8 samples"
+    },
+    {
+      "name": "ibl: procedural sky cube matches the TS reference (texel mapping and hardware cube sampling)",
+      "ok": true,
+      "msg": "texel dev 4.88e-4, direction-sample dev 8.36e-4"
+    },
+    {
+      "name": "ibl: constant environment -> irradiance (E/PI) and every specular mip equal the radiance",
+      "ok": true,
+      "msg": "irradiance err 0.00e+0, specular err 4.88e-4"
+    },
+    {
+      "name": "ibl: gradient sky -> upward-facing irradiance is bluer than downward; rough specular is smoother than mirror",
+      "ok": true,
+      "msg": "irradiance up.b 0.919 / down.b 0.161; horizon band range 0.584 -> 0.247"
+    },
+    {
+      "name": "ibl: equirectangular HDR (RGBE) -> cube has the right orientation",
+      "ok": true,
+      "msg": "latitude/longitude mapping OK, HDR range preserved (2.00)"
+    },
+    {
+      "name": "clusters: GPU light assignment matches the CPU reference (conservative, global lights excluded)",
+      "ok": true,
+      "msg": "720 clusters (10x6x12), 12742 assignments, 632 non-empty, 0 mismatches"
+    },
+    {
+      "name": "clusters: full lists drop extra lights and count them in the overflow counter",
+      "ok": true,
+      "msg": "613 full clusters, overflow counter 10524 (CPU 10524)"
+    },
+    {
+      "name": "hi-z: pyramid equals the CPU max-reduction at every mip (odd and even sizes)",
+      "ok": true,
+      "msg": "128x64: 8 mips, 2731 texels exact; 101x57: 7 mips, 1856 texels exact"
+    },
+    {
+      "name": "fog: homogeneous fog with ambient light matches the analytic transmittance and in-scattering",
+      "ok": true,
+      "msg": "20 froxels, worst error 4.83e-4"
+    },
+    {
+      "name": "fog: directional light adds Henyey-Greenstein in-scattering (forward / backward anisotropy)",
+      "ok": true,
+      "msg": "g = 0 / 0.6 / -0.4 all within 3.51e-3"
+    },
+    {
+      "name": "particles: GPU kinematics match the CPU reference (semi-implicit Euler + drag)",
+      "ok": true,
+      "msg": "1000 particles x 20 steps, max deviation 1.43e-6"
+    },
+    {
+      "name": "particles: expired particles are recycled (alive -> 0, dead stack refilled)",
+      "ok": true,
+      "msg": "{\"alive\":0,\"dead\":2048,\"spawned\":500,\"rejected\":0}"
+    },
+    {
+      "name": "particles: pool capacity is a hard limit (excess spawns rejected, nothing corrupts)",
+      "ok": true,
+      "msg": "{\"alive\":1000,\"dead\":0,\"spawned\":1000,\"rejected\":600}"
+    },
+    {
+      "name": "particles: alive and dead lists always form a permutation of all indices (no duplicates, no leaks)",
+      "ok": true,
+      "msg": "alive 1059 + dead 3037 = 4096; spawned 4500"
+    },
+    {
+      "name": "particles: simulation is deterministic for a fixed seed",
+      "ok": true,
+      "msg": "328 particles identical across runs"
+    },
+    {
+      "name": "particles: emitter shapes (sphere surface, box, cone) and emitter transform / simulation space",
+      "ok": true,
+      "msg": "sphere surface / box / cone / world+local space OK"
+    },
+    {
+      "name": "particles: indirect args are produced on the GPU (draw count = alive, dispatch = ceil(alive/64))",
+      "ok": true,
+      "msg": "alive 666: draw 666, dispatch 11"
+    },
+    {
+      "name": "particles: billboard rendering (4 orientations x alpha/additive) draws something at the screen centre",
+      "ok": true,
+      "msg": "screen/alpha:623 screen/additive:765 camera/alpha:623 camera/additive:765 worldUp/alpha:623 worldUp/additive:765 point/alpha:623 point/additive:765"
+    },
+    {
+      "name": "particles: mesh particles render through ONE indirect indexed draw",
+      "ok": true,
+      "msg": "centre 628; drawIndexedIndirect(indexCount 36, instances 80)"
+    },
+    {
+      "name": "ribbons: trail history ring (live head, commit spacing, uv distance, wrap-around)",
+      "ok": true,
+      "msg": "ring full (16), live head at 7.90, spacing 0.25..0.35 over wrap"
+    },
+    {
+      "name": "ribbons: reset() drops the history (no streak across a teleport)",
+      "ok": true,
+      "msg": "history cleared"
+    },
+    {
+      "name": "ribbons: chain (beam) renders a continuous band; empty regions stay black",
+      "ok": true,
+      "msg": "band 541 at centre"
+    },
+    {
+      "name": "ribbons: moving trail draws behind the head and fades out after its lifetime",
+      "ok": true,
+      "msg": "visible at t, gone at t+2s"
+    },
+    {
+      "name": "ribbons: flat ribbons use a fixed plane normal (visible when facing the camera)",
+      "ok": true,
+      "msg": "facing 588"
+    },
+    {
+      "name": "compact vertices: GPU data parity, writes and growth",
+      "ok": true,
+      "msg": "positions/normals identical after direct writes and arena growth"
+    },
+    {
+      "name": "retained PBR: image parity, shear/reflection, scene and resource invalidation",
+      "ok": true,
+      "msg": "general/retained agree with nonuniform scale, shear, negative scale, point-light fallback and resource growth"
+    },
+    {
+      "name": "no uncaptured GPU errors",
+      "ok": true,
+      "msg": ""
+    }
+  ],
+  "url": "http://127.0.0.1:5191/selftest.html",
+  "sourceSHA256": "b5fceefb317951e08efe3873f255813dbe0081a2f4bb4ea2991f1b20a6b7841b",
+  "sourceCommit": "df2a0bf79b7a56fe68aab45db5f289c397301a12",
+  "host": {
+    "cpu": "Apple M1",
+    "memoryGB": 8,
+    "browser": "153.0.8010.53",
+    "platform": "darwin",
+    "release": "27.0.0",
+    "build": "production"
+  },
+  "consoleMessages": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "WebGPU device lost (destroyed): Device was destroyed."
+  ]
+}

@@ -22,3 +22,18 @@ export function toGPUVertexBuffers(layout: PipelineKey['vertexLayout']): GPUVert
     attributes: l.attributes.map((a) => ({ shaderLocation: a.location, offset: a.offset, format: a.format })),
   }));
 }
+
+/** Retained rigid instances: model matrix, cofactor normal matrix, material index. */
+export const RETAINED_INSTANCE_WORDS = 26;
+export const RETAINED_INSTANCE_STRIDE = RETAINED_INSTANCE_WORDS * 4;
+export const RETAINED_VERTEX_LAYOUT: PipelineKey['vertexLayout'] = [{ stride: 24, attributes: [
+  { location: 0, offset: 0, format: 'float32x3' },
+  { location: 1, offset: 12, format: 'float32x3' },
+] }, {
+  stride: RETAINED_INSTANCE_STRIDE, stepMode: 'instance',
+  attributes: [
+    ...Array.from({ length: 4 }, (_, i) => ({ location: 4 + i, offset: i * 16, format: 'float32x4' as const })),
+    ...Array.from({ length: 3 }, (_, i) => ({ location: 8 + i, offset: 64 + i * 12, format: 'float32x3' as const })),
+    { location: 11, offset: 100, format: 'uint32' },
+  ],
+}];

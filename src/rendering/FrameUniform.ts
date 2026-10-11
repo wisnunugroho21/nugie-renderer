@@ -15,6 +15,9 @@ export class FrameUniform {
   readonly buffer: GPUBuffer;
   readonly bindGroup: GPUBindGroup;
   private data = new Float32Array(FRAME_FLOATS);
+  private bits = new Uint32Array(this.data.buffer);
+  private uploaded = new Uint32Array(FRAME_FLOATS);
+  private uploadedValid = false;
 
   /** Create the uniform buffer and the bind group (group 0) that exposes it. */
   constructor(private gpu: GPUContext, layouts: BindLayouts) {
@@ -31,14 +34,25 @@ export class FrameUniform {
     d[52] = width; d[53] = height; d[54] = camera.near; d[55] = camera.far;
     d[56] = hdrOutput ? 1 : 0;
     d[57] = 0; d[58] = 0; d[59] = 0;
-    this.gpu.queue.writeBuffer(this.buffer, 0, d);
+    this.upload();
   }
 
   /** Tell the shaders whether the opaque-scene copy is available for transmissive materials, and how many mips it has. Uploads only those floats. */
   setTransmission(available: boolean, mipCount: number): void {
     const d = this.data;
     d[57] = available ? 1 : 0; d[58] = available ? mipCount : 0;
-    this.gpu.queue.writeBuffer(this.buffer, 57 * 4, d, 57, 3);
+    this.upload(57, 3);
+  }
+
+  private upload(start = 0, count = FRAME_FLOATS): void {
+    const bits = this.bits;
+    if (!this.uploadedValid) { start = 0; count = FRAME_FLOATS; }
+    let changed = !this.uploadedValid;
+    for (let i = start; i < start + count && !changed; i++) changed = bits[i] !== this.uploaded[i];
+    if (!changed) return;
+    this.gpu.queue.writeBuffer(this.buffer, start * 4, this.data, start, count);
+    this.uploaded.set(bits.subarray(start, start + count), start);
+    this.uploadedValid = true;
   }
 
   /** A copy of the current values (taken before an off-screen view overwrites them). */
@@ -47,6 +61,6 @@ export class FrameUniform {
   /** Put a snapshot back and upload it. */
   restore(snapshot: Float32Array): void {
     this.data.set(snapshot);
-    this.gpu.queue.writeBuffer(this.buffer, 0, this.data);
+    this.upload();
   }
 }

@@ -119,13 +119,15 @@ export class DynamicBufferAllocator {
     return off;
   }
 
-  /** Upload this frame's used range with a single writeBuffer. */
-  flush(): void {
+  /** Upload the used suffix. A retained prefix may be skipped only when it already exists in this exact GPU buffer generation. */
+  flush(from = 0): void {
+    if (!Number.isSafeInteger(from) || from < 0 || from % 4 !== 0 || from > alignUp(this.head, 4)) throw new RangeError('Invalid dynamic buffer flush offset');
     if (this.head === 0) return;
     const bytes = alignUp(this.head, 4);
-    this.device.queue.writeBuffer(this.buffer, 0, this.cpu, 0, bytes);
-    this.bytesUploadedThisFrame = bytes;
-    this.totalBytesUploaded += bytes;
+    if (from === bytes) return;
+    this.device.queue.writeBuffer(this.buffer, from, this.cpu, from, bytes - from);
+    this.bytesUploadedThisFrame = bytes - from;
+    this.totalBytesUploaded += bytes - from;
   }
 
   /** Double the capacity until `required` bytes fit, keeping the CPU contents and recreating the current frame's GPU buffer. Earlier offsets of this frame stay valid. */

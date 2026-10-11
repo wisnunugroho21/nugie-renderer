@@ -53,6 +53,61 @@ fn vs_main(in: VertexInput) -> VSOut {
   return out;
 }
 
+// Rigid, retained map-free instances bypass storage indirection and per-vertex normal-matrix construction.
+struct RetainedVertexInput {
+  @location(0) position: vec3<f32>,
+  @location(1) normal: vec3<f32>,
+  @location(4) model0: vec4<f32>,
+  @location(5) model1: vec4<f32>,
+  @location(6) model2: vec4<f32>,
+  @location(7) model3: vec4<f32>,
+  @location(8) normal0: vec3<f32>,
+  @location(9) normal1: vec3<f32>,
+  @location(10) normal2: vec3<f32>,
+  @location(11) material: u32,
+};
+@vertex
+fn vs_retained(in: RetainedVertexInput) -> VSOut {
+  var out: VSOut;
+  let model = mat4x4<f32>(in.model0, in.model1, in.model2, in.model3);
+  let world = model * vec4<f32>(in.position, 1.0);
+  out.clip = frame.viewProjection * world;
+  out.worldPos = world.xyz;
+  out.worldNormal = mat3x3<f32>(in.normal0, in.normal1, in.normal2) * in.normal;
+  out.worldTangent = vec4<f32>(0.0);
+  out.uv = vec2<f32>(0.0);
+  out.materialIndex = in.material;
+  out.modelScale = 1.0;
+  return out;
+}
+
+struct DirectionalStorageInput {
+  @builtin(instance_index) instance: u32,
+  @location(0) position: vec3<f32>,
+  @location(1) normal: vec3<f32>,
+};
+fn directionalStorageVertex(in: DirectionalStorageInput, uniformNormal: bool) -> VSOut {
+  var out: VSOut;
+  let inst = instances[in.instance];
+  let model = transforms[inst.transformIndex];
+  let world = model * vec4<f32>(in.position, 1.0);
+  out.clip = frame.viewProjection * world;
+  out.worldPos = world.xyz;
+  if (uniformNormal) {
+    out.worldNormal = mat3x3<f32>(model[0].xyz, model[1].xyz, model[2].xyz) * in.normal;
+  } else { out.worldNormal = normalMatrix(model) * in.normal; }
+  out.worldTangent = vec4<f32>(0.0);
+  out.uv = vec2<f32>(0.0);
+  out.materialIndex = inst.materialIndex;
+  out.modelScale = 1.0;
+  return out;
+}
+
+@vertex
+fn vs_directional_storage(in: DirectionalStorageInput) -> VSOut { return directionalStorageVertex(in, false); }
+@vertex
+fn vs_directional_uniform(in: DirectionalStorageInput) -> VSOut { return directionalStorageVertex(in, true); }
+
 // ---- shading frame: uv (parallax-shifted), shading normal (normal map, bump), tangent frame ----------------------------------
 
 struct Shading {
@@ -204,6 +259,24 @@ fn hemisphereAmbient(N: vec3<f32>) -> vec3<f32> {
   return mix(scene.ambientGround.rgb, scene.ambientSky.rgb, N.y * 0.5 + 0.5);
 }
 
+// Absent maps are equivalent to the white fallback texture, without issuing a sample.
+fn baseColorSample(uv: vec2<f32>) -> vec4<f32> {
+  if HAS_BASE_COLOR_MAP { return textureSample(texBaseColor, materialSampler, uv); }
+  return vec4<f32>(1.0);
+}
+fn metalRoughSample(uv: vec2<f32>) -> vec4<f32> {
+  if HAS_METAL_ROUGH_MAP { return textureSample(texMetalRough, materialSampler, uv); }
+  return vec4<f32>(1.0);
+}
+fn emissiveSample(uv: vec2<f32>) -> vec3<f32> {
+  if HAS_EMISSIVE_MAP { return textureSample(texEmissive, materialSampler, uv).rgb; }
+  return vec3<f32>(1.0);
+}
+fn occlusionSample(uv: vec2<f32>) -> f32 {
+  if HAS_OCCLUSION_MAP { return textureSample(texOcclusion, materialSampler, uv).r; }
+  return 1.0;
+}
+
 // ---- fragment entry points --------------------------------------------------------------------------------------------------
 
 @fragment
@@ -212,14 +285,14 @@ fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) 
   let sh = computeShading(in, frontFacing, m);
   let uv = sh.uv;
 
-  var base = textureSample(texBaseColor, materialSampler, uv) * m.baseColor;
+  var base = baseColorSample(uv) * m.baseColor;
   if HAS_ALPHA_MAP { base.a = base.a * textureSample(texAlpha, materialSampler, uv).g; }
   if ALPHA_MASK {
     if (base.a < m.alphaCutoff) { discard; }
   }
   var alpha = 1.0;
   if ALPHA_BLEND { alpha = base.a; }
-  let emissive = textureSample(texEmissive, materialSampler, uv).rgb * m.emissive.rgb * m.emissive.w;
+  let emissive = emissiveSample(uv) * m.emissive.rgb * m.emissive.w;
 
   // ---- unlit models ----
   if MODEL_UNLIT {
@@ -233,10 +306,10 @@ fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) 
     return vec4<f32>(outputColor(c), alpha);
   }
 
-  let mr = textureSample(texMetalRough, materialSampler, uv);
+  let mr = metalRoughSample(uv);
   let metallic = clamp(m.metallic * mr.b, 0.0, 1.0);
   let roughness = m.roughness * mr.g;
-  let occlusion = 1.0 + m.occlusionStrength * (textureSample(texOcclusion, materialSampler, uv).r - 1.0);
+  let occlusion = 1.0 + m.occlusionStrength * (occlusionSample(uv) - 1.0);
   let V = normalize(frame.cameraPosition.xyz - in.worldPos);
   var s = makeSurface(base.rgb, metallic, roughness, sh.N, V);
   s.Ng = sh.Ng; s.T = sh.T; s.B = sh.B;
@@ -357,11 +430,45 @@ fn fs_main(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) 
   return vec4<f32>(outputColor(color), alpha);
 }
 
+// Exact base metallic-roughness BRDF for scenes with directional lights and no shadows, IBL or fog.
+// Eligibility is checked each frame; material extensions/maps use fs_main.
+fn retainedDirect(base: vec3<f32>, metallic: f32, roughness: f32, N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, radiance: vec3<f32>) -> vec3<f32> {
+  let NoL = clamp(dot(N, L), 0.0, 1.0);
+  if (NoL <= 0.0) { return vec3<f32>(0.0); }
+  let H = normalize(V + L);
+  let NoV = max(dot(N, V), 1e-4);
+  let NoH = clamp(dot(N, H), 0.0, 1.0);
+  let VoH = clamp(dot(V, H), 0.0, 1.0);
+  let a = roughness * roughness;
+  let F = F_Schlick90(VoH, mix(vec3<f32>(0.04), base, metallic), 1.0);
+  let spec = D_GGX(NoH, a) * V_SmithGGXCorrelated(NoV, NoL, a) * F;
+  let diff = (vec3<f32>(1.0) - F) * (base * (1.0 - metallic)) / PI;
+  return ((diff + spec) * NoL) * radiance;
+}
+@group(2) @binding(11) var<uniform> directionalMaterial: MaterialRecord;
+@fragment
+fn fs_retained_directional(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) vec4<f32> {
+  let m = directionalMaterial;
+  var N = normalize(in.worldNormal);
+  if (!frontFacing) { N = -N; }
+  let V = normalize(frame.cameraPosition.xyz - in.worldPos);
+  let metallic = clamp(m.metallic, 0.0, 1.0);
+  let roughness = clamp(m.roughness, 0.04, 1.0);
+  var color = vec3<f32>(0.0);
+  for (var i = 0u; i < scene.counts.x; i++) {
+    let light = lights[i];
+    color += retainedDirect(m.baseColor.rgb, metallic, roughness, N, V, -light.directionType.xyz, light.colorIntensity.rgb * light.colorIntensity.w);
+  }
+  color += hemisphereAmbient(N) * (m.baseColor.rgb * (1.0 - metallic));
+  color += m.emissive.rgb * m.emissive.w;
+  return vec4<f32>(outputColor(color), 1.0);
+}
+
 // Depth-only fragment stage for alpha-masked casters in shadow passes.
 @fragment
 fn fs_shadow(in: VSOut) {
   let m = materials[in.materialIndex];
-  var a = textureSample(texBaseColor, materialSampler, in.uv).a * m.baseColor.a;
+  var a = baseColorSample(in.uv).a * m.baseColor.a;
   if HAS_ALPHA_MAP { a = a * textureSample(texAlpha, materialSampler, in.uv).g; }
   if ALPHA_MASK {
     if (a < m.alphaCutoff) { discard; }
@@ -382,11 +489,11 @@ fn fs_aux(in: VSOut, @builtin(front_facing) frontFacing: bool) -> @location(0) v
   let m = materials[in.materialIndex];
   let sh = computeShading(in, frontFacing, m);
   if ALPHA_MASK {
-    var a = textureSample(texBaseColor, materialSampler, sh.uv).a * m.baseColor.a;
+    var a = baseColorSample(sh.uv).a * m.baseColor.a;
     if HAS_ALPHA_MAP { a = a * textureSample(texAlpha, materialSampler, sh.uv).g; }
     if (a < m.alphaCutoff) { discard; }
   }
-  let mr = textureSample(texMetalRough, materialSampler, sh.uv);
+  let mr = metalRoughSample(sh.uv);
   let metallic = clamp(m.metallic * mr.b, 0.0, 1.0);
   let roughness = clamp(m.roughness * mr.g, 0.0, 1.0);
   let nv = normalize((frame.view * vec4<f32>(sh.N, 0.0)).xyz);

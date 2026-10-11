@@ -7,6 +7,10 @@ export class RendererStats {
   frustumRejected = 0;
   // rendering
   drawCalls = 0;
+  drawPreparationReused = false;
+  retainedVertexDraws = 0;
+  retainedLightingDraws = 0;
+  retainedBundleDraws = 0;
   instances = 0;
   triangles = 0;
   pipelineSwitches = 0;
@@ -31,6 +35,8 @@ export class RendererStats {
   /** Zero the per-frame counters and the CPU timings the renderer itself measures. */
   reset(): void {
     this.renderables = this.visible = this.frustumTested = this.frustumRejected = 0;
+    this.drawPreparationReused = false;
+    this.retainedVertexDraws = this.retainedLightingDraws = this.retainedBundleDraws = 0;
     this.drawCalls = this.instances = this.triangles = 0;
     this.pipelineSwitches = this.materialSwitches = this.meshSwitches = 0;
     this.bufferUploadBytes = this.transformUploadBytes = this.transformUploadRanges = 0;

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nugie-renderer vs Three.js</title>
+    <style>
+      html, body { margin: 0; background: #111; color: #9f9; font: 13px monospace; }
+      #stage canvas { width: 240px; height: 135px; display: inline-block; }
+      pre { padding: 8px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <pre id="out">running…</pre>
+    <script type="module" src="/src/bench/compareThree.ts"></script>
+  </body>
+</html>

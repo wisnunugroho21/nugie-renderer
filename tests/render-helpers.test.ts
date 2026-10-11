@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { installGPUGlobals } from './helpers/fakeGPU';
+import { installGPUGlobals, makeFakeGPU } from './helpers/fakeGPU';
+import { SceneResources } from '../src/rendering/lighting/SceneResources';
 import { FrameUniform, FRAME_FLOATS } from '../src/rendering/FrameUniform';
 import { LegacySceneLights, DEFAULT_SCENE, type SceneSettings } from '../src/rendering/lighting/LegacySceneLights';
 import { GPULodIndex } from '../src/rendering/GPULodIndex';
@@ -59,6 +60,20 @@ describe('FrameUniform', () => {
     expect(writes[1]).toEqual({ offset: 57 * 4, floats: [1, 9, 0] });
     u.setTransmission(false, 9);
     expect(writes[2].floats).toEqual([0, 0, 0]);
+  });
+
+  it('skips identical views and flags but uploads time, camera and transmission changes', () => {
+    const { gpu, writes } = recordingGPU();
+    const u = new FrameUniform(gpu, {} as BindLayouts), c = camera();
+    u.writeView(c, 0, 100, 100, false);
+    u.writeView(c, 0, 100, 100, false); u.setTransmission(false, 0); u.restore(u.snapshot());
+    expect(writes).toHaveLength(1);
+    u.writeView(c, 1, 100, 100, false);
+    c.position[0] += 2; u.writeView(c, 1, 100, 100, false);
+    u.setTransmission(true, 4); u.setTransmission(true, 4);
+    expect(writes).toHaveLength(4);
+    u.writeView(c, 1, 100, 100, false); // reset transmission for the next view
+    expect(writes[4].floats[57]).toBe(0);
   });
 
   it('snapshot / restore bring the main view back after an off-screen view overwrote it', () => {
@@ -127,5 +142,22 @@ describe('StreamingDriver', () => {
     expect(touched.length).toBe(1);
     expect(touched[0][0]).toBe(tex);
     expect(touched[0][1]).toBeCloseTo(500, 0);          // r / (d * tan(fov / 2)) * height = 1 / 2 * 1000
+  });
+});
+
+describe('SceneResources uniform uploads', () => {
+  it('retains identical values and restores the main uniform after an off-screen view', () => {
+    const { device, res, writes } = makeFakeGPU();
+    const scene = new SceneResources({ device, resources: res } as GPUContext, {} as BindLayouts);
+    const p = { lightCount: 1, ambientSky: [0, 0, 0], ambientGround: [0, 0, 0] };
+    const n = () => writes.filter(w => w.label === 'SceneUniformBuffer').length;
+    scene.writeUniform(p); scene.writeUniform({ ...p }); scene.restoreUniform();
+    expect(n()).toBe(1);
+    scene.writeUniform({ ...p, lightCount: 2 }); expect(n()).toBe(2);
+    scene.fog.enabled = true; scene.writeUniform({ ...p, lightCount: 2 }); expect(n()).toBe(3);
+    scene.writeViewUniform(); expect(n()).toBe(4);
+    scene.restoreUniform(); expect(n()).toBe(5);
+    scene.restoreUniform(); expect(n()).toBe(5);
+    scene.env.intensity += 1; scene.writeUniform({ ...p, lightCount: 2 }); expect(n()).toBe(6);
   });
 });

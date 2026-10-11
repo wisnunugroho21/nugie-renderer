@@ -87,7 +87,7 @@ describe('pbrFeatureMask', () => {
   it('featureDefines names every feature exactly once', () => {
     const d = featureDefines(F.Clearcoat | F.ModelToon);
     expect(d.HAS_CLEARCOAT).toBe(true); expect(d.MODEL_TOON).toBe(true); expect(d.HAS_SHEEN).toBe(false);
-    expect(Object.keys(d).length).toBe(25);
+    expect(Object.keys(d).length).toBe(Object.values(F).length);
     expect(Object.keys(featureDefines(0)).every((k) => featureDefines(0)[k] === false)).toBe(true);
     const bits = Object.values(F);
     expect(new Set(bits).size).toBe(bits.length);                           // no two features share a bit
@@ -274,4 +274,65 @@ describe('glTF material extensions', () => {
     expect(a.warnings.join()).toMatch(/thicknessTexture/);
     expect(a.materials[0].desc.transmission).toBe(1);
   });
+});
+
+it('selects ordinary map variants on attachment and restores map-free shading on removal', () => {
+  const { materials: mm } = makeFakeGPU();
+  const mapSlots = [[TextureSlot.BaseColor, F.BaseColorMap, 'HAS_BASE_COLOR_MAP'], [TextureSlot.MetalRough, F.MetalRoughMap, 'HAS_METAL_ROUGH_MAP'],
+    [TextureSlot.Occlusion, F.OcclusionMap, 'HAS_OCCLUSION_MAP'], [TextureSlot.Emissive, F.EmissiveMap, 'HAS_EMISSIVE_MAP']] as const;
+  const id = mm.createPBR({}), plain = mm.get(id).pipelineSortId;
+  for (const [slot, bit, define] of mapSlots) {
+    mm.setTexture(id, slot, tex('map')); expect(mm.get(id).features & bit).toBe(bit);
+    expect(featureDefines(mm.get(id).features)[define]).toBe(true); expect(mm.get(id).pipelineSortId).not.toBe(plain);
+    mm.setTexture(id, slot, null); expect(mm.get(id).features & bit).toBe(0); expect(mm.get(id).pipelineSortId).toBe(plain);
+  }
+  const initial = mm.createPBR({ textures: { baseColor: tex('base'), metalRough: tex('mr'), occlusion: tex('ao'), emissive: tex('glow') } });
+  expect(has(mm.get(initial).features, F.BaseColorMap, F.MetalRoughMap, F.OcclusionMap, F.EmissiveMap)).toBe(true);
+});
+
+describe('retained PBR pipelines', () => {
+  it('separates the vertex layout, pipeline layout and lighting entry, and rejects incompatible materials', () => {
+    const { materials: mm } = makeFakeGPU();
+    const id = mm.createPBR(), m = mm.get(id);
+    const target = { colorFormat: 'bgra8unorm', depthFormat: 'depth24plus', sampleCount: 1 } as const;
+    const base = mm.pipelineKey(m, target), vertex = mm.pipelineKey(m, target, 0, true), directional = mm.pipelineKey(m, target, 0, true, true);
+    expect(vertex.vertexLayout[0].stride).toBe(24);
+    expect(vertex.vertexLayout[1].stepMode).toBe('instance');
+    expect(vertex.layout).not.toBe(base.layout);
+    expect(vertex.vertexEntry).toBe('vs_retained');
+    expect(directional.fragmentEntry).toBe('fs_retained_directional');
+    expect(() => mm.pipelineKey(m, target, 1, true)).toThrow('undeformed');
+    expect(mm.pipelineKey(m, target, 0, false, true).vertexEntry).toBe('vs_directional_storage');
+    mm.setPBR(id, { clearcoat: 1 });
+    expect(() => mm.pipelineKey(m, target, 0, true)).toThrow('map-free');
+  });
+});
+
+describe('directional material uniforms', () => {
+  it('uploads once per material revision and retries failed writes without replacing the binding', () => {
+    const { device, materials: mm } = makeFakeGPU(); const id = mm.createPBR({ roughness: 0.2 });
+    let writes = 0, roughness = 0;
+    device.queue.writeBuffer = (_b, _o, data, start = 0) => { writes++; roughness = (data as Float32Array)[start + 9]; };
+    const bg = mm.getDirectionalBindGroup(id); mm.getDirectionalBindGroup(id);
+    expect(writes).toBe(1); expect(roughness).toBeCloseTo(0.2);
+    mm.setPBR(id, { roughness: 0.8 });
+    const write = device.queue.writeBuffer; device.queue.writeBuffer = () => { throw new Error('write failed'); };
+    expect(() => mm.getDirectionalBindGroup(id)).toThrow('write failed');
+    device.queue.writeBuffer = write; expect(mm.getDirectionalBindGroup(id)).toBe(bg);
+    expect(writes).toBe(2); expect(roughness).toBeCloseTo(0.8);
+  });
+});
+
+it('warms all enabled retained variants without creating pipelines after freeze', async () => {
+  const { device, res, materials: mm } = makeFakeGPU();
+  device.createRenderPipelineAsync = async () => ({}) as GPURenderPipeline;
+  device.createPipelineLayout = () => ({}) as GPUPipelineLayout;
+  const target = { colorFormat: 'bgra8unorm', depthFormat: 'depth24plus', sampleCount: 1 } as const;
+  await mm.warmup(target, [0], { directional: true, packed: true });
+  res.pipelines.freeze();
+  mm.getPipeline(mm.defaultMaterial, target, 0, false, true);
+  mm.getPipeline(mm.defaultMaterial, target, 0, false, true, true);
+  mm.getPipeline(mm.defaultMaterial, target, 0, true, false);
+  mm.getPipeline(mm.defaultMaterial, target, 0, true, true);
+  expect(res.stats.pipelineCreationsAfterFreeze).toBe(0);
 });

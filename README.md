@@ -39,6 +39,7 @@ npm run dev        # http://localhost:5173/
 | `/game.html` | **Starter game** (move a cube with WASD) — the template to copy for your own game, see [`src/game/main.ts`](src/game/main.ts) |
 | `/selftest.html` | GPU self-tests: shaders, lighting, shadows, fog, particles compared with CPU reference implementations |
 | `/bench.html?suite=lights\|cull\|passes\|anim` | GPU benchmarks (default suite: draw submission) |
+| `/bench-three.html?scenario=objects\|lights` | Identical-scene comparison with Three.js `WebGPURenderer` (tuned batching / clustered lighting, pixel diff, GPU hardware recorded; `&n=`, `&frames=`, `&rounds=`, `&only=`); results and method in [`docs/BENCHMARK_THREEJS.md`](docs/BENCHMARK_THREEJS.md) |
 
 Demo URL switches: `env=sky`, `hdr=<url>`, `envI=<intensity>`, `sky=0`, `fog=<density>`, `mode=unsorted|sorted|instanced`, `cluster=0`,
 `prepass=1`, `cull=none|linear|bvh`, `ssao=1`, `ssr=1`, `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=aces|neutral|reinhard|none`, `exposure=<x>`, `gpucull=frustum|hiz2`, `gpulod=1`, `warmup=1`; plus scene options such as `n=<count>`
@@ -162,3 +163,7 @@ The [review and benchmark report](docs/CODE_REVIEW.md) records the verified fixe
 See [PROGRESS.md](PROGRESS.md#deferred--known-limitations) for the full list. Highlights: no built-in input / physics / audio / UI; glTF
 supports one UV set and no Draco / meshopt / KTX2; transparent objects and particles are not fogged; GPU culling covers opaque and
 alpha-masked batches.
+
+Static-scene optimization results and reproduction: [performance report](docs/STATIC_SCENE_PERFORMANCE.md).
+
+Completion latency follow-up: [matched GPU benchmark results](docs/STATIC_SCENE_LATENCY.md).

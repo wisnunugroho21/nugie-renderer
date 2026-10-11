@@ -21,6 +21,11 @@ export interface BindLayouts {
   objectCompute: GPUBindGroupLayout;
   /** frame, scene, material, object */
   pipelineLayout: GPUPipelineLayout;
+  directionalScene: GPUBindGroupLayout;
+  directionalMaterial: GPUBindGroupLayout;
+  directionalPipeline: GPUPipelineLayout;
+  directionalObject: GPUBindGroupLayout;
+  retainedDirectionalPipeline: GPUPipelineLayout;
 }
 
 /** Create the four engine bind-group layouts and the pipeline layout combining them (see the table above). */
@@ -77,5 +82,15 @@ export function createBindLayouts(device: GPUDevice): BindLayouts {
     label: 'engine-pipeline-layout',
     bindGroupLayouts: [frame, scene, material, object],
   });
-  return { frame, scene, material, object, objectCompute, pipelineLayout };
+  const directionalScene = device.createBindGroupLayout({ label: 'directional-scene', entries: [
+    { binding: 0, visibility: VF, buffer: { type: 'uniform' } },
+    { binding: 1, visibility: F, buffer: { type: 'read-only-storage' } },
+  ] });
+  const directionalMaterial = device.createBindGroupLayout({ label: 'directional-material', entries: [
+    { binding: 11, visibility: F, buffer: { type: 'uniform', minBindingSize: 64 } },
+  ] });
+  const directionalObject = device.createBindGroupLayout({ label: 'directional-object', entries: objectEntries(GPUShaderStage.VERTEX).slice(0, 2) });
+  const directionalPipeline = device.createPipelineLayout({ bindGroupLayouts: [frame, directionalScene, directionalMaterial, directionalObject] });
+  const retainedDirectionalPipeline = device.createPipelineLayout({ bindGroupLayouts: [frame, directionalScene, directionalMaterial] });
+  return { frame, scene, material, object, objectCompute, pipelineLayout, directionalScene, directionalMaterial, directionalPipeline, directionalObject, retainedDirectionalPipeline };
 }

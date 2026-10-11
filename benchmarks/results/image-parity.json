@@ -1,0 +1,48 @@
+[
+  {
+    "before": "baseline-nugie-instanced.png",
+    "after": "final-2-nugie-instanced.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "before": "baseline-three-InstancedMesh-tuned-.png",
+    "after": "final-3-three-InstancedMesh-tuned-.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  }
+]

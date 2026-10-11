@@ -74,6 +74,15 @@ export class Renderer {
   /** Ribbon / trail systems (one draw call each). */
   readonly ribbonSystems: RibbonSystem[] = [];
   batching: BatchingMode = 'instanced';
+  /** Reuse versioned extraction data when visibility, LOD and draw dependencies allow it. Disable for A/B profiling. */
+  cacheDraws = true;
+  /** Optional packed instance attributes/cofactor normals. Off by default; profile on the target GPU before enabling. */
+  retainedVertex = false;
+  /** Exact base-PBR lighting variant when only directional lights and ambient are active. */
+  retainedLighting = true;
+  /** Reuse geometry commands for retained rigid instances. */
+  retainedBundles = true;
+  private directionalLighting = false;
   clearColor = { r: 0.05, g: 0.06, b: 0.09, a: 1 };
 
   /** Post-processing and anti-aliasing (HDR scene target, bloom, tone mapping, FXAA, MSAA). Off by default: `renderer.post.configure({ ... })`. */
@@ -202,7 +211,9 @@ export class Renderer {
   warmup(deformMasks: number[] = [0, 1, 2, 3]): Promise<number> {
     this.syncFramebuffer();
     const { mainView } = this;
-    return this.materials.warmup(mainView.prepassActive || this.depthPrepass ? mainView.targetPre : mainView.target, deformMasks);
+    return this.materials.warmup(mainView.prepassActive || this.depthPrepass ? mainView.targetPre : mainView.target, deformMasks, {
+      directional: this.cacheDraws && this.retainedLighting && this.gpuCulling === 'off', packed: this.cacheDraws && this.retainedVertex,
+    });
   }
 
   /** Attach (or detach with null) a texture streamer; materials rebuild their bind groups whenever a streamed texture's resident mips change. */
@@ -404,7 +415,8 @@ export class Renderer {
   }
 
   /** Pipeline for (material, mesh deform variant) in `view`; cached per pair to avoid rebuilding key strings per batch. */
-  private pipelineFor(view: ViewState, materialId: number, deformMask: number): GPURenderPipeline {
+  private pipelineFor(view: ViewState, materialId: number, deformMask: number, retained = false, directional = false): GPURenderPipeline {
+    if (retained || directional) return view.draw.pipelines.get(this.materials, view.target, materialId, 0, retained, directional, directional && !retained && view.draw.retained.uniformNormals);
     if (view.prepassActive) return this.materials.getPipeline(materialId, view.targetPre, deformMask);
     return view.draw.pipelines.get(this.materials, view.target, materialId, deformMask);
   }
@@ -426,6 +438,15 @@ export class Renderer {
         { binding: 4, resource: { buffer: m.deform.buffer } },
       ],
     }));
+  }
+
+  private directionalObjectBindGroup(): GPUBindGroup {
+    const { device, resources } = this.gpu;
+    const key = `directional-object:r${this.id}:t${this.transformBuffer.generation}:i${this.instanceAlloc.generation}`;
+    return resources.bindGroups.get(key, () => device.createBindGroup({ layout: this.layouts.directionalObject, entries: [
+      { binding: 0, resource: { buffer: this.transformBuffer.buffer } },
+      { binding: 1, resource: { buffer: this.instanceAlloc.buffer } },
+    ] }));
   }
 
   /**
@@ -457,12 +478,23 @@ export class Renderer {
     const t1 = performance.now();
     st.cpu.upload = t1 - t0;
 
-    this.mainView.draw.queueBuilder.build(rw, visible ? visible.slots : null, vCount, this.materials.materials, this.meshes.records, rw.camera,
+    const cache = this.mainView.draw.retained;
+    cache.packedUploadBytes = 0;
+    const canRetain = this.cacheDraws && (visible === null || (visible.slots === null && visible.count === rw.count)) && !rw.hasLOD && rw.drawVersion >= 0 && rw.transformVersion >= 0 && this.batching === 'instanced' && this.gpuCulling === 'off' && cache.stable(rw);
+    const reuse = canRetain && cache.matches(rw, this.materials.materials, this.meshes.records);
+    if (!reuse) cache.invalidate();
+    if (!reuse) this.mainView.draw.queueBuilder.build(rw, visible ? visible.slots : null, vCount, this.materials.materials, this.meshes.records, rw.camera,
       this.batching === 'unsorted' ? 'none' : 'sorted', this.mainView.draw.queues);
     const t2 = performance.now();
     st.cpu.sorting = t2 - t1;
 
-    this.buildBatches(this.mainView, rw);
+    this.buildBatches(this.mainView, rw, false, reuse);
+    if (canRetain && !reuse) {
+      cache.capture(rw, this.mainView.draw.batches, this.mainView.draw.frame.instData, this.materials.materials, this.meshes.records,
+        { pipeline: st.pipelineSwitches, material: st.materialSwitches, mesh: st.meshSwitches });
+      cache.uploadedGenerations.add(this.instanceAlloc.generation);
+    }
+    st.drawPreparationReused = reuse;
     const t3 = performance.now();
     st.cpu.batching = t3 - t2;
     this.transmissionActive = this.post.enabled && this.mainView.draw.frame.transmissive && rw.hasCamera && !(this.mainView.draw.frame.gpuCull && this.gpuCulling === 'hiz2');
@@ -478,6 +510,7 @@ export class Renderer {
     this.profiler.resolve(enc);
     queue.submit([enc.finish()]);
     this.features.endFrame();
+    st.bufferUploadBytes += cache.packedUploadBytes;
     const t4 = performance.now();
     st.cpu.encoding = t4 - t3;
     st.cpu.total = t4 - t0;
@@ -497,6 +530,8 @@ export class Renderer {
     this.features.beginFrame(this.featureFrame);   // shadow slots, cluster / fog grids, texture coverage: everything the scene uniform below carries
     this.sceneResources.syncLights(L);
     const useClusters = this.clusters.active;
+    this.directionalLighting = L.directionalCount === L.count && !useClusters && this.shadows.layers.length === 0
+      && !this.sceneResources.env.enabled && !this.sceneResources.fog.enabled;
     this.sceneResources.writeUniform({
       lightCount: L.count, globalCount: L.globalCount, clustered: useClusters, clusterDims: useClusters ? this.clusters.dims : undefined, clusterTileSize: this.clusters.config.tileSize,
       clusterNear: cam.near, clusterFar: cam.far, ambientSky: L.ambientSky, ambientGround: L.ambientGround,
@@ -524,7 +559,7 @@ export class Renderer {
    * Results are stored in `view.draw.frame` for the draw / pass recording. `offscreen` views append to the current frame's instance region and
    * skip everything that belongs to the main view (GPU culling, shadow casters, stats).
    */
-  private buildBatches(view: ViewState, rw: RenderWorld, offscreen = false): void {
+  private buildBatches(view: ViewState, rw: RenderWorld, offscreen = false, reuse = false): void {
     const st = this.stats;
     const draw = view.draw, lists = draw.queues.ordered;
     const total = lists[0].count + lists[1].count + lists[2].count;
@@ -535,7 +570,7 @@ export class Renderer {
     const instData = this.instanceAlloc.uint32.subarray(local, local + total * INSTANCE_WORDS);
     const gpuCull = !offscreen && this.gpuCulling !== 'off' && rw.hasCamera && total > 0;
     if (gpuCull && this.sphereScratch.length < total * 4) this.sphereScratch = new Float32Array(Math.max(total * 4, this.sphereScratch.length * 2));
-    buildBatches(lists, rw, this.meshes.records, instData, byteOffset / INSTANCE_BYTES, this.batching === 'instanced' ? 'instanced' : 'individual', draw.batches, gpuCull ? this.sphereScratch : undefined);
+    if (!reuse) buildBatches(lists, rw, this.meshes.records, instData, byteOffset / INSTANCE_BYTES, this.batching === 'instanced' ? 'instanced' : 'individual', draw.batches, gpuCull ? this.sphereScratch : undefined);
     // GPU culling covers the leading opaque / alpha-mask batches (queue id < 2); transparent batches stay on the CPU path.
     let nCullBatches = 0;
     if (gpuCull) while (nCullBatches < draw.batches.count && draw.batches.queue[nCullBatches] < 2) nCullBatches++;
@@ -544,17 +579,30 @@ export class Renderer {
       this.culler ??= new GPUCuller(this.gpu);
       this.culler.prepare(draw.batches, nCullBatches, total01, this.sphereScratch, byteOffset / INSTANCE_BYTES, this.meshes, this.gpuLOD ? (m) => this.gpuLodIndex.groupOf(m) : undefined);
     }
+    const cache = draw.retained;
+    let skipPrefix = 0;
+    if (reuse) {
+      // Allocation may replace the CPU shadow/GPU buffer. Populate every new ring generation from the retained records.
+      if (cache.uploadedGenerations.has(this.instanceAlloc.generation)) skipPrefix = total * INSTANCE_BYTES;
+      else instData.set(cache.records);
+    }
     if (!offscreen) this.features.buildInstances(this.featureFrame);   // shadow casters
-    this.instanceAlloc.flush();
+    // Feature allocations may grow the buffer: growth discards its resident prefix.
+    const generation = this.instanceAlloc.generation;
+    if (reuse && !cache.uploadedGenerations.has(generation)) skipPrefix = 0;
+    this.instanceAlloc.flush(skipPrefix);
+    if (reuse) cache.uploadedGenerations.add(generation);
     if (!offscreen) st.bufferUploadBytes = this.instanceAlloc.bytesUploadedThisFrame + this.transformBuffer.lastUploadBytes;
-    if (!offscreen && this.batching !== 'unsorted') {
+    if (reuse) {
+      st.pipelineSwitches += cache.switches.pipeline; st.materialSwitches += cache.switches.material; st.meshSwitches += cache.switches.mesh;
+    } else if (!offscreen && this.batching !== 'unsorted') {
       for (const l of lists) {
         const c = countSwitches(l, rw, this.materials.materials, this.meshes.records);
         st.pipelineSwitches += c.pipeline; st.materialSwitches += c.material; st.meshSwitches += c.mesh;
       }
     }
     const f = draw.frame;
-    f.total = total; f.total01 = total01; f.byteOffset = byteOffset; f.instData = instData; f.gpuCull = gpuCull; f.nCullBatches = nCullBatches;
+    f.total = total; f.total01 = total01; f.byteOffset = byteOffset; f.instData = this.instanceAlloc.uint32.subarray(local, local + total * INSTANCE_WORDS); f.gpuCull = gpuCull; f.nCullBatches = nCullBatches;
     this.markLateBatches(view);
   }
 
@@ -677,15 +725,54 @@ export class Renderer {
    * compacted set (arguments start at `argBase`), `'rest'` draws the batches the GPU path does not cover, `'all'` does both.
    * Without GPU culling every batch is drawn directly.
    */
-  private drawGeometry(pass: GPURenderPassEncoder, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: 'all' | 'early' | 'late' = 'all'): void {
+  private drawGeometry(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: 'all' | 'early' | 'late' = 'all'): void {
     const f = view.draw.frame, st = this.stats, gpuCull = f.gpuCull;
+    const eligible = view === this.mainView && this.stats.drawPreparationReused && !view.prepassActive && !gpuCull
+      && f.byteOffset === 0 && view.draw.retained.supportsPacked();
+    const retained = this.retainedVertex && eligible;
+    const directional = this.retainedLighting && this.directionalLighting && eligible;
+    const sceneGroup = directional ? this.sceneResources.directionalBindGroup : this.sceneResources.bindGroup;
+    const materialGroup = (id: number) => directional ? this.materials.getDirectionalBindGroup(id) : this.materials.getBindGroup(id);
     const mats = this.materials.materials;
     /** early = opaque / alpha-masked geometry, late = blended + transmissive (drawn after the sky and, with transmission, after the opaque copy). */
     const skip = (late: boolean): boolean => (part === 'early' && late) || (part === 'late' && !late);
+    if ((retained || directional) && this.retainedBundles && 'executeBundles' in pass) {
+      const target = view.target, cache = view.draw.retained;
+      const signature: unknown[] = [target.colorFormat, target.depthFormat, target.sampleCount,
+        this.frameUniform.bindGroup, sceneGroup, this.meshes.compactVertexBuffer, this.meshes.indexBuffer, retained ? cache.packedBuffer(this.gpu) : this.directionalObjectBindGroup()];
+      const b = view.draw.batches;
+      let draws = 0;
+      for (let i = 0; i < b.count; i++) {
+        if (skip(b.late[i] === 1)) continue;
+        const m = this.meshes.get(b.meshId[i]);
+        signature.push(this.pipelineFor(view, b.materialId[i], 0, retained, directional), materialGroup(b.materialId[i]),
+          m.indexCount, m.firstIndex, m.baseVertex, b.instanceCount[i], b.firstInstance[i]);
+        draws++;
+      }
+      if (draws === 0) return;
+      const bundleKey = retained ? part : `${part}:${this.instanceAlloc.generation}`;
+      const saved = view.draw.bundles.get(bundleKey, signature);
+      if (saved) {
+        pass.executeBundles([saved.bundle]);
+        if (retained) st.retainedVertexDraws += saved.counts[0];
+        if (directional) st.retainedLightingDraws += saved.counts[0];
+        st.drawCalls += saved.counts[0]; st.instances += saved.counts[1]; st.triangles += saved.counts[2];
+      } else {
+        const encoder = this.gpu.device.createRenderBundleEncoder({ label: 'retained-' + part,
+          colorFormats: [target.colorFormat!], depthStencilFormat: target.depthFormat, sampleCount: target.sampleCount });
+        const before = [st.drawCalls, st.instances, st.triangles];
+        this.drawGeometry(encoder, view, which, argBase, part);
+        const bundle = encoder.finish();
+        view.draw.bundles.set(bundleKey, signature, bundle, [st.drawCalls - before[0], st.instances - before[1], st.triangles - before[2]]);
+        pass.executeBundles([bundle]);
+      }
+      st.retainedBundleDraws += draws;
+      return;
+    }
     pass.setBindGroup(0, this.frameUniform.bindGroup);
-    pass.setBindGroup(1, this.sceneResources.bindGroup);
-    pass.setBindGroup(3, gpuCull && which !== 'rest' ? this.objectBindGroup(true) : this.objectBindGroup());
-    pass.setVertexBuffer(0, this.meshes.vertexBuffer);
+    pass.setBindGroup(1, sceneGroup);
+    if (!retained) pass.setBindGroup(3, directional ? this.directionalObjectBindGroup() : gpuCull && which !== 'rest' ? this.objectBindGroup(true) : this.objectBindGroup());
+    pass.setVertexBuffer(0, (retained || directional) ? this.meshes.compactVertexBuffer : this.meshes.vertexBuffer);
     pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
     let curPipe: GPURenderPipeline | null = null, curMat = -1;
     /** Set the pipeline and material bind group only when they differ from the previously bound ones. */
@@ -707,18 +794,20 @@ export class Renderer {
     if (which === 'culled') return;
     if (gpuCull && which === 'all') pass.setBindGroup(3, this.objectBindGroup());   // remaining batches use the uncompacted records
     const b = view.draw.batches;
+    if (retained) pass.setVertexBuffer(1, view.draw.retained.packedBuffer(this.gpu));
     let curMesh = -1;
     for (let i = gpuCull ? f.nCullBatches : 0; i < b.count; i++) {
       if (skip(b.late[i] === 1)) continue;
       const matId = b.materialId[i];
       const meshId = b.meshId[i];
       const mesh = this.meshes.get(meshId);
-      const pipe = this.pipelineFor(view, matId, mesh.deformMask);
+      const pipe = this.pipelineFor(view, matId, mesh.deformMask, retained, directional);
       if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; if (this.batching === 'unsorted') st.pipelineSwitches++; }
-      if (matId !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(matId)); curMat = matId; if (this.batching === 'unsorted') st.materialSwitches++; }
+      if (matId !== curMat) { pass.setBindGroup(2, materialGroup(matId)); curMat = matId; if (this.batching === 'unsorted') st.materialSwitches++; }
       if (this.batching === 'unsorted' && meshId !== curMesh) st.meshSwitches++;
       curMesh = meshId;
       pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+      if (retained) st.retainedVertexDraws++; if (directional) st.retainedLightingDraws++;
       st.drawCalls++;
       st.instances += b.instanceCount[i];
       st.triangles += (mesh.indexCount / 3) * b.instanceCount[i];
