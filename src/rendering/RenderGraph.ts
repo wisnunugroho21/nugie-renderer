@@ -1,4 +1,4 @@
-import { PriorityQueue } from '../core/PriorityQueue';
+import { dependenciesOf, liveNodes, orderNodes, orderCost, type AnalysisNode, type OrderStrategy } from './graph/Analysis';
 
 export interface PassDesc {
   name: string;
@@ -10,90 +10,26 @@ export interface PassDesc {
   execute: (encoder: GPUCommandEncoder) => void;
 }
 
-type Dependencies = Set<number>[];
+/** First and last position (in execution order) at which a resource is touched. */
+export interface ResourceSpan { first: number; last: number; }
 
-/** Derive read/write hazards in declaration order. Forward reads consume later producers;
- * a first read-modify-write consumes an external resource, then becomes its first producer.
- */
-function dependenciesOf(passes: readonly PassDesc[]): Dependencies {
-  const dependencies: Dependencies = passes.map(() => new Set<number>());
-  const lastWriter = new Map<string, number>();
-  const readers = new Map<string, number[]>();
-  const writers = new Map<string, number[]>();
-  for (let i = 0; i < passes.length; i++) for (const resource of passes[i].writes ?? []) {
-    const list = writers.get(resource) ?? [];
-    list.push(i);
-    writers.set(resource, list);
-  }
-  for (let i = 0; i < passes.length; i++) {
-    const pass = passes[i];
-    for (const resource of pass.reads ?? []) {
-      const writer = lastWriter.get(resource);
-      if (writer !== undefined) dependencies[i].add(writer);
-      else if (!pass.writes?.includes(resource)) {
-        for (const producer of writers.get(resource) ?? []) dependencies[i].add(producer);
-        continue;
-      }
-      const list = readers.get(resource) ?? [];
-      list.push(i);
-      readers.set(resource, list);
-    }
-    for (const resource of pass.writes ?? []) {
-      const writer = lastWriter.get(resource);
-      if (writer !== undefined && writer !== i) dependencies[i].add(writer);
-      for (const reader of readers.get(resource) ?? []) if (reader !== i) dependencies[i].add(reader);
-      lastWriter.set(resource, i);
-      readers.set(resource, []);
-    }
-  }
-  return dependencies;
-}
-
-/** Keep side-effect passes and their transitive dependencies without recursive traversal. */
-function livePasses(passes: readonly PassDesc[], dependencies: Dependencies): Set<number> {
-  const live = new Set<number>();
-  const stack: number[] = [];
-  passes.forEach((pass, index) => { if (pass.sideEffect) stack.push(index); });
-  while (stack.length) {
-    const index = stack.pop()!;
-    if (live.has(index)) continue;
-    live.add(index);
-    for (const dependency of dependencies[index]) stack.push(dependency);
-  }
-  return live;
-}
-
-/** Stable Kahn sort: the lowest declaration index among ready passes always wins. */
-function orderedPasses(passes: readonly PassDesc[], dependencies: Dependencies, live: Set<number>): PassDesc[] {
-  const indegree = new Uint32Array(passes.length);
-  const users: number[][] = passes.map(() => []);
-  for (const index of live) for (const dependency of dependencies[index]) {
-    indegree[index]++;
-    users[dependency].push(index);
-  }
-  const ready = new PriorityQueue<number>((a, b) => a - b);
-  for (const index of live) if (indegree[index] === 0) ready.push(index);
-  const ordered: PassDesc[] = [];
-  while (ready.length) {
-    const index = ready.pop()!;
-    ordered.push(passes[index]);
-    for (const user of users[index]) if (--indegree[user] === 0) ready.push(user);
-  }
-  if (ordered.length !== live.size) {
-    const blocked = [...live].filter((index) => indegree[index] > 0).map((index) => passes[index].name);
-    throw new Error(`RenderGraph: dependency cycle between passes: ${blocked.join(', ')}`);
-  }
-  return ordered;
-}
-
-/** Frame graph: dependencies -> liveness -> stable ordering -> command recording.
- * Recompile after changing passes. Failed compilation cannot replay an earlier graph.
+/**
+ * Frame graph of engine passes: dependencies -> liveness -> stable ordering -> command recording. Passes are "callback nodes" of the
+ * technique model (see `graph/TechniqueTypes.ts`); for data-driven nodes, resource lifetimes and aliasing use a `Technique`, and
+ * `TechniqueInstance.asPass` plugs one into this graph. Recompile after changing passes. Failed compilation cannot replay an earlier graph.
  */
 export class RenderGraph {
   private passes: PassDesc[] = [];
   order: string[] = [];
   culled: string[] = [];
+  /** Where each logical resource is first and last used in `order` (valid after `compile`). */
+  spans = new Map<string, ResourceSpan>();
+  /** Resource-state changes and node-kind switches of the compiled order, and of the declaration order for comparison. */
+  stats = { transitions: 0, kindSwitches: 0, declaredTransitions: 0, declaredKindSwitches: 0 };
+  /** `declaration`: stable (the default, what the renderer relies on); `transitions`: reorder independent passes to reduce barriers. */
+  strategy: OrderStrategy = 'declaration';
   private compiled: PassDesc[] | null = null;
+  private nodes: AnalysisNode[] = [];
 
   reset(): void {
     this.passes.length = 0;
@@ -109,17 +45,33 @@ export class RenderGraph {
     this.compiled = null;
     this.order.length = 0;
     this.culled.length = 0;
+    this.spans.clear();
   }
 
   /** Compile the graph and return the execution order. Unused passes are listed in `culled`. */
   compile(): string[] {
     this.invalidate();
-    const dependencies = dependenciesOf(this.passes);
-    const live = livePasses(this.passes, dependencies);
-    const ordered = orderedPasses(this.passes, dependencies, live);
+    this.nodes = this.passes.map((pass): AnalysisNode => ({
+      name: pass.name, kind: 'callback', root: pass.sideEffect === true,
+      accesses: [
+        ...(pass.reads ?? []).map((resource) => ({ resource, read: true, write: (pass.writes ?? []).includes(resource), usage: 'callback' as const })),
+        ...(pass.writes ?? []).filter((resource) => !(pass.reads ?? []).includes(resource)).map((resource) => ({ resource, read: false, write: true, usage: 'callback' as const })),
+      ],
+    }));
+    const dependencies = dependenciesOf(this.nodes);
+    const live = liveNodes(this.nodes, dependencies);
+    const order = orderNodes(this.nodes, dependencies, live, this.strategy);
     this.culled = this.passes.filter((_, index) => !live.has(index)).map((pass) => pass.name);
-    this.compiled = ordered;
-    return (this.order = ordered.map((pass) => pass.name));
+    this.compiled = order.map((index) => this.passes[index]);
+    order.forEach((nodeIndex, position) => {
+      for (const access of this.nodes[nodeIndex].accesses) {
+        const span = this.spans.get(access.resource);
+        if (span) span.last = position; else this.spans.set(access.resource, { first: position, last: position });
+      }
+    });
+    const cost = orderCost(this.nodes, order), declared = orderCost(this.nodes, [...live].sort((a, b) => a - b));
+    this.stats = { transitions: cost.transitions, kindSwitches: cost.kindSwitches, declaredTransitions: declared.transitions, declaredKindSwitches: declared.kindSwitches };
+    return (this.order = this.compiled.map((pass) => pass.name));
   }
 
   execute(encoder: GPUCommandEncoder): void {

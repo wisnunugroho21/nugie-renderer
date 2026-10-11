@@ -1,0 +1,329 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { compileTechnique } from '../src/rendering/graph/Compile';
+import { flatten } from '../src/rendering/graph/Flatten';
+import { expandShader } from '../src/rendering/graph/ShaderTokens';
+import { parseTechnique, techniqueToJSON } from '../src/rendering/graph/TechniqueJSON';
+import { techniqueToDot } from '../src/rendering/graph/Dot';
+import { RenderGraph } from '../src/rendering/RenderGraph';
+import { TechniqueError, type ComputeNode, type NodeDecl, type ResourceDecl, type Technique, type VariableDecl } from '../src/rendering/graph/TechniqueTypes';
+
+const tex = (name: string, extra: Partial<Extract<ResourceDecl, { kind: 'texture' }>> = {}): ResourceDecl => ({ kind: 'texture', name, format: 'rgba8unorm', size: [64, 64], ...extra });
+/** A compute node that reads `reads` and writes `writes` (textures). */
+const pass = (name: string, reads: string[], writes: string[], extra: Partial<ComputeNode> = {}): ComputeNode => ({
+  type: 'compute', name, shader: { code: '@compute @workgroup_size(8, 8) fn main() {}' },
+  bindings: [...reads.map((r) => ({ resource: r, access: 'read' as const })), ...writes.map((r) => ({ resource: r, access: 'write' as const }))],
+  dispatch: { threads: [64, 64] }, ...extra,
+});
+const technique = (nodes: NodeDecl[], resources: ResourceDecl[], variables: VariableDecl[] = [], name = 't'): Technique => ({ name, variables, resources, nodes });
+const names = (t: ReturnType<typeof compileTechnique>) => t.steps.map((s) => s.node.path);
+
+describe('compile: order, culling, roots', () => {
+  it('orders by dependency regardless of declaration order and keeps what feeds an exported resource', () => {
+    const t = compileTechnique(technique(
+      [pass('shade', ['depth', 'shadow'], ['out']), pass('depth', [], ['depth']), pass('shadow', [], ['shadow']), pass('unused', [], ['scratch'])],
+      [tex('depth'), tex('shadow'), tex('scratch'), tex('out', { visibility: 'exported' })],
+    ));
+    expect(names(t)).toEqual(['depth', 'shadow', 'shade']);
+    expect(t.culled).toEqual(['unused']);
+    expect(t.unused).toEqual(['scratch']);
+  });
+  it('treats writes to imported and persistent resources as outputs', () => {
+    const t = compileTechnique(technique(
+      [pass('a', [], ['host']), pass('b', [], ['history']), pass('c', [], ['tmp'])],
+      [tex('host', { visibility: 'imported' }), tex('history', { lifetime: 'persistent' }), tex('tmp')],
+    ));
+    expect(names(t)).toEqual(['a', 'b']);
+    expect(t.culled).toEqual(['c']);
+  });
+  it('warns when a transient resource is read before anything writes it', () => {
+    const t = compileTechnique(technique([pass('use', ['never'], ['out'])], [tex('never'), tex('out', { visibility: 'exported' })]));
+    expect(t.diagnostics.some((d) => d.level === 'warning' && /never.*before any node writes/.test(d.message))).toBe(true);
+    const persistent = compileTechnique(technique([pass('use', ['hist'], ['out'])], [tex('hist', { lifetime: 'persistent' }), tex('out', { visibility: 'exported' })]));
+    expect(persistent.diagnostics).toEqual([]);
+  });
+  it('detects dependency cycles', () => {
+    const cyc = technique([pass('p', ['b'], ['a'], { sideEffect: true }), pass('q', ['a'], ['b'], { sideEffect: true })], [tex('a'), tex('b')]);
+    expect(() => compileTechnique(cyc)).toThrow(/cycle/);
+  });
+});
+
+describe('compile: lifetimes and memory aliasing', () => {
+  // a -> b -> c -> d chain: a and c never live at once, b overlaps both
+  const chain = (extra: Partial<Parameters<typeof tex>[1]> = {}) => technique(
+    [pass('n1', [], ['a']), pass('n2', ['a'], ['b']), pass('n3', ['b'], ['c']), pass('n4', ['c'], ['out'])],
+    [tex('a', extra), tex('b'), tex('c'), tex('out', { visibility: 'exported' })],
+  );
+  it('records first / last use per resource', () => {
+    const t = compileTechnique(chain());
+    expect([t.resources.get('a')!.first, t.resources.get('a')!.last]).toEqual([0, 1]);
+    expect([t.resources.get('c')!.first, t.resources.get('c')!.last]).toEqual([2, 3]);
+  });
+  it('lets transient resources with disjoint lifetimes share one allocation', () => {
+    const t = compileTechnique(chain());
+    expect(t.resources.get('a')!.slot).toBe(t.resources.get('c')!.slot);
+    expect(t.resources.get('b')!.slot).not.toBe(t.resources.get('a')!.slot);
+    const each = 64 * 64 * 4;
+    expect(t.stats.bytes).toBe(4 * each);
+    expect(t.stats.bytesAliased).toBe(3 * each);   // a+c share, b and out are separate
+    expect(t.stats.slots).toBe(3);
+    expect(new Set(t.slots.map((x) => x.key)).size).toBe(t.slots.length);   // equal descriptions, different slots: the keys must differ
+  });
+  it('never aliases persistent, exported or differently described resources, and can be switched off', () => {
+    expect(compileTechnique(chain({ lifetime: 'persistent' })).resources.get('a')!.slot).not.toBe(compileTechnique(chain({ lifetime: 'persistent' })).resources.get('c')!.slot);
+    expect(compileTechnique(chain({ format: 'rgba16float' })).stats.slots).toBe(4);
+    expect(compileTechnique(chain(), { alias: false }).stats.slots).toBe(4);
+  });
+  it('does not alias a resource read by the node that first writes the other (no in-place hazard)', () => {
+    const t = compileTechnique(technique([pass('n1', [], ['a']), pass('n2', ['a'], ['b']), pass('n3', ['b'], ['out'])], [tex('a'), tex('b'), tex('out', { visibility: 'exported' })]));
+    expect(t.resources.get('a')!.slot).not.toBe(t.resources.get('b')!.slot);
+  });
+  it('records how resources are used, for the GPU usage flags', () => {
+    const t = compileTechnique(chain());
+    expect([...t.resources.get('a')!.uses].sort()).toEqual(['sampled', 'storage']);
+    expect(t.resources.get('out')!.uses.has('copy-src')).toBe(true);   // exported: the host may read it back
+  });
+});
+
+describe('variables and sizes', () => {
+  const base = (width: number) => compileTechnique(technique(
+    [pass('a', [], ['half'])], [tex('full', { size: [{ variable: 'width' }, { variable: 'height' }] }), tex('half', { like: 'full', scale: 0.5, size: undefined, visibility: 'exported' })],
+    [{ name: 'width', type: 'uint', value: width }, { name: 'height', type: 'uint', value: 90 }],
+  ));
+  it('sizes resources from variables and from other resources', () => {
+    const t = base(160);
+    expect(t.resources.get('full')!.resolved).toMatchObject({ size: [160, 90, 1] });
+    expect(t.resources.get('half')!.resolved).toMatchObject({ size: [80, 45, 1], format: 'rgba8unorm' });
+    expect(t.structural.has('width')).toBe(true);
+  });
+  it('applies scale / offset and rejects sizes below one', () => {
+    const t = compileTechnique(technique([pass('a', [], ['x'])], [tex('x', { size: [{ variable: 'n', scale: 2, offset: 1 }, 4], visibility: 'exported' })], [{ name: 'n', type: 'float', value: 3.6 }]));
+    expect((t.resources.get('x')!.resolved as { size: number[] }).size[0]).toBe(8);
+    expect(() => base(0)).toThrow(/at least 1/);
+  });
+  it('overrides defaults through options and rejects unknown names', () => {
+    const t = compileTechnique(technique([pass('a', [], ['x'])], [tex('x', { size: [{ variable: 'w' }, 2], visibility: 'exported' })], [{ name: 'w', type: 'uint', value: 4 }]), { values: { w: 32 } });
+    expect((t.resources.get('x')!.resolved as { size: number[] }).size[0]).toBe(32);
+    expect(() => compileTechnique(technique([], [], []), { values: { nope: 1 } })).toThrow(/no variable named 'nope'/);
+  });
+  it('switches nodes off with conditions and treats the variable as structural', () => {
+    const tech = technique([pass('always', [], ['o']), pass('maybe', [], ['o2'], { condition: { variable: 'on', op: 'eq', value: 1 } })], [tex('o', { visibility: 'exported' }), tex('o2', { visibility: 'exported' })], [{ name: 'on', type: 'int', value: 0 }]);
+    const off = compileTechnique(tech), on = compileTechnique(tech, { values: { on: 1 } });
+    expect(names(off)).toEqual(['always']); expect(off.disabled).toEqual(['maybe']);
+    expect(names(on)).toEqual(['always', 'maybe']);
+    expect(off.structural.has('on')).toBe(true);
+  });
+  it('computes buffer sizes from element types', () => {
+    const t = compileTechnique(technique([{ type: 'compute', name: 'fill', shader: { code: '' }, workgroupSize: [64], bindings: [{ resource: 'b', access: 'write' }], dispatch: { threads: [100] } }],
+      [{ kind: 'buffer', name: 'b', element: 'vec4<f32>', count: 100, visibility: 'exported' }]));
+    expect(t.resources.get('b')!.bytes).toBe(1600);
+    expect(() => compileTechnique(technique([], [{ kind: 'buffer', name: 'b', element: 'MyStruct', count: 4 }]))).toThrow(/stride/);
+  });
+});
+
+describe('sub-graphs', () => {
+  // one blur step: reads `src`, writes `dst`; `radius` is a variable, `loopIndex` is filled in per iteration
+  const blur: Technique = technique(
+    [pass('h', ['src'], ['tmp']), pass('v', ['tmp'], ['dst'])],
+    [tex('src', { visibility: 'imported' }), tex('tmp'), tex('dst', { visibility: 'exported' })],
+    [{ name: 'radius', type: 'float', value: 1 }, { name: 'loopIndex', type: 'uint', value: 0, visibility: 'internal' }], 'blur',
+  );
+  const parent = (loop?: number | { variable: string }, extra: Partial<NodeDecl> = {}): Technique => technique(
+    [pass('make', [], ['scene']), { type: 'subgraph', name: 'blur', technique: blur, inputs: { src: 'scene' }, outputs: { dst: 'result' }, variables: { radius: { bind: 'strength' } }, ...(loop !== undefined ? { loop } : {}), ...extra } as NodeDecl],
+    [tex('scene'), tex('result', { visibility: 'exported' })], [{ name: 'strength', type: 'float', value: 2 }], 'parent',
+  );
+  it('inlines the sub-graph, mapping imports and exports to the parent resources', () => {
+    const f = flatten(parent());
+    expect(f.nodes.map((n) => n.path)).toEqual(['make', 'blur/h', 'blur/v']);
+    expect([...f.resources.keys()].sort()).toEqual(['blur/tmp', 'result', 'scene']);
+    expect(f.variables.has('blur/radius')).toBe(false);   // bound to the parent's 'strength'
+    const c = compileTechnique(parent());
+    expect(names(c)).toEqual(['make', 'blur/h', 'blur/v']);
+  });
+  it('unrolls loops; every iteration gets its own internals and loopIndex', () => {
+    const f = flatten(parent(3));
+    expect(f.nodes.map((n) => n.path)).toEqual(['make', 'blur#0/h', 'blur#0/v', 'blur#1/h', 'blur#1/v', 'blur#2/h', 'blur#2/v']);
+    expect(f.variables.get('blur#2/loopIndex')!.value).toBe(2);
+    expect(f.resources.has('blur#1/tmp')).toBe(true);
+  });
+  it('takes loop counts from variables (structural) and bounds them', () => {
+    const tech = { ...parent({ variable: 'passes' }), variables: [{ name: 'strength', type: 'float' as const, value: 2 }, { name: 'passes', type: 'uint' as const, value: 2 }] };
+    expect(flatten(tech).nodes).toHaveLength(5);
+    expect(compileTechnique(tech).structural.has('passes')).toBe(true);
+    expect(() => flatten(parent(100000))).toThrow(/loop count/);
+  });
+  it('applies value overrides, and conditions of the sub-graph node to everything inside it', () => {
+    const tech: Technique = { ...parent(undefined, { variables: { radius: { value: 5 } }, condition: { variable: 'strength', op: 'gt', value: 10 } }) };
+    expect(flatten(tech).variables.get('blur/radius')!.value).toBe(5);
+    expect(names(compileTechnique(tech))).toEqual([]);   // 'make' only feeds the blur, which is switched off: nothing is kept
+  });
+  it('resolves registry names and rejects missing inputs, bad names and recursion', () => {
+    const byName = technique([{ type: 'subgraph', name: 'b', technique: 'blur', inputs: { src: 'scene' }, outputs: { dst: 'result' } }, pass('make', [], ['scene'])], [tex('scene'), tex('result', { visibility: 'exported' })]);
+    expect(names(compileTechnique(byName, { registry: { blur } }))).toEqual(['make', 'b/h', 'b/v']);
+    expect(() => compileTechnique(byName)).toThrow(/no technique named 'blur'/);
+    expect(() => compileTechnique({ ...byName, nodes: [{ type: 'subgraph', name: 'b', technique: blur }] })).toThrow(/no input/);
+    expect(() => compileTechnique({ ...byName, nodes: [{ type: 'subgraph', name: 'b', technique: blur, inputs: { nope: 'scene' } }] })).toThrow(/no resource 'nope'/);
+    const loopy: Technique = { name: 'loopy', nodes: [] };
+    loopy.nodes.push({ type: 'subgraph', name: 'again', technique: loopy });
+    expect(() => compileTechnique(loopy)).toThrow(/contains itself/);
+  });
+  it('checks that mapped resources have the same kind and format', () => {
+    const bad = technique([{ type: 'subgraph', name: 'b', technique: { ...blur, resources: [tex('src', { visibility: 'imported', format: 'r32float' }), ...(blur.resources ?? []).slice(1)] }, inputs: { src: 'scene' }, outputs: { dst: 'result' } }], [tex('scene'), tex('result', { visibility: 'exported' })]);
+    expect(() => compileTechnique(bad)).toThrow(/expects r32float/);
+  });
+});
+
+describe('validation', () => {
+  const run = (nodes: NodeDecl[], resources: ResourceDecl[]) => () => compileTechnique(technique(nodes, resources));
+  it('rejects undeclared resources and variables, duplicates and bad binding names', () => {
+    expect(run([pass('a', ['ghost'], [])], [])).toThrow(/'ghost' is not declared/);
+    expect(run([pass('a', [], []), pass('a', [], [])], [])).toThrow(/declared twice/);
+    expect(run([], [tex('x'), tex('x')])).toThrow(/declared twice/);
+    expect(run([pass('a', [], ['x'], { condition: { variable: 'v', op: 'eq', value: 1 } })], [tex('x')])).toThrow(/variable 'v' is not declared/);
+    expect(run([{ ...pass('a', [], []), bindings: [{ resource: 'x', access: 'read', name: 'bad name' }] }], [tex('x')])).toThrow(/valid WGSL identifier/);
+  });
+  it('rejects bindings WebGPU would refuse', () => {
+    expect(run([pass('a', [], ['x'])], [tex('x', { format: 'rgba8unorm-srgb' })])).toThrow(/cannot be bound for write/);
+    expect(run([{ ...pass('a', [], []), bindings: [{ resource: 'x', access: 'readwrite' }] }], [tex('x')])).toThrow(/'write' but not 'readwrite'/);
+    expect(run([{ ...pass('a', [], []), bindings: [{ resource: 'x', access: 'read' }, { resource: 'x', access: 'write', name: 'x2' }] }], [tex('x')])).toThrow(/conflicting usage/);
+    expect(run([{ ...pass('a', [], []), bindings: [{ resource: 'x', access: 'write', sampler: 'linear' }] }], [tex('x')])).toThrow(/only sampled/);
+  });
+  it('validates copies and draws', () => {
+    expect(run([{ type: 'copy', name: 'c', source: 'a', dest: 'b' }], [tex('a'), tex('b', { size: [32, 32] })])).toThrow(/same format and size/);
+    expect(run([{ type: 'copy', name: 'c', source: 'a', dest: 'b' }], [tex('a'), { kind: 'buffer', name: 'b', count: 4 }])).toThrow(/cannot copy a texture to a buffer/);
+    const draw = (targets: string[], depth?: string): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: '' }, bindings: [], colorTargets: targets.map((resource) => ({ resource })), ...(depth ? { depthTarget: { resource: depth } } : {}), vertexCount: 3 });
+    expect(run([draw(['a', 'b'])], [tex('a'), tex('b', { size: [8, 8] })])).toThrow(/differ in size/);
+    expect(run([draw(['d'])], [tex('d', { format: 'depth32float' })])).toThrow(/depth format/);
+    expect(run([draw([], 'a')], [tex('a')])).toThrow(/depth format/);
+    expect(run([draw([])], [])).toThrow(/at least one/);
+  });
+  it('needs a format and size for non-imported textures and rejects like-cycles', () => {
+    expect(run([], [{ kind: 'texture', name: 'x', size: [4, 4] }])).toThrow(/needs a format/);
+    expect(run([], [{ kind: 'texture', name: 'x', format: 'rgba8unorm' }])).toThrow(/needs a size/);
+    expect(run([], [tex('a', { like: 'b' }), tex('b', { like: 'a' })])).toThrow(/cycle/);
+    expect(() => compileTechnique(technique([], [tex('i', { visibility: 'imported', size: undefined }), tex('j', { like: 'i', size: undefined })]))).toThrow(/known size/);
+  });
+});
+
+describe('ordering strategies', () => {
+  // two independent chains: compute-A (a1 -> a2 on texA) and copy-B; interleaved declaration order forces transitions
+  const tech = technique(
+    [pass('a1', [], ['ta']), { type: 'copy', name: 'b1', source: 'src', dest: 'tb' }, pass('a2', ['ta'], ['oa']), { type: 'copy', name: 'b2', source: 'tb', dest: 'ob' }],
+    [tex('ta'), tex('tb'), tex('src', { visibility: 'imported' }), tex('oa', { visibility: 'exported' }), tex('ob', { visibility: 'exported' })],
+  );
+  it('keeps declaration order by default and can reorder to reduce kind switches without breaking dependencies', () => {
+    const declared = compileTechnique(tech), tuned = compileTechnique(tech, { order: 'transitions' });
+    expect(names(declared)).toEqual(['a1', 'b1', 'a2', 'b2']);
+    const order = names(tuned);
+    expect(order.indexOf('a1')).toBeLessThan(order.indexOf('a2'));
+    expect(order.indexOf('b1')).toBeLessThan(order.indexOf('b2'));
+    expect(tuned.stats.kindSwitches).toBeLessThan(declared.stats.kindSwitches);
+    expect(tuned.stats.transitions).toBeLessThanOrEqual(declared.stats.transitions);
+  });
+});
+
+describe('shader tokens', () => {
+  const tech = technique(
+    [{ type: 'compute', name: 'k', workgroupSize: [8, 8], shader: { code: 'struct P { a: u32 }\n/*$(Bindings)*/\n@compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) { let r = /*$(Variable:radius)*/; let t = /*$(Variable:tint)*/; let s = /*$(Size:img)*/; }' },
+      bindings: [{ resource: 'img', access: 'read', sampler: 'linear' }, { resource: 'out', access: 'write', name: 'result' }, { resource: 'list', access: 'readwrite' }], dispatch: { like: 'out' } }],
+    [tex('img', { visibility: 'imported', size: [32, 16] }), tex('out', { visibility: 'exported' }), { kind: 'buffer', name: 'list', element: 'u32', count: 8, visibility: 'exported' }],
+    [{ name: 'radius', type: 'float', value: 2 }, { name: 'tint', type: 'float4', value: [1, 0.5, 0.25, 1] }],
+  );
+  const expanded = () => { const c = compileTechnique(tech); return expandShader(c.steps[0].node as never, c); };
+  it('generates the variables uniform with WGSL alignment and replaces Variable and Size tokens', () => {
+    const e = expanded();
+    expect(e.uniform!.members.map((m) => [m.name, m.offset])).toEqual([['radius', 0], ['tint', 16]]);
+    expect(e.uniform!.size).toBe(32);
+    expect(e.code).toContain('struct GigiVariables {\n  radius: f32,\n  tint: vec4<f32>,\n}');
+    expect(e.code).toContain('let r = gigi.radius; let t = gigi.tint; let s = vec3<u32>(32u, 16u, 1u);');
+  });
+  it('declares every binding in order, with samplers, storage textures and buffers', () => {
+    const e = expanded();
+    expect(e.slots.map((s) => [s.binding, s.kind, s.name])).toEqual([[0, 'variables', 'gigi'], [1, 'resource', 'img'], [2, 'sampler', 'img_sampler'], [3, 'resource', 'result'], [4, 'resource', 'list']]);
+    expect(e.code).toContain('@group(0) @binding(1) var img: texture_2d<f32>;');
+    expect(e.code).toContain('@group(0) @binding(2) var img_sampler: sampler;');
+    expect(e.code).toContain('@group(0) @binding(3) var result: texture_storage_2d<rgba8unorm, write>;');
+    expect(e.code).toContain('@group(0) @binding(4) var<storage, read_write> list: array<u32>;');
+  });
+  it('prepends the declarations when there is no Bindings token, and rejects unknown tokens and names', () => {
+    const noToken = { ...tech, nodes: [{ ...(tech.nodes[0] as ComputeNode), shader: { code: 'fn x() {}' } }] };
+    const c = compileTechnique(noToken);
+    expect(expandShader(c.steps[0].node as never, c).code).toMatch(/^@group\(0\) @binding\(0\) var img/);
+    for (const [code, error] of [['/*$(Frob:x)*/', /unknown shader token/], ['/*$(Variable:ghost)*/', /unknown variable/], ['/*$(Size:ghost)*/', /unknown resource/]] as const) {
+      const bad = compileTechnique({ ...tech, nodes: [{ ...(tech.nodes[0] as ComputeNode), shader: { code } }] });
+      expect(() => expandShader(bad.steps[0].node as never, bad)).toThrow(error);
+    }
+  });
+  it('resolves variable names through sub-graph renames', () => {
+    const sub = technique([{ type: 'compute', name: 'k', workgroupSize: [1], shader: { code: 'let x = /*$(Variable:radius)*/;' }, bindings: [{ resource: 'o', access: 'write' }], dispatch: { threads: [1] } }], [tex('o', { visibility: 'exported' })], [{ name: 'radius', type: 'float', value: 7 }], 'sub');
+    const c = compileTechnique(technique([{ type: 'subgraph', name: 's', technique: sub, loop: 2, outputs: { o: 'final' } }], [tex('final', { visibility: 'exported' })]));
+    const e = expandShader(c.steps[1].node as never, c);
+    expect(e.uniform!.members[0]).toMatchObject({ name: 'radius', flat: 's#1/radius' });
+    expect(e.code).toContain('gigi.radius');
+  });
+});
+
+describe('technique files', () => {
+  const sample = technique([pass('a', ['i'], ['o'])], [tex('i', { visibility: 'imported' }), tex('o', { visibility: 'exported' })], [{ name: 'k', type: 'float', value: 1 }]);
+  it('round-trips through JSON', () => {
+    expect(parseTechnique(JSON.parse(techniqueToJSON(sample)))).toEqual(sample);
+  });
+  it('names the path of the first problem', () => {
+    const bad = (f: (t: Record<string, any>) => void) => { const t = JSON.parse(techniqueToJSON(sample)); f(t); return () => parseTechnique(t); };
+    expect(bad((t) => { t.nodes[0].bindings[0].access = 'rw'; })).toThrow(/nodes\[0\]\.bindings\[0\]\.access: expected one of "read", "write", "readwrite"/);
+    expect(bad((t) => { t.resources[0].frmat = 'x'; })).toThrow(/resources\[0\]\.frmat: unknown field/);
+    expect(bad((t) => { delete t.nodes[0].dispatch; })).toThrow(/nodes\[0\]\.dispatch: required field is missing/);
+    expect(bad((t) => { t.nodes[0].type = 'callback'; })).toThrow(/callback nodes hold code/);
+    expect(bad((t) => { t.variables[0].type = 'double'; })).toThrow(/variables\[0\]\.type/);
+    expect(bad((t) => { t.extra = 1; })).toThrow(/technique\.extra: unknown field/);
+    expect(bad((t) => { t.nodes[0].dispatch = { threads: ['x'] }; })).toThrow(/dispatch/);
+  });
+  it('validates inline sub-techniques and refuses to store callbacks', () => {
+    const outer = technique([{ type: 'subgraph', name: 's', technique: sample, inputs: { i: 'x' }, loop: { variable: 'k' } }], [tex('x')]);
+    expect(parseTechnique(JSON.parse(techniqueToJSON(outer)))).toEqual(outer);
+    expect(() => techniqueToJSON(technique([{ type: 'callback', name: 'cb', execute: () => {} }], []))).toThrow(/callback node/);
+  });
+});
+
+describe('example technique files', () => {
+  const load = (name: string) => parseTechnique(JSON.parse(readFileSync(new URL(`./fixtures/${name}.technique.json`, import.meta.url), 'utf8')));
+  const registry = () => ({ 'blur-pass': load('blur-pass') });
+  it('parse and compile: a blur sub-technique used twice, the second time with its own radius', () => {
+    const t = compileTechnique(load('blur'), { registry: registry() });
+    expect(names(t)).toEqual(['first/horizontal', 'first/vertical', 'second/horizontal', 'second/vertical']);
+    expect(t.variables.has('second/radius')).toBe(true);    // overridden with a value instead of bound to the parent's
+    expect(t.variables.has('first/radius')).toBe(false);
+    // the two 'mid' textures are never alive together: they share memory, so source + temp + blurred + one mid
+    expect(t.resources.get('first/mid')!.slot).toBe(t.resources.get('second/mid')!.slot);
+    expect(t.stats.slots).toBe(3);
+    expect(compileTechnique(load('blur'), { registry: registry(), values: { width: 512, height: 128 } }).resources.get('blurred')!.resolved).toMatchObject({ size: [512, 128, 1] });
+  });
+});
+
+describe('visualisation and RenderGraph integration', () => {
+  it('exports DOT with execution order, resource kinds and shared-memory clusters', () => {
+    const t = compileTechnique(technique([pass('n1', [], ['a']), pass('n2', ['a'], ['b']), pass('n3', ['b'], ['c']), pass('n4', ['c'], ['out'])], [tex('a'), tex('b'), tex('c'), tex('out', { visibility: 'exported' })]));
+    const dot = techniqueToDot(t);
+    expect(dot).toContain('"0. n1\\n(compute)"');
+    expect(dot).toContain('shared memory (slot');
+    expect(dot).toContain('"r:a" -> "n:n2"');
+  });
+  it('RenderGraph reports resource spans and transition statistics', () => {
+    const g = new RenderGraph();
+    const noop = () => {};
+    g.addPass({ name: 'depth', writes: ['depth'], execute: noop });
+    g.addPass({ name: 'main', reads: ['depth'], writes: ['color'], sideEffect: true, execute: noop });
+    g.compile();
+    expect(g.spans.get('depth')).toEqual({ first: 0, last: 1 });
+    expect(g.stats.transitions).toBe(0);
+  });
+  it('RenderGraph can reorder independent passes to reduce switches', () => {
+    const g = new RenderGraph();
+    const noop = () => {};
+    g.addPass({ name: 'a', writes: ['x'], sideEffect: true, execute: noop });
+    g.addPass({ name: 'b', reads: ['x'], writes: ['y'], sideEffect: true, execute: noop });
+    g.strategy = 'transitions';
+    expect(g.compile()).toEqual(['a', 'b']);
+  });
+  it('TechniqueError is a normal Error subclass', () => { expect(new TechniqueError('x')).toBeInstanceOf(Error); });
+});

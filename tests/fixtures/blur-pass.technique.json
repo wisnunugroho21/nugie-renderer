@@ -1,0 +1,81 @@
+{
+  "name": "blur-pass",
+  "variables": [
+    {
+      "name": "radius",
+      "type": "int",
+      "value": 4
+    }
+  ],
+  "resources": [
+    {
+      "kind": "texture",
+      "name": "image",
+      "format": "rgba8unorm",
+      "visibility": "imported"
+    },
+    {
+      "kind": "texture",
+      "name": "mid",
+      "format": "rgba8unorm",
+      "like": "image"
+    },
+    {
+      "kind": "texture",
+      "name": "result",
+      "format": "rgba8unorm",
+      "like": "image",
+      "visibility": "exported"
+    }
+  ],
+  "nodes": [
+    {
+      "type": "compute",
+      "name": "horizontal",
+      "workgroupSize": [
+        8,
+        8
+      ],
+      "bindings": [
+        {
+          "resource": "image",
+          "access": "read"
+        },
+        {
+          "resource": "mid",
+          "access": "write"
+        }
+      ],
+      "dispatch": {
+        "like": "mid"
+      },
+      "shader": {
+        "code": "/*$(Bindings)*/\n@compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) {\n  let size = /*$(Size:mid)*/;\n  if (id.x >= size.x || id.y >= size.y) { return; }\n  var sum = vec4<f32>(0.0); let r = /*$(Variable:radius)*/;\n  for (var i = -r; i <= r; i++) { sum += textureLoad(image, vec2<i32>(clamp(i32(id.x) + i, 0, i32(size.x) - 1), i32(id.y)), 0); }\n  textureStore(mid, vec2<i32>(id.xy), sum / f32(2 * r + 1));\n}"
+      }
+    },
+    {
+      "type": "compute",
+      "name": "vertical",
+      "workgroupSize": [
+        8,
+        8
+      ],
+      "bindings": [
+        {
+          "resource": "mid",
+          "access": "read"
+        },
+        {
+          "resource": "result",
+          "access": "write"
+        }
+      ],
+      "dispatch": {
+        "like": "result"
+      },
+      "shader": {
+        "code": "/*$(Bindings)*/\n@compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) {\n  let size = /*$(Size:result)*/;\n  if (id.x >= size.x || id.y >= size.y) { return; }\n  var sum = vec4<f32>(0.0); let r = /*$(Variable:radius)*/;\n  for (var i = -r; i <= r; i++) { sum += textureLoad(mid, vec2<i32>(i32(id.x), clamp(i32(id.y) + i, 0, i32(size.y) - 1)), 0); }\n  textureStore(result, vec2<i32>(id.xy), sum / f32(2 * r + 1));\n}"
+      }
+    }
+  ]
+}

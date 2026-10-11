@@ -143,7 +143,7 @@ src/
   selftest/ bench/  GPU self-test and benchmark pages
 tests/              Unit tests (Vitest)
 benchmarks/ tools/  CPU benchmarks; offline tools (LTC table fit, LOD timing)
-docs/               MAKING_A_GAME.md
+docs/               MAKING_A_GAME.md, TECHNIQUES.md (render graph as data, Gigi style)
 PROGRESS.md         Implementation status, measured results, known limitations
 ```
 

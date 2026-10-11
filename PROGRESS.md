@@ -253,6 +253,15 @@ Particles use additive/alpha blending in display space until the HDR post-proces
 so stateful sources (motion matching) can sit inside states/blend trees. `AnimationSystem` writes only changed nodes into the ECS.
 Conventions: character forward = +Z; IK/look-at targets are in the owner entity's MODEL space (`AnimationSystem.worldToModel`).
 
+## Render graph as data, Gigi style (October 2026)
+
+* `src/rendering/graph/`: a technique schema modelled on EA SEED's Gigi (resources with type / size / lifetime / visibility, typed variables, compute / draw / copy / sub-graph / callback nodes),
+  a flattener (sub-graph inlining, loop unrolling, variable binding), a compiler (size resolution, validation, dependencies, culling, stable or transition-minimising order, lifetimes, transient
+  memory aliasing), shader tokens, a WebGPU runtime (`TechniqueInstance`), JSON load / save with strict validation and a Graphviz export. `RenderGraph` now uses the same analysis and also reports resource spans and
+  transition statistics. Documentation: `docs/TECHNIQUES.md`.
+* Tests: `tests/technique.test.ts` (37) and four GPU self-tests (compute chain with aliased textures, size-variable recompile, looped sub-graph, draw into an imported texture) checked against CPU values.
+* Not done: a visual editor / viewer, code generation backends, ray tracing nodes, vertex buffers on draw nodes.
+
 ## Compressed assets (October 2026)
 
 * **`EXT_meshopt_compression`** and **`KHR_draco_mesh_compression`** are decoded while parsing (`parseGLTF` -> `assets/gltf/GLTFCompression.ts`): the document that comes

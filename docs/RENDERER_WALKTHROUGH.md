@@ -155,7 +155,7 @@ Volumetric fog uses 8-pixel tiles and 48 depth slices in an rgba16float 3D textu
 
 ## 12. Pass graph and final output
 
-`RenderGraph` stores logical pass reads/writes, derives hazards, marks everything needed by side-effect outputs, stably topologically sorts live passes and executes recording callbacks. It does not allocate physical resources, alias textures or automatically inspect GPU bindings. Accurate declarations remain the caller's responsibility.
+`RenderGraph` stores logical pass reads/writes, derives hazards, marks everything needed by side-effect outputs, stably topologically sorts live passes and executes recording callbacks. It does not allocate physical resources, alias textures or inspect GPU bindings for its own callback passes; accurate declarations remain the caller's responsibility. Data-driven work that needs those things (declared resources with lifetimes, variables, sub-graphs, aliased transient memory, generated bindings) is written as a technique instead: see [TECHNIQUES.md](TECHNIQUES.md).
 
 The ordinary graph can include shadows, cluster assignment, feature compute passes, depth prepass, GPU visibility, fog, main rendering, auxiliary redraws and post-processing. Disabled or unneeded branches are omitted/culled. The optional depth prepass renders opaque/alpha-mask depth, then compatible main pipelines test equality without rewriting depth.
 

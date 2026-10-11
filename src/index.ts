@@ -57,7 +57,16 @@ export type { Overlay, Color, Vec3 as Point3 } from './rendering/overlay/Overlay
 export type { RenderFeature, FeatureFrame, PostFeatureFrame } from './rendering/RenderFeature';
 export { FeatureOrder } from './rendering/RenderFeature';
 export { FullscreenEffect, type FullscreenEffectOptions } from './rendering/post/FullscreenEffect';
-export { RenderGraph, type PassDesc } from './rendering/RenderGraph';
+export { RenderGraph, type PassDesc, type ResourceSpan } from './rendering/RenderGraph';
+// Gigi-style techniques: the render graph as data (docs/TECHNIQUES.md)
+export { TechniqueInstance, type TechniqueInstanceOptions } from './rendering/graph/TechniqueInstance';
+export { compileTechnique, type CompiledTechnique, type CompileOptions, type ResourcePlan, type Slot } from './rendering/graph/Compile';
+export { parseTechnique, techniqueToJSON } from './rendering/graph/TechniqueJSON';
+export { techniqueToDot } from './rendering/graph/Dot';
+export {
+  TechniqueError, type Technique, type TechniqueRegistry, type NodeDecl, type ResourceDecl, type VariableDecl, type TextureDecl, type BufferDecl, type ComputeNode, type DrawNode,
+  type CopyNode, type SubGraphNode, type CallbackNode, type SizeDim, type Diagnostic,
+} from './rendering/graph/TechniqueTypes';
 
 // --- render-to-texture ---------------------------------------------------------------------------------------------------
 export { RenderTarget, RENDER_TARGET_FORMAT, type RenderTargetDesc } from './rendering/RenderTarget';
