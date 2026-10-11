@@ -62,6 +62,11 @@ export { RenderGraph, type PassDesc, type ResourceSpan } from './rendering/Rende
 export { TechniqueInstance, type TechniqueInstanceOptions } from './rendering/graph/TechniqueInstance';
 export { compileTechnique, type CompiledTechnique, type CompileOptions, type ResourcePlan, type Slot } from './rendering/graph/Compile';
 export { parseTechnique, techniqueToJSON } from './rendering/graph/TechniqueJSON';
+export {
+  technique, TechniqueBuilder, VariableHandle, ResourceHandle, wgsl, sizeOf, bindings,
+  type TextureHandle, type BufferHandle, type Dim, type ResourceRef, type BindingRef, type TextureOptions, type BufferOptions, type VariableOptions,
+  type ComputeOptions, type DrawOptions, type SubGraphOptions, type CallbackOptions,
+} from './rendering/graph/TechniqueBuilder';
 export { techniqueToDot } from './rendering/graph/Dot';
 export {
   TechniqueError, type Technique, type TechniqueRegistry, type NodeDecl, type ResourceDecl, type VariableDecl, type TextureDecl, type BufferDecl, type ComputeNode, type DrawNode,

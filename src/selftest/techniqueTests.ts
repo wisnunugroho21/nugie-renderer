@@ -1,5 +1,6 @@
 import type { GPUContext } from '../gpu/GPUContext';
 import { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
+import { technique, wgsl, bindings } from '../rendering/graph/TechniqueBuilder';
 import type { ComputeNode, NodeDecl, Technique } from '../rendering/graph/TechniqueTypes';
 import { readTextureRGBA8, type SelfTest } from './harness';
 
@@ -189,6 +190,38 @@ export function techniqueTests(gpu: GPUContext): SelfTest[] {
         if (t.compileCount !== 1) throw new Error('a non-structural variable must not recompile');
         screen.destroy(); bad.destroy(); wrongFormat.destroy(); t.dispose();
         return `rendered ${at(red)} then ${at(blue)} after a variable change, imports validated, no recompile`;
+      },
+    },
+    {
+      name: 'technique builder: a code-built technique runs on the GPU (imported texture in, threshold out)',
+      run: async () => {
+        const g = technique('threshold');
+        const level = g.float('level', 0.5);
+        const src = g.texture('src', { format: 'rgba8unorm', size: [16, 8], visibility: 'imported' });
+        const out = g.texture('out', { like: src, visibility: 'exported' });
+        g.compute('cut', {
+          reads: [src], writes: [out], dispatch: { like: out },
+          shader: wgsl`${bindings}
+@compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+  let p = vec2<i32>(id.xy);
+  let c = textureLoad(${src}, p, 0);
+  textureStore(${out}, p, select(vec4<f32>(0.0), c, c.r > ${level}));
+}`,
+        });
+        const device = gpu.device;
+        const input = device.createTexture({ size: [16, 8], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+        const bytes = new Uint8Array(16 * 8 * 4);
+        for (let i = 0; i < 16 * 8; i++) bytes.set([(i * 2) & 255, 40, 200, 255], i * 4);
+        device.queue.writeTexture({ texture: input }, bytes, { bytesPerRow: 64 }, [16, 8]);
+        const fx = g.instantiate(gpu, { imports: { src: input } });
+        const expected = (threshold: number) => Uint8Array.from(bytes, (v, i) => (bytes[i - (i & 3)] / 255 > threshold ? v : 0));   // a pixel passes when its red channel does
+        const first = await run(gpu, fx, 'out');
+        fx.setVariable('level', 0.75);
+        const second = await run(gpu, fx, 'out');
+        const d1 = maxDiff(first.pixels, expected(0.5)), d2 = maxDiff(second.pixels, expected(0.75));
+        input.destroy(); fx.dispose();
+        if (d1 !== 0 || d2 !== 0) throw new Error(`differences ${d1} / ${d2}`);
+        return 'threshold 0.5 then 0.75 (variable updated between runs): exact match';
       },
     },
   ];

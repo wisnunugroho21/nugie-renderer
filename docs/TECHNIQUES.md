@@ -17,8 +17,56 @@ device.queue.submit([encoder.finish()]);
 const result = fx.resource('blurred');             // exported resources are readable by the host
 ```
 
+You can write the same thing from code, without JSON, with the [builder API](#the-builder-api).
+
 Working examples: [tests/fixtures/blur.technique.json](../tests/fixtures/blur.technique.json) + [blur-pass.technique.json](../tests/fixtures/blur-pass.technique.json) (files),
 `src/selftest/techniqueTests.ts` (compute chains, a looped sub-graph, a draw node; checked against CPU results on a real GPU at `/selftest.html`).
+
+## The builder API
+
+`technique(name)` returns a `TechniqueBuilder`: declare variables, resources and nodes with ordinary calls. Declarations return **typed handles** that you pass
+around instead of strings, so a typo or a handle from another technique fails at the call that made it, naming the technique and the node.
+
+```ts
+import { technique, wgsl, bindings, sizeOf } from 'nugie-renderer';
+
+const g = technique('threshold');
+const level = g.float('level', 0.5);                                              // VariableHandle
+const src = g.texture('src', { format: 'rgba8unorm', size: [256, 256], visibility: 'imported' });   // TextureHandle
+const out = g.texture('out', { like: src, visibility: 'exported' });
+
+g.compute('cut', {
+  reads: [src], writes: [out], dispatch: { like: out },
+  shader: wgsl`${bindings}
+    @compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+      let p = vec2<i32>(id.xy);
+      let c = textureLoad(${src}, p, 0);
+      textureStore(${out}, p, select(vec4<f32>(0.0), c, c.r > ${level}));
+    }`,
+});
+
+const fx = g.instantiate(gpu, { imports: { src: sceneTexture } });   // compile + create GPU resources
+fx.setVariable('level', 0.75);
+```
+
+| Call | Does |
+|---|---|
+| `g.int / uint / float / float4(name, value?, visibility?)` | declare a variable; returns a `VariableHandle` (`.times(k)`, `.plus(n)`, `.scaled(k, n)` make size entries; `.eq / ne / lt / le / gt / ge(v)` make conditions) |
+| `g.texture(name, { format, size, dimension, mips, like, scale, visibility, lifetime })` | declare a texture; `size` entries may be numbers or variable handles |
+| `g.buffer(name, { element, stride, count, like, visibility, lifetime })` | declare a buffer |
+| `g.compute(name, { shader, reads, writes, readWrites, dispatch, workgroupSize, when, keep })` | compute dispatch; each list entry is a handle or `{ resource, name?, sampler? }` |
+| `g.draw(name, { shader, colorTargets, depthTarget, reads, vertices, instances, topology, ... })` | draw call |
+| `g.copy(name, from, to)` | copy |
+| `g.subgraph(name, builder \| technique \| 'registry-name', { inputs, outputs, variables, loop })` | sub-graph; `variables` values are a handle (bind to it) or a number / array (override); `loop` is a count or a handle |
+| `g.callback(name, { reads, writes, execute })` | engine code |
+| `g.build()` | the finished `Technique` (a copy) |
+| `g.compile(options?)` | compile now: surfaces validation errors and diagnostics early |
+| `g.instantiate(gpu, options?)` | `TechniqueInstance.create(gpu, g.build(), options)` |
+| `g.toJSON()` / `g.registerIn(registry)` | the technique as JSON text / registered by name for string sub-graph references |
+
+Shader helpers: a variable handle prints as its `$(Variable:name)` token and a resource handle as its WGSL binding name, so `${level}` and `${src}` work in `wgsl` templates
+(and plain template strings); `sizeOf(handle)` is the `$(Size:...)` token and `bindings` the `$(Bindings)` token. `wgsl` throws on an `undefined` placeholder.
+The builder and the JSON format are the same model: `g.build()` equals the parsed JSON file for the same graph (`tests/technique-builder.test.ts` checks this against the example files).
 
 ## Concepts (and how they map to Gigi)
 
