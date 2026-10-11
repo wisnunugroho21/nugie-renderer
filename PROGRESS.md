@@ -261,6 +261,7 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
   transition statistics. Documentation: `docs/TECHNIQUES.md`.
 * Tests: `tests/technique.test.ts` (37) and four GPU self-tests (compute chain with aliased textures, size-variable recompile, looped sub-graph, draw into an imported texture) checked against CPU values.
 * `TechniqueBuilder` (`technique(name)`): the same graphs from code, with typed variable / resource handles, a `wgsl` template tag and `instantiate(gpu)`; `tests/technique-builder.test.ts` (7, including equality with the JSON example files) and a GPU self-test.
+* Demo `/?scene=technique`: a builder-made plasma + blur technique running as a frame-graph pass (via `asPass` in a `RenderFeature`), with live recompiles. Writing it exposed (and fixed) texture reallocation on condition toggles; `TechniqueInstance.onResourcesReplaced` reports genuine replacements.
 * Not done: a visual editor / viewer, code generation backends, ray tracing nodes, vertex buffers on draw nodes.
 
 ## Compressed assets (October 2026)

@@ -224,5 +224,42 @@ export function techniqueTests(gpu: GPUContext): SelfTest[] {
         return 'threshold 0.5 then 0.75 (variable updated between runs): exact match';
       },
     },
+    {
+      name: 'technique: toggling a conditional node keeps the exported texture; a resize replaces it and notifies the host',
+      run: async () => {
+        const g = technique('toggle');
+        const mode = g.int('mode', 0), size = g.uint('size', 16);
+        const src = g.texture('src', { format: 'rgba8unorm', size: [size, size] });
+        const out = g.texture('out', { format: 'rgba8unorm', like: src, visibility: 'exported' });
+        const fill = (name: string, dst: typeof out, when: ReturnType<typeof mode.eq>) => g.compute(name, {
+          writes: [dst], dispatch: { like: dst }, workgroupSize: [8, 8], when,
+          shader: wgsl`${bindings}
+@compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) { textureStore(${dst}, vec2<i32>(id.xy), vec4<f32>(${name === 'a' ? '1.0, 0.0, 0.0' : '0.0, 0.0, 1.0'}, 1.0)); }`,
+        });
+        fill('a', out, mode.eq(0));
+        // mode 1: render the source (filled blue by 'b') through a copy, so the exported texture is written in a different way
+        fill('b', src, mode.eq(1));
+        g.copy('copy', src, out, { when: mode.eq(1) });
+        const fx = g.instantiate(gpu);
+        const first = fx.resource('out');
+        const replaced: string[][] = [];
+        fx.onResourcesReplaced((names) => replaced.push(names));
+        const red = await run(gpu, fx, 'out');
+        fx.setVariable('mode', 1);
+        const blue = await run(gpu, fx, 'out');
+        const same = fx.resource('out') === first;
+        fx.setVariable('mode', 0);
+        await run(gpu, fx, 'out');
+        fx.setVariable('size', 32);
+        const big = await run(gpu, fx, 'out');
+        const pixel = (p: Uint8Array) => `${p[0]},${p[1]},${p[2]}`;
+        fx.dispose();
+        if (pixel(red.pixels) !== '255,0,0' || pixel(blue.pixels) !== '0,0,255') throw new Error(`colours ${pixel(red.pixels)} / ${pixel(blue.pixels)}`);
+        if (!same) throw new Error('the exported texture was replaced by a condition toggle');
+        if (big.w !== 32) throw new Error(`resize gave ${big.w}`);
+        if (replaced.length !== 1 || !replaced[0].includes('out')) throw new Error(`replacement notifications: ${JSON.stringify(replaced)}`);
+        return 'texture kept across 3 condition toggles; resize 16 -> 32 replaced it and notified once';
+      },
+    },
   ];
 }

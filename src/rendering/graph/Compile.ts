@@ -306,7 +306,8 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
 
   // nodes whose condition is false are removed before analysis
   const disabled: string[] = [];
-  const nodes = graph.nodes.filter((n) => { const ok = conditionsHold(n.conditions, graph.variables); if (!ok) disabled.push(n.path); return ok; });
+  const switchedOff: FlatNode[] = [];
+  const nodes = graph.nodes.filter((n) => { const ok = conditionsHold(n.conditions, graph.variables); if (!ok) { disabled.push(n.path); switchedOff.push(n); } return ok; });
   const accesses = nodes.map((n) => accessesOf(n, graph, resolved));
   const isRoot = (n: FlatNode, a: NodeAccess[]) => n.sideEffect === true || a.some((x) => {
     if (!x.write) return false;
@@ -336,7 +337,16 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
     plan.last = step.index;
     for (const use of usesOf(access)) plan.uses.add(use);
   }
-  for (const plan of resources.values()) if (plan.visibility === 'exported' && plan.first >= 0) plan.uses.add('copy-src');   // the host may read it back
+  // Nodes a condition switched off may run after the next variable change. Their uses are part of the allocation too, so toggling a node on or
+  // off never has to replace a texture (the host may hold views of exported ones).
+  for (const node of switchedOff) {
+    for (const access of accessesOf(node, graph, resolved)) {
+      const plan = resources.get(access.resource)!;
+      if (plan.first >= 0) for (const use of usesOf(access)) plan.uses.add(use);
+    }
+  }
+  // the host may read an exported resource back or bind it (a material samples an exported texture, a copy reads it)
+  for (const plan of resources.values()) if (plan.visibility === 'exported' && plan.first >= 0) { plan.uses.add('copy-src'); plan.uses.add('sampled'); }
 
   // transient contents are undefined at the start of an execution: reading one before it was written is almost always a mistake
   for (const plan of resources.values()) {

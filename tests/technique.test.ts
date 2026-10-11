@@ -81,7 +81,8 @@ describe('compile: lifetimes and memory aliasing', () => {
   it('records how resources are used, for the GPU usage flags', () => {
     const t = compileTechnique(chain());
     expect([...t.resources.get('a')!.uses].sort()).toEqual(['sampled', 'storage']);
-    expect(t.resources.get('out')!.uses.has('copy-src')).toBe(true);   // exported: the host may read it back
+    expect(t.resources.get('out')!.uses.has('copy-src')).toBe(true);   // exported: the host may read it back or sample it
+    expect(t.resources.get('out')!.uses.has('sampled')).toBe(true);
   });
 });
 
@@ -282,6 +283,26 @@ describe('technique files', () => {
     const outer = technique([{ type: 'subgraph', name: 's', technique: sample, inputs: { i: 'x' }, loop: { variable: 'k' } }], [tex('x')]);
     expect(parseTechnique(JSON.parse(techniqueToJSON(outer)))).toEqual(outer);
     expect(() => techniqueToJSON(technique([{ type: 'callback', name: 'cb', execute: () => {} }], []))).toThrow(/callback node/);
+  });
+});
+
+describe('conditional nodes and GPU usage', () => {
+  // `out` is written by a compute node while mode is 0 and by a copy while mode is 1
+  const tech = technique([
+    pass('compute-out', [], ['out'], { condition: { variable: 'mode', op: 'eq', value: 0 } }),
+    { type: 'copy', name: 'copy-out', source: 'src', dest: 'out', condition: { variable: 'mode', op: 'eq', value: 1 } },
+  ], [tex('src', { visibility: 'imported' }), tex('out', { visibility: 'exported' })], [{ name: 'mode', type: 'int', value: 0 }]);
+  it('allocates for every way a switched-off node could use a resource, so toggling never reallocates', () => {
+    const uses = (mode: number) => [...compileTechnique(tech, { values: { mode } }).resources.get('out')!.uses].sort();
+    expect(uses(0)).toEqual(uses(1));
+    expect(uses(0)).toEqual(['copy-dst', 'copy-src', 'sampled', 'storage']);
+    expect(names(compileTechnique(tech, { values: { mode: 1 } }))).toEqual(['copy-out']);
+  });
+  it('does not allocate resources that only switched-off nodes use', () => {
+    const t = technique([pass('a', [], ['o'], { condition: { variable: 'on', op: 'eq', value: 1 } }), pass('b', [], ['p'])], [tex('o', { visibility: 'exported' }), tex('p', { visibility: 'exported' })], [{ name: 'on', type: 'int', value: 0 }]);
+    const c = compileTechnique(t);
+    expect(c.resources.get('o')!.slot).toBe(-1);
+    expect(c.unused).toContain('o');
   });
 });
 

@@ -76,6 +76,7 @@ export class TechniqueInstance {
   private uniformDirty = true;
   /** Number of times the technique was compiled (1 after creation). */
   compileCount = 0;
+  private listeners = new Set<(names: string[]) => void>();
 
   private constructor(readonly gpu: GPUContext, readonly technique: Technique, private options: TechniqueInstanceOptions) {}
 
@@ -90,6 +91,13 @@ export class TechniqueInstance {
 
   /** The current plan: execution order, lifetimes, memory slots, diagnostics, statistics. */
   get plan(): CompiledTechnique { if (this.dirty) this.build(); return this.compiled; }
+
+  /**
+   * Call `fn` after a recompile replaced the GPU object behind some resources (a size variable changed, or a node now needs a usage the old texture lacks);
+   * `names` lists the exported resources whose `resource(name)` is now a different object. Hosts that hold a view of an exported texture
+   * (a material, a bind group) must refresh it. Returns an unsubscribe function.
+   */
+  onResourcesReplaced(fn: (names: string[]) => void): () => void { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
   // ---------------------------------------------------------------------------------------------------------- variables
 
@@ -165,6 +173,7 @@ export class TechniqueInstance {
   private build(): void {
     const values: Record<string, VariableValue> = {};
     for (const [k, v] of this.values) values[k] = v;
+    const before = this.compileCount > 0 ? this.snapshotResources() : null;
     this.compiled = compileTechnique(this.technique, { ...this.options, values });
     this.compileCount++;
     this.dirty = false;
@@ -197,6 +206,25 @@ export class TechniqueInstance {
     for (const step of this.compiled.steps) this.runtimes.set(step, this.prepareStep(step));
     this.bindingsDirty = true;
     this.uniformDirty = true;
+    if (before) {
+      // only what a host can hold: exported resources that now live in a different object (internal ones that merely stopped being used do not count)
+      const replaced = [...this.compiled.resources.values()].filter((p) => {
+        const now = p.visibility === 'exported' ? this.resourceObject(p.name) : undefined;
+        return now !== undefined && before.has(p.name) && before.get(p.name) !== now;
+      }).map((p) => p.name);
+      if (replaced.length) for (const fn of this.listeners) fn(replaced);
+    }
+  }
+
+  /** The GPU object behind each resource that has one right now. */
+  private snapshotResources(): Map<string, Physical> {
+    const out = new Map<string, Physical>();
+    for (const name of this.compiled.resources.keys()) { const r = this.resourceObject(name); if (r) out.set(name, r); }
+    return out;
+  }
+  private resourceObject(name: string): Physical | undefined {
+    const plan = this.compiled.resources.get(name)!;
+    return plan.visibility === 'imported' ? this.imports.get(name) : plan.slot >= 0 ? this.allocations.get(this.slotKey(plan.slot)) : undefined;
   }
 
   /** Expand the shader and create the pipeline of a compute / draw step. */

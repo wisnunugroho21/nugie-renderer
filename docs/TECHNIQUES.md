@@ -19,6 +19,8 @@ const result = fx.resource('blurred');             // exported resources are rea
 
 You can write the same thing from code, without JSON, with the [builder API](#the-builder-api).
 
+Run it: `/?scene=technique` (`src/demos/techniqueDemo.ts`) builds a plasma generator and a reusable blur sub-technique with the builder, runs them as a pass of the engine's frame graph through a `RenderFeature` and shows the exported texture on a panel and a sphere; `[` / `]` change the blur radius (0 switches the blur sub-graphs off by condition and the graph recompiles), `G` prints the graph as DOT.
+
 Working examples: [tests/fixtures/blur.technique.json](../tests/fixtures/blur.technique.json) + [blur-pass.technique.json](../tests/fixtures/blur-pass.technique.json) (files),
 `src/selftest/techniqueTests.ts` (compute chains, a looped sub-graph, a draw node; checked against CPU results on a real GPU at `/selftest.html`).
 
@@ -149,10 +151,11 @@ Names in tokens are the ones used in the technique the node is written in; sub-g
 `TechniqueInstance.create(gpu, technique, { imports?, registry?, values?, order?, alias?, label? })`:
 
 * **Imported** resources are attached with `imports` or `setImport(name, resource)`; usage flags, format and size are checked against what the nodes need.
+* `onResourcesReplaced(fn)` tells a host holding a view of an exported texture when a recompile (a size variable) swapped it for a new object. Toggling conditional nodes never does: an allocation covers every way the nodes a condition switched off could use it.
 * **Variables**: `setVariable(name, value)`, `getVariable`, `variables('user')` (what a UI would list). Variables that size resources, count loops or switch nodes are
   *structural*: changing one recompiles on the next `execute` (resources whose description is unchanged keep their contents, persistent history included). Others only update uniform buffers and
   dispatch / draw counts. Only the top-level technique's variables can be set; sub-graph ones are bound or overridden in the sub-graph node.
-* `execute(encoder)` records everything; `resource(name)` returns the GPU object (exported ones are readable after the work is submitted); `plan` exposes the compiled plan; `dispose()` frees what was created.
+* `execute(encoder)` records everything; `resource(name)` returns the GPU object (exported ones are readable after the work is submitted, and can be sampled by materials: they are created with copy-source and sampled-texture usage); `plan` exposes the compiled plan; `dispose()` frees what was created.
 * Uniforms are written with `queue.writeBuffer` inside `execute`, so submit between two executes of the same instance.
 
 ### In the engine's frame graph

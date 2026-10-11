@@ -35,7 +35,7 @@ npm run dev        # http://localhost:5173/
 
 | Page | What it is |
 |---|---|
-| `/` (`?scene=materials`) | Demo launcher. Other scenes: `gltf`, `character`, `fox` (Khronos Fox glTF loaded from the network, skinned animation; `?clip=Run`, keys 1-3 switch clips), `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph` (animation graph: state machine, blend tree, layers), `rtt` (render-to-texture: mirror, minimap, security camera, reflection probe), `shapes` (primitives, groups, instancing, lines, points, sprites, text), `gallery` (materials: shading models, bump / parallax / displacement, clearcoat, sheen, glass, iridescence, anisotropy ...) |
+| `/` (`?scene=materials`) | Demo launcher. Other scenes: `gltf`, `character`, `fox` (Khronos Fox glTF loaded from the network, skinned animation; `?clip=Run`, keys 1-3 switch clips), `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph` (animation graph: state machine, blend tree, layers), `technique` (the render graph's Technique Builder: a code-built plasma + blur technique running as a frame-graph pass), `rtt` (render-to-texture: mirror, minimap, security camera, reflection probe), `shapes` (primitives, groups, instancing, lines, points, sprites, text), `gallery` (materials: shading models, bump / parallax / displacement, clearcoat, sheen, glass, iridescence, anisotropy ...) |
 | `/game.html` | **Starter game** (move a cube with WASD) — the template to copy for your own game, see [`src/game/main.ts`](src/game/main.ts) |
 | `/selftest.html` | GPU self-tests: shaders, lighting, shadows, fog, particles compared with CPU reference implementations |
 | `/bench.html?suite=lights\|cull\|passes\|anim` | GPU benchmarks (default suite: draw submission) |
