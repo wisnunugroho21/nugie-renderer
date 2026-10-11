@@ -47,7 +47,7 @@ describe('GLB container', () => {
   it('rejects unsupported versions and required extensions', async () => {
     const b = triangleModel(); b.json.asset.version = '1.0';
     await expect(parseGLTF(b.gltfDataURI())).rejects.toThrow(/version/);
-    const c = triangleModel(); c.json.extensionsRequired = ['KHR_draco_mesh_compression'];
+    const c = triangleModel(); c.json.extensionsRequired = ['VENDOR_unknown_extension'];
     await expect(parseGLTF(c.glb())).rejects.toThrow(/Unsupported required/);
   });
   it('data URIs decode base64', () => {

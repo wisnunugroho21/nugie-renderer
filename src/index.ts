@@ -73,6 +73,9 @@ export { raycastWorld, rayFromNDC, rayAABB, rayMesh, type Ray, type RayHit, type
 export { loadGLTF } from './assets/gltf/GLTFLoader';
 export { instantiateGLTF, type GLTFInstance, type InstantiateContext } from './assets/gltf/GLTFInstantiator';
 export { TextureLoader } from './assets/TextureLoader';
+export { configureCodecs, type CodecConfig, type WasmSource } from './assets/codecs/CodecSources';
+export { isKTX2, parseKTX2, type Ktx2File } from './assets/codecs/Ktx2';
+export { createKTX2Texture, chooseBasisTarget, type KTX2Texture, type KTX2UploadOptions, type BasisTarget } from './assets/codecs/Ktx2Texture';
 export { TextureStreamer } from './streaming/TextureStreamer';
 
 // --- animation --------------------------------------------------------------------------------------------------------

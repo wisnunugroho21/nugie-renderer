@@ -66,11 +66,13 @@ export class TextureUseRegistry {
   /** Return the id of the (image, sRGB flag, sampler) texture use for glTF texture `textureIndex`, creating it on first use. Undefined (with a warning) if the texture has no image. */
   resolve(textureIndex: number, srgb: boolean): number | undefined {
     const tex = this.doc.json.textures?.[textureIndex];
-    if (!tex || tex.source === undefined) { this.warn(`texture ${textureIndex} has no image source`); return undefined; }
+    // KHR_texture_basisu: the KTX2 image replaces `source` (which, if present, is a PNG / JPEG fallback)
+    const source = tex?.extensions?.KHR_texture_basisu?.source ?? tex?.source;
+    if (!tex || source === undefined) { this.warn(`texture ${textureIndex} has no image source`); return undefined; }
     const sampler = toSamplerDescriptor(tex.sampler !== undefined ? this.doc.json.samplers?.[tex.sampler] : undefined);
-    const key = `${tex.source}|${srgb ? 1 : 0}|${JSON.stringify(sampler)}`;
+    const key = `${source}|${srgb ? 1 : 0}|${JSON.stringify(sampler)}`;
     let id = this.index.get(key);
-    if (id === undefined) { id = this.uses.length; this.uses.push({ image: tex.source, sampler, srgb }); this.index.set(key, id); }
+    if (id === undefined) { id = this.uses.length; this.uses.push({ image: source, sampler, srgb }); this.index.set(key, id); }
     return id;
   }
 }

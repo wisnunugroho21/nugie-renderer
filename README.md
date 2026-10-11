@@ -128,7 +128,7 @@ src/
   ecs/              World, entities, component stores (components/), per-frame systems (systems/)
   rendering/        Renderer, render extraction, queues + batching, materials/, lighting/ (clusters, IBL, fog), shadows/, GPU culling
   gpu/              Thin managers over WebGPU: buffers, textures, samplers, shaders (#include + feature defines), pipeline + bind-group caches
-  assets/           glTF/GLB loading + instantiation (gltf/), texture loading, Radiance .hdr
+  assets/           glTF/GLB loading + instantiation (gltf/), texture loading, Radiance .hdr, Draco / meshopt / KTX2 (Basis) decoding (codecs/, vendor/)
   animation/        Clips, animator, graph/ (state machines, blend trees, layers), ik/, motionmatching/, root motion
   particles/        GPU particle pools and ribbons
   geometry/         Mesh optimiser, simplifier, automatic LOD chains, meshlets
@@ -161,7 +161,7 @@ The [review and benchmark report](docs/CODE_REVIEW.md) records the verified fixe
 ## Limitations
 
 See [PROGRESS.md](PROGRESS.md#deferred--known-limitations) for the full list. Highlights: no built-in input / physics / audio / UI; glTF
-supports one UV set and no Draco / meshopt / KTX2; transparent objects and particles are not fogged; GPU culling covers opaque and
+supports one UV set and no `KHR_texture_transform`; transparent objects and particles are not fogged; GPU culling covers opaque and
 alpha-masked batches.
 
 Static-scene optimization results and reproduction: [performance report](docs/STATIC_SCENE_PERFORMANCE.md).

@@ -8,12 +8,12 @@ export interface GLTFJson {
   nodes?: GLTFNode[];
   meshes?: GLTFMesh[];
   materials?: GLTFMaterial[];
-  textures?: { source?: number; sampler?: number; name?: string }[];
+  textures?: { source?: number; sampler?: number; name?: string; extensions?: { KHR_texture_basisu?: { source?: number } } & Record<string, unknown> }[];
   images?: { uri?: string; bufferView?: number; mimeType?: string; name?: string }[];
   samplers?: { magFilter?: number; minFilter?: number; wrapS?: number; wrapT?: number }[];
   accessors?: GLTFAccessor[];
   bufferViews?: GLTFBufferView[];
-  buffers?: { uri?: string; byteLength: number }[];
+  buffers?: { uri?: string; byteLength: number; extensions?: { EXT_meshopt_compression?: { fallback?: boolean } } & Record<string, unknown> }[];
   cameras?: GLTFCamera[];
   animations?: GLTFAnimation[];
   skins?: GLTFSkin[];
@@ -44,6 +44,16 @@ export interface GLTFPrimitive {
   material?: number;
   mode?: number;
   targets?: Record<string, number>[];
+  extensions?: { KHR_draco_mesh_compression?: GLTFDracoExtension } & Record<string, unknown>;
+}
+
+/** `KHR_draco_mesh_compression`: the Draco stream's bufferView and the Draco unique id of each glTF attribute. */
+export interface GLTFDracoExtension { bufferView: number; attributes: Record<string, number>; }
+
+/** `EXT_meshopt_compression`: where the compressed stream of a bufferView lives and how to decode it. */
+export interface GLTFMeshoptExtension {
+  buffer: number; byteOffset?: number; byteLength: number; byteStride: number; count: number;
+  mode: 'ATTRIBUTES' | 'TRIANGLES' | 'INDICES'; filter?: 'NONE' | 'OCTAHEDRAL' | 'QUATERNION' | 'EXPONENTIAL';
 }
 
 export interface GLTFTextureInfo { index: number; texCoord?: number; scale?: number; strength?: number; extensions?: Record<string, unknown>; }
@@ -83,7 +93,10 @@ export interface GLTFAccessor {
   };
 }
 
-export interface GLTFBufferView { buffer: number; byteOffset?: number; byteLength: number; byteStride?: number; target?: number; }
+export interface GLTFBufferView {
+  buffer: number; byteOffset?: number; byteLength: number; byteStride?: number; target?: number;
+  extensions?: { EXT_meshopt_compression?: GLTFMeshoptExtension } & Record<string, unknown>;
+}
 
 export interface GLTFCamera {
   name?: string;

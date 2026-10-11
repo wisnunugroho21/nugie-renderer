@@ -3,12 +3,16 @@ import { MipmapGenerator } from '../gpu/MipmapGenerator';
 import { mipLevelCount } from '../gpu/TextureManager';
 import type { TextureRef } from '../rendering/materials/Material';
 import type { ImageAsset } from './AssetTypes';
+import { isKTX2 } from './codecs/Ktx2';
+import { createKTX2Texture } from './codecs/Ktx2Texture';
 
 export type UriResolver = (uri: string) => Promise<Uint8Array>;
 
 /**
  * Async image -> GPU texture pipeline:
  *   encoded bytes -> createImageBitmap (off-main-thread decode) -> texture (+full mip chain) -> TextureRef
+ * KTX2 files (Basis Universal UASTC / ETC1S, or BC / ETC2 / ASTC / uncompressed data) skip the bitmap: they are transcoded to the best
+ * compressed format the device supports and uploaded with the mip levels stored in the file.
  * Colour data uses *-srgb formats (hardware decode on sample); data textures are linear.
  * Identical (image, colour space) requests share one texture and one in-flight promise, so unchanged
  * textures are never re-uploaded.
@@ -18,6 +22,8 @@ export class TextureLoader {
   private inflight = new Map<string, Promise<TextureRef>>();
   uploads = 0;
   decodeMs = 0;
+  /** KTX2 textures uploaded so far, counted by the GPU format they ended up in (e.g. `astc-4x4-unorm-srgb`, `bc7-rgba-unorm`, `rgba8unorm`). */
+  readonly ktx2Formats = new Map<string, number>();
 
   /** Create a loader on `gpu`; `resolveUri` fetches external image files (embedded images need none). */
   constructor(private gpu: GPUContext, private resolveUri?: UriResolver) {
@@ -43,6 +49,13 @@ export class TextureLoader {
     const bytes = image.data ?? (image.uri && this.resolveUri ? await this.resolveUri(image.uri) : undefined);
     if (!bytes) throw new Error(`Image '${image.name}' has no data and cannot be resolved`);
     const t0 = performance.now();
+    if (image.mimeType === 'image/ktx2' || isKTX2(bytes)) {
+      const { texture, format } = await createKTX2Texture(this.gpu, id, bytes, srgb, { generateMips: (t, format, levels) => this.mips.generate(t, format, levels) });
+      this.decodeMs += performance.now() - t0;
+      this.uploads++;
+      this.ktx2Formats.set(format, (this.ktx2Formats.get(format) ?? 0) + 1);
+      return { id, view: texture.createView() };
+    }
     const bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: image.mimeType }), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     this.decodeMs += performance.now() - t0;
     return this.upload(id, bitmap, srgb);
