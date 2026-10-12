@@ -4,6 +4,8 @@ Identical-scene comparison, run with [`/bench-three.html`](../bench-three.html) 
 Reproduce with `npm run dev`, then open `/bench-three.html?scenario=objects` or `?scenario=lights`. The page prints the hardware, the
 tables below, and offers the raw results as JSON.
 
+Skinning and morph-target animation are compared in [BENCHMARK_ANIMATION_THREEJS.md](BENCHMARK_ANIMATION_THREEJS.md).
+
 The original broad comparison below is retained as a historical run. See [the static-scene optimization report](STATIC_SCENE_PERFORMANCE.md) for the current optimized comparison, raw measurements and reproduction command.
 
 ## Hardware and software (recorded by the page)
@@ -116,6 +118,6 @@ reference (lights dropped) and ran in 4.8 ms, which is why the capacity was rais
 * One machine, one browser (Chromium 152 in the Claude desktop app, which may throttle or schedule differently from a normal Chrome window),
   one run of 3 x 40 frames. Treat differences under about 20% as noise and repeat on other hardware before drawing conclusions.
 * `total` includes the `onSubmittedWorkDone` round trip; very small values (about 1 to 2 ms) are dominated by that overhead.
-* Scene transforms are static. This benchmark does not measure per-frame transform updates, shadows, skinning, IBL or textures.
+* Scene transforms are static. This benchmark does not measure per-frame transform updates, shadows, skinning, IBL or textures (skinning and morphing: see the animation report).
 * Three.js tone mapping is applied in its output pass and nugie's inside the material shader, which is a real architectural difference
   that stays in the numbers.

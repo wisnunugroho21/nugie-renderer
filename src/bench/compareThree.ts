@@ -20,6 +20,9 @@
  *  - `lights`: 400 instanced spheres + floor under N point lights. Fragment bound.
  *      nugie clustered and naive loop; Three.js default forward loop and the `ClusteredLighting` addon.
  *
+ *  - `skin` / `morph` / `skinmorph`: N animated tentacles built from one GLB that both engines load with their own glTF loader (see "skinning / morphing"
+ *      below and docs/BENCHMARK_ANIMATION_THREEJS.md). nugie batched and unsorted; Three.js default and tuned. Extra parameters: `targets`, `active`, `radial`, `rings`.
+ *
  * Other parameters: `n=<count>`, `frames=<per round>` (default 40), `rounds=<n>` (default 3; the order rotates each round and the
  * frames of all rounds are pooled), `only=<substring>` (the first contender always runs: it is the image reference), `full=1` (do not skip Three.js' forward loop above 256 lights).
  *
@@ -41,6 +44,16 @@ import { entityIndex } from '../ecs/Entity';
 import { LightType } from '../ecs/components/LightStore';
 import { createCube, createPlane, createUVSphere, type MeshData } from '../rendering/primitives';
 import { STANDARD_VERTEX_FLOATS } from '../rendering/VertexLayouts';
+import { AnimationSystem } from '../ecs/systems/AnimationSystem';
+import { SkeletonSystem } from '../ecs/systems/SkeletonSystem';
+import { loadGLTF } from '../assets/gltf/GLTFLoader';
+import { instantiateGLTF } from '../assets/gltf/GLTFInstantiator';
+import { AnimatedInstance } from '../animation/Animator';
+import { Animator } from '../animation/AnimatorHandle';
+import { buildTentacleGLB } from '../demos/tentacle';
+import { Quat } from '../math/Quat';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 const W = 960, H = 540, FOV = Math.PI / 3;
 /** Alternate warmed, live devices frame-by-frame to reduce long-block clock/scheduling bias. */
@@ -100,7 +113,7 @@ interface Contender { name: string; create(canvas: HTMLCanvasElement): Promise<S
 interface Stats { median: number; p95: number; mean: number; }
 interface Row {
   scenario: string; param: number; contender: string; adapter?: string; cpu?: Stats; total?: Stats; draws?: number; triangles?: number;
-  imageMAE?: number; imageDiffPct?: number; meanLuma?: number; litRatio?: number; litPct?: number; skipped?: string;
+  imageMAE?: number; imageDiffPct?: number; meanLuma?: number; litRatio?: number; litPct?: number; animMs?: number; skipped?: string;
 }
 
 // -------------------------------------------------------------------------------------------------------------- shared data
@@ -127,7 +140,7 @@ function materialParams(i: number): { color: V3; roughness: number } {
 /** Sun intensity of a scenario (debug: `?sun=<x>` overrides it for every contender). */
 function sunIntensity(scenario: string): number {
   const forced = new URLSearchParams(location.search).get('sun');
-  return forced ? Number(forced) : scenario === 'objects' ? 1.5 : 0.3;
+  return forced ? Number(forced) : scenario === 'lights' ? 0.3 : 1.5;
 }
 
 const SUN_OBJECTS: V3 = [-0.4, -0.7, -0.6], SUN_LIGHTS: V3 = [0.3, -1, -0.4];
@@ -329,6 +342,179 @@ function three(scenario: string, param: number, label: string, style: ThreeStyle
   };
 }
 
+// -------------------------------------------------------------------------------------------------------------- skinning / morphing
+
+/**
+ * Animated scenarios: a grid of N procedural tentacles (`buildTentacleGLB`), the SAME glb bytes loaded by both engines' own glTF loaders.
+ *  - `skin`: 3-joint skeleton per character driven by the glTF 'wave' clip (nugie `AnimationSystem`, Three.js `AnimationMixer`).
+ *  - `morph`: unskinned, `targets` morph targets, `active` of them driven by the same function in both engines (written every frame).
+ *  - `skinmorph`: both together.
+ * A frame is one fixed 1/60 s step: animation, transform / skeleton update and render. `anim` (reported in diagnostics) is only the
+ * animation evaluation + morph weight writes, which is the comparable user-visible cost; the rest (matrices, skinning palette, draw
+ * submission) happens inside `render()` in Three.js and in nugie's systems + `render()`.
+ */
+type AnimKind = 'skin' | 'morph' | 'skinmorph';
+const ANIM_KINDS: string[] = ['skin', 'morph', 'skinmorph'];
+const DT = 1 / 60;
+
+function animOptions(kind: AnimKind) {
+  const q = new URLSearchParams(location.search);
+  const targets = kind === 'skin' ? 0 : Number(q.get('targets') ?? 8);
+  return {
+    kind, targets, radial: Number(q.get('radial') ?? 16), rings: Number(q.get('rings') ?? 24),
+    active: Math.min(targets, Number(q.get('active') ?? 4)),
+  };
+}
+
+/** Grid position, clip phase offset and camera of the animated scenarios. */
+function animLayout(count: number) {
+  const side = Math.ceil(Math.sqrt(count));
+  const items = Array.from({ length: count }, (_, i) => ({
+    x: ((i % side) - (side - 1) / 2) * 0.8, z: (Math.floor(i / side) - (side - 1) / 2) * 0.8, phase: (i * 0.173) % 2,
+  }));
+  const camera: V3 = [0, side * 0.5 + 3, side * 0.8 + 6];
+  const pitch = Math.atan2(side * 0.5 + 2, side * 0.8 + 6);
+  return { items, camera, cameraQuat: Array.from(Quat.fromAxisAngle(Quat.create(), 1, 0, 0, -pitch)) as Q4, far: 400 };
+}
+
+/** Weight of morph target `k` of character `i` at time `t` (identical function for every contender). */
+const morphWeight = (k: number, active: number, t: number, i: number) => (k < active ? 0.5 + 0.5 * Math.sin(t * (1 + 0.3 * k) + i * 0.1) : 0);
+
+/** Mean of the animation-only cost samples, reported as a diagnostic. */
+const medianOf = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : 0);
+
+function nugieAnim(kind: AnimKind, count: number, label: string, batching: BatchingMode): Contender {
+  return {
+    name: label,
+    async create(canvas) {
+      const o = animOptions(kind), L = animLayout(count);
+      const gpu = await GPUContext.create(canvas);
+      const renderer = new Renderer(gpu);
+      renderer.batching = batching; renderer.clusteredShading = true;
+      renderer.clearColor = { r: CLEAR[0], g: CLEAR[1], b: CLEAR[2], a: 1 };
+      const world = new World();
+      const ts = new TransformSystem(world.transforms), bs = new BoundsSystem(world.transforms, world.bounds);
+      const anim = new AnimationSystem(world), skel = new SkeletonSystem(world, renderer.joints);
+      const ex = new RenderExtractor(world, ts), rw = new RenderWorld();
+      const sun = entityIndex(world.create()), sq = quatFromMinusZ(SUN_OBJECTS);
+      world.transforms.add(sun); world.transforms.setRotation(sun, sq[0], sq[1], sq[2], sq[3]);
+      world.lights.add(sun, LightType.Directional, 1, 1, 1, sunIntensity(kind));
+
+      const glb = buildTentacleGLB({ radial: o.radial, rings: o.rings, morphTargets: o.targets, skinned: kind !== 'morph' });
+      const asset = await loadGLTF(glb);
+      let shared: AnimatedInstance | undefined;
+      const owners: number[] = [], w = new Float32Array(Math.max(1, o.targets));
+      for (const it of L.items) {
+        const inst = instantiateGLTF(asset, { world, meshes: renderer.meshes, materials: renderer.materials });
+        const root = entityIndex(inst.root);
+        world.transforms.setPosition(root, it.x, 0, it.z);
+        if (kind !== 'morph') {
+          const ai = AnimatedInstance.fromGLTF(asset, inst, shared); shared ??= ai;
+          const a = Animator.attach(world, root, ai, ai.clipIndex('wave'));
+          a.time = it.phase; a.setLoop(true).setSpeed(1).play();
+        }
+        if (o.targets > 0) owners.push(world.meshRenderers.morphOwner[entityIndex(inst.meshEntities[0])]);
+      }
+      const cam = entityIndex(world.create());
+      world.cameras.add(cam, FOV, 0.1, L.far); world.transforms.add(cam, ...L.camera); world.transforms.setRotation(cam, ...L.cameraQuat);
+
+      let t = 0; const animMs: number[] = [];
+      return {
+        frame: () => {
+          t += DT;
+          const a0 = performance.now();
+          anim.update(DT);
+          for (let i = 0; i < owners.length; i++) {
+            for (let k = 0; k < o.active; k++) w[k] = morphWeight(k, o.active, t, i);
+            world.morphs.setWeights(owners[i], w);
+          }
+          animMs.push(performance.now() - a0);
+          ts.update(); skel.update(ts.updated); bs.update(ts.updated);
+          ex.extract(rw, W / H);
+          renderer.render(rw, undefined, t);
+        },
+        idle: () => gpu.queue.onSubmittedWorkDone(),
+        counts: () => ({ draws: renderer.stats.drawCalls, triangles: renderer.stats.triangles }),
+        diagnostics: () => ({ animMs: medianOf(animMs.slice(30)), jointUploadBytes: renderer.stats.animation.jointUploadBytes, morphUploadBytes: renderer.stats.animation.morphUploadBytes }),
+        adapter: () => describeAdapter(gpu.adapter),
+        dispose: () => gpu.device.destroy(),
+      };
+    },
+  };
+}
+
+function threeAnim(kind: AnimKind, count: number, label: string, tuned: boolean): Contender {
+  return {
+    name: label,
+    async create(canvas) {
+      const o = animOptions(kind), L = animLayout(count);
+      const renderer = new T.WebGPURenderer({ canvas, antialias: false });
+      renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 1);
+      if (tuned) renderer.sortObjects = false;
+      await renderer.init();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      renderer.library.addToneMapping(((color: any, exposure: any) => {
+        const x = color.mul(exposure);
+        return clamp(x.mul(x.mul(2.51).add(0.03)).div(x.mul(x.mul(2.43).add(0.59)).add(0.14)), 0, 1);
+      }) as never, T.CustomToneMapping);
+      renderer.toneMapping = T.CustomToneMapping; renderer.toneMappingExposure = 1;
+
+      const scene = new T.Scene();
+      const camera = new T.PerspectiveCamera(60, W / H, 0.1, L.far);
+      const sun = new T.DirectionalLight(0xffffff, sunIntensity(kind)), sl = Math.hypot(...SUN_OBJECTS);
+      sun.position.set(-SUN_OBJECTS[0] / sl * 50, -SUN_OBJECTS[1] / sl * 50, -SUN_OBJECTS[2] / sl * 50);
+      scene.add(sun);
+
+      const glb = buildTentacleGLB({ radial: o.radial, rings: o.rings, morphTargets: o.targets, skinned: kind !== 'morph' });
+      const gltf = await new Promise<{ scene: T.Group; animations: T.AnimationClip[] }>((ok, fail) => new GLTFLoader().parse(glb.slice().buffer, '', ok as never, fail));
+      const clip = gltf.animations.find((c) => c.name === 'wave');
+      if (kind !== 'morph' && !clip) throw new Error('Three.js: clip wave not found in ' + gltf.animations.map((c) => c.name));
+      const mixers: T.AnimationMixer[] = [], meshes: T.Mesh[] = [];
+      L.items.forEach((it) => {
+        const obj = cloneSkinned(gltf.scene) as T.Group;
+        obj.position.set(it.x, 0, it.z);
+        if (kind !== 'morph' && clip) {
+          const mixer = new T.AnimationMixer(obj), action = mixer.clipAction(clip);
+          action.play(); action.time = it.phase; mixers.push(mixer);
+        }
+        obj.traverse((c) => {
+          const m = c as T.Mesh;
+          if (m.isMesh) { meshes.push(m); if (tuned) m.frustumCulled = false; }
+        });
+        if (tuned) { obj.updateMatrix(); obj.matrixAutoUpdate = false; }   // placement is static; bones keep updating
+        scene.add(obj);
+      });
+      camera.position.set(...L.camera); camera.quaternion.set(...L.cameraQuat);
+      camera.updateMatrixWorld(true); scene.updateMatrixWorld(true);
+      await renderer.compileAsync(scene, camera);
+      const device = (renderer.backend as unknown as { device: GPUDevice }).device;
+
+      let t = 0; const animMs: number[] = [];
+      return {
+        frame: () => {
+          t += DT;
+          const a0 = performance.now();
+          for (let i = 0; i < mixers.length; i++) mixers[i].update(DT);
+          if (o.targets > 0) for (let i = 0; i < meshes.length; i++) {
+            const inf = meshes[i].morphTargetInfluences!;
+            for (let k = 0; k < o.active; k++) inf[k] = morphWeight(k, o.active, t, i);
+          }
+          animMs.push(performance.now() - a0);
+          // `WebGPURenderer` only advances its node frame id (which gates the once-per-frame skeleton update) inside its own animation loop;
+          // calling render() directly would freeze skinning after the first frame. This is exactly what that loop does before each tick.
+          (renderer as unknown as { _nodes: { nodeFrame: { update(): void } } })._nodes.nodeFrame.update();
+          renderer.info.reset(); renderer.render(scene, camera);
+        },
+        idle: () => device.queue.onSubmittedWorkDone(),
+        counts: () => ({ draws: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles }),
+        diagnostics: () => ({ animMs: medianOf(animMs.slice(30)) }),
+        adapter: () => describeInfo((device as unknown as { adapterInfo?: GPUAdapterInfo }).adapterInfo),
+        dispose: () => renderer.dispose(),
+      };
+    },
+  };
+}
+
 // -------------------------------------------------------------------------------------------------------------- hardware
 
 /** One-line description of a GPUAdapterInfo (vendor / architecture / device / description). */
@@ -443,6 +629,10 @@ function diffCanvas(name: string, a: Uint8ClampedArray, b: Uint8ClampedArray): H
 
 /** Contenders for a scenario / size, in report order (the first is the image reference). */
 function contenders(scenario: string, param: number, full: boolean): Contender[] {
+  if (ANIM_KINDS.includes(scenario)) {
+    const kind = scenario as AnimKind;
+    return [nugieAnim(kind, param, 'nugie (batched)', 'instanced'), nugieAnim(kind, param, 'nugie (unsorted)', 'unsorted'), threeAnim(kind, param, 'three (default)', false), threeAnim(kind, param, 'three (tuned)', true)];
+  }
   if (scenario === 'objects') {
     return [
       nugie(scenario, param, 'nugie unsorted', 'unsorted', true),
@@ -471,7 +661,7 @@ function report(rows: Row[]): void {
     const f = (n: number, w = 8) => n.toFixed(2).padStart(w);
     log(`${r.contender.padEnd(30)}${f(r.cpu!.median)} ${f(r.cpu!.p95)}  ${f(r.total!.median, 9)}  ${f(r.total!.p95, 9)}  ${String(r.draws).padStart(5)} ${String(r.triangles).padStart(11)}` +
       `  ${f(r.imageMAE!, 6)}  ${f(r.imageDiffPct!, 6)}%  ${f(r.meanLuma!, 5)}  ${r.litRatio!.toFixed(3).padStart(7)}  ${f(r.litPct!, 6)}%` +
-      (r.imageMAE! > MATCH_MAE ? '   <- IMAGE MISMATCH, timings not comparable' : ''));
+      (r.animMs !== undefined ? `  anim ${f(r.animMs, 6)}` : '') + (r.imageMAE! > MATCH_MAE ? '   <- IMAGE MISMATCH, timings not comparable' : ''));
   }
 }
 
@@ -480,7 +670,7 @@ function report(rows: Row[]): void {
     const q = new URLSearchParams(location.search);
     const scenario = q.get('scenario') ?? 'objects', frames = Number(q.get('frames') ?? 40), rounds = Number(q.get('rounds') ?? 3);
     const only = q.get('only') ?? '', full = q.get('full') === '1';
-    const sizes = q.has('n') ? [Number(q.get('n'))] : scenario === 'objects' ? [1000, 10000] : [16, 64, 256, 1024];
+    const sizes = q.has('n') ? [Number(q.get('n'))] : scenario === 'objects' ? [1000, 10000] : ANIM_KINDS.includes(scenario) ? [100, 1000] : [16, 64, 256, 1024];
     const hardware = await collectHardware();
     out.textContent = `nugie-renderer vs Three.js ${hardware.threeRevision} WebGPURenderer - ${scenario}, ${W}x${H}, ${rounds} rounds x ${frames} frames (total = render start -> GPU idle)\n` +
       `GPU:     ${hardware.webgpu ? describeInfo(hardware.webgpu as unknown as GPUAdapterInfo) : 'WebGPU unavailable'}\n` +
@@ -489,7 +679,7 @@ function report(rows: Row[]): void {
     const results: Row[] = [];
     const samples: unknown[] = [];
     for (const param of sizes) {
-      log(`\n== ${scenario}: ${param} ${scenario === 'objects' ? 'objects' : 'point lights'} ==`);
+      log(`\n== ${scenario}: ${param} ${scenario === 'objects' ? 'objects' : ANIM_KINDS.includes(scenario) ? 'animated characters' : 'point lights'} ==`);
       const list = contenders(scenario, param, full).filter((c, i) => only === 'optimized' ? c.name === 'nugie instanced' || c.name === 'nugie retained (general shader)' || c.name === 'three InstancedMesh (tuned)' : i === 0 || !only || c.name.toLowerCase().includes(only.toLowerCase()));   // the first contender is the image reference
       const acc = new Map<string, { cpu: number[]; total: number[]; s?: Sample; err?: string }>(list.map((c) => [c.name, { cpu: [], total: [] }]));
       for (let r = 0; r < rounds; r++) {
@@ -519,7 +709,7 @@ function report(rows: Row[]): void {
           ref ??= a.s;
           const cmp = compareImages(ref.pixels, a.s.pixels);
           if (q.get('diff') === '1' && a.s !== ref) stage.appendChild(diffCanvas(c.name, ref.pixels, a.s.pixels));
-          Object.assign(row, { adapter: a.s.adapter, cpu: summarize(a.cpu), total: summarize(a.total), draws: a.s.draws, triangles: a.s.triangles, imageMAE: cmp.mae, imageDiffPct: cmp.diffPct, meanLuma: cmp.luma, litRatio: cmp.litRatio, litPct: cmp.litPct });
+          Object.assign(row, { adapter: a.s.adapter, cpu: summarize(a.cpu), total: summarize(a.total), draws: a.s.draws, triangles: a.s.triangles, imageMAE: cmp.mae, imageDiffPct: cmp.diffPct, meanLuma: cmp.luma, litRatio: cmp.litRatio, litPct: cmp.litPct, animMs: a.s.diagnostics?.animMs });
         }
         rows.push(row);
       }
