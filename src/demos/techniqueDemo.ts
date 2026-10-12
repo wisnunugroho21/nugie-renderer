@@ -83,7 +83,7 @@ export const techniqueDemo: Demo = (ctx) => {
   // the technique runs as one pass of the frame graph; 'plasma' is the logical name the scene passes wait for
   const feature: RenderFeature = {
     name: 'technique-demo', produces: ['plasma'],
-    addPasses: (graph) => graph.addPass(fx.asPass({ name: 'plasma-technique', writes: ['plasma'] })),
+    addPasses: (graph) => fx.addTo(graph, { name: 'plasma-technique', writes: [graph.logical('plasma')] }),
   };
   renderer.addFeature(feature);
 

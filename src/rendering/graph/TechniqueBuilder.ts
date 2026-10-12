@@ -237,6 +237,7 @@ export class TechniqueBuilder {
   private variableHandles = new Map<string, VariableHandle>();
   private resourceHandles = new Map<string, ResourceHandle>();
   private nodeNames = new Set<string>();
+  private logicalNames = new Set<string>();
 
   constructor(readonly name: string) {
     if (!name) throw new TechniqueError('a technique needs a name');
@@ -294,6 +295,20 @@ export class TechniqueBuilder {
   /** Declare a buffer the host supplies (shorthand for `buffer(name, { element, stride, visibility: 'imported' })`). The element count is left to the host's buffer. */
   importedBuffer(name: string, element: string, stride?: number): BufferHandle {
     return this.buffer(name, { element, ...(stride !== undefined ? { stride } : {}), visibility: 'imported' });
+  }
+
+  /**
+   * A logical resource: a name for ordering that holds no memory (see `ResourceDecl.logical`). Only callback nodes use it. Asking again for a name declared
+   * before returns the same handle, so independent helpers can each name what they touch.
+   */
+  logical(name: string): ResourceHandle {
+    const known = this.resourceHandles.get(name);
+    if (known) {
+      if (!this.logicalNames.has(name)) throw new TechniqueError(`technique '${this.name}': '${name}' is declared as a real resource, not a logical one`);
+      return known;
+    }
+    this.logicalNames.add(name);
+    return this.addResource({ kind: 'buffer', name, logical: true });
   }
 
   private common(decl: TextureDecl | BufferDecl, o: { like?: ResourceRef; scale?: number; visibility?: ResourceVisibility; lifetime?: ResourceLifetime }, name: string): void {
@@ -442,6 +457,22 @@ export class TechniqueBuilder {
   }
 
   // ------------------------------------------------------------------------------------------------------------ results
+
+  /**
+   * Identifies the shape of a technique made of callback nodes only: node names, what each reads and writes, conditions and `keep`. Two builders with the same
+   * key compile to the same plan, so a frame that declares the same passes again can reuse the previous instance (see `FrameGraph`).
+   */
+  callbackKey(): string {
+    return this.nodes.map((n) => {
+      if (n.type !== 'callback') throw new TechniqueError(`technique '${this.name}': callbackKey needs callback nodes only ('${n.name}' is a ${n.type} node)`);
+      return `${n.name}|${(n.reads ?? []).join(',')}|${(n.writes ?? []).join(',')}|${n.sideEffect ? 1 : 0}`;
+    }).join(';');
+  }
+
+  /** The callback nodes' `execute` functions by node name (what a reused instance needs to run this frame's closures). */
+  callbacks(): [string, (encoder: GPUCommandEncoder) => void][] {
+    return this.nodes.map((n) => [n.name, (n as CallbackNode).execute]);
+  }
 
   /** The finished technique (a copy: later changes to the builder do not affect it). */
   build(): Technique {

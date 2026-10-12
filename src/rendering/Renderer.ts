@@ -22,7 +22,8 @@ import { VolumetricFog, type FogSettings } from './lighting/VolumetricFog';
 import { GPUCuller } from './GPUCuller';
 import { GPULodIndex } from './GPULodIndex';
 import { HiZ } from './HiZ';
-import { RenderGraph } from './RenderGraph';
+import type { TechniqueBuilder } from './graph/TechniqueBuilder';
+import { FrameGraph } from './graph/FrameGraph';
 import { CachedTechnique } from './graph/CachedTechnique';
 import { MainPassNode, type MainPassSegment, type MainPassTargets } from './MainPassNode';
 import { TrackedRenderPass } from './graph/TrackedRenderPass';
@@ -131,6 +132,7 @@ export class Renderer {
   /** Create every GPU-side manager for `gpu`: bind layouts, mesh / material managers, transform / joint / morph / instance buffers, scene resources, light clusters, shadows and the profiler. */
   constructor(private gpu: GPUContext) {
     const { device, resources: r } = gpu;
+    this.frame = new FrameGraph(gpu);
     this.layouts = createBindLayouts(device);
     this.meshes = new MeshManager(device, r.buffers);
     this.materials = new MaterialManager(device, r, this.layouts);
@@ -213,8 +215,8 @@ export class Renderer {
   /** The render world of the frame being recorded (the aux pass's draw callback reads it). */
   private passRenderWorld: RenderWorld | null = null;
   private sphereScratch = new Float32Array(4 * 1024);
-  /** Per-frame pass graph (ordering + culling of the frame's passes). */
-  readonly graph = new RenderGraph();
+  /** The frame's passes as one technique of callback nodes (ordering + culling of the frame's passes; the plan is reused while the passes stay the same). */
+  readonly frame: FrameGraph;
   private static nextId = 0;
   /** Unique id: bind-group cache keys must not collide between renderers sharing one GPU context. */
   private readonly id = Renderer.nextId++;
@@ -685,8 +687,7 @@ export class Renderer {
    */
   private recordPasses(enc: GPUCommandEncoder, rw: RenderWorld): void {
     const f = this.mainView.draw.frame;
-    const g = this.graph;
-    g.reset();
+    const g = this.frame.begin(this.features.producedResources);
     this.features.addPasses(g, this.featureFrame);
     const twoPhase = f.gpuCull && this.gpuCulling === 'hiz2';
     // (two-phase culling builds its own depth in main-A and clears it, so a prepass would only switch the pipelines to depth 'equal' and break the image)
@@ -698,16 +699,15 @@ export class Renderer {
     else this.addMainPass(g, rw, prepass);
     if (this.post.needsAux) this.addAuxPass(g, rw);
     if (this.post.enabled) this.features.addPostPasses(g, this.postFeatureFrame());   // user effects first, then the built-in chain
-    g.compile();
-    g.execute(enc);
+    this.frame.run(g, enc);
   }
 
   /**
    * After the main pass: redraw opaque + alpha-masked PBR batches into the aux target (view-space normal, roughness, metallic) against
    * the finished depth buffer. SSAO and SSR read it; pixels it does not cover (custom shaders, sky) fall back to depth-derived normals / no reflection.
    */
-  private addAuxPass(g: RenderGraph, rw: RenderWorld): void {
-    g.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: (enc) => {
+  private addAuxPass(g: TechniqueBuilder, rw: RenderWorld): void {
+    g.callback('aux', { reads: ['sceneColor'], writes: ['auxTex'], execute: (enc) => {
       const aux = this.post.auxTexture, msaa = this.post.auxMsaaTexture, depth = this.depthTexture;
       const fx = this.auxPass.get(`${aux.width}x${aux.height}|${aux.format}|${depth.format}|${depth.sampleCount}`, (t) => {
         const size = [aux.width, aux.height], clearValue: [number, number, number, number] = [0, 0, 1, 0];   // cleared to "nothing written"
@@ -745,8 +745,8 @@ export class Renderer {
   }
 
   /** Depth-only pass over opaque + alpha-masked batches (lets the main pass shade each pixel once, and feeds the in-frame Hi-Z). */
-  private addDepthPrepass(g: RenderGraph): void {
-    g.addPass({ name: 'depth-prepass', writes: ['depth'], execute: (enc) => {
+  private addDepthPrepass(g: TechniqueBuilder): void {
+    g.callback('depth-prepass', { writes: ['depth'], execute: (enc) => {
       const depth = this.depthTexture;
       const fx = this.prepassPass.get(`${depth.width}x${depth.height}|${depth.format}|${depth.sampleCount}`, (t) => {
         const target = t.texture('depth', { format: depth.format, size: [depth.width, depth.height], samples: depth.sampleCount as 1 | 4, visibility: 'imported' });
@@ -778,7 +778,7 @@ export class Renderer {
    * GPU visibility passes. `hiz2` (two-phase): cull-A against last frame's visibility (cull-B is added with the main passes).
    * `frustum`: frustum cull only.
    */
-  private addCullingPasses(g: RenderGraph, rw: RenderWorld, twoPhase: boolean): void {
+  private addCullingPasses(g: TechniqueBuilder, rw: RenderWorld, twoPhase: boolean): void {
     const cam = rw.camera, f = this.mainView.draw.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
     if (twoPhase) {
@@ -787,11 +787,10 @@ export class Renderer {
       let maxObj = 0;
       for (let i = 0; i < f.total01; i++) maxObj = Math.max(maxObj, f.instData[i * INSTANCE_WORDS + 6]);
       this.culler!.ensureVisibility(maxObj + 1);
-      g.addPass({ name: 'cull-A', reads: [], writes: ['culledA'],
+      g.callback('cull-A', { reads: [], writes: ['culledA'],
         execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cullA'), 1, cam) });
     } else {
-      g.addPass({
-        name: 'gpu-cull', reads: [], writes: ['culled'],
+      g.callback('gpu-cull', { reads: [], writes: ['culled'],
         execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cull'), 0, cam),
       });
     }
@@ -967,23 +966,23 @@ export class Renderer {
   }
 
   /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
-  private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
+  private addMainPass(g: TechniqueBuilder, rw: RenderWorld, prepass: boolean): void {
     const early = this.sceneSegment('scene:early', rw, (pass) => this.drawGeometry(pass, this.mainView, 'all', 0, 'early'));
     const late = this.sceneSegment('scene:late', rw, (pass) => this.drawGeometry(pass, this.mainView, 'all', 0, 'late'));
     if (!this.transmissionActive) {
       // opaque + alpha-masked, then the sky, then blended / transmissive surfaces, then particles / ribbons / overlays
-      g.addPass({ name: 'main', reads: [...this.mainReads, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
+      g.callback('main', { reads: [...this.mainReads, 'depth', 'culled'], writes: [this.colorResource], keep: !this.post.enabled, execute: (enc) => {
         this.mainPasses.single.run(enc, this.mainTargets(), { clear: true, depthLoad: prepass },
           [early, ...this.featureSegments('drawBackdrop'), late, ...this.featureSegments('drawMain')], this.profiler.writes('main'));
       } });
       return;
     }
     // Screen-space transmission: finish the opaque scene + sky, copy it (with mips), then draw what refracts it.
-    g.addPass({ name: 'main-opaque', reads: [...this.mainReads, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
+    g.callback('main-opaque', { reads: [...this.mainReads, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
       this.mainPasses.opaque.run(enc, this.mainTargets(), { clear: true, depthLoad: prepass, keepMsaa: true }, [early, ...this.featureSegments('drawBackdrop')], this.profiler.writes('main'));
     } });
-    g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.transmission.copyFrom(enc, this.post.sceneTexture) });
-    g.addPass({ name: 'main-late', reads: ['transmissionTex', ...this.features.producedResources], writes: ['sceneColor'], execute: (enc) => {
+    g.callback('transmission-copy', { reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.transmission.copyFrom(enc, this.post.sceneTexture) });
+    g.callback('main-late', { reads: ['transmissionTex', ...this.features.producedResources], writes: ['sceneColor'], execute: (enc) => {
       this.mainPasses.late.run(enc, this.mainTargets(), { clear: false, depthLoad: true }, [late, ...this.featureSegments('drawMain')]);
     } });
   }
@@ -992,17 +991,17 @@ export class Renderer {
    * Two-phase occlusion culling (`hiz2`). Phase A draws what was visible last frame (clears the targets); the depth is turned into a
    * Hi-Z pyramid; cull-B tests everything else against it; phase B draws the newly visible rest (loads the targets) plus extras.
    */
-  private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
+  private addTwoPhaseMainPasses(g: TechniqueBuilder, rw: RenderWorld): void {
     const cam = rw.camera, f = this.mainView.draw.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
     const culledA: MainPassSegment = { name: 'scene:culled', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', 0); } };
-    g.addPass({ name: 'main-A', reads: [...this.mainReads, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
+    g.callback('main-A', { reads: [...this.mainReads, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
       this.mainPasses.phaseA.run(enc, this.mainTargets(), { clear: true, depthLoad: false }, [culledA], this.profiler.writes('mainA'));
     } });
-    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture, this.profiler.writes('hiz')) });
-    g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
+    g.callback('hiz-build', { reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture, this.profiler.writes('hiz')) });
+    g.callback('cull-B', { reads: ['hizTex'], writes: ['culledB'],
       execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
-    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', ...this.features.producedResources], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
+    g.callback('main-B', { reads: ['culledB', 'depth', 'color', ...this.features.producedResources], writes: [this.colorResource], keep: !this.post.enabled, execute: (enc) => {
       // same order as the single main pass: opaque (GPU-culled), sky, then the blended batches the GPU path does not cover, then extras.
       // (Drawing the sky last would paint over blended surfaces that sit in front of it: they write no depth.)
       const culled: MainPassSegment = { name: 'scene:culled', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', this.culler!.virtualCount); } };

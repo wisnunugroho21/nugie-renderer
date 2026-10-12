@@ -1,5 +1,5 @@
 import type { GPUResources } from '../../gpu/GPUResources';
-import type { PassDesc } from '../RenderGraph';
+import type { ResourceRef, TechniqueBuilder } from './TechniqueBuilder';
 import { bytesPerTexel } from '../../gpu/TextureManager';
 import { bufferStride, compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
 import type { VariableValue } from './Flatten';
@@ -133,6 +133,7 @@ export class TechniqueInstance {
   /** Number of times the technique was compiled (1 after creation). */
   compileCount = 0;
   private listeners = new Set<(names: string[]) => void>();
+  private callbackFns = new Map<string, (encoder: GPUCommandEncoder) => void>();
 
   private constructor(readonly gpu: TechniqueHost, readonly technique: Technique, private options: TechniqueInstanceOptions) {
     this.declarations = new Map((technique.variables ?? []).map((v) => [v.name, v]));
@@ -506,7 +507,7 @@ export class TechniqueInstance {
         case 'copy': this.runCopy(encoder, node); break;
         case 'clear': this.runClear(encoder, node); break;
         case 'render': this.runRenderPass(encoder, node, options.timestampWrites?.(node.path) as GPURenderPassTimestampWrites | undefined); break;
-        case 'callback': node.execute(encoder); break;
+        case 'callback': (this.callbackFns.get(node.path) ?? node.execute)(encoder); break;
       }
     }
   }
@@ -660,9 +661,17 @@ export class TechniqueInstance {
     encoder.clearBuffer(buffer, offset, size);
   }
 
-  /** This technique as a pass of a `RenderGraph`; `reads` / `writes` are the graph's logical names for what the technique consumes and produces. */
-  asPass(pass: { name?: string; reads?: string[]; writes?: string[]; sideEffect?: boolean } = {}): PassDesc {
-    return { name: pass.name ?? this.technique.name, reads: pass.reads, writes: pass.writes, sideEffect: pass.sideEffect, execute: (encoder) => this.execute(encoder) };
+  /**
+   * Add this technique to another one (a frame graph) as a callback node. `reads` / `writes` name what it consumes and produces there, typically logical resources
+   * (`graph.logical('plasma')`); `keep` stops it being culled when nothing consumes its outputs.
+   */
+  addTo(graph: TechniqueBuilder, node: { name?: string; reads?: ResourceRef[]; writes?: ResourceRef[]; keep?: boolean } = {}): void {
+    graph.callback(node.name ?? this.technique.name, { reads: node.reads, writes: node.writes, keep: node.keep, execute: (encoder) => this.execute(encoder) });
+  }
+
+  /** Swap the code of callback nodes (by node name) without recompiling: a technique reused frame after frame runs this frame's closures (see `FrameGraph`). */
+  setCallbacks(callbacks: Iterable<[string, (encoder: GPUCommandEncoder) => void]>): void {
+    for (const [name, fn] of callbacks) this.callbackFns.set(name, fn);
   }
 
   /** Free every GPU object the instance created (imported resources are the host's and stay). */

@@ -4,7 +4,7 @@ import { registerEngineShaderChunks } from '../../shaders';
 import volumetricSrc from '../../shaders/volumetric.wgsl?raw';
 import type { SceneResources } from './SceneResources';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
-import type { RenderGraph } from '../RenderGraph';
+import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
 import { Mat4 } from '../../math/Mat4';
 import { technique } from '../graph/TechniqueBuilder';
 import type { TechniqueInstance } from '../graph/TechniqueInstance';
@@ -84,12 +84,11 @@ export class VolumetricFog implements RenderFeature {
   }
 
   /** The froxel fill pass: reads the shadow map and the light clusters. */
-  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+  addPasses(graph: TechniqueBuilder, f: FeatureFrame): void {
     if (!this.enabled || !f.hasCamera) return;
     const cam = f.camera, camWorld = Mat4.invert(Mat4.create(), cam.view);
     if (!camWorld) return;
-    graph.addPass({
-      name: 'volumetrics', reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'],
+    graph.callback('volumetrics', { reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'],
       execute: (enc) => this.encode(enc, f.frameBindGroup, camWorld, cam.projection[0], cam.projection[5], cam.near, f.profiler.writes('fog')),
     });
   }

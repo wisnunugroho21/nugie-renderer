@@ -1,6 +1,6 @@
 import type { GPUContext } from '../gpu/GPUContext';
 import { PostProcessor, type PostSettingsInput } from '../rendering/post/PostProcessor';
-import { RenderGraph } from '../rendering/RenderGraph';
+import { FrameGraph } from '../rendering/graph/FrameGraph';
 import { DEPTH_FORMAT } from '../rendering/formats';
 import { Mat4 } from '../math/Mat4';
 import { readTextureRGBA8, type SelfTest } from './harness';
@@ -71,13 +71,12 @@ async function runCase(gpu: GPUContext, c: Case): Promise<Uint8Array> {
   if (post.needsAux) draw({ colorAttachments: [post.auxColorAttachment()] }, pipe('fs_aux', 'rgba16float', c.samples));
   draw({ colorAttachments: [], depthStencilAttachment: { view: depth.createView({ aspect: 'depth-only' }), depthLoadOp: 'clear', depthClearValue: 1, depthStoreOp: 'store' } }, pipe('fs_depth', null, c.samples));
   device.queue.submit([enc.finish()]);
-  const g = new RenderGraph();
-  g.addPass({ name: 'main', writes: ['sceneColor'], sideEffect: true, execute: () => {} });
-  if (post.needsAux) g.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
+  const frame = new FrameGraph(gpu), g = frame.begin();
+  g.callback('main', { writes: ['sceneColor'], keep: true, execute: () => {} });
+  if (post.needsAux) g.callback('aux', { reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
   post.addChainPasses(g, { projection: PROJ, depthView: depth.createView({ aspect: 'depth-only' }), depthTexture: depth, depthSamples: c.samples });
-  g.compile();
   const enc2 = device.createCommandEncoder();
-  g.execute(enc2);
+  frame.run(g, enc2);
   device.queue.submit([enc2.finish()]);
   const pixels = await readTextureRGBA8(device, out, 0, W, H);
   out.destroy(); depth.destroy();

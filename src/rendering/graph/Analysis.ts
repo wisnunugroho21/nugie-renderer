@@ -127,7 +127,7 @@ export function orderNodes(nodes: readonly AnalysisNode[], dependencies: Depende
   }
   if (order.length !== live.size) {
     const blocked = [...live].filter((index) => indegree[index] > 0).map((index) => nodes[index].name);
-    throw new Error(`RenderGraph: dependency cycle between passes: ${blocked.join(', ')}`);
+    throw new Error(`dependency cycle between passes: ${blocked.join(', ')}`);
   }
   return order;
 }

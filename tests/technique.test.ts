@@ -6,7 +6,7 @@ import { expandShader } from '../src/rendering/graph/ShaderTokens';
 import { parseTechnique, techniqueToJSON } from '../src/rendering/graph/TechniqueJSON';
 import { technique as builder } from '../src/rendering/graph/TechniqueBuilder';
 import { techniqueToDot } from '../src/rendering/graph/Dot';
-import { RenderGraph } from '../src/rendering/RenderGraph';
+import { addPass, newFrame } from './helpers/frameGraph';
 import { TechniqueError, type ComputeNode, type NodeDecl, type ResourceDecl, type Technique, type VariableDecl } from '../src/rendering/graph/TechniqueTypes';
 
 const tex = (name: string, extra: Partial<Extract<ResourceDecl, { kind: 'texture' }>> = {}): ResourceDecl => ({ kind: 'texture', name, format: 'rgba8unorm', size: [64, 64], ...extra });
@@ -758,7 +758,7 @@ describe('example technique files', () => {
   });
 });
 
-describe('visualisation and RenderGraph integration', () => {
+describe('visualisation and frame graph integration', () => {
   it('exports DOT with execution order, resource kinds and shared-memory clusters', () => {
     const t = compileTechnique(technique([pass('n1', [], ['a']), pass('n2', ['a'], ['b']), pass('n3', ['b'], ['c']), pass('n4', ['c'], ['out'])], [tex('a'), tex('b'), tex('c'), tex('out', { visibility: 'exported' })]));
     const dot = techniqueToDot(t);
@@ -766,22 +766,19 @@ describe('visualisation and RenderGraph integration', () => {
     expect(dot).toContain('shared memory (slot');
     expect(dot).toContain('"r:a" -> "n:n2"');
   });
-  it('RenderGraph reports resource spans and transition statistics', () => {
-    const g = new RenderGraph();
-    const noop = () => {};
-    g.addPass({ name: 'depth', writes: ['depth'], execute: noop });
-    g.addPass({ name: 'main', reads: ['depth'], writes: ['color'], sideEffect: true, execute: noop });
-    g.compile();
-    expect(g.spans.get('depth')).toEqual({ first: 0, last: 1 });
-    expect(g.stats.transitions).toBe(0);
+  it('a frame graph reports where logical resources are first and last used, and transition statistics', () => {
+    const g = newFrame().begin();
+    addPass(g, { name: 'depth', writes: ['depth'] });
+    addPass(g, { name: 'main', reads: ['depth'], writes: ['color'], sideEffect: true });
+    const plan = g.compile();
+    expect(plan.resources.get('depth')).toMatchObject({ first: 0, last: 1 });
+    expect(plan.stats.transitions).toBe(0);
   });
-  it('RenderGraph can reorder independent passes to reduce switches', () => {
-    const g = new RenderGraph();
-    const noop = () => {};
-    g.addPass({ name: 'a', writes: ['x'], sideEffect: true, execute: noop });
-    g.addPass({ name: 'b', reads: ['x'], writes: ['y'], sideEffect: true, execute: noop });
-    g.strategy = 'transitions';
-    expect(g.compile()).toEqual(['a', 'b']);
+  it('a frame graph can reorder independent passes to reduce switches', () => {
+    const g = newFrame().begin();
+    addPass(g, { name: 'a', writes: ['x'], sideEffect: true });
+    addPass(g, { name: 'b', reads: ['x'], writes: ['y'], sideEffect: true });
+    expect(g.compile({ order: 'transitions' }).steps.map((s) => s.node.path)).toEqual(['a', 'b']);
   });
   it('TechniqueError is a normal Error subclass', () => { expect(new TechniqueError('x')).toBeInstanceOf(Error); });
 });

@@ -12,7 +12,7 @@ import type { MeshManager } from '../MeshManager';
 import type { RenderWorld } from '../RenderWorld';
 import type { Camera } from '../Camera';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
-import type { RenderGraph } from '../RenderGraph';
+import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
 import { LightData, LIGHT_FLOATS, GPU_LIGHT_TYPE, SHADOW_REQUEST } from '../lighting/LightData';
 import type { SceneResources } from '../lighting/SceneResources';
 import { cascadeSplits, fitCascade, fitPoint, fitSpot } from './ShadowMath';
@@ -187,9 +187,9 @@ export class ShadowSystem implements RenderFeature {
   buildInstances(f: FeatureFrame): void { if (f.hasCamera) this.buildCasterBatches(f.rw, f.instances); }
 
   /** One depth pass per layer, ahead of everything that samples the shadow map. */
-  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+  addPasses(graph: TechniqueBuilder, f: FeatureFrame): void {
     if (!f.hasCamera || this.layers.length === 0) return;
-    graph.addPass({ name: 'shadows', writes: ['shadowMap'], execute: (enc) => this.encode(enc, f.objectBindGroup(), f.time, f.profiler) });
+    graph.callback('shadows', { writes: ['shadowMap'], execute: (enc) => this.encode(enc, f.objectBindGroup(), f.time, f.profiler) });
   }
 
   // ---- implementation ----

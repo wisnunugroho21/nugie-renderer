@@ -57,7 +57,7 @@ export type { Overlay, Color, Vec3 as Point3 } from './rendering/overlay/Overlay
 export type { RenderFeature, FeatureFrame, PostFeatureFrame } from './rendering/RenderFeature';
 export { FeatureOrder } from './rendering/RenderFeature';
 export { FullscreenEffect, type FullscreenEffectOptions } from './rendering/post/FullscreenEffect';
-export { RenderGraph, type PassDesc, type ResourceSpan } from './rendering/RenderGraph';
+export { FrameGraph, FRAME_RESOURCES } from './rendering/graph/FrameGraph';
 // Gigi-style techniques: the render graph as data (docs/TECHNIQUES.md)
 export { TechniqueInstance, type TechniqueInstanceOptions, type TechniqueHost } from './rendering/graph/TechniqueInstance';
 export { runOnce, deviceHost } from './rendering/graph/OneShot';

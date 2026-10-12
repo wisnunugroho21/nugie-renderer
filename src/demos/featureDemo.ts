@@ -3,7 +3,7 @@ import type { Demo } from './Demo';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { RenderFeature, FeatureFrame, PostFeatureFrame } from '../rendering/RenderFeature';
-import type { RenderGraph } from '../rendering/RenderGraph';
+import type { TechniqueBuilder } from '../rendering/graph/TechniqueBuilder';
 import { FullscreenEffect } from '../rendering/post/FullscreenEffect';
 import { entityIndex } from '../ecs/Entity';
 import { createPlane, createUVSphere } from '../rendering/primitives';
@@ -106,8 +106,8 @@ class WarmVignette implements RenderFeature {
     this.fx.params.set([0.8, 0.6]);                   // vignette strength, tint amount
   }
 
-  addPostPasses(g: RenderGraph, frame: PostFeatureFrame): void {
-    g.addPass({ name: 'warm-vignette', reads: ['sceneColor'], writes: ['sceneColor'], execute: (enc) => this.fx.run(enc, frame.sceneTexture) });
+  addPostPasses(g: TechniqueBuilder, frame: PostFeatureFrame): void {
+    g.callback('warm-vignette', { reads: ['sceneColor'], writes: ['sceneColor'], execute: (enc) => this.fx.run(enc, frame.sceneTexture) });
   }
 }
 

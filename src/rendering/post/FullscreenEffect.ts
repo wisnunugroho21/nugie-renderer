@@ -44,7 +44,7 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
  * {@link RenderFeature}. It renders the scene texture through your `effect` function into a scratch texture and copies the result
  * back, so the effect can sample neighbouring pixels. Call `run` from a pass declared in `addPostPasses`:
  *
- *   addPostPasses(g, f) { g.addPass({ name: 'grade', reads: ['sceneColor'], writes: ['sceneColor'], execute: (e) => fx.run(e, f.sceneTexture) }); }
+ *   addPostPasses(g, f) { g.callback('grade', { reads: ['sceneColor'], writes: ['sceneColor'], execute: (e) => fx.run(e, f.sceneTexture) }); }
  */
 export class FullscreenEffect {
   /** The effect's uniforms (16 floats = 4 vec4), uploaded on every `run`. */

@@ -132,6 +132,7 @@ function resolveResources(graph: FlatGraph): Map<string, Resolved | null> {
     if (out.has(name)) return out.get(name)!;
     const res = graph.resources.get(name)!;
     const decl = res.decl, ctx = `resource '${name}'`;
+    if (decl.logical) { out.set(name, null); return null; }   // a name for ordering: no size, no memory
     if (active.has(name)) throw new TechniqueError(`${ctx}: 'like' chain forms a cycle`);
     active.add(name);
     try {
@@ -531,6 +532,11 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
   const switchedOff: FlatNode[] = [];
   const nodes = graph.nodes.filter((n) => { const ok = conditionsHold(n.conditions, graph.variables); if (!ok) { disabled.push(n.path); switchedOff.push(n); } return ok; });
   const accesses = nodes.map((n) => accessesOf(n, graph, resolved));
+  nodes.forEach((n, i) => {
+    if (n.type === 'callback') return;
+    const logical = accesses[i].find((a) => graph.resources.get(a.resource)!.decl.logical);
+    if (logical) throw new TechniqueError(`node '${n.path}': '${logical.resource}' is a logical resource (a name for ordering, with no memory), which only callback nodes can use`);
+  });
   const isRoot = (n: FlatNode, a: NodeAccess[]) => n.sideEffect === true || a.some((x) => {
     if (!x.write) return false;
     const d = graph.resources.get(x.resource)!.decl;
@@ -575,14 +581,14 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
 
   // transient contents are undefined at the start of an execution: reading one before it was written is almost always a mistake
   for (const plan of resources.values()) {
-    if (plan.visibility !== 'internal' || plan.lifetime !== 'transient' || plan.first < 0) continue;
+    if (plan.visibility !== 'internal' || plan.lifetime !== 'transient' || plan.first < 0 || plan.decl.logical) continue;
     const firstStep = steps[plan.first], a = firstStep.accesses.find((x) => x.resource === plan.name)!;
     if (a.read) diagnostics.push({ level: 'warning', message: `'${plan.name}' is read by '${firstStep.node.path}' before any node writes it; transient contents are undefined (make it persistent, or write it first)` });
   }
   const unused = [...resources.values()].filter((p) => p.first < 0).map((p) => p.name);
   for (const name of unused) {
     const v = resources.get(name)!.visibility;
-    if (v === 'internal') diagnostics.push({ level: 'warning', message: `resource '${name}' is declared but no node uses it` });
+    if (v === 'internal' && !resources.get(name)!.decl.logical) diagnostics.push({ level: 'warning', message: `resource '${name}' is declared but no node uses it` });
   }
 
   // memory: imported resources are the host's; persistent / exported ones get their own allocation; transient internal ones are aliased
@@ -599,7 +605,7 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
     const r = plan.resolved!;
     return r.kind === 'texture' ? `t|${r.dimension}|${r.format}|${r.size.join('x')}|${r.mips}${r.samples > 1 ? `|x${r.samples}` : ''}` : `b|${r.stride * r.count}`;
   };
-  const candidates = [...resources.values()].filter((p) => p.visibility !== 'imported' && p.first >= 0);
+  const candidates = [...resources.values()].filter((p) => p.visibility !== 'imported' && p.first >= 0 && !p.decl.logical);
   let unaliased = 0;
   const ends = new Map<number, number>();
   for (const plan of candidates.sort((a, b) => a.first - b.first)) {

@@ -6,7 +6,7 @@ import { technique } from '../graph/TechniqueBuilder';
 import type { TechniqueInstance } from '../graph/TechniqueInstance';
 import type { SceneResources } from './SceneResources';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
-import type { RenderGraph } from '../RenderGraph';
+import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
 
 export interface ClusterConfig {
   /** Tile size in pixels (screen-space cluster XY). */
@@ -80,11 +80,10 @@ export class ClusterGrid implements RenderFeature {
   }
 
   /** The light-assignment compute pass. */
-  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+  addPasses(graph: TechniqueBuilder, f: FeatureFrame): void {
     if (!this.active || !f.hasCamera) return;
     const cam = f.camera;
-    graph.addPass({
-      name: 'clusters', reads: ['lights'], writes: ['clusterGrid'],
+    graph.callback('clusters', { reads: ['lights'], writes: ['clusterGrid'],
       execute: (enc) => this.encode(enc, cam.view, cam.projection[0], cam.projection[5], cam.near, cam.far, f.lights, f.profiler.writes('clusters')),
     });
   }

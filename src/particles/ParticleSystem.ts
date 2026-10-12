@@ -1,7 +1,7 @@
 import { readBuffer } from '../rendering/graph/Readback';
 import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
-import type { RenderGraph } from '../rendering/RenderGraph';
+import type { TechniqueBuilder } from '../rendering/graph/TechniqueBuilder';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { MeshManager } from '../rendering/MeshManager';
@@ -311,7 +311,7 @@ export class ParticleSystem implements RenderFeature {
   // ---- RenderFeature hooks ----
 
   /** Emit / simulate / compact in a compute pass, before any draw reads the particles. */
-  addPasses(g: RenderGraph): void { g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.encodeCompute(e) }); }
+  addPasses(g: TechniqueBuilder): void { g.callback('particles-sim', { writes: ['particles'], execute: (e) => this.encodeCompute(e) }); }
 
   /** Free every pool's simulation pass. */
   dispose(): void { for (const p of this.pools) p.disposeCompute(); }

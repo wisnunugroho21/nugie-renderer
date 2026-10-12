@@ -1,7 +1,7 @@
 import { readBuffer } from '../rendering/graph/Readback';
 import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
-import type { RenderGraph } from '../rendering/RenderGraph';
+import type { TechniqueBuilder } from '../rendering/graph/TechniqueBuilder';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { TextureRef } from '../rendering/materials/Material';
@@ -211,7 +211,7 @@ export class RibbonSystem implements RenderFeature {
   // ---- RenderFeature hooks ----
 
   /** Advance the trail histories on the GPU, before the draw reads them. */
-  addPasses(g: RenderGraph): void { g.addPass({ name: `${this.name}:update`, writes: ['ribbons'], execute: (e) => this.encodeCompute(e) }); }
+  addPasses(g: TechniqueBuilder): void { g.callback(`${this.name}:update`, { writes: ['ribbons'], execute: (e) => this.encodeCompute(e) }); }
 
   /** Free the trail-update pass. */
   dispose(): void { this.updateFx?.dispose(); this.updateFx = null; }

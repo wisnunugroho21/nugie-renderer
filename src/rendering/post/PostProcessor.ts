@@ -1,5 +1,5 @@
 import type { GPUContext } from '../../gpu/GPUContext';
-import type { RenderGraph } from '../RenderGraph';
+import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
 import { FeatureOrder, type PostFeatureFrame, type RenderFeature } from '../RenderFeature';
 import { POST_SOURCE, POST_DEPTH_SOURCE, SSAO_SOURCE, SSR_SOURCE, registerEngineShaderChunks } from '../../shaders';
 import { TechniqueInstance } from '../graph/TechniqueInstance';
@@ -280,7 +280,7 @@ export class PostProcessor implements RenderFeature {
   }
 
   /** The post chain as a feature: runs after any user post feature (see `order`). */
-  addPostPasses(g: RenderGraph, f: PostFeatureFrame): void {
+  addPostPasses(g: TechniqueBuilder, f: PostFeatureFrame): void {
     this.addChainPasses(g, { projection: f.projection, depthView: f.depthView, depthTexture: f.depthTexture, depthSamples: f.depthSamples });
   }
 
@@ -288,11 +288,10 @@ export class PostProcessor implements RenderFeature {
    * Declare the post chain in `g` as one pass. Call after the main pass(es) (which write `'sceneColor'`) and the aux pass (`'auxTex'`).
    * The pass writes the swap chain (`'backbuffer'`); inside it the chain's nodes run in the order the technique compiler derived.
    */
-  addChainPasses(g: RenderGraph, frame: PostFrameInfo): void {
+  addChainPasses(g: TechniqueBuilder, frame: PostFrameInfo): void {
     if (!this.enabled || !this.scene) return;
     this.chainPlan(frame.depthSamples);
-    g.addPass({
-      name: 'post-chain', reads: this.needsAux ? ['sceneColor', 'auxTex'] : ['sceneColor'], writes: ['backbuffer'], sideEffect: true,
+    g.callback('post-chain', { reads: this.needsAux ? ['sceneColor', 'auxTex'] : ['sceneColor'], writes: ['backbuffer'], keep: true,
       execute: (enc) => this.runChain(enc, frame),
     });
   }

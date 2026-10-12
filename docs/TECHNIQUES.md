@@ -251,7 +251,7 @@ A transient internal resource read before its first write still waits for its pr
 
 ## What the engine runs as techniques
 
-The frame graph (`RenderGraph`) still orders the frame's passes, but these now are techniques (compute / draw / copy nodes), each checked against the previous hand-written passes
+The frame graph (`FrameGraph`, a technique of callback nodes) orders the frame's passes, and these now are techniques (compute / draw / copy nodes), each checked against the previous hand-written passes
 (pixel-identical output through the engine, or the GPU self-tests):
 
 | Pass | Where | Nodes |
@@ -325,9 +325,13 @@ Names in tokens are the ones used in the technique the node is written in; sub-g
 
 ### In the engine's frame graph
 
-`RenderGraph` (the engine's per-frame pass graph) is the same model with callback nodes: passes declare `reads` / `writes` and it orders, culls and records them.
-It now also reports `spans` (first / last use per logical resource), `stats` (resource transitions, node-kind switches, versus declaration order) and accepts
-`strategy = 'transitions'`. A technique plugs in as one pass: `graph.addPass(fx.asPass({ reads: ['sceneColor'], writes: ['sceneColor'] }))`.
+The engine's per-frame pass graph is itself a technique, made of callback nodes (`rendering/graph/FrameGraph.ts`). Each frame `FrameGraph.begin()` returns a fresh builder; the renderer and the features declare their passes
+with `graph.callback(name, { reads, writes, keep, execute })` and `FrameGraph.run(builder, encoder)` compiles (dependencies, culling, ordering) and records them. A pass names what it touches with **logical resources**: a
+resource with `logical: true` (`graph.logical('shadowMap')`, idempotent) holds no memory, needs no size or format and only callback nodes may use it, so the passes order themselves without any storage being
+declared. The engine's names (`FRAME_RESOURCES`: `sceneColor`, `backbuffer`, `depth`, `shadowMap` ...) are declared on every frame's builder, as are the names features list in `produces`.
+The plan (`plan.steps`, `plan.culled`, `plan.resources.get(name).first / last`, `plan.stats` with transitions and kind switches) is the technique's usual one, and `compile({ order: 'transitions' })` reorders independent passes.
+Most frames declare the same passes as the one before; then `FrameGraph` reuses the compiled instance (`callbackKey()` compares names, reads, writes and `keep`) and swaps in the new closures with `setCallbacks`, so a steady scene
+does not recompile. A technique plugs into the frame as one pass: `fx.addTo(graph, { reads: ['sceneColor'], writes: ['sceneColor'] })`.
 
 ### Visualising
 

@@ -257,11 +257,11 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 
 * `src/rendering/graph/`: a technique schema modelled on EA SEED's Gigi (resources with type / size / lifetime / visibility, typed variables, compute / draw / copy / sub-graph / callback nodes),
   a flattener (sub-graph inlining, loop unrolling, variable binding), a compiler (size resolution, validation, dependencies, culling, stable or transition-minimising order, lifetimes, transient
-  memory aliasing), shader tokens, a WebGPU runtime (`TechniqueInstance`), JSON load / save with strict validation and a Graphviz export. `RenderGraph` now uses the same analysis and also reports resource spans and
+  memory aliasing), shader tokens, a WebGPU runtime (`TechniqueInstance`), JSON load / save with strict validation and a Graphviz export. The frame graph uses the same analysis (it is now a technique itself, see "One render graph" below) and also reports resource spans and
   transition statistics. Documentation: `docs/TECHNIQUES.md`.
 * Tests: `tests/technique.test.ts` (37) and four GPU self-tests (compute chain with aliased textures, size-variable recompile, looped sub-graph, draw into an imported texture) checked against CPU values.
 * `TechniqueBuilder` (`technique(name)`): the same graphs from code, with typed variable / resource handles, a `wgsl` template tag and `instantiate(gpu)`; `tests/technique-builder.test.ts` (7, including equality with the JSON example files) and a GPU self-test.
-* Demo `/?scene=technique`: a builder-made plasma + blur technique running as a frame-graph pass (via `asPass` in a `RenderFeature`), with live recompiles. Writing it exposed (and fixed) texture reallocation on condition toggles; `TechniqueInstance.onResourcesReplaced` reports genuine replacements.
+* Demo `/?scene=technique`: a builder-made plasma + blur technique running as a frame-graph pass (via `addTo` in a `RenderFeature`), with live recompiles. Writing it exposed (and fixed) texture reallocation on condition toggles; `TechniqueInstance.onResourcesReplaced` reports genuine replacements.
 * Not done: a visual editor / viewer, code generation backends, ray tracing nodes.
 * Draw nodes later gained vertex / index buffers, indirect (indexed) draws, `baseVertex` and MSAA targets with resolve.
 
@@ -293,6 +293,15 @@ Draw-submission benchmark A (`/bench.html`, 10,000 draws, CPU ms per frame) on t
 | instanced (fixed per-frame cost) | 0.23-0.56 | 0.34-0.61 |
 
 GPU time per pass (benchmark B) differs by less than the run-to-run noise (about 3 ms on this iGPU). Found and fixed: every render pass created its attachment views and error strings each frame; `TechniqueInstance` now caches single-mip views per texture and the node context strings, which removed the ~10% CPU regression seen on the 10k unsorted path. What is left is a fixed per-frame cost well under 0.2 ms.
+
+## One render graph (October 2026)
+
+The engine had two render graph systems: the Gigi-style technique compiler and `RenderGraph`, a flat list of callback passes that shared only the analysis code. `RenderGraph` is gone; the frame is a technique of callback nodes.
+
+* `logical: true` resources (`TechniqueBuilder.logical(name)`): names for ordering that hold no memory; only callback nodes may use them. `TechniqueBuilder.callbackKey()` / `callbacks()`, `TechniqueInstance.setCallbacks()` / `addTo()` (replaces `asPass`).
+* `rendering/graph/FrameGraph.ts`: `begin()` (a builder with `FRAME_RESOURCES` and the features' `produces` declared), `run()` (compile, or reuse the plan when the passes are unchanged, then record). `Renderer.graph` became `Renderer.frame`.
+* Hooks changed: `RenderFeature.addPasses` / `addPostPasses` (and `PostProcessor.addChainPasses`, `ParticleSystem.addPasses` ...) receive a `TechniqueBuilder`; `graph.addPass({ name, ..., sideEffect })` is `graph.callback(name, { ..., keep })`.
+* Verified: 794 tests, GPU self-tests 65/65 (the post-chain golden images run through `FrameGraph`), the executed pass order and culled list identical to the previous build in 17 scene / setting combinations (prepass, MSAA, post chain, transmission, `hiz2` and frustum culling, shadows, clusters, particles, ribbons, a feature and a technique pass), the plan compiled once over repeated frames, and benchmark A (10k draws) unchanged.
 
 ## Compressed assets (October 2026)
 

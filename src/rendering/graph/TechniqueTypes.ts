@@ -51,6 +51,11 @@ interface ResourceBase {
   /** Default `transient`. Imported resources ignore it. */
   lifetime?: ResourceLifetime;
   /**
+   * A name for ordering only: no memory is allocated and no declaration is needed beyond the name. Only `callback` nodes may use it (they order
+   * themselves by it); it is how a frame's engine passes say "this pass produces the shadow map, that one consumes it". Always internal and transient.
+   */
+  logical?: boolean;
+  /**
    * Take size (and, where not given, format / element type) from another resource of the same kind. `scale` multiplies the
    * width and height (e.g. 0.5 for a half-resolution target). Explicit `size` entries win over the borrowed ones.
    */

@@ -1,7 +1,7 @@
 import type { TrackedRenderPass } from '../src/rendering/graph/TrackedRenderPass';
 import { describe, expect, it } from 'vitest';
 import { FeatureOrder, FeatureRegistry, type FeatureFrame, type PostFeatureFrame, type RenderFeature } from '../src/rendering/RenderFeature';
-import { RenderGraph } from '../src/rendering/RenderGraph';
+import { addPass, newFrame, orderOf } from './helpers/frameGraph';
 import { OverlaySystem } from '../src/rendering/overlay/Overlay';
 import { ParticleSystem } from '../src/particles/ParticleSystem';
 import { RibbonSystem } from '../src/particles/RibbonSystem';
@@ -47,25 +47,25 @@ describe('FeatureRegistry', () => {
   });
 
   it("a feature's compute pass is ordered before a pass that reads what it produces", () => {
-    const r = new FeatureRegistry(), g = new RenderGraph();
-    r.add({ name: 'sim', produces: ['sim'], addPasses: (graph) => graph.addPass({ name: 'sim-pass', writes: ['sim'], execute: () => {} }) });
-    g.addPass({ name: 'main', reads: ['depth', ...r.producedResources], writes: ['backbuffer'], sideEffect: true, execute: () => {} });   // declared first on purpose
-    g.addPass({ name: 'depth', writes: ['depth'], execute: () => {} });
+    const r = new FeatureRegistry(), g = newFrame().begin();
+    r.add({ name: 'sim', produces: ['sim'], addPasses: (graph) => addPass(graph, { name: 'sim-pass', writes: ['sim'], execute: () => {} }) });
+    addPass(g, { name: 'main', reads: ['depth', ...r.producedResources], writes: ['backbuffer'], sideEffect: true, execute: () => {} });   // declared first on purpose
+    addPass(g, { name: 'depth', writes: ['depth'], execute: () => {} });
     r.addPasses(g, frame());
-    expect(g.compile()).toEqual(['depth', 'sim-pass', 'main']);
+    expect(orderOf(g)).toEqual(['depth', 'sim-pass', 'main']);
   });
 });
 
 describe('post-processing features', () => {
   it("a read-modify-write of 'sceneColor' runs after the scene and the aux pass, before the built-in composite", () => {
-    const r = new FeatureRegistry(), g = new RenderGraph();
-    r.add({ name: 'grade', addPostPasses: (graph) => graph.addPass({ name: 'grade', reads: ['sceneColor'], writes: ['sceneColor'], execute: () => {} }) });
+    const r = new FeatureRegistry(), g = newFrame().begin();
+    r.add({ name: 'grade', addPostPasses: (graph) => addPass(graph, { name: 'grade', reads: ['sceneColor'], writes: ['sceneColor'], execute: () => {} }) });
     // the renderer declares: main, aux, features' post passes, then the post chain
-    g.addPass({ name: 'main', writes: ['sceneColor'], execute: () => {} });
-    g.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
+    addPass(g, { name: 'main', writes: ['sceneColor'], execute: () => {} });
+    addPass(g, { name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
     r.addPostPasses(g, { ...frame(), sceneTexture: {} as GPUTexture } as PostFeatureFrame);
-    g.addPass({ name: 'post-composite', reads: ['sceneColor', 'auxTex'], writes: ['backbuffer'], sideEffect: true, execute: () => {} });
-    expect(g.compile()).toEqual(['main', 'aux', 'grade', 'post-composite']);
+    addPass(g, { name: 'post-composite', reads: ['sceneColor', 'auxTex'], writes: ['backbuffer'], sideEffect: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['main', 'aux', 'grade', 'post-composite']);
   });
 });
 
@@ -99,11 +99,11 @@ describe('built-in features', () => {
   it('particles: simulate in a graph pass, draw only when pools exist', () => {
     const log: string[] = [];
     const ps = bare(ParticleSystem, { pools: [] as unknown[], encodeCompute: () => log.push('compute'), encodeDraw: () => log.push('draw') });
-    const g = new RenderGraph();
+    const g = newFrame().begin();
     ps.addPasses(g);
-    g.addPass({ name: 'reader', reads: ['particles'], sideEffect: true, execute: () => {} });
-    expect(g.compile()).toEqual(['particles-sim', 'reader']);
-    g.execute({} as GPUCommandEncoder);
+    addPass(g, { name: 'reader', reads: ['particles'], sideEffect: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['particles-sim', 'reader']);
+    newFrame().run(g, {} as GPUCommandEncoder);
     ps.drawMain(pass, frame());
     (ps.pools as unknown[]).push({});
     ps.drawMain(pass, frame());
@@ -112,10 +112,10 @@ describe('built-in features', () => {
 
   it('ribbons: one update pass per system, named after the system', () => {
     const made = [0, 1].map(() => bare(RibbonSystem, { name: `ribbons:${Math.random()}`, encodeCompute: () => {} }));
-    const g = new RenderGraph();
+    const g = newFrame().begin();
     for (const rs of made) rs.addPasses(g);
-    g.addPass({ name: 'reader', reads: ['ribbons'], sideEffect: true, execute: () => {} });
-    expect(g.compile()).toEqual([`${made[0].name}:update`, `${made[1].name}:update`, 'reader']);
+    addPass(g, { name: 'reader', reads: ['ribbons'], sideEffect: true, execute: () => {} });
+    expect(orderOf(g)).toEqual([`${made[0].name}:update`, `${made[1].name}:update`, 'reader']);
   });
 
   it('the sky draws only when visible and an environment is bound', () => {
@@ -133,21 +133,21 @@ describe('built-in features', () => {
   });
 
   it('clusters: active only when enabled and there are ranged lights; the grid pass is declared only then', () => {
-    const resized: number[][] = [], g = new RenderGraph();
+    const resized: number[][] = [], g = newFrame().begin();
     const grid = bare(ClusterGrid, { enabled: true, active: false, resize: (w: number, h: number) => resized.push([w, h]), encode: () => {} });
     const lights = { count: 5, globalCount: 5 };
     const f = { ...frame(), lights, width: 640, height: 360, camera: { view: [], projection: [], near: 0.1, far: 100 }, profiler: { writes: () => undefined } } as unknown as FeatureFrame;
     grid.beginFrame(f);
     expect(grid.active).toBe(false);                // every light is global: nothing to cluster
     grid.addPasses(g, f);
-    expect(g.compile()).toEqual([]);
+    expect(orderOf(g)).toEqual([]);
     lights.count = 40;
     grid.beginFrame(f);
     expect(grid.active).toBe(true);
     expect(resized).toEqual([[640, 360]]);
     grid.addPasses(g, f);
-    g.addPass({ name: 'reader', reads: ['clusterGrid'], sideEffect: true, execute: () => {} });
-    expect(g.compile()).toEqual(['clusters', 'reader']);
+    addPass(g, { name: 'reader', reads: ['clusterGrid'], sideEffect: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['clusters', 'reader']);
     grid.enabled = false;
     grid.beginFrame(f);
     expect(grid.active).toBe(false);
@@ -159,16 +159,16 @@ describe('built-in features', () => {
     shadows.beginFrame(frame());
     shadows.buildInstances(frame(false));
     shadows.buildInstances(frame());
-    const g = new RenderGraph();
+    const g = newFrame().begin();
     shadows.addPasses(g, frame());
-    g.addPass({ name: 'reader', reads: ['shadowMap'], sideEffect: true, execute: () => {} });
-    expect(g.compile()).toEqual(['reader']);        // no layers: no depth pass
+    addPass(g, { name: 'reader', reads: ['shadowMap'], sideEffect: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['reader']);        // no layers: no depth pass
     (shadows.layers as unknown[]).push({});
-    const g2 = new RenderGraph();
+    const g2 = newFrame().begin();
     shadows.addPasses(g2, { ...frame(), objectBindGroup: () => ({}) as GPUBindGroup, profiler: {} } as unknown as FeatureFrame);
-    g2.addPass({ name: 'reader', reads: ['shadowMap'], sideEffect: true, execute: () => {} });
-    expect(g2.compile()).toEqual(['shadows', 'reader']);
-    g2.execute({} as GPUCommandEncoder);
+    addPass(g2, { name: 'reader', reads: ['shadowMap'], sideEffect: true, execute: () => {} });
+    expect(orderOf(g2)).toEqual(['shadows', 'reader']);
+    newFrame().run(g2, {} as GPUCommandEncoder);
     expect(log).toEqual(['assign', 'casters', 'encode']);
   });
 
@@ -190,9 +190,9 @@ describe('built-in features', () => {
     fog.beginFrame({ ...frame(), width: 4, height: 4 } as FeatureFrame);
     fog.beginFrame({ ...frame(false), width: 4, height: 4 } as FeatureFrame);
     expect(log).toEqual(['resize', 'apply']);
-    const g = new RenderGraph();
+    const g = newFrame().begin();
     fog.enabled = false;
     fog.addPasses(g, { ...frame(), camera: { view: new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]), projection: [], near: 0.1 } } as unknown as FeatureFrame);
-    expect(g.compile()).toEqual([]);
+    expect(orderOf(g)).toEqual([]);
   });
 });

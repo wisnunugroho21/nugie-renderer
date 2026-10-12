@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeFakeGPU } from './helpers/fakeGPU';
 import { PostProcessor, DEFAULT_POST_SETTINGS } from '../src/rendering/post/PostProcessor';
-import { RenderGraph } from '../src/rendering/RenderGraph';
+import { addPass, newFrame, orderOf } from './helpers/frameGraph';
 import { compileTechnique } from '../src/rendering/graph/Compile';
 import type { GPUContext } from '../src/gpu/GPUContext';
 
@@ -27,12 +27,11 @@ import { Mat4 } from '../src/math/Mat4';
 const PROJ = Mat4.perspective(Mat4.create(), Math.PI / 3, 16 / 9, 0.1, 100);
 
 function passOrder(post: PostProcessor): string[] {
-  const graph = new RenderGraph();
-  graph.addPass({ name: 'main', writes: ['sceneColor'], sideEffect: true, execute: () => {} });
-  if (post.needsAux) graph.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
+  const graph = newFrame().begin();
+  addPass(graph, { name: 'main', writes: ['sceneColor'], sideEffect: true, execute: () => {} });
+  if (post.needsAux) addPass(graph, { name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
   post.addChainPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthTexture: {} as GPUTexture, depthSamples: 1 });
-  graph.compile();
-  return graph.order;
+  return orderOf(graph);
 }
 
 /** The nodes of the chain technique in execution order. */
