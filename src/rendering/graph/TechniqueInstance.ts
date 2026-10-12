@@ -451,6 +451,9 @@ export class TechniqueInstance {
   }
 
   /** The physical resource of a plan (host import or technique allocation). */
+  private readonly contexts = new Map<string, string>();
+  private readonly attachmentViews = new WeakMap<GPUTexture, Map<number, GPUTextureView>>();
+
   private physical(name: string, context: string): Physical {
     const plan = this.compiled.resources.get(name)!;
     const r = plan.visibility === 'imported' ? this.imports.get(name) : this.allocations.get(this.slotKey(plan.slot));
@@ -537,10 +540,27 @@ export class TechniqueInstance {
     pass.end();
   }
 
+  /** Error-message prefix of a node, built once per path (it is needed on every frame's hot path). */
+  private context(path: string): string {
+    let c = this.contexts.get(path);
+    if (c === undefined) this.contexts.set(path, c = `node '${path}'`);
+    return c;
+  }
+
+  /** A single-mip, single-layer 2D view of an attachment texture; views are cached per texture, so a frame creates none after the first. */
+  private attachmentView(texture: GPUTexture, mip: number, layer: number): GPUTextureView {
+    let views = this.attachmentViews.get(texture);
+    if (!views) this.attachmentViews.set(texture, views = new Map());
+    const key = mip * 65536 + layer;
+    let v = views.get(key);
+    if (!v) views.set(key, v = texture.createView({ dimension: '2d', baseMipLevel: mip, mipLevelCount: 1, baseArrayLayer: layer, arrayLayerCount: 1 }));
+    return v;
+  }
+
   /** Begin the render pass of a draw / render node: its colour targets (with MSAA resolve) and depth target. */
   private beginPass(encoder: GPUCommandEncoder, node: { path: string; colorTargets: ColorTarget[]; depthTarget?: DepthTarget }, timestampWrites?: GPURenderPassTimestampWrites): GPURenderPassEncoder {
-    const ctx = `node '${node.path}'`;
-    const view = (name: string, mip: number, layer: number) => (this.physical(name, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: mip, mipLevelCount: 1, baseArrayLayer: layer, arrayLayerCount: 1 });
+    const ctx = this.context(node.path);
+    const view = (name: string, mip: number, layer: number) => this.attachmentView(this.physical(name, ctx) as GPUTexture, mip, layer);
     const depth = node.depthTarget;
     return encoder.beginRenderPass({
       label: node.path, ...(timestampWrites ? { timestampWrites } : {}),

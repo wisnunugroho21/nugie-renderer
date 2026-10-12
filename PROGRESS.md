@@ -281,6 +281,19 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 * **Copy and clear nodes** (`g.copy` with `from` / `to` / `size`, `g.clear`): texture<->texture (mips, origins, layers), buffer<->buffer (offsets, runtime sizes) and texture<->buffer (row layout), validated against the declarations; techniques can run on a device-only `TechniqueHost` for imported-resource copies. Every encoder copy in the engine moved onto them: arena growth, streamed-texture mip copies, the profiler's query staging copy, all readbacks (`RenderTarget.readPixels`, particle / ribbon debug reads, the self-test helpers via `graph/Readback.ts`) and the cluster overflow clear. Verified: texture streaming (105 level changes, same bytes and image), regrown arenas (byte-identical contents), profiler timings, render targets.
 * The **offscreen render-to-texture views and reflection-probe captures** are render nodes too (`MainPassNode` with an array layer for the cube faces and a discarded depth); `ViewJob` names textures instead of views. Pixel-identical (RTT demo with three views incl. a mirror, two probe captures with different options), and target resizes rebuild the node. `IBLBaker`, `MipmapGenerator`, `CompactVertexStream` are asset-preparation utilities.
 
+## Render graph cost check (October 2026)
+
+Draw-submission benchmark A (`/bench.html`, 10,000 draws, CPU ms per frame) on the current build against a worktree at the last commit before the engine moved onto the graph (2ee50d4), runs interleaved on the same machine:
+
+| | baseline | render graph |
+|---|---|---|
+| A1 unsorted | 7.7 / 7.8 | 7.7 / 7.8 (first run 8.4-8.6, before the fix below) |
+| A2 unsorted | 9.8 / 9.9 | 10.5 |
+| A2 sorted | 8.6-9.1 | 8.1-9.2 |
+| instanced (fixed per-frame cost) | 0.23-0.56 | 0.34-0.61 |
+
+GPU time per pass (benchmark B) differs by less than the run-to-run noise (about 3 ms on this iGPU). Found and fixed: every render pass created its attachment views and error strings each frame; `TechniqueInstance` now caches single-mip views per texture and the node context strings, which removed the ~10% CPU regression seen on the 10k unsorted path. What is left is a fixed per-frame cost well under 0.2 ms.
+
 ## Compressed assets (October 2026)
 
 * **`EXT_meshopt_compression`** and **`KHR_draco_mesh_compression`** are decoded while parsing (`parseGLTF` -> `assets/gltf/GLTFCompression.ts`): the document that comes
