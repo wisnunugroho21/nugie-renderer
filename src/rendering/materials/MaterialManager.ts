@@ -3,8 +3,9 @@ import type { BindLayouts } from '../../gpu/BindLayouts';
 import { pipelineKeyString, type PipelineKey } from '../../gpu/PipelineCache';
 import { ShaderManager } from '../../gpu/ShaderManager';
 import { COMMON_PRELUDE, ERROR_SOURCE, PBR_SOURCE, registerEngineShaderChunks } from '../../shaders';
-import { STANDARD_VERTEX_LAYOUT, toGPUVertexBuffers } from '../VertexLayouts';
+import { STANDARD_VERTEX_LAYOUT, RETAINED_VERTEX_LAYOUT, DIRECTIONAL_VERTEX_LAYOUT, toGPUVertexBuffers } from '../VertexLayouts';
 import { MaterialFeature, MaterialRecordFlags, featureDefines } from './MaterialFlags';
+import { STANDARD_VARIANT, drawVariant, isSpecialized, supportsSpecializedDraw, variantLayoutName, variantVertexEntry, type DrawVariant } from './DrawVariant';
 import { EXT_VEC4, needsExtParams, packPBRExt, pbrFeatureMask, type TexPresence } from './PBRExtension';
 import { DeformMask } from '../MeshManager';
 import {
@@ -46,6 +47,7 @@ const ALPHA_BLEND: GPUBlendState = {
  * Material id == record index. Per-material GPU state is only a (cached) bind group of textures.
  */
 export class MaterialManager {
+  private retainedLayout: GPUPipelineLayout | null = null;
   readonly materials: Material[] = [];
   readonly shaderErrors: string[] = [];
   /** Bumped whenever a shared buffer is reallocated (bind groups rebuild). */
@@ -61,6 +63,7 @@ export class MaterialManager {
   private recBuf = new ArrayBuffer(this.recCap * RECORD_WORDS * 4);
   private recF32 = new Float32Array(this.recBuf);
   private recU32 = new Uint32Array(this.recBuf);
+  private recordVersions: number[] = [];
   private recDirtyMin = Infinity;
   private recDirtyMax = -1;
 
@@ -127,7 +130,7 @@ export class MaterialManager {
 
   /** Which optional textures a texture-slot list contains (they select shader variants). */
   private presenceOf(t: PBRMaterialDesc['textures'] | undefined): TexPresence {
-    return { normal: !!t?.normal, height: !!t?.height, alpha: !!t?.alpha, aux: !!t?.aux };
+    return { baseColor: !!t?.baseColor, metalRough: !!t?.metalRough, occlusion: !!t?.occlusion, emissive: !!t?.emissive, normal: !!t?.normal, height: !!t?.height, alpha: !!t?.alpha, aux: !!t?.aux };
   }
 
   /** Allocate (once) and fill the extension parameter block of a PBR material that uses any extension. */
@@ -143,7 +146,7 @@ export class MaterialManager {
   /** Recompute a PBR material's shader features after its description, textures or environment changed. */
   private refreshPBRFeatures(m: Material): void {
     if (m.kind !== 'pbr' || !m.pbr) return;
-    const tex = { normal: !!m.textures[TextureSlot.Normal], height: !!m.textures[TextureSlot.Height], alpha: !!m.textures[TextureSlot.Alpha], aux: !!m.textures[TextureSlot.Aux] };
+    const tex = { baseColor: !!m.textures[TextureSlot.BaseColor], metalRough: !!m.textures[TextureSlot.MetalRough], occlusion: !!m.textures[TextureSlot.Occlusion], emissive: !!m.textures[TextureSlot.Emissive], normal: !!m.textures[TextureSlot.Normal], height: !!m.textures[TextureSlot.Height], alpha: !!m.textures[TextureSlot.Alpha], aux: !!m.textures[TextureSlot.Aux] };
     m.features = pbrFeatureMask({ ...m.pbr, alphaMode: m.alphaMode }, tex, !!m.environment);
     this.refreshSortId(m);
   }
@@ -300,15 +303,35 @@ export class MaterialManager {
     }));
   }
 
+  private directionalBindings = new Map<number, { version: number; buffer: GPUBuffer; group: GPUBindGroup }>();
+
+  /** Small per-material uniforms give the base PBR variant uniform loads, instead of a per-fragment storage lookup. */
+  getDirectionalBindGroup(id: number): GPUBindGroup {
+    let cached = this.directionalBindings.get(id);
+    if (!cached) {
+      const buffer = this.res.buffers.create('DirectionalMaterialUniform', 64, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+      cached = { version: -1, buffer, group: this.device.createBindGroup({
+        layout: this.layouts.directionalMaterial, entries: [{ binding: 11, resource: { buffer } }],
+      }) };
+      this.directionalBindings.set(id, cached);
+    }
+    const version = this.recordVersions[id];
+    if (cached.version !== version) {
+      this.device.queue.writeBuffer(cached.buffer, 0, this.recF32, id * RECORD_WORDS, RECORD_WORDS);
+      cached.version = version; this.uploadedBytes += 64;
+    }
+    return cached.group;
+  }
+
   /**
    * Cached render pipeline for a material in a given pass target. `deformMask` (DeformMask bits, from the MESH)
    * selects the static / skinned / morphed / skinned+morphed vertex variant. Built on first use and cached after that (`warmup` builds them ahead of time).
    */
-  getPipeline(id: number, target: PassTarget, deformMask = 0): GPURenderPipeline {
+  getPipeline(id: number, target: PassTarget, deformMask = 0, variant: DrawVariant = STANDARD_VARIANT): GPURenderPipeline {
     let m = this.materials[id];
     if (m.failed) m = this.materials[this.errorMaterial];
-    const key = this.pipelineKey(m, target, deformMask);
-    return this.res.pipelines.getRender(key, () => this.createPipeline(m, target, key, deformMask));
+    const key = this.pipelineKey(m, target, deformMask, variant);
+    return this.res.pipelines.getRender(key, () => this.createPipeline(m, target, key, deformMask, variant));
   }
 
   /** True when the pass follows a depth prepass for this material (so it only shades pixels whose depth matches). */
@@ -392,29 +415,40 @@ export class MaterialManager {
     return p;
   }
 
-  /** The cache key identifying the pipeline for (material, pass target, deform variant). */
-  pipelineKey(m: Material, target: PassTarget, deformMask = 0): PipelineKey {
+  /** The cache key identifying the pipeline for (material, pass target, deform variant, draw path). */
+  pipelineKey(m: Material, target: PassTarget, deformMask = 0, variant: DrawVariant = STANDARD_VARIANT): PipelineKey {
+    if (isSpecialized(variant) && (deformMask !== 0 || !supportsSpecializedDraw(m))) {
+      throw new MaterialError('Retained pipelines require an undeformed, map-free base PBR material');
+    }
     return {
       shader: ShaderManager.key(m.shaderId, featureDefines(m.features | deformFeatures(deformMask))),
-      vertexEntry: m.vertexEntry, fragmentEntry: target.colorFormat ? m.fragmentEntry : null,
-      vertexLayout: STANDARD_VERTEX_LAYOUT,
+      vertexEntry: variantVertexEntry(variant, m.vertexEntry),
+      fragmentEntry: target.colorFormat ? (variant.directional ? 'fs_retained_directional' : m.fragmentEntry) : null,
+      vertexLayout: variant.retained ? RETAINED_VERTEX_LAYOUT : variant.directional ? DIRECTIONAL_VERTEX_LAYOUT : STANDARD_VERTEX_LAYOUT,
       topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: target.flipWinding ? 'cw' : 'ccw',
       depth: { format: target.depthFormat, write: this.depthWrite(m, target), compare: this.depthCompare(m, target) },
       targets: target.colorFormat ? [{ format: target.colorFormat, blend: m.state.blend }] : [],
-      sampleCount: target.sampleCount, layout: 'engine-v1',
+      sampleCount: target.sampleCount, layout: variantLayoutName(variant),
     };
   }
 
-  /** Build the WebGPU pipeline descriptor for the material in `target` (shader variant, standard vertex layout, depth state). */
-  private pipelineDescriptor(m: Material, key: PipelineKey, target: PassTarget, deformMask: number): GPURenderPipelineDescriptor {
+  /** The bind-group layouts a draw path's pipeline layout is made of (see `variantLayoutName` for its cache name). */
+  private pipelineLayoutFor(variant: DrawVariant): GPUPipelineLayout {
+    if (variant.directional) return variant.retained ? this.layouts.retainedDirectionalPipeline : this.layouts.directionalPipeline;
+    if (variant.retained) return this.retainedLayout ??= this.device.createPipelineLayout({ bindGroupLayouts: [this.layouts.frame, this.layouts.scene, this.layouts.material] });
+    return this.layouts.pipelineLayout;
+  }
+
+  /** Build the descriptor for the selected shader entries, layout and target. */
+  private pipelineDescriptor(m: Material, key: PipelineKey, target: PassTarget, deformMask: number, variant: DrawVariant): GPURenderPipelineDescriptor {
     const source = m.shaderId === 'pbr' ? PBR_SOURCE : this.customSources.get(m.shaderId)!;
     const module = this.res.shaders.get(m.shaderId, source, featureDefines(m.features | deformFeatures(deformMask)));
     return {
       label: `${m.name}:${key.shader}`,
-      layout: this.layouts.pipelineLayout,
-      vertex: { module, entryPoint: m.vertexEntry, buffers: toGPUVertexBuffers(STANDARD_VERTEX_LAYOUT) },
+      layout: this.pipelineLayoutFor(variant),
+      vertex: { module, entryPoint: key.vertexEntry, buffers: toGPUVertexBuffers(key.vertexLayout) },
       fragment: target.colorFormat
-        ? { module, entryPoint: m.fragmentEntry, targets: [{ format: target.colorFormat, blend: m.state.blend ?? undefined }] }
+        ? { module, entryPoint: key.fragmentEntry ?? m.fragmentEntry, targets: [{ format: target.colorFormat, blend: m.state.blend ?? undefined }] }
         : undefined,
       primitive: { topology: 'triangle-list', cullMode: m.state.cullMode, frontFace: target.flipWinding ? 'cw' : 'ccw' },
       depthStencil: { format: target.depthFormat, depthWriteEnabled: this.depthWrite(m, target), depthCompare: this.depthCompare(m, target) },
@@ -426,27 +460,30 @@ export class MaterialManager {
    * Build the pipelines for every material x deform variant ahead of time with createRenderPipelineAsync, so the first frame that
    * uses them does not hitch. Resolves when all are cached.
    */
-  async warmup(target: PassTarget, deformMasks: number[] = [0]): Promise<number> {
+  async warmup(target: PassTarget, deformMasks: number[] = [0], retained: { directional?: boolean; packed?: boolean } = {}): Promise<number> {
     const jobs: Promise<void>[] = [], seen = new Set<string>();
+    const prime = (m: Material, dm: number, variant: DrawVariant = STANDARD_VARIANT) => {
+      const key = this.pipelineKey(m, target, dm, variant), k = pipelineKeyString(key);
+      if (seen.has(k)) return;   // many materials share one pipeline
+      seen.add(k);
+      jobs.push(this.res.pipelines.primeRender(key, () => this.device.createRenderPipelineAsync(this.pipelineDescriptor(m, key, target, dm, variant))));
+    };
     for (const m of this.materials) {
-      if (m.failed || m.kind === 'custom') continue;   // custom materials are validated at first use (error scopes)
-      for (const dm of deformMasks) {
-        const key = this.pipelineKey(m, target, dm);
-        const k = pipelineKeyString(key);
-        if (seen.has(k)) continue;   // many materials share one pipeline
-        seen.add(k);
-        jobs.push(this.res.pipelines.primeRender(key, () => this.device.createRenderPipelineAsync(this.pipelineDescriptor(m, key, target, dm))));
-      }
+      if (m.failed || m.kind === 'custom') continue;
+      for (const dm of deformMasks) prime(m, dm);
+      if (!target.colorFormat || target.depthEqual || !deformMasks.includes(0) || !supportsSpecializedDraw(m)) continue;
+      if (retained.directional) { prime(m, 0, drawVariant({ directional: true })); prime(m, 0, drawVariant({ directional: true, uniformNormals: true })); }
+      if (retained.packed) { prime(m, 0, drawVariant({ retained: true })); if (retained.directional) prime(m, 0, drawVariant({ retained: true, directional: true })); }
     }
     await Promise.all(jobs);
     return jobs.length;
   }
 
   /** Create the render pipeline; custom shaders are wrapped in a validation error scope so a bad shader marks its materials `failed` (drawn with the error material) instead of crashing. */
-  private createPipeline(m: Material, target: PassTarget, key: PipelineKey, deformMask: number): GPURenderPipeline {
+  private createPipeline(m: Material, target: PassTarget, key: PipelineKey, deformMask: number, variant: DrawVariant): GPURenderPipeline {
     const guard = m.kind === 'custom';
     if (guard) this.device.pushErrorScope('validation');
-    const pipeline = this.device.createRenderPipeline(this.pipelineDescriptor(m, key, target, deformMask));
+    const pipeline = this.device.createRenderPipeline(this.pipelineDescriptor(m, key, target, deformMask, variant));
     if (guard) {
       this.device.popErrorScope().then((err) => {
         if (!err) return;
@@ -496,6 +533,7 @@ export class MaterialManager {
       | (m.kind === 'custom' ? MaterialRecordFlags.Custom : 0);
     u[o + 14] = m.paramCount > 0 ? this.recCap * 4 + m.paramBase : 0;   // absolute vec4 index: the param region follows the records
     u[o + 15] = 0;
+    this.recordVersions[id] = (this.recordVersions[id] ?? 0) + 1;
     this.recDirtyMin = Math.min(this.recDirtyMin, id);
     this.recDirtyMax = Math.max(this.recDirtyMax, id);
   }

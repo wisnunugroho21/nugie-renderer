@@ -1,4 +1,5 @@
 import type { GPUStats } from './GPUStats';
+import { blockFormat, blockLevelBytes } from '../assets/codecs/BlockFormats';
 
 const BYTES_PER_PIXEL: Partial<Record<GPUTextureFormat, number>> = {
   r8unorm: 1, rg8unorm: 2, rgba8unorm: 4, 'rgba8unorm-srgb': 4, bgra8unorm: 4, 'bgra8unorm-srgb': 4,
@@ -9,10 +10,11 @@ const BYTES_PER_PIXEL: Partial<Record<GPUTextureFormat, number>> = {
 
 /** Estimated GPU bytes for a full mip chain (or `mips` levels). */
 export function estimateTextureBytes(w: number, h: number, layers: number, format: GPUTextureFormat, mips: number, dimension: GPUTextureDimension = '2d'): number {
-  const bpp = BYTES_PER_PIXEL[format] ?? 4;
+  const bpp = BYTES_PER_PIXEL[format] ?? 4, block = blockFormat(format);
   let total = 0;
   for (let m = 0; m < mips; m++) {
     const depth = dimension === '3d' ? Math.max(1, layers >> m) : layers;
+    if (block) { total += blockLevelBytes(block, Math.max(1, w >> m), Math.max(1, h >> m)) * depth; continue; }
     total += Math.max(1, w >> m) * Math.max(1, h >> m) * depth * bpp;
   }
   return total;

@@ -1,0 +1,140 @@
+[
+  {
+    "reference": "final-2-nugie-instanced.png",
+    "optimized": "latency-ab-0-nugie-instanced.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "reference": "final-2-nugie-instanced.png",
+    "optimized": "latency-ab-1-nugie-retained-general-shader-.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "reference": "final-2-nugie-instanced.png",
+    "optimized": "latency-confirm-0-nugie-instanced.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "reference": "final-2-nugie-instanced.png",
+    "optimized": "latency-final-2-nugie-instanced.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "reference": "final-2-nugie-instanced.png",
+    "optimized": "latency-interleaved-0-nugie-instanced.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "reference": "final-2-nugie-instanced.png",
+    "optimized": "latency-interleaved-1-nugie-retained-general-shader-.png",
+    "identical": true,
+    "extrema": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  }
+]

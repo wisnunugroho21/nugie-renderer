@@ -1,6 +1,12 @@
+import { RetainedRenderBundles } from './RetainedRenderBundles';
+import { RetainedDrawCache } from './RetainedDrawCache';
 import { BatchList } from './BatchBuilder';
 import { RenderQueueBuilder, RenderQueues } from './RenderQueue';
 import type { MaterialManager, PassTarget } from './materials/MaterialManager';
+import { DRAW_VARIANT_COUNT, STANDARD_VARIANT, type DrawVariant } from './materials/DrawVariant';
+
+/** Mesh deform variants (static / skinned / morphed / both): the low two bits of `MeshRecord.deformMask`. */
+const DEFORM_VARIANTS = 4;
 
 /** Reused batch state shared by frame preparation and pass recording. */
 export interface FrameState {
@@ -23,12 +29,12 @@ class DrawPipelineCache {
   private sortIds: number[] = [];
   private failures: boolean[] = [];
 
-  get(materials: MaterialManager, target: PassTarget, materialId: number, deformMask: number): GPURenderPipeline {
+  get(materials: MaterialManager, target: PassTarget, materialId: number, deformMask: number, variant: DrawVariant = STANDARD_VARIANT): GPURenderPipeline {
     const material = materials.get(materialId);
-    const slot = materialId * 4 + deformMask;
+    const slot = (materialId * DRAW_VARIANT_COUNT + variant.index) * DEFORM_VARIANTS + deformMask;
     const cached = this.pipelines[slot];
     if (cached && this.sortIds[slot] === material.pipelineSortId && this.failures[slot] === material.failed) return cached;
-    const pipeline = materials.getPipeline(materialId, target, deformMask);
+    const pipeline = materials.getPipeline(materialId, target, deformMask, variant);
     this.pipelines[slot] = pipeline;
     this.sortIds[slot] = material.pipelineSortId;
     this.failures[slot] = material.failed;
@@ -44,6 +50,8 @@ class DrawPipelineCache {
 
 /** Draw preparation owned by one view: queue sort history, batch scratch and the pipeline lookups, kept together. */
 export class RenderDrawState {
+  readonly retained = new RetainedDrawCache();
+  readonly bundles = new RetainedRenderBundles();
   readonly queueBuilder = new RenderQueueBuilder();
   readonly queues = new RenderQueues();
   readonly batches = new BatchList();

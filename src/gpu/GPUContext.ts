@@ -27,7 +27,8 @@ export class GPUContext {
     gc.adapter = adapter;
     // Opt in to optional features we use when available.
     const features: GPUFeatureName[] = [];
-    for (const f of ['timestamp-query', 'float32-filterable', 'indirect-first-instance'] as GPUFeatureName[]) {
+    // the texture-compression-* features let KTX2 / Basis textures stay compressed in GPU memory (see assets/codecs)
+    for (const f of ['timestamp-query', 'float32-filterable', 'indirect-first-instance', 'texture-compression-bc', 'texture-compression-etc2', 'texture-compression-astc'] as GPUFeatureName[]) {
       if (adapter.features.has(f)) features.push(f);
     }
     // The vertex stage reads 6 storage buffers (object group: 5, materials: 1) and the busiest compute pass (GPU culling) 8: the default

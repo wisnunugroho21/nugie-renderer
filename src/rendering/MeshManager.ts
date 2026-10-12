@@ -4,6 +4,7 @@ import type { MeshData } from './primitives';
 import type { MorphTargetData } from '../assets/AssetTypes';
 import type { CpuGeometry } from '../picking/Raycaster';
 import { STANDARD_VERTEX_FLOATS, STANDARD_VERTEX_STRIDE } from './VertexLayouts';
+import { CompactVertexStream } from './CompactVertexStream';
 import { hypot3 } from '../math/hypot';
 
 /** Deformation capability bits of a mesh (selects the vertex-shader variant). */
@@ -86,10 +87,17 @@ export class MeshManager {
     this.vertices = new Arena(device, buffers, 'mesh-vertices', GPUBufferUsage.VERTEX | storage, STANDARD_VERTEX_STRIDE, initialVertices);
     this.indices = new Arena(device, buffers, 'mesh-indices', GPUBufferUsage.INDEX | storage, 4, initialIndices);
     this.deform = new Arena(device, buffers, 'DeformDataBuffer', storage, 16, 2048);
+    this.compactStream = new CompactVertexStream(device, buffers, this.vertices);
   }
 
   /** The shared vertex buffer (all meshes live in it). */
   get vertexBuffer(): GPUBuffer { return this.vertices.buffer; }
+  private readonly compactStream: CompactVertexStream;
+
+  /** Lazily derived 24-byte position/normal stream for the retained draw paths (see {@link CompactVertexStream}). */
+  get compactVertexBuffer(): GPUBuffer { return this.compactStream.buffer; }
+  /** False when the vertex arena is too large for the compact stream: the retained draw paths must not be used. */
+  get compactVerticesSupported(): boolean { return this.compactStream.supported; }
   /** The shared index buffer. */
   get indexBuffer(): GPUBuffer { return this.indices.buffer; }
   /** Sum of all arena generations: changes whenever ANY shared buffer is reallocated. */

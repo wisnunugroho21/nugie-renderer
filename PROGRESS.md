@@ -24,7 +24,7 @@ Run: `npm run dev` (demos at `/` with `?scene=<name>`, starter game at `/game.ht
 | 12 | Flat-array BVH (static) | DONE - tests + Benchmark B (CPU): 77x vs linear |
 | 13 | glTF/GLB loader -> engine assets -> ECS instantiation | DONE - generated-GLB tests |
 | 14 | PBR rendering of glTF (textures, normal maps, emissive) | DONE - browser (`?scene=gltf`) |
-| 15 | Texture pipeline (sRGB/linear, GPU mips, dedupe, async) | DONE - browser; KTX2/Basis deferred |
+| 15 | Texture pipeline (sRGB/linear, GPU mips, dedupe, async) | DONE - browser; KTX2/Basis added later (see "Compressed assets") |
 | 16 | Animation runtime (STEP/LINEAR/CUBICSPLINE, Animator, AnimationSystem) | DONE - tests |
 | 17 | Skinning data (SkeletonAsset vs SkeletonInstance, JOINTS/WEIGHTS incl. _1) | DONE - tests |
 | 18 | Skeleton updates (convention documented + tested) | DONE - tests |
@@ -253,6 +253,19 @@ Particles use additive/alpha blending in display space until the HDR post-proces
 so stateful sources (motion matching) can sit inside states/blend trees. `AnimationSystem` writes only changed nodes into the ECS.
 Conventions: character forward = +Z; IK/look-at targets are in the owner entity's MODEL space (`AnimationSystem.worldToModel`).
 
+## Compressed assets (October 2026)
+
+* **`EXT_meshopt_compression`** and **`KHR_draco_mesh_compression`** are decoded while parsing (`parseGLTF` -> `assets/gltf/GLTFCompression.ts`): the document that comes
+  out is plain glTF (decoded data lives in one extra buffer, Draco primitives get ordinary accessors), so the rest of the loader is unchanged. `KHR_mesh_quantization`
+  vertex data is accepted (the accessor reader already handled normalised / integer attributes).
+* **KTX2** (`assets/codecs/Ktx2.ts`, `Ktx2Texture.ts`) and **`KHR_texture_basisu`**: UASTC and ETC1S payloads are transcoded to the best format the device supports
+  (UASTC: ASTC 4x4, BC7, ETC2, BC3 / BC1; ETC1S: ETC2, BC7, BC3 / BC1; RGBA8 when none is available or the size is not a multiple of 4) and uploaded with the mip chain stored in
+  the file. KTX2 files that already hold a GPU format (BC, ETC2 / EAC, ASTC, uncompressed RGBA8 / R8 / half and float formats) upload directly; Zlib and Zstd supercompression are undone.
+  The devices' `texture-compression-bc | etc2 | astc` features are requested in `GPUContext`.
+* Decoders are the vendored builds in `src/assets/vendor` (see its README), loaded lazily; `configureCodecs({ draco, basis })` points them at other URLs / bytes.
+* Tests: `tests/codecs-gltf.test.ts` (real encoders: meshoptimizer, draco3d), `tests/codecs-ktx2.test.ts` (real UASTC / ETC1S fixtures from `scripts/make-codec-fixtures.ts`),
+  GPU self-tests (`/selftest.html`: every transcode target decoded on the device and compared with the RGBA8 transcode) and `/?scene=compressed`.
+
 ## Deferred / known limitations
 - Animated bounds are conservative padding (skin: 0.5 x extent; morph: sum of max displacements). Per-animation / joint bounds later.
 - Morph delta arenas always hold position+normal+tangent per target (zeros if absent): 3x memory; optimize if profiling says so.
@@ -264,8 +277,8 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 - Particles: no GPU sorting (alpha particles can mis-order; use additive or accept), no soft particles (needs scene depth), no collisions.
 - Ribbons: trail ring holds `pointsPerRibbon` points (older points are overwritten); texture u uses accumulated length.
 - Dev note: stepping `window.__r.app.onFrame(dt)` in a loop advances time deterministically even when rAF is paused.
-- KTX2 / Basis / BC / ETC2 / ASTC (Phase 15 "later"): textures are decoded PNG/JPEG via `createImageBitmap`.
-- glTF: TEXCOORD_1+, COLOR_0, KHR_texture_transform, KHR_draco/meshopt are not supported (warned or rejected when required).
+- glTF: TEXCOORD_1+, COLOR_0 and KHR_texture_transform are not supported (the transform matters for gltfpack output whose UVs are quantised past [0, 1]).
+- Compressed assets: Draco, meshopt and Basis decoding runs on the main thread (no worker); KTX2 arrays, cube maps, 3D textures and UASTC HDR are rejected; KTX2 textures with a single mip level stay unmipped unless they transcode to RGBA8; the vendored wasm decoders need `unsafe-eval` (glue script) and `wasm-unsafe-eval` in a Content-Security-Policy.
 - Material has ONE sampler (last texture's sampler wins); per-texture samplers would need bindless-style tricks.
 - Shadows: at most 8 spot and 2 point shadow casters (config), casters are culled with a linear per-layer test, spot shadows use a fixed bias set. Cascades blend over the last 10% of each range (and fade out past the last); area lights shadow as a cube map from their centre (shares the 2 point/area budget; penumbra width grows with light size, not a true area-light penumbra).
 - Area lights: LTC fit tail over-estimates (specular up to 1.35x the quadrature reference in far tails); shadows are an approximation from the centre point.

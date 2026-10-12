@@ -12,6 +12,8 @@ export class TransformBuffer {
   lastUploadBytes = 0;
   lastUploadRanges = 0;
 
+  private world: RenderWorld | null = null;
+  private version = -1;
   private capacity: number; // in matrices
   private scratch = new Uint32Array(0);
 
@@ -29,6 +31,13 @@ export class TransformBuffer {
   /** Upload the world matrices of changed slots as a few coalesced ranges (one full write when many changed or after growth). */
   sync(rw: RenderWorld): void {
     this.lastUploadBytes = 0; this.lastUploadRanges = 0;
+    if (rw.transformVersion >= 0 && this.world === rw && this.version === rw.transformVersion) return;
+    const full = rw.transformVersion >= 0 && (this.world !== rw || this.version < 0);
+    this.upload(rw, full);
+    this.world = rw; this.version = rw.transformVersion;
+  }
+
+  private upload(rw: RenderWorld, full: boolean): void {
     if (rw.count === 0) return;
     if (rw.count > this.capacity) {
       while (this.capacity < rw.count) this.capacity *= 2;
@@ -38,6 +47,7 @@ export class TransformBuffer {
       this.writeRange(rw, 0, rw.count); // full re-upload after growth
       return;
     }
+    if (full) { this.writeRange(rw, 0, rw.count); return; }
     const changed = rw.changedSlots;
     const n = changed.length;
     if (n === 0) return;

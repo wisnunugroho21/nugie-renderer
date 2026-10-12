@@ -52,8 +52,9 @@ src/rendering/   Renderer (frame orchestration: queues -> batches -> pass graph)
                  your own features), post/FullscreenEffect.
                  Small collaborators of Renderer: FrameUniform (per-view uniform), RenderDrawState (FrameState + per-view ViewState), OffscreenViews
                  (render targets, views, probe capture), formats (shared texture formats), Skybox, GPULodIndex, lighting/LegacySceneLights,
-                 streaming/StreamingDriver
-src/assets/      glTF/GLB loading + instantiation, texture loading, RGBE (.hdr)
+                 streaming/StreamingDriver, RetainedDrawCache / RetainedRenderBundles (static-scene reuse), CompactVertexStream,
+                 materials/DrawVariant (which specialised draw path a pipeline serves)
+src/assets/      glTF/GLB loading + instantiation, texture loading, RGBE (.hdr), Draco / meshopt / KTX2 decoders
 src/animation/   clips, animator, graph/ (state machines, blend trees), ik/, motionmatching/, root motion
 src/particles/   GPU particle pools and ribbons
 src/geometry/    mesh optimiser, simplifier, automatic LOD, meshlets
@@ -432,6 +433,13 @@ const anim = Animator.attach(world, entityIndex(inst.root), ai, ai.clipIndex('Ru
 anim.setSpeed(1).play();                                       // also: pause(), stop(), setLoop(bool), play('Idle')
 ```
 
+**Compressed files just work.** `loadGLTF` decodes `EXT_meshopt_compression` and `KHR_draco_mesh_compression` geometry, and `KHR_texture_basisu` / `.ktx2` images
+are transcoded when `instantiateGLTF` uploads them: UASTC to ASTC (or BC7 / ETC2), ETC1S to ETC2 (or BC7 / BC), with a plain RGBA8 fallback, so textures stay compressed in GPU
+memory. Typical tool chains: `gltfpack -c -tc` (meshopt + KTX2), `gltf-transform optimize` (Draco / meshopt, KTX2 through `toktx`). The decoders (under 1 MB of WebAssembly in total) are
+loaded the first time a file needs them; to host them yourself call `configureCodecs({ draco: { url: '/wasm/draco_decoder.wasm' }, basis: { url: '/wasm/basis_transcoder.wasm' } })`
+once at start-up. They run on the main thread, and the glue scripts are evaluated from text, so a Content-Security-Policy needs `'unsafe-eval' 'wasm-unsafe-eval'`.
+Standalone textures: `engine.textures.load(key, { name, mimeType: 'image/ktx2', data }, /* srgb */ true)` (or `createKTX2Texture` for the raw GPU texture). Try it: `/?scene=compressed`.
+
 Skinned meshes and morph targets are rendered on the GPU; crowds of the same character collapse into few draw calls. For
 gameplay-driven animation (blend trees, state machines with conditions, layers/masks, root motion, IK, motion matching) see
 `src/animation/graph/` and `tests/animation-graph.test.ts`; attach a controller with
@@ -615,7 +623,7 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 * No built-in input, physics, audio or UI. Picking is CPU raycasting (no GPU ID buffer, no skinned-triangle hits).
 * Transparent objects and particles are not fogged; area-light shadows are approximated by a cube map from the light's centre.
 * The GPU-culling path handles opaque / alpha-masked batches (transparent stay on the CPU path).
-* glTF: one UV set, no Draco/meshopt/KTX2; each material has one sampler.
+* glTF: one UV set, no `KHR_texture_transform`; each material has one sampler. Draco / meshopt / KTX2 decode on the main thread.
 * Works within WebGPU's default limit of 8 storage buffers per shader stage (the vertex stage uses 6). All meshes share one deform buffer, so the total skin + morph data is capped by the device's `maxStorageBufferBindingSize` (128 MB on the default limit).
 
 ---

@@ -27,7 +27,7 @@ export const Ext = {
 } as const;
 
 /** Which optional textures a material has (they select shader variants). */
-export interface TexPresence { normal: boolean; height: boolean; alpha: boolean; aux: boolean; }
+export interface TexPresence { normal: boolean; height: boolean; alpha: boolean; aux: boolean; baseColor?: boolean; metalRough?: boolean; occlusion?: boolean; emissive?: boolean; }
 
 const any3 = (c: ArrayLike<number> | undefined): boolean => !!c && (c[0] > 0 || c[1] > 0 || c[2] > 0);
 
@@ -39,6 +39,10 @@ export function pbrFeatureMask(d: PBRMaterialDesc, tex: TexPresence, hasEnvironm
   const shading = d.shading ?? 'pbr';
   const alphaMode = d.alphaMode ?? (tex.alpha ? 'BLEND' : 'OPAQUE');
   let f = 0;
+  if (tex.baseColor) f |= MaterialFeature.BaseColorMap;
+  if (tex.metalRough) f |= MaterialFeature.MetalRoughMap;
+  if (tex.occlusion) f |= MaterialFeature.OcclusionMap;
+  if (tex.emissive) f |= MaterialFeature.EmissiveMap;
   if (alphaMode === 'MASK') f |= MaterialFeature.AlphaMask;
   if (alphaMode === 'BLEND') f |= MaterialFeature.AlphaBlend;
   if (tex.normal) f |= MaterialFeature.NormalMap;

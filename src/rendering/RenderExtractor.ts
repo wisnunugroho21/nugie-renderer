@@ -82,11 +82,16 @@ export class RenderExtractor {
     // 3b. Per-frame light-weight fields (incl. skeleton joint range / morph pair range).
     let states = 0, targets = 0;
     let staticMembershipChanged = false;
+    let drawsChanged = this.added + this.removed > 0;
+    rw.hasLOD = false;
     for (let s = 0; s < rw.count; s++) {
       const e = rw.entityIndex[s];
       if (((rw.flags[s] ^ mr.flags[e]) & RenderFlags.Static) !== 0) staticMembershipChanged = true;
+      const oldMesh = rw.meshId[s], oldMaterial = rw.materialId[s], oldFlags = rw.flags[s], oldLOD = rw.lodGroup[s];
+      const oldJointOffset = rw.jointOffset[s], oldJointCount = rw.jointCount[s], oldMorphOffset = rw.morphOffset[s], oldMorphCount = rw.morphCount[s];
       rw.meshId[s] = mr.meshId[e]; rw.materialId[s] = mr.materialId[e]; rw.flags[s] = mr.flags[e];
       rw.lodGroup[s] = lods.has.has(e) ? lods.group[e] : -1;
+      if (rw.lodGroup[s] >= 0) rw.hasLOD = true;
       const so = mr.skinOwner[e], inst = so >= 0 ? skins.get(so) : undefined;
       if (inst) { rw.skinInstanceId[s] = inst.id; rw.jointOffset[s] = inst.jointOffset; rw.jointCount[s] = inst.jointCount; }
       else { rw.skinInstanceId[s] = -1; rw.jointOffset[s] = 0; rw.jointCount[s] = 0; }
@@ -95,6 +100,8 @@ export class RenderExtractor {
         rw.morphStateId[s] = mo; rw.morphOffset[s] = morphs.weightOffset[mo] * 2; rw.morphCount[s] = morphs.activeCount[mo];
         states++; targets += rw.morphCount[s];
       } else { rw.morphStateId[s] = -1; rw.morphOffset[s] = 0; rw.morphCount[s] = 0; }
+      if (oldMesh !== rw.meshId[s] || oldMaterial !== rw.materialId[s] || oldFlags !== rw.flags[s] || oldLOD !== rw.lodGroup[s]
+        || oldJointOffset !== rw.jointOffset[s] || oldJointCount !== rw.jointCount[s] || oldMorphOffset !== rw.morphOffset[s] || oldMorphCount !== rw.morphCount[s]) drawsChanged = true;
     }
     mw.activeStates = states; mw.activeTargets = targets;
 
@@ -135,6 +142,10 @@ export class RenderExtractor {
     if (camIdx >= 0 && cams.has.has(camIdx) && t.has.has(camIdx)) {
       rw.hasCamera = rw.camera.setFromWorldMatrix(t.worldMatrices, camIdx * 16, cams.fovY[camIdx], aspect, cams.near[camIdx], cams.far[camIdx]);
     }
+    if (rw.drawVersion < 0) rw.drawVersion = 0;
+    if (rw.transformVersion < 0) rw.transformVersion = 0;
+    if (drawsChanged) rw.drawVersion++;
+    if (this.matricesCopied > 0 || this.removed > 0) rw.transformVersion++;
     rw.structureVersion += this.added + this.removed > 0 || staticMembershipChanged ? 1 : 0;
   }
 

@@ -35,10 +35,11 @@ npm run dev        # http://localhost:5173/
 
 | Page | What it is |
 |---|---|
-| `/` (`?scene=materials`) | Demo launcher. Other scenes: `gltf`, `character`, `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph` (animation graph: state machine, blend tree, layers), `rtt` (render-to-texture: mirror, minimap, security camera, reflection probe), `shapes` (primitives, groups, instancing, lines, points, sprites, text), `gallery` (materials: shading models, bump / parallax / displacement, clearcoat, sheen, glass, iridescence, anisotropy ...) |
+| `/` (`?scene=materials`) | Demo launcher. Other scenes: `gltf`, `character`, `fox` (Khronos Fox glTF loaded from the network, skinned animation; `?clip=Run`, keys 1-3 switch clips), `particles`, `lod`, `lights`, `occlusion`, `streaming`, `animgraph` (animation graph: state machine, blend tree, layers), `rtt` (render-to-texture: mirror, minimap, security camera, reflection probe), `shapes` (primitives, groups, instancing, lines, points, sprites, text), `gallery` (materials: shading models, bump / parallax / displacement, clearcoat, sheen, glass, iridescence, anisotropy ...) |
 | `/game.html` | **Starter game** (move a cube with WASD) — the template to copy for your own game, see [`src/game/main.ts`](src/game/main.ts) |
 | `/selftest.html` | GPU self-tests: shaders, lighting, shadows, fog, particles compared with CPU reference implementations |
 | `/bench.html?suite=lights\|cull\|passes\|anim` | GPU benchmarks (default suite: draw submission) |
+| `/bench-three.html?scenario=objects\|lights` | Identical-scene comparison with Three.js `WebGPURenderer` (tuned batching / clustered lighting, pixel diff, GPU hardware recorded; `&n=`, `&frames=`, `&rounds=`, `&only=`); results and method in [`docs/BENCHMARK_THREEJS.md`](docs/BENCHMARK_THREEJS.md) |
 
 Demo URL switches: `env=sky`, `hdr=<url>`, `envI=<intensity>`, `sky=0`, `fog=<density>`, `mode=unsorted|sorted|instanced`, `cluster=0`,
 `prepass=1`, `cull=none|linear|bvh`, `ssao=1`, `ssr=1`, `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=aces|neutral|reinhard|none`, `exposure=<x>`, `gpucull=frustum|hiz2`, `gpulod=1`, `warmup=1`; plus scene options such as `n=<count>`
@@ -127,7 +128,7 @@ src/
   ecs/              World, entities, component stores (components/), per-frame systems (systems/)
   rendering/        Renderer, render extraction, queues + batching, materials/, lighting/ (clusters, IBL, fog), shadows/, GPU culling
   gpu/              Thin managers over WebGPU: buffers, textures, samplers, shaders (#include + feature defines), pipeline + bind-group caches
-  assets/           glTF/GLB loading + instantiation (gltf/), texture loading, Radiance .hdr
+  assets/           glTF/GLB loading + instantiation (gltf/), texture loading, Radiance .hdr, Draco / meshopt / KTX2 (Basis) decoding (codecs/, vendor/)
   animation/        Clips, animator, graph/ (state machines, blend trees, layers), ik/, motionmatching/, root motion
   particles/        GPU particle pools and ribbons
   geometry/         Mesh optimiser, simplifier, automatic LOD chains, meshlets
@@ -160,5 +161,9 @@ The [review and benchmark report](docs/CODE_REVIEW.md) records the verified fixe
 ## Limitations
 
 See [PROGRESS.md](PROGRESS.md#deferred--known-limitations) for the full list. Highlights: no built-in input / physics / audio / UI; glTF
-supports one UV set and no Draco / meshopt / KTX2; transparent objects and particles are not fogged; GPU culling covers opaque and
+supports one UV set and no `KHR_texture_transform`; transparent objects and particles are not fogged; GPU culling covers opaque and
 alpha-masked batches.
+
+Static-scene optimization results and reproduction: [performance report](docs/STATIC_SCENE_PERFORMANCE.md).
+
+Completion latency follow-up: [matched GPU benchmark results](docs/STATIC_SCENE_LATENCY.md).

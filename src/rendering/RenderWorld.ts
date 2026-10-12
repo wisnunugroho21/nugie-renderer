@@ -58,6 +58,18 @@ export class RenderWorld {
 
   /** Bumped whenever the object set changes (add/remove): lets caches rebuild. */
   structureVersion = 0;
+  /** Extraction-owned revisions. -1 means untracked arrays: retained draw/upload optimizations are disabled. */
+  drawVersion = -1;
+  transformVersion = -1;
+  /** LOD selection mutates mesh ids after extraction; those draws use the ordinary preparation path. */
+  hasLOD = false;
+
+  /** Before editing an extracted snapshot directly, disable retention and request a full transform upload. ECS users need no manual invalidation. */
+  invalidate(): void {
+    this.drawVersion = this.transformVersion = -1;
+    this.changedSlots.length = 0;
+    for (let i = 0; i < this.count; i++) this.changedSlots.push(i);
+  }
   /** Slots whose transform was refreshed by the last extraction (sparse GPU upload). */
   changedSlots: number[] = [];
 

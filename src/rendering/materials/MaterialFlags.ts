@@ -38,6 +38,11 @@ export const MaterialFeature = {
   ModelMatcap: 1 << 23,
   /** Toon shading reads its light ramp from the aux texture (otherwise `toonSteps` flat bands). */
   ToonRamp: 1 << 24,
+  /** Skip white placeholder texture samples when these maps are absent. */
+  BaseColorMap: 1 << 25,
+  MetalRoughMap: 1 << 26,
+  OcclusionMap: 1 << 27,
+  EmissiveMap: 1 << 28,
 } as const;
 
 /** Every define a PBR variant sets (always all, so shaders can use `if NAME {}` unconditionally). */
@@ -46,6 +51,10 @@ export function featureDefines(mask: number): Record<string, boolean> {
   return {
     ALPHA_MASK: has(MaterialFeature.AlphaMask),
     ALPHA_BLEND: has(MaterialFeature.AlphaBlend),
+    HAS_BASE_COLOR_MAP: has(MaterialFeature.BaseColorMap),
+    HAS_METAL_ROUGH_MAP: has(MaterialFeature.MetalRoughMap),
+    HAS_OCCLUSION_MAP: has(MaterialFeature.OcclusionMap),
+    HAS_EMISSIVE_MAP: has(MaterialFeature.EmissiveMap),
     HAS_NORMAL_MAP: has(MaterialFeature.NormalMap),
     HAS_SKINNING: has(MaterialFeature.Skinning),
     HAS_MORPH_TARGETS: has(MaterialFeature.MorphTargets),
