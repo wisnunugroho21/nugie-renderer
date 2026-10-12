@@ -6,10 +6,10 @@
 // a = (1/srcWidth, 1/srcHeight, threshold, soft knee)
 fn threshold(c: vec3<f32>) -> vec3<f32> {
   let br = max(c.r, max(c.g, c.b));
-  let k = max(P.a.w, 1e-4);
-  var soft = clamp(br - P.a.z + k, 0.0, 2.0 * k);
+  let k = max(P().a.w, 1e-4);
+  var soft = clamp(br - P().a.z + k, 0.0, 2.0 * k);
   soft = soft * soft / (4.0 * k);
-  let contrib = max(soft, br - P.a.z) / max(br, 1e-5);
+  let contrib = max(soft, br - P().a.z) / max(br, 1e-5);
   return c * contrib;
 }
 
@@ -26,7 +26,7 @@ fn tap13(uv: vec2<f32>, t: vec2<f32>) -> array<vec3<f32>, 13> {
 // First pass: threshold each tap, then a Karis-weighted 13-tap downsample (suppresses single-pixel fireflies).
 @fragment
 fn fs_prefilter(in: VOut) -> @location(0) vec4<f32> {
-  var s = tap13(in.uv, P.a.xy);
+  var s = tap13(in.uv, P().a.xy);
   for (var i = 0; i < 13; i++) { s[i] = threshold(s[i]); }
   let g0 = (s[3] + s[4] + s[8] + s[9]) * 0.25;
   let g1 = (s[0] + s[1] + s[5] + s[6]) * 0.25;
@@ -44,7 +44,7 @@ fn fs_prefilter(in: VOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_down(in: VOut) -> @location(0) vec4<f32> {
-  let s = tap13(in.uv, P.a.xy);
+  let s = tap13(in.uv, P().a.xy);
   let c = (s[3] + s[4] + s[8] + s[9]) * 0.125
         + (s[0] + s[1] + s[5] + s[6]) * 0.03125 + (s[1] + s[2] + s[6] + s[7]) * 0.03125
         + (s[5] + s[6] + s[10] + s[11]) * 0.03125 + (s[6] + s[7] + s[11] + s[12]) * 0.03125;
@@ -54,7 +54,7 @@ fn fs_down(in: VOut) -> @location(0) vec4<f32> {
 // 3x3 tent filter; the pipeline blends it additively onto the next larger level. a.xy = source texel size * radius.
 @fragment
 fn fs_up(in: VOut) -> @location(0) vec4<f32> {
-  let t = P.a.xy;
+  let t = P().a.xy;
   let uv = in.uv;
   let c = src(uv) * 4.0
         + (src(uv + vec2<f32>(0.0, t.y)) + src(uv - vec2<f32>(0.0, t.y)) + src(uv + vec2<f32>(t.x, 0.0)) + src(uv - vec2<f32>(t.x, 0.0))) * 2.0
@@ -103,24 +103,24 @@ fn hash12(p: vec2<f32>) -> f32 {
 fn fs_composite(in: VOut) -> @location(0) vec4<f32> {
   let px = vec2<i32>(in.pos.xy);
   var c = textureLoad(texA, px, 0).rgb;
-  if (P.d.y > 0.5) { c *= textureLoad(texD, px, 0).r; }                          // SSAO (blurred occlusion)
-  if (P.d.z > 0.5) { let r = textureLoad(texC, px, 0); c = mix(c, r.rgb, r.a); }   // SSR (reflected radiance, weight)
-  if (P.c.z > 0.5) { c += textureSampleLevel(texB, samp, in.uv, 0.0).rgb * P.b.y; }
-  c = tonemap(c * P.b.x, u32(P.c.y));
+  if (P().d.y > 0.5) { c *= textureLoad(texD, px, 0).r; }                          // SSAO (blurred occlusion)
+  if (P().d.z > 0.5) { let r = textureLoad(texC, px, 0); c = mix(c, r.rgb, r.a); }   // SSR (reflected radiance, weight)
+  if (P().c.z > 0.5) { c += textureSampleLevel(texB, texA_sampler, in.uv, 0.0).rgb * P().b.y; }
+  c = tonemap(c * P().b.x, u32(P().c.y));
   var s = linearToSrgb(c);
   // grading in display space
-  s = mix(vec3<f32>(dot(s, vec3<f32>(0.299, 0.587, 0.114))), s, P.b.w);
-  s = (s - vec3<f32>(0.5)) * P.c.x + vec3<f32>(0.5);
-  let d = length((in.uv - vec2<f32>(0.5)) * vec2<f32>(P.d.x, 1.0)) * 1.4142;   // 0 at the centre, ~1 towards the corners
-  s *= 1.0 - P.b.z * smoothstep(0.45, 1.05, d);
-  s += (hash12(in.pos.xy) - 0.5) * P.c.w;                                       // 1-LSB dither hides banding in dark gradients
+  s = mix(vec3<f32>(dot(s, vec3<f32>(0.299, 0.587, 0.114))), s, P().b.w);
+  s = (s - vec3<f32>(0.5)) * P().c.x + vec3<f32>(0.5);
+  let d = length((in.uv - vec2<f32>(0.5)) * vec2<f32>(P().d.x, 1.0)) * 1.4142;   // 0 at the centre, ~1 towards the corners
+  s *= 1.0 - P().b.z * smoothstep(0.45, 1.05, d);
+  s += (hash12(in.pos.xy) - 0.5) * P().c.w;                                       // 1-LSB dither hides banding in dark gradients
   return vec4<f32>(clamp(s, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
 }
 
 // ---- FXAA (Lottes' compact variant), expects display-referred (sRGB) input --------------------------------------------------------
 @fragment
 fn fs_fxaa(in: VOut) -> @location(0) vec4<f32> {
-  let t = P.a.xy;
+  let t = P().a.xy;
   let uv = in.uv;
   let rgbM = src(uv);
   let rgbNW = src(uv + vec2<f32>(-1.0, -1.0) * t);

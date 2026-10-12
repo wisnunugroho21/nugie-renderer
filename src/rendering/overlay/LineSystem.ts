@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from '../graph/TrackedRenderPass';
 import type { GPUContext } from '../../gpu/GPUContext';
 import type { BindLayouts } from '../../gpu/BindLayouts';
 import { LINES_SOURCE, registerEngineShaderChunks } from '../../shaders';
@@ -128,7 +129,7 @@ export class LineSystem extends OverlaySystem {
     if (this.dirty) { this.store.upload(this.n); this.dirty = false; }
   }
 
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void {
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void {
     if (!this.visible || this.n === 0) return;
     if (!this.bindGroup || this.bindGen !== this.store.generation) {
       this.bindGroup = this.gpu.device.createBindGroup({ label: 'lines', layout: this.layout, entries: [

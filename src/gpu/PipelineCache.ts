@@ -34,7 +34,6 @@ export function pipelineKeyString(k: PipelineKey): string {
  */
 export class PipelineCache {
   private render = new Map<string, GPURenderPipeline>();
-  private compute = new Map<string, GPUComputePipeline>();
   private priming = new Map<string, Promise<void>>();
   private frozen = false;
   private warned = false;
@@ -70,11 +69,6 @@ export class PipelineCache {
     try { await task; } finally { this.priming.delete(k); }
   }
 
-  /** Return the compute pipeline stored under the string `key`, creating it on a miss. */
-  getCompute(key: string, create: () => GPUComputePipeline): GPUComputePipeline {
-    return this.lookup(this.compute, key, create);
-  }
-
   /** Shared hit / miss logic for both pipeline maps, including the post-freeze violation accounting. */
   private lookup<T>(map: Map<string, T>, key: string, create: () => T): T {
     const hit = map.get(key);
@@ -90,6 +84,6 @@ export class PipelineCache {
     return p;
   }
 
-  /** Total cached pipelines (render + compute). */
-  get size(): number { return this.render.size + this.compute.size; }
+  /** Total cached pipelines. */
+  get size(): number { return this.render.size; }
 }

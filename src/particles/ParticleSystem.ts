@@ -1,5 +1,7 @@
+import { readBuffer } from '../rendering/graph/Readback';
+import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
-import type { RenderGraph } from '../rendering/RenderGraph';
+import type { FrameBuilder } from '../rendering/graph/FrameGraph';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { MeshManager } from '../rendering/MeshManager';
@@ -10,6 +12,9 @@ import simSource from '../shaders/particles_sim.wgsl?raw';
 import billboardSource from '../shaders/particles_billboard.wgsl?raw';
 import meshSource from '../shaders/particles_mesh.wgsl?raw';
 import { EMITTER_BYTES, EMITTER_FLOATS, EmitterRuntime, packEmitter, type EmitterConfig } from './EmitterConfig';
+import { technique } from '../rendering/graph/TechniqueBuilder';
+import { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
+import type { Technique } from '../rendering/graph/TechniqueTypes';
 
 export type BillboardOrientation = 'screen' | 'camera' | 'worldUp' | 'point';
 const ORIENTATION_ID: Record<BillboardOrientation, number> = { screen: 0, camera: 1, worldUp: 2, point: 3 };
@@ -28,7 +33,6 @@ export interface ParticlePoolConfig {
 export interface ParticleCounters { alive: number; dead: number; spawned: number; rejected: number; }
 
 const WORKGROUP = 64;
-const PARAM_BYTES = 48;
 const ARGS_BYTES = 64;       // draw @0 (16 B), drawIndexed @16 (20 B), dispatch @48 (12 B)
 const ARGS_DRAW = 0, ARGS_DRAW_INDEXED = 16, ARGS_DISPATCH = 48;
 
@@ -44,10 +48,7 @@ export class ParticlePool {
   // GPU
   readonly particles: GPUBuffer; readonly aliveA: GPUBuffer; readonly aliveB: GPUBuffer; readonly deadList: GPUBuffer;
   readonly counters: GPUBuffer; readonly emitterBuf: GPUBuffer; readonly requestBuf: GPUBuffer; readonly args: GPUBuffer;
-  readonly params: GPUBuffer; readonly renderParams: GPUBuffer;
-  simBG!: GPUBindGroup;
-  /** Bind group for the finalize kernel only: it alone gets the REAL args buffer as writable storage. */
-  finalizeBG!: GPUBindGroup;
+  readonly renderParams: GPUBuffer;
   renderBG!: GPUBindGroup;
   pipeline!: GPURenderPipeline;
   /** Re-resolve `pipeline` for the system's current colour / depth target (after MSAA or HDR changes). */
@@ -56,12 +57,15 @@ export class ParticlePool {
   cur = 0;
   frame = 0;
   renderList = 0;
-  private spawnTotal = 0;
   private packed: Float32Array;
   private requestData: Uint32Array;
-  private paramData = new ArrayBuffer(PARAM_BYTES);
-  private paramU32: Uint32Array;
-  private paramF32: Float32Array;
+  /** The values the simulation kernels read as variables, set by `update` and handed to the technique by `encodeCompute`. */
+  private sim = { dt: 0, time: 0, frame: 0, cur: 0, maxCount: 0, spawnTotal: 0, requestCount: 0, meshIndexCount: 0, meshFirstIndex: 0, meshBaseVertex: 0 };
+  /** reset -> simulate -> emit -> finalize as a technique (built on first use), and a standalone instance of it for `encodeCompute`. */
+  private tech: Technique | null = null;
+  private computeFx: TechniqueInstance | null = null;
+  /** Stands in for `args` in the kernels that only read it as an indirect dispatch: a buffer cannot be INDIRECT and writable storage in one scope. */
+  private argsDummy!: GPUBuffer;
 
   /** Allocate the pool's GPU buffers (particle state, ping-pong alive lists, dead stack, counters, emitters, spawn requests, indirect args) sized for `config.maxCount`. */
   constructor(readonly system: ParticleSystem, readonly config: ParticlePoolConfig, readonly id: number) {
@@ -78,14 +82,12 @@ export class ParticlePool {
     this.emitterBuf = res.buffers.create(`${label}:EmitterBuffer`, this.maxEmitters * EMITTER_BYTES, S | D);
     this.requestBuf = res.buffers.create(`${label}:ParticleSpawnBuffer`, this.maxEmitters * 16, S | D);
     this.args = res.buffers.create(`${label}:ParticleIndirectArgsBuffer`, ARGS_BYTES, S | D | C | GPUBufferUsage.INDIRECT);
-    this.params = res.buffers.create(`${label}:SimParams`, PARAM_BYTES, GPUBufferUsage.UNIFORM | D);
     this.renderParams = res.buffers.create(`${label}:RenderParams`, 32, GPUBufferUsage.UNIFORM | D);
 
     this.packed = new Float32Array(this.maxEmitters * EMITTER_FLOATS);
     this.emitterWorld = new Float32Array(this.maxEmitters * 16);
     for (let i = 0; i < this.maxEmitters; i++) { this.emitterWorld[i * 16] = this.emitterWorld[i * 16 + 5] = this.emitterWorld[i * 16 + 10] = this.emitterWorld[i * 16 + 15] = 1; }
     this.requestData = new Uint32Array(this.maxEmitters * 4);
-    this.paramU32 = new Uint32Array(this.paramData); this.paramF32 = new Float32Array(this.paramData);
 
     // dead list = [0 .. N-1] (a stack), counters = {alive A, alive B, dead = N, spawned, rejected}
     const dead = new Uint32Array(N); for (let i = 0; i < N; i++) dead[i] = i;
@@ -93,18 +95,56 @@ export class ParticlePool {
     device.queue.writeBuffer(this.counters, 0, new Uint32Array([0, 0, N, 0, 0, 0, 0, 0]));
     device.queue.writeBuffer(this.args, 0, new Uint32Array(ARGS_BYTES / 4)); // dispatch (0,0,0): nothing to simulate yet
 
-    // A buffer cannot be INDIRECT and writable storage in the same synchronization scope. simulate/emit never touch the
-    // args, so they bind a dummy at slot 8; only finalize (which writes the args) gets the real buffer.
-    const dummy = res.buffers.create(`${label}:ArgsDummy`, 64, S);
-    /** Create the simulation bind group, using `args` as the indirect-args binding. */
-    const make = (args: GPUBuffer, tag: string) => device.createBindGroup({
-      label: `${label}:${tag}`, layout: system.simLayout,
-      entries: [this.params, this.emitterBuf, this.particles, this.aliveA, this.aliveB, this.deadList, this.counters, this.requestBuf, args]
-        .map((buffer, binding) => ({ binding, resource: { buffer } })),
-    });
-    this.simBG = make(dummy, 'sim');
-    this.finalizeBG = make(this.args, 'finalize');
+    this.argsDummy = res.buffers.create(`${label}:ArgsDummy`, 64, S);
   }
+
+  /** The four kernels as compute nodes of a technique, over the pool's buffers (imported). */
+  private computeTechnique(): Technique {
+    if (this.tech) return this.tech;
+    const g = technique(`particles:${this.config.name ?? this.id}`);
+    g.float('dt'); g.float('time');
+    for (const v of ['frame', 'cur', 'maxCount', 'spawnTotal', 'requestCount', 'meshIndexCount', 'meshFirstIndex', 'meshBaseVertex']) g.uint(v);
+    const buf = (name: string, element: string, stride?: number) => g.importedBuffer(name, element, stride);
+    const emitters = buf('emitters', 'Emitter', EMITTER_BYTES), requests = buf('requests', 'vec4<u32>');
+    const particles = buf('particles', 'Particle', 64), aliveA = buf('aliveA', 'u32'), aliveB = buf('aliveB', 'u32'), deadList = buf('deadList', 'u32');
+    const counters = buf('counters', 'atomic<u32>', 4), args = buf('args', 'u32'), argsDummy = buf('argsDummy', 'u32');
+    /** One kernel: every node binds the same module-scope declarations; only `finalize` gets the real args as writable storage. */
+    const kernel = (entry: string, workgroup: number, threads: Parameters<typeof g.compute>[1]['dispatch'], realArgs = false) => g.compute(entry, {
+      shader: simSource, entryPoint: entry, workgroupSize: [workgroup], dispatch: threads,
+      reads: [emitters, requests],
+      writes: [particles, aliveA, aliveB, deadList, { resource: realArgs ? args : argsDummy, name: 'args' }], readWrites: [counters],
+    });
+    kernel('reset', 1, { threads: [1] });
+    kernel('simulate', WORKGROUP, { indirect: args, offset: ARGS_DISPATCH });
+    kernel('emit', WORKGROUP, { threads: [g.variableNamed('spawnTotal')] });
+    kernel('finalize', 1, { threads: [1] }, true);
+    return (this.tech = g.build());
+  }
+
+  /** The pool's buffers by the technique's names for them. */
+  private buffers(): Record<string, GPUBuffer> {
+    return {
+      emitters: this.emitterBuf, requests: this.requestBuf, particles: this.particles, aliveA: this.aliveA, aliveB: this.aliveB, deadList: this.deadList,
+      counters: this.counters, args: this.args, argsDummy: this.argsDummy,
+    };
+  }
+
+  private computeInstance(): TechniqueInstance {
+    return this.computeFx ??= TechniqueInstance.create(this.system.gpu, this.computeTechnique(), { label: `particles:${this.config.name ?? this.id}`, imports: this.buffers() });
+  }
+
+  /** Add the pool's simulation to the frame: the four kernels join the frame's graph, working on the pool's buffers, ahead of the draw that reads them. */
+  addToFrame(g: FrameBuilder): void {
+    const node = `particles:${this.id}`;
+    g.include(node, this.computeTechnique(), {
+      imports: this.buffers(), variables: this.sim,
+      publish: ['particles', 'aliveA', 'aliveB', 'args'].map((name) => `${node}/${name}`),
+    });
+    this.afterCompute();
+  }
+
+  /** Free the pool's simulation technique (the pool's own buffers stay with the pool). */
+  disposeCompute(): void { this.computeFx?.dispose(); this.computeFx = null; }
 
   /** Add an emitter (returns its index inside the pool). */
   addEmitter(config: EmitterConfig): number {
@@ -129,7 +169,6 @@ export class ParticlePool {
       this.requestData.set([e, take, total, 0], count * 4);
       total += take; count++;
     }
-    this.spawnTotal = total;
     this.spawnedThisFrame = total; this.requestedThisFrame = requested;
 
     for (let e = 0; e < this.emitters.length; e++) packEmitter(this.emitters[e].source, this.emitterWorld.subarray(e * 16, e * 16 + 16), this.packed, e * EMITTER_FLOATS);
@@ -137,24 +176,23 @@ export class ParticlePool {
     if (count) device.queue.writeBuffer(this.requestBuf, 0, this.requestData.buffer, 0, count * 16);
 
     const mesh = this.config.mesh ? this.system.meshes.get(this.config.mesh.meshId) : null;
-    this.paramF32[0] = dt; this.paramF32[1] = time;
-    this.paramU32[2] = this.frame; this.paramU32[3] = this.cur; this.paramU32[4] = this.config.maxCount; this.paramU32[5] = total; this.paramU32[6] = count;
-    this.paramU32[7] = mesh ? mesh.indexCount : 0; this.paramU32[8] = mesh ? mesh.firstIndex : 0; this.paramU32[9] = mesh ? mesh.baseVertex : 0;
-    device.queue.writeBuffer(this.params, 0, this.paramData);
+    Object.assign(this.sim, {
+      dt, time, frame: this.frame, cur: this.cur, maxCount: this.config.maxCount, spawnTotal: total, requestCount: count,
+      meshIndexCount: mesh ? mesh.indexCount : 0, meshFirstIndex: mesh ? mesh.firstIndex : 0, meshBaseVertex: mesh ? mesh.baseVertex : 0,
+    });
   }
 
   /** Record this pool's compute kernels (reset -> simulate -> emit -> finalize) and flip the ping-pong lists. */
   encodeCompute(enc: GPUCommandEncoder): void {
-    const sys = this.system;
-    const pass = enc.beginComputePass({ label: `particles:${this.config.name ?? this.id}` });
-    pass.setBindGroup(0, this.simBG);
-    pass.setPipeline(sys.kernel('reset')); pass.dispatchWorkgroups(1);
-    pass.setPipeline(sys.kernel('simulate')); pass.dispatchWorkgroupsIndirect(this.args, ARGS_DISPATCH);
-    if (this.spawnTotal > 0) { pass.setPipeline(sys.kernel('emit')); pass.dispatchWorkgroups(Math.ceil(this.spawnTotal / WORKGROUP)); }
-    pass.setBindGroup(0, this.finalizeBG);
-    pass.setPipeline(sys.kernel('finalize')); pass.dispatchWorkgroups(1);
-    pass.end();
+    const fx = this.computeInstance();
+    for (const [name, value] of Object.entries(this.sim)) fx.setVariable(name, value);
+    fx.execute(enc);                                   // a spawn count of 0 dispatches no emit workgroups
+    this.afterCompute();
+  }
 
+  /** Once the frame's simulation is recorded: choose the list to draw, upload the render parameters, flip the ping-pong lists. */
+  private afterCompute(): void {
+    const sys = this.system;
     // survivors of this frame live in the NEXT list: that is what renders; it becomes `cur` for the next frame
     this.renderList = 1 - this.cur;
     const bb = this.config.billboard;
@@ -166,7 +204,7 @@ export class ParticlePool {
   }
 
   /** Record the indirect draw (alive count never leaves the GPU). */
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void {
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, frameBG);
     pass.setBindGroup(1, this.renderBG);
@@ -179,54 +217,29 @@ export class ParticlePool {
 
   /** DEBUG ONLY (stalls the GPU): read the live counters back. Never call from the frame loop. */
   async readCounters(): Promise<ParticleCounters> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: 32, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.counters, 0, rb, 0, 32); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
+    const u = new Uint32Array(await readBuffer(this.system.gpu.device, this.counters, 32));
     // alive[cur-from-last-frame...]: after encodeCompute, `renderList` holds this frame's survivors
     return { alive: u[this.renderList], dead: u[2], spawned: u[3], rejected: u[4] };
   }
 
   /** DEBUG ONLY: read `count` particle structs (16 floats each) back. */
   async readParticles(count: number): Promise<Float32Array> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: count * 64, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.particles, 0, rb, 0, count * 64); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const f = new Float32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return f;
+    return new Float32Array(await readBuffer(this.system.gpu.device, this.particles, count * 64));
   }
 
   /** DEBUG ONLY: read the first `count` entries of the dead-index stack. */
   async readDeadIndices(count: number): Promise<Uint32Array> {
-    const { device } = this.system.gpu;
-    const size = Math.max(4, count * 4);
-    const rb = device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.deadList, 0, rb, 0, size); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return u;
+    return new Uint32Array(await readBuffer(this.system.gpu.device, this.deadList, Math.max(4, count * 4)));
   }
 
   /** DEBUG ONLY: read the indirect argument buffer (16 u32). */
   async readArgs(): Promise<Uint32Array> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: ARGS_BYTES, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.args, 0, rb, 0, ARGS_BYTES); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return u;
+    return new Uint32Array(await readBuffer(this.system.gpu.device, this.args, ARGS_BYTES));
   }
 
   /** DEBUG ONLY: read the alive list of the current render list. */
   async readAliveIndices(count: number): Promise<Uint32Array> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: Math.max(4, count * 4), usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.renderList === 0 ? this.aliveA : this.aliveB, 0, rb, 0, Math.max(4, count * 4)); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return u;
+    return new Uint32Array(await readBuffer(this.system.gpu.device, this.renderList === 0 ? this.aliveA : this.aliveB, Math.max(4, count * 4)));
   }
 }
 
@@ -239,40 +252,12 @@ export class ParticlePool {
 export class ParticleSystem implements RenderFeature {
   readonly name = 'particles';
   order = FeatureOrder.particles;
-  readonly produces = ['particles'];
   readonly pools: ParticlePool[] = [];
-  readonly simLayout: GPUBindGroupLayout;
   private spriteDefault: TextureRef | null = null;
 
-  /** Create the system and the shared bind-group layout of the simulation kernels; pipelines are created per pool. */
+  /** Create the system; every pool brings its own simulation technique. */
   constructor(readonly gpu: GPUContext, readonly layouts: BindLayouts, readonly meshes: MeshManager, readonly target: { colorFormat: GPUTextureFormat; depthFormat: GPUTextureFormat; sampleCount: number }) {
-    const { device, resources: res } = gpu;
-    registerEngineShaderChunks(res.shaders);
-    const C = GPUShaderStage.COMPUTE;
-    const entries: GPUBindGroupLayoutEntry[] = [
-      { binding: 0, visibility: C, buffer: { type: 'uniform' } },
-      { binding: 1, visibility: C, buffer: { type: 'read-only-storage' } },
-      { binding: 2, visibility: C, buffer: { type: 'storage' } },
-      { binding: 3, visibility: C, buffer: { type: 'storage' } },
-      { binding: 4, visibility: C, buffer: { type: 'storage' } },
-      { binding: 5, visibility: C, buffer: { type: 'storage' } },
-      { binding: 6, visibility: C, buffer: { type: 'storage' } },
-      { binding: 7, visibility: C, buffer: { type: 'read-only-storage' } },
-      { binding: 8, visibility: C, buffer: { type: 'storage' } },
-    ];
-    this.simLayout = device.createBindGroupLayout({ label: 'particles-sim-layout', entries });
-  }
-
-  /** Cached compute pipeline for one kernel entry point (created once; never per frame). */
-  kernel(entry: 'reset' | 'simulate' | 'emit' | 'finalize'): GPUComputePipeline {
-    const { device, resources: res } = this.gpu;
-    return res.pipelines.getCompute(`particles-sim:${entry}`, () => {
-      const module = res.shaders.get('particles-sim', simSource);
-      return device.createComputePipeline({
-        label: `particles-sim:${entry}`, compute: { module, entryPoint: entry },
-        layout: device.createPipelineLayout({ bindGroupLayouts: [this.simLayout] }),
-      });
-    });
+    registerEngineShaderChunks(gpu.resources.shaders);
   }
 
   /** 1x1-ish soft white disc (radial falloff) used when a pool has no texture. */
@@ -347,18 +332,21 @@ export class ParticleSystem implements RenderFeature {
 
   // ---- RenderFeature hooks ----
 
-  /** Emit / simulate / compact in a compute pass, before any draw reads the particles. */
-  addPasses(g: RenderGraph): void { g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.encodeCompute(e) }); }
+  /** Emit / simulate / compact: each pool's kernels join the frame's graph, before any draw reads the particles. */
+  addPasses(g: FrameBuilder): void { for (const p of this.pools) p.addToFrame(g); }
+
+  /** Free every pool's simulation pass. */
+  dispose(): void { for (const p of this.pools) p.disposeCompute(); }
 
   /** One indirect draw per pool, after the scene. */
-  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { if (this.pools.length) this.encodeDraw(pass, f.frameBindGroup); }
+  drawMain(pass: TrackedRenderPass, f: FeatureFrame): void { if (this.pools.length) this.encodeDraw(pass, f.frameBindGroup); }
 
   /** CPU step for all pools (decide how many particles each emitter spawns this frame, upload emitter data). */
   update(dt: number, time: number): void { for (const p of this.pools) p.update(dt, time); }
   /** Record every pool's emit / simulate / compact compute passes. */
   encodeCompute(enc: GPUCommandEncoder): void { for (const p of this.pools) p.encodeCompute(enc); }
   /** Record every pool's indirect draw into the main render pass. */
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void { for (const p of this.pools) p.encodeDraw(pass, frameBG); }
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void { for (const p of this.pools) p.encodeDraw(pass, frameBG); }
 
   /** The shared target changed (MSAA / HDR): re-resolve every pool's render pipeline. */
   retarget(): void { for (const p of this.pools) p.rebuildPipeline(); }

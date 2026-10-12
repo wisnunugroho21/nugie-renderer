@@ -253,6 +253,73 @@ Particles use additive/alpha blending in display space until the HDR post-proces
 so stateful sources (motion matching) can sit inside states/blend trees. `AnimationSystem` writes only changed nodes into the ECS.
 Conventions: character forward = +Z; IK/look-at targets are in the owner entity's MODEL space (`AnimationSystem.worldToModel`).
 
+## Render graph as data, Gigi style (October 2026)
+
+* `src/rendering/graph/`: a technique schema modelled on EA SEED's Gigi (resources with type / size / lifetime / visibility, typed variables, compute / draw / copy / sub-graph / callback nodes),
+  a flattener (sub-graph inlining, loop unrolling, variable binding), a compiler (size resolution, validation, dependencies, culling, stable or transition-minimising order, lifetimes, transient
+  memory aliasing), shader tokens, a WebGPU runtime (`TechniqueInstance`), JSON load / save with strict validation and a Graphviz export. The frame graph uses the same analysis (it is now a technique itself, see "One render graph" below) and also reports resource spans and
+  transition statistics. Documentation: `docs/TECHNIQUES.md`.
+* Tests: `tests/technique.test.ts` (37) and four GPU self-tests (compute chain with aliased textures, size-variable recompile, looped sub-graph, draw into an imported texture) checked against CPU values.
+* `TechniqueBuilder` (`technique(name)`): the same graphs from code, with typed variable / resource handles, a `wgsl` template tag and `instantiate(gpu)`; `tests/technique-builder.test.ts` (7, including equality with the JSON example files) and a GPU self-test.
+* Demo `/?scene=technique`: a builder-made plasma + blur technique running as a frame-graph pass (via `addTo` in a `RenderFeature`), with live recompiles. Writing it exposed (and fixed) texture reallocation on condition toggles; `TechniqueInstance.onResourcesReplaced` reports genuine replacements.
+* Not done: a visual editor / viewer, code generation backends, ray tracing nodes.
+* Draw nodes later gained vertex / index buffers, indirect (indexed) draws, `baseVertex` and MSAA targets with resolve.
+
+## Engine passes moved onto the technique render graph (October 2026)
+
+* The post chain (view depth, SSAO, SSR, bloom, composite, FXAA), user full-screen effects, the transmission copy + mip chain, light-cluster assignment, volumetric fog, GPU culling (3 phases),
+  the Hi-Z pyramid, GPU particles and ribbon trails now run as technique nodes inside the frame graph (table: `docs/TECHNIQUES.md`, "What the engine runs as techniques").
+* New technique capabilities this needed: host-supplied bind groups + a configurable group index for generated bindings, bindings to a mip range (disjoint ranges of one texture in one node),
+  GPU timestamp hooks on `execute`, and dependency analysis that lets a node read the incoming contents of an imported / persistent resource that a later node overwrites.
+* Verification: `postTests` (GPU self-test, golden images recorded from the hand-written chain: 4 configurations incl. a multisampled depth buffer, bit-exact), the cluster / fog / Hi-Z / particle / ribbon
+  self-tests against their CPU references, and pixel-identical frames through the real engine against a build of the previous commit for the post chain (5 configurations), the feature demo, lights + fog,
+  LOD with GPU culling (off / frustum / hiz2), the material gallery with transmission, and particles.
+* Technique nodes can now declare bindings in several `@group`s (per-binding `group`), bind buffers as `var<uniform>` single elements, and give a buffer binding a dynamic offset (`setDynamicOffset`), so per-view / per-object data can live in one ring buffer. Unit tests on a recording fake device and a GPU self-test (three groups, three views from one uniform buffer).
+* **Render nodes** (`g.renderPass`): the technique owns a render pass's attachments (MSAA resolve, depth layer / read-only, timestamps) and the host records many draws with its own pipelines and bind groups through a state-tracking `TrackedRenderPass`. The depth prepass, the aux pass and the shadow-map layers now run as render nodes, pixel-identical to the callback versions (lights + prepass + 7 shadow layers, MSAA and single-sample SSAO/SSR, LOD with GPU culling).
+* The **main pass(es)** are render nodes too (`MainPassNode`): the technique owns the swap chain / HDR scene image, the MSAA buffer and its resolve, the depth load / clear and the clear colour; the scene draws and the features' hooks record inside. Frames are pixel-identical to the callback version in 30+ configurations (post chain x5, direct and HDR MSAA, transmission with MSAA and SSAO, GPU culling off / frustum / hiz2 with and without post, lights + fog + prepass + shadows, particles).
+* **Segments and the tracked pass everywhere**: a render node's draws are ordered segments (`passSegment`), recorded through one `TrackedRenderPass` that also wraps render bundle encoders (`isBundle`, `executeBundles`, `invalidate`). The scene draw loop (batches, indirect culled draws, retained bundles) and every feature hook (sky, lines, points, sprites, particles, ribbons, custom features) now draw through it; `RenderFeature.drawBackdrop` / `drawMain` receive a `TrackedRenderPass` instead of a raw encoder (the raw one is `pass.encoder`). Each feature is a named segment of the main pass in the graph. Verified pixel-identical against the previous commit (post chain x6, LOD + GPU culling x9, lights + fog + prepass + shadows, particles, feature demo, sky, shapes demo with lines / points / sprites in direct / MSAA / post, render-to-texture) with unchanged CPU time per frame at 6001 draws.
+* **Copy and clear nodes** (`g.copy` with `from` / `to` / `size`, `g.clear`): texture<->texture (mips, origins, layers), buffer<->buffer (offsets, runtime sizes) and texture<->buffer (row layout), validated against the declarations; techniques can run on a device-only `TechniqueHost` for imported-resource copies. Every encoder copy in the engine moved onto them: arena growth, streamed-texture mip copies, the profiler's query staging copy, all readbacks (`RenderTarget.readPixels`, particle / ribbon debug reads, the self-test helpers via `graph/Readback.ts`) and the cluster overflow clear. Verified: texture streaming (105 level changes, same bytes and image), regrown arenas (byte-identical contents), profiler timings, render targets.
+* The **offscreen render-to-texture views and reflection-probe captures** are render nodes too (`MainPassNode` with an array layer for the cube faces and a discarded depth); `ViewJob` names textures instead of views. Pixel-identical (RTT demo with three views incl. a mirror, two probe captures with different options), and target resizes rebuild the node. `IBLBaker`, `MipmapGenerator`, `CompactVertexStream` are asset-preparation utilities.
+
+## Render graph cost check (October 2026)
+
+Draw-submission benchmark A (`/bench.html`, 10,000 draws, CPU ms per frame) on the current build against a worktree at the last commit before the engine moved onto the graph (2ee50d4), runs interleaved on the same machine:
+
+| | baseline | render graph |
+|---|---|---|
+| A1 unsorted | 7.7 / 7.8 | 7.7 / 7.8 (first run 8.4-8.6, before the fix below) |
+| A2 unsorted | 9.8 / 9.9 | 10.5 |
+| A2 sorted | 8.6-9.1 | 8.1-9.2 |
+| instanced (fixed per-frame cost) | 0.23-0.56 | 0.34-0.61 |
+
+GPU time per pass (benchmark B) differs by less than the run-to-run noise (about 3 ms on this iGPU). Found and fixed: every render pass created its attachment views and error strings each frame; `TechniqueInstance` now caches single-mip views per texture and the node context strings, which removed the ~10% CPU regression seen on the 10k unsorted path. What is left is a fixed per-frame cost well under 0.2 ms.
+
+## One render graph (October 2026)
+
+The engine had two render graph systems: the Gigi-style technique compiler and `RenderGraph`, a flat list of callback passes that shared only the analysis code. `RenderGraph` is gone; the frame is one technique, and in a second step every engine pass in it became data nodes.
+
+* `logical: true` resources (`TechniqueBuilder.logical(name)`): names for ordering that hold no memory; callback nodes use them, any node can wait for one with `after`. `TechniqueInstance.addTo()` (replaces `asPass`).
+* `rendering/graph/FrameGraph.ts`: `FrameGraph.begin()` returns a `FrameBuilder`; `run()` compiles, or reuses the plan when `structureKey()` is unchanged and hands the instance this frame's imports, variable values, host bind groups, dynamic offsets, GPU timestamps and code (`setHostCode`). `Renderer.graph` became `Renderer.frame`.
+* `FrameBuilder.importTexture / importBuffer` declare a host object as an imported resource from the object itself; `include(node, technique, { imports, variables, outputs, after, publish })` runs a system's technique as a sub-graph with the frame's names, binding its variables to `<node>/<name>`; `publish` says what the scene passes wait for (replaces `produces` for the engine's own features).
+* Converted from callbacks to data nodes: shadow layers (render nodes), light clusters, fog, GPU culling (three nodes), Hi-Z, transmission copy, the post chain, particle pools, ribbon trails, full-screen effects (`FullscreenEffect.addToFrame`) -- all `include`d techniques -- and the depth prepass, the aux pass and every main pass (`declareMainPass`, render nodes whose segments are the scene and the features' draws). Hi-Z, transmission and fog volumes are created by their owners and imported (they were exported by their techniques). The periodic off-screen views (`addView`: mirrors, minimaps, security cameras) are render nodes of the frame too (below); the probe capture runs between frames and stays a small technique of its own.
+* Node attribute `after` (ordering-only dependency, usage `order` asks for no GPU usage), `pipelineCache` (pipelines survive a frame recompile), `callback` usage no longer demands texture / buffer usage flags of the objects it names.
+* Hooks changed: `RenderFeature.addPasses` / `addPostPasses` (and `PostProcessor.addChainPasses`, `ParticleSystem.addPasses` ...) receive a `FrameBuilder`; `graph.addPass({ name, ..., sideEffect })` is `graph.callback(name, { ..., keep })`; a callback names what it touches with `graph.logical(...)` (the engine's resources only exist once the pass that owns them was declared).
+* Verified: 804 tests, GPU self-tests 65/65 (post-chain golden images, culling, Hi-Z, fog, clusters, particles, ribbons), a 22-scene / setting battery (`tools/frameBattery.js`: prepass, MSAA, post chain, transmission, `hiz2` and frustum culling, shadows, clusters, fog, particles, ribbons, a feature and a technique pass) with the frame image identical to the callback-based frame in the 18 deterministic scenes and within noise (the baseline's own run-to-run noise) in the 4 that load asynchronously or use random sparkles, the plan compiled once over repeated frames, and benchmark A (10k draws) unchanged.
+
+### Off-screen views in the frame (October 2026)
+
+* `OffscreenViews.renderDue` now prepares each due view (writes its uniforms, builds its queues and batches) instead of drawing it; `OffscreenViews.declarePasses` declares them as render nodes `view:<n>` at the head of the frame (registration order, before the shadow passes, so a view still shows the previous frame's shadow map and lights). One command buffer and one submit instead of one per view.
+* Each view owns a `FrameUniform` and a `ViewScene` (`SceneResources.createViewScene`: the main view's last scene uniform with clusters and fog switched off, in its own buffer and bind group) plus a `ViewState`, kept while it is registered, because the passes are recorded after all the views were prepared; `ViewState.frameBindGroup` / `sceneBindGroup` make `drawGeometry` use them. `removeView` frees them. The main view's uniforms are no longer overwritten and restored around the views.
+* `captureEnvironment` is unchanged: it runs between frames and bakes straight away. `OffscreenViews` owns the whole view lifecycle now; `Renderer` only supplies draw primitives through a small `ViewHost` (`buildBatches`, `drawGeometry`, `drawSky`).
+* Verified: 809 tests, GPU self-tests 65/65, the scene battery (`rtt`: mirror, minimap with interval 2, security camera, three monitors sampling them) identical to the callback-based frame, a probe capture between frames with no GPU errors.
+
+### Review, benchmark and clean-up after the frame became one graph (October 2026)
+
+* Review findings fixed: a view's winding followed the mirror only when first created; `FrameBuilder.include` now refuses techniques with callback / render nodes (a reused plan cannot refresh their code); the view segment / batch code that existed three times is one place in `OffscreenViews` (which now owns the view lifecycle, with `Renderer` supplying `ViewHost` primitives); `ViewScene` reuses its scratch buffer; stale docs on logical resources.
+* Dead code removed: `ViewState.shadingTarget`, `PostProcessor.msaaView`, `PipelineCache.getCompute` (+ its map), `Mat4.multiplyAt`, `TextureStreamer.residentLevel`, `MaterialManager.paramLayout`.
+* Frame cost (`npm run bench:frame`, no GPU: declaring a 10-node frame with 5 particle pools, clusters, fog, culling and the 40-variable post chain, its structure key, and running the reused plan): **about 86 us per frame** (declare 62 us, key 18 us, run 6 us), under 0.6% of a 60 fps frame. In the browser the cost shows as 0.03 ms (one pass) to about 0.12 ms (eight includes) next to the passes' real work. `include` and `structureKey` were tuned for this (per-technique check cache, direct sub-graph node, hand-written key for sub-graph nodes: key 58 -> 31 us in the browser).
+* Browser frame times on this machine swing 2-5x from minute to minute (the same build measured 4 ms and 15 ms for 10k unsorted draws within minutes, in both the old and the new build), so A/B runs of whole frames only resolve large differences; use `tools/frameTiming.js` (CPU time of `engine.frame` per scene) and `tools/frameBattery.js` (pass order + image per scene) alternately on both builds, and `npm run bench:frame` for the graph's own cost.
+
 ## Compressed assets (October 2026)
 
 * **`EXT_meshopt_compression`** and **`KHR_draco_mesh_compression`** are decoded while parsing (`parseGLTF` -> `assets/gltf/GLTFCompression.ts`): the document that comes

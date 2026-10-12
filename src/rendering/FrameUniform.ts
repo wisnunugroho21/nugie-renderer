@@ -55,6 +55,9 @@ export class FrameUniform {
     this.uploadedValid = true;
   }
 
+  /** Free the uniform buffer (an off-screen view's own uniform, when the view is removed). */
+  destroy(): void { this.gpu.resources.buffers.destroy(this.buffer); }
+
   /** A copy of the current values (taken before an off-screen view overwrites them). */
   snapshot(): Float32Array { return this.data.slice(); }
 

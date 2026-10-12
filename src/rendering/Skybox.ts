@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from './graph/TrackedRenderPass';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { PassTarget } from './materials/MaterialManager';
@@ -19,7 +20,7 @@ export class Skybox implements RenderFeature {
 
   constructor(private gpu: GPUContext, private layouts: BindLayouts, private defaultDepthFormat: GPUTextureFormat, private scene: SceneResources) {}
 
-  drawBackdrop(pass: GPURenderPassEncoder, f: FeatureFrame): void {
+  drawBackdrop(pass: TrackedRenderPass, f: FeatureFrame): void {
     if (this.visible && this.scene.env.enabled) this.draw(pass, f.target, f.frameBindGroup, f.sceneBindGroup);
   }
 
@@ -27,7 +28,7 @@ export class Skybox implements RenderFeature {
   retarget(): void { this.pipelines.clear(); }
 
   /** Record the sky draw into `pass`, which renders into `target`. */
-  draw(pass: GPURenderPassEncoder, target: PassTarget, frame: GPUBindGroup, scene: GPUBindGroup): void {
+  draw(pass: TrackedRenderPass, target: PassTarget, frame: GPUBindGroup, scene: GPUBindGroup): void {
     pass.setPipeline(this.pipelineFor(target));
     pass.setBindGroup(0, frame); pass.setBindGroup(1, scene);
     pass.draw(3);

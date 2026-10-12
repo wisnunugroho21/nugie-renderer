@@ -501,8 +501,6 @@ export class MaterialManager {
   get(id: number): Material { return this.materials[id]; }
   /** Number of materials (including the built-in default and error materials). */
   get count(): number { return this.materials.length; }
-  /** The custom-parameter layout (names, offsets) of material `id`'s shader, if it has one. */
-  paramLayout(id: number): ParamLayout | undefined { return this.layouts_.get(this.materials[id].shaderId); }
 
   // ---------------------------------------------------------------- internals
 

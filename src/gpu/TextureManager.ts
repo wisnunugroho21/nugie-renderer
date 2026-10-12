@@ -8,6 +8,11 @@ const BYTES_PER_PIXEL: Partial<Record<GPUTextureFormat, number>> = {
   rgb10a2unorm: 4, rg11b10ufloat: 4,
 };
 
+/** Bytes of one texel of an uncompressed colour format, or undefined for formats this table does not know (block-compressed ones included). */
+export function bytesPerTexel(format: GPUTextureFormat): number | undefined {
+  return BYTES_PER_PIXEL[format];
+}
+
 /** Estimated GPU bytes for a full mip chain (or `mips` levels). */
 export function estimateTextureBytes(w: number, h: number, layers: number, format: GPUTextureFormat, mips: number, dimension: GPUTextureDimension = '2d'): number {
   const bpp = BYTES_PER_PIXEL[format] ?? 4, block = blockFormat(format);

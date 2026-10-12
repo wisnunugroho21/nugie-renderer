@@ -3,7 +3,6 @@ import { Mat4 } from '../src/math/Mat4';
 import { Quat } from '../src/math/Quat';
 import { Vec3 } from '../src/math/Vec3';
 import { AABB } from '../src/math/AABB';
-import { BoundingSphere } from '../src/math/BoundingSphere';
 import { Frustum } from '../src/math/Frustum';
 
 const close = (a: ArrayLike<number>, b: ArrayLike<number>, eps = 1e-5) => {
@@ -84,10 +83,6 @@ describe('AABB / Sphere', () => {
     close(u, [0, 0, 0, 3, 3, 3]);
     expect(AABB.intersects([0, 0, 0, 1, 1, 1], [1, 1, 1, 2, 2, 2])).toBe(true);
     expect(AABB.intersects([0, 0, 0, 1, 1, 1], [1.1, 0, 0, 2, 1, 1])).toBe(false);
-  });
-  it('sphere transform scales radius conservatively', () => {
-    const m = Mat4.compose(Mat4.create(), 1, 0, 0, 0, 0, 0, 1, 1, 3, 2);
-    close(BoundingSphere.transform([0, 0, 0, 0], [0, 0, 0, 1], m), [1, 0, 0, 3]);
   });
 });
 

@@ -24,7 +24,7 @@ export function makeFakeGPU() {
       writeBuffer: (b: { label: string }, offset: number, _d: unknown, _o: number, size: number) => writes.push({ label: b.label, offset, bytes: size }),
       writeTexture() {}, submit() {},
     },
-    createBuffer: (d: { label: string; size: number }) => ({ label: d.label, size: d.size, destroy() {} }),
+    createBuffer: (d: { label: string; size: number; usage?: number }) => ({ label: d.label, size: d.size, usage: d.usage, destroy() {} }),
     createTexture: () => ({ createView: () => ({}), destroy() {} }),
     createSampler: () => ({}), createShaderModule: () => ({}), createBindGroup: () => ({}),
     createRenderPipeline: () => ({}), pushErrorScope() {}, popErrorScope: () => Promise.resolve(null),

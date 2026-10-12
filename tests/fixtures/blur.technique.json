@@ -1,0 +1,85 @@
+{
+  "name": "separable-blur-twice",
+  "variables": [
+    {
+      "name": "width",
+      "type": "uint",
+      "value": 256,
+      "visibility": "host"
+    },
+    {
+      "name": "height",
+      "type": "uint",
+      "value": 256,
+      "visibility": "host"
+    },
+    {
+      "name": "radius",
+      "type": "int",
+      "value": 4
+    }
+  ],
+  "resources": [
+    {
+      "kind": "texture",
+      "name": "source",
+      "format": "rgba8unorm",
+      "visibility": "imported",
+      "size": [
+        {
+          "variable": "width"
+        },
+        {
+          "variable": "height"
+        }
+      ]
+    },
+    {
+      "kind": "texture",
+      "name": "temp",
+      "format": "rgba8unorm",
+      "like": "source"
+    },
+    {
+      "kind": "texture",
+      "name": "blurred",
+      "format": "rgba8unorm",
+      "like": "source",
+      "visibility": "exported"
+    }
+  ],
+  "nodes": [
+    {
+      "type": "subgraph",
+      "name": "first",
+      "technique": "blur-pass",
+      "inputs": {
+        "image": "source"
+      },
+      "outputs": {
+        "result": "temp"
+      },
+      "variables": {
+        "radius": {
+          "bind": "radius"
+        }
+      }
+    },
+    {
+      "type": "subgraph",
+      "name": "second",
+      "technique": "blur-pass",
+      "inputs": {
+        "image": "temp"
+      },
+      "outputs": {
+        "result": "blurred"
+      },
+      "variables": {
+        "radius": {
+          "value": 2
+        }
+      }
+    }
+  ]
+}

@@ -12,10 +12,11 @@ import type { MeshManager } from '../MeshManager';
 import type { RenderWorld } from '../RenderWorld';
 import type { Camera } from '../Camera';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
-import type { RenderGraph } from '../RenderGraph';
+import type { FrameBuilder } from '../graph/FrameGraph';
 import { LightData, LIGHT_FLOATS, GPU_LIGHT_TYPE, SHADOW_REQUEST } from '../lighting/LightData';
 import type { SceneResources } from '../lighting/SceneResources';
 import { cascadeSplits, fitCascade, fitPoint, fitSpot } from './ShadowMath';
+import type { TrackedRenderPass } from '../graph/TrackedRenderPass';
 
 export interface ShadowConfig {
   mapSize: number;
@@ -49,12 +50,14 @@ interface Layer { index: number; vp: Float32Array; batches: BatchList; count: nu
 /**
  * Shadow maps: one depth32float 2d-array (cascades of the first shadow-casting directional light, then one layer per
  * shadow-casting spot light). `assign` runs after the light list is final, `prepare` builds per-layer instance batches (before
- * the instance buffer is flushed) and `encode` renders the depth passes.
+ * the instance buffer is flushed) and `addPasses` declares the depth passes.
+ *
+ * The depth passes are render nodes of a technique (one per active layer, each writing its layer of the shadow map); the batches are drawn through the
+ * node's state-tracking pass, so a pipeline or material bind group shared by consecutive batches is set once.
  */
 export class ShadowSystem implements RenderFeature {
   readonly name = 'shadows';
   order = FeatureOrder.shadows;
-  readonly produces = ['shadowMap'];
   enabled = true;
   readonly layerCount: number;
   readonly texture: GPUTexture;
@@ -173,10 +176,26 @@ export class ShadowSystem implements RenderFeature {
   /** Cull and batch the casters of every layer into the instance ring (before it is flushed). */
   buildInstances(f: FeatureFrame): void { if (f.hasCamera) this.buildCasterBatches(f.rw, f.instances); }
 
-  /** One depth pass per layer, ahead of everything that samples the shadow map. */
-  addPasses(graph: RenderGraph, f: FeatureFrame): void {
+  /** One depth pass (a render node) per active layer, each writing its layer of the shadow map, ahead of everything that samples it. */
+  addPasses(graph: FrameBuilder, f: FeatureFrame): void {
     if (!f.hasCamera || this.layers.length === 0) return;
-    graph.addPass({ name: 'shadows', writes: ['shadowMap'], execute: (enc) => this.encode(enc, f.objectBindGroup(), f.time, f.profiler) });
+    const { queue } = this.gpu.device;
+    for (const layer of this.layers) {
+      const fd = this.frameData;
+      fd.fill(0);
+      fd.set(layer.vp, 0);
+      fd[51] = f.time; fd[52] = this.config.mapSize; fd[53] = this.config.mapSize;
+      queue.writeBuffer(this.frameBuffers[layer.index], 0, fd);
+    }
+    const map = graph.importTexture('shadowMap', this.texture);
+    graph.publish('shadowMap');
+    const timestampWrites = f.profiler?.writes('shadows');
+    for (const layer of this.layers) {
+      const index = layer.index, node = `shadow-layer-${index}`;
+      // `f.objectBindGroup()` is valid once all allocations are done, which is the case while the frame's passes are recorded
+      graph.renderPass(node, { depthTarget: { resource: map, layer: index }, record: (pass) => this.recordLayer(index, pass, f.objectBindGroup()) });
+      graph.timestamps(node, () => timestampWrites);
+    }
   }
 
   // ---- implementation ----
@@ -206,37 +225,22 @@ export class ShadowSystem implements RenderFeature {
     }
   }
 
-  /** Encode one depth pass per active layer. `objectBG` is the renderer's object bind group (valid after all allocations). */
-  encode(enc: GPUCommandEncoder, objectBG: GPUBindGroup, frameTime: number, profiler?: { writes(name: string): GPURenderPassTimestampWrites | undefined }): void {
-    const { queue } = this.gpu.device;
-    for (const layer of this.layers) {
-      const fd = this.frameData;
-      fd.fill(0);
-      fd.set(layer.vp, 0);
-      fd[51] = frameTime; fd[52] = this.config.mapSize; fd[53] = this.config.mapSize;
-      queue.writeBuffer(this.frameBuffers[layer.index], 0, fd);
-      const pass = enc.beginRenderPass({
-        label: `shadow-layer-${layer.index}`, colorAttachments: [], timestampWrites: profiler?.writes('shadows'),
-        depthStencilAttachment: { view: this.views[layer.index], depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
-      });
-      if (layer.count > 0) {
-        pass.setBindGroup(0, this.frameBGs[layer.index]);
-        pass.setBindGroup(1, this.scene.shadowPassBindGroup);
-        pass.setBindGroup(3, objectBG);
-        pass.setVertexBuffer(0, this.meshes.vertexBuffer);
-        pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-        const b = layer.batches;
-        let curPipe: GPURenderPipeline | null = null, curMat = -1;
-        for (let i = 0; i < b.count; i++) {
-          const mesh = this.meshes.get(b.meshId[i]);
-          const pipe = this.materials.getShadowPipeline(b.materialId[i], mesh.deformMask, DEPTH_FORMAT);
-          if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; }
-          if (b.materialId[i] !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); curMat = b.materialId[i]; }
-          pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-          this.stats.draws++;
-        }
-      }
-      pass.end();
+  /** Draw one layer's casters: every batch with its depth-only pipeline and material bind group. */
+  private recordLayer(index: number, pass: TrackedRenderPass, objectBG: GPUBindGroup): void {
+    const layer = this.layers.find((l) => l.index === index);
+    if (!layer || layer.count === 0) return;
+    pass.setBindGroup(0, this.frameBGs[index]);
+    pass.setBindGroup(1, this.scene.shadowPassBindGroup);
+    pass.setBindGroup(3, objectBG);
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer);
+    pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    const b = layer.batches;
+    for (let i = 0; i < b.count; i++) {
+      const mesh = this.meshes.get(b.meshId[i]);
+      pass.setPipeline(this.materials.getShadowPipeline(b.materialId[i], mesh.deformMask, DEPTH_FORMAT));
+      pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i]));
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+      this.stats.draws++;
     }
   }
 }

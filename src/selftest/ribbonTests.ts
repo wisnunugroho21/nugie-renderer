@@ -2,6 +2,7 @@ import type { GPUContext } from '../gpu/GPUContext';
 import { createBindLayouts } from '../gpu/BindLayouts';
 import { Camera } from '../rendering/Camera';
 import { RibbonSystem, beamPoints, SEGMENT_FLOATS, type RibbonSystemConfig } from '../particles/RibbonSystem';
+import { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { readTextureRGBA8, type SelfTest } from './harness';
 
 const TARGET = { colorFormat: 'rgba8unorm' as GPUTextureFormat, depthFormat: 'depth24plus' as GPUTextureFormat, sampleCount: 1 };
@@ -42,7 +43,7 @@ async function render(gpu: GPUContext, rs: RibbonSystem, layouts: ReturnType<typ
     colorAttachments: [{ view: color.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
     depthStencilAttachment: { view: depth.createView(), depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1 },
   });
-  rs.encodeDraw(pass, bg); pass.end();
+  rs.encodeDraw(new TrackedRenderPass(pass), bg); pass.end();
   device.queue.submit([enc.finish()]);
   const err = await device.popErrorScope();
   if (err) throw new Error('validation error: ' + err.message);

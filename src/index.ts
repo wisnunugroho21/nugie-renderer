@@ -57,7 +57,25 @@ export type { Overlay, Color, Vec3 as Point3 } from './rendering/overlay/Overlay
 export type { RenderFeature, FeatureFrame, PostFeatureFrame } from './rendering/RenderFeature';
 export { FeatureOrder } from './rendering/RenderFeature';
 export { FullscreenEffect, type FullscreenEffectOptions } from './rendering/post/FullscreenEffect';
-export { RenderGraph, type PassDesc } from './rendering/RenderGraph';
+export { FrameGraph, FrameBuilder, type IncludeOptions } from './rendering/graph/FrameGraph';
+// Gigi-style techniques: the render graph as data (docs/TECHNIQUES.md)
+export { TechniqueInstance, type TechniqueInstanceOptions, type TechniqueHost } from './rendering/graph/TechniqueInstance';
+export { runOnce, deviceHost } from './rendering/graph/OneShot';
+export { readBuffer, readTexture } from './rendering/graph/Readback';
+export { compileTechnique, type CompiledTechnique, type CompileOptions, type ResourcePlan, type Slot } from './rendering/graph/Compile';
+export { parseTechnique, techniqueToJSON } from './rendering/graph/TechniqueJSON';
+export {
+  technique, TechniqueBuilder, VariableHandle, ResourceHandle, wgsl, sizeOf, bindings,
+  type TextureHandle, type BufferHandle, type Dim, type ResourceRef, type BindingRef, type TextureOptions, type BufferOptions, type VariableOptions,
+  type ComputeOptions, type DrawOptions, type RenderPassOptions, type CopyOptions, type ClearOptions, type VertexBufferRef, type SubGraphOptions, type CallbackOptions,
+} from './rendering/graph/TechniqueBuilder';
+export { techniqueToDot } from './rendering/graph/Dot';
+export { TrackedRenderPass } from './rendering/graph/TrackedRenderPass';
+export { CachedTechnique } from './rendering/graph/CachedTechnique';
+export {
+  TechniqueError, type Technique, type TechniqueRegistry, type NodeDecl, type ResourceDecl, type VariableDecl, type TextureDecl, type BufferDecl, type ComputeNode, type DrawNode,
+  type CopyNode, type CopyEnd, type ClearNode, type RenderPassNode, type RenderPassUse, type ColorTarget, type DepthTarget, type VertexBufferBinding, type IndexBufferBinding, type VertexAttribute, type SubGraphNode, type CallbackNode, type SizeDim, type Diagnostic,
+} from './rendering/graph/TechniqueTypes';
 
 // --- render-to-texture ---------------------------------------------------------------------------------------------------
 export { RenderTarget, RENDER_TARGET_FORMAT, type RenderTargetDesc } from './rendering/RenderTarget';

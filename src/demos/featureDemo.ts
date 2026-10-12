@@ -1,8 +1,9 @@
+import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import type { Demo } from './Demo';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { RenderFeature, FeatureFrame, PostFeatureFrame } from '../rendering/RenderFeature';
-import type { RenderGraph } from '../rendering/RenderGraph';
+import type { FrameBuilder } from '../rendering/graph/FrameGraph';
 import { FullscreenEffect } from '../rendering/post/FullscreenEffect';
 import { entityIndex } from '../ecs/Entity';
 import { createPlane, createUVSphere } from '../rendering/primitives';
@@ -62,7 +63,7 @@ class GradientBackdrop implements RenderFeature {
     this.gpu.queue.writeBuffer(this.params, 0, new Float32Array([frame.time, 0, 0, 0]));
   }
 
-  drawMain(pass: GPURenderPassEncoder, frame: FeatureFrame): void {
+  drawMain(pass: TrackedRenderPass, frame: FeatureFrame): void {
     this.pipeline ??= this.createPipeline(frame);
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, frame.frameBindGroup);
@@ -105,8 +106,8 @@ class WarmVignette implements RenderFeature {
     this.fx.params.set([0.8, 0.6]);                   // vignette strength, tint amount
   }
 
-  addPostPasses(g: RenderGraph, frame: PostFeatureFrame): void {
-    g.addPass({ name: 'warm-vignette', reads: ['sceneColor'], writes: ['sceneColor'], execute: (enc) => this.fx.run(enc, frame.sceneTexture) });
+  addPostPasses(g: FrameBuilder, frame: PostFeatureFrame): void {
+    this.fx.addToFrame(g, frame.sceneTexture);
   }
 }
 

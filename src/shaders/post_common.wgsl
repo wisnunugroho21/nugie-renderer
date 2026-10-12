@@ -1,16 +1,8 @@
-// Shared header of the full-screen post passes: one bind layout (sampler, texA, texB, parameters, texC, texD) and helpers that turn the
-// linear-depth texture (texD, r32float, positive view distance, loaded with textureLoad) into view-space positions and normals.
-//   P.a .. P.d: pass specific.  P.e = (proj[0][0], proj[1][1], proj[2][2], proj[3][2]), P.f = (1/width, 1/height, width, height)
+// Shared header of the full-screen post passes (the post-chain technique, see rendering/post/PostChain.ts). The technique generates the bindings: texA..texD
+// (the sampler of texA is texA_sampler) and `fn P() -> Params` (a struct of six vec4) for the pass parameters: a .. d are the node's own variables,
+// e and f are shared by all nodes: P().e = (proj[0][0], proj[1][1], proj[2][2], proj[3][2]), P().f = (1/width, 1/height, width, height).
+// The helpers below turn the linear-depth texture (texD, r32float, positive view distance, loaded with textureLoad) into view-space positions and normals.
 //#include common_color
-
-struct Params { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32>, f: vec4<f32> };
-
-@group(0) @binding(0) var samp: sampler;
-@group(0) @binding(1) var texA: texture_2d<f32>;
-@group(0) @binding(2) var texB: texture_2d<f32>;
-@group(0) @binding(3) var<uniform> P: Params;
-@group(0) @binding(4) var texC: texture_2d<f32>;
-@group(0) @binding(5) var texD: texture_2d<f32>;
 
 struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
 
@@ -23,11 +15,11 @@ fn vs_full(@builtin(vertex_index) vi: u32) -> VOut {
   return o;
 }
 
-fn src(uv: vec2<f32>) -> vec3<f32> { return textureSampleLevel(texA, samp, uv, 0.0).rgb; }
+fn src(uv: vec2<f32>) -> vec3<f32> { return textureSampleLevel(texA, texA_sampler, uv, 0.0).rgb; }
 
 fn luma709(c: vec3<f32>) -> f32 { return dot(c, vec3<f32>(0.2126, 0.7152, 0.0722)); }
 
-fn sizePx() -> vec2<i32> { return vec2<i32>(P.f.zw); }
+fn sizePx() -> vec2<i32> { return vec2<i32>(P().f.zw); }
 
 // Linear view distance at pixel `px` (clamped to the screen); the far plane for the sky.
 fn linDepth(px: vec2<i32>) -> f32 {
@@ -36,15 +28,15 @@ fn linDepth(px: vec2<i32>) -> f32 {
 
 // View-space position (camera looks down -Z) of pixel `px` at view distance `z`.
 fn viewPos(px: vec2<i32>, z: f32) -> vec3<f32> {
-  let uv = (vec2<f32>(px) + vec2<f32>(0.5)) * P.f.xy;
+  let uv = (vec2<f32>(px) + vec2<f32>(0.5)) * P().f.xy;
   let ndc = vec2<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
-  return vec3<f32>(ndc.x * z / P.e.x, ndc.y * z / P.e.y, -z);
+  return vec3<f32>(ndc.x * z / P().e.x, ndc.y * z / P().e.y, -z);
 }
 
 // Pixel coordinates of a view-space position.
 fn projectPx(v: vec3<f32>) -> vec2<f32> {
-  let ndc = vec2<f32>(v.x * P.e.x, v.y * P.e.y) / (-v.z);
-  return vec2<f32>((ndc.x * 0.5 + 0.5) * P.f.z, (0.5 - ndc.y * 0.5) * P.f.w);
+  let ndc = vec2<f32>(v.x * P().e.x, v.y * P().e.y) / (-v.z);
+  return vec2<f32>((ndc.x * 0.5 + 0.5) * P().f.z, (0.5 - ndc.y * 0.5) * P().f.w);
 }
 
 fn octDecode(e: vec2<f32>) -> vec3<f32> {

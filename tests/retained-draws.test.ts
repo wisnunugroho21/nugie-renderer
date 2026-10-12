@@ -30,7 +30,7 @@ function setup() {
     meshes: { records: [mesh] }, materials: { materials: [material] },
     depthTexture: { width: 1, height: 1, sampleCount: 1 }, syncFramebuffer() {},
     transmission: { maxMip: 0 }, post: { enabled: false, ensureTargets() {} }, frameUniform: { setTransmission() {} },
-    uploadFrameData() { transforms.sync(rw); }, offscreen: { renderDue() {} },
+    uploadFrameData() { transforms.sync(rw); }, offscreen: { renderDue() {}, declarePasses() {} },
     features: { buildInstances() { feature(); }, prepare() {}, endFrame() {} },
     featureFrame: {}, sceneResources: { bindGroup: {} }, profiler: { beginFrame() {}, resolve() {} }, recordPasses() {},
   }) as Renderer;

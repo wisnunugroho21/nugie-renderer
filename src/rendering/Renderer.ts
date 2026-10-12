@@ -5,7 +5,7 @@ import { MeshManager } from './MeshManager';
 import { MaterialManager } from './materials/MaterialManager';
 import { countSwitches } from './RenderQueue';
 import { ViewState } from './RenderDrawState';
-import { OffscreenViews, type ViewJob } from './OffscreenViews';
+import { OffscreenViews, type ViewHost } from './OffscreenViews';
 import { DEPTH_FORMAT } from './formats';
 import { INSTANCE_BYTES, INSTANCE_WORDS, buildBatches } from './BatchBuilder';
 import { TransformBuffer } from './TransformBuffer';
@@ -22,7 +22,10 @@ import { VolumetricFog, type FogSettings } from './lighting/VolumetricFog';
 import { GPUCuller } from './GPUCuller';
 import { GPULodIndex } from './GPULodIndex';
 import { HiZ } from './HiZ';
-import { RenderGraph } from './RenderGraph';
+import { FrameGraph, type FrameBuilder } from './graph/FrameGraph';
+import { declareMainPass, srgbToLinear, type MainPassOptions, type MainPassSegment } from './MainPassNode';
+import type { TextureHandle } from './graph/TechniqueBuilder';
+import { TrackedRenderPass } from './graph/TrackedRenderPass';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
 import { PostProcessor, HDR_FORMAT, AUX_FORMAT } from './post/PostProcessor';
@@ -71,6 +74,9 @@ export type BatchingMode = 'unsorted' | 'sorted' | 'instanced';
 
 export { DEFAULT_SCENE, type SceneSettings };
 
+/** The attachments of the frame, as handles of the frame technique. */
+interface FrameTargets { image: TextureHandle; msaa: TextureHandle | null; depth: TextureHandle }
+
 /**
  * The renderer: RenderWorld -> (visible set) -> render queues -> batches -> a pass graph (shadows, clusters, particles,
  * prepass, GPU culling, fog, main) -> one command buffer per frame.
@@ -113,7 +119,6 @@ export class Renderer {
   private fbKey = '';
   private msaaWarned = false;
   private depthTexture!: GPUTexture;
-  private depthView!: GPUTextureView;
   /** Depth-only view of the depth buffer for sampling in post passes (SSAO / SSR). */
   private depthSampleView!: GPUTextureView;
   /** The main view: its target formats, draw state and prepass flag. Off-screen views have their own (see `OffscreenViews`). */
@@ -130,6 +135,7 @@ export class Renderer {
   constructor(private gpu: GPUContext) {
     const { device, resources: r } = gpu;
     this.layouts = createBindLayouts(device);
+    this.frame = new FrameGraph(gpu, 'frame', { hostLayouts: { frame: this.layouts.frame, scene: this.layouts.scene } });
     this.meshes = new MeshManager(device, r.buffers);
     this.materials = new MaterialManager(device, r, this.layouts);
     this.lodLibrary = new LODLibrary(this.meshes);
@@ -141,12 +147,7 @@ export class Renderer {
     this.frameUniform = new FrameUniform(gpu, this.layouts);
     this.sceneResources = new SceneResources(gpu, this.layouts);
     this.skybox = new Skybox(gpu, this.layouts, DEPTH_FORMAT, this.sceneResources);
-    const self = this;
-    this.offscreen = new OffscreenViews(gpu, this.materials, this.frameUniform, this.sceneResources, {
-      renderJob: (job, view, objects, rw) => this.renderJob(job, view, objects, rw),
-      get clearColor() { return self.clearColor; },
-      get ibl() { return self.ibl; },
-    });
+    this.offscreen = new OffscreenViews(gpu, this.layouts, this.materials, this.frameUniform, this.sceneResources, this.viewHost());
     this.transmission = new TransmissionCopy(gpu, this.sceneResources);
     this.streaming = new StreamingDriver(this.materials);
     this.gpuLodIndex = new GPULodIndex(this.lodLibrary);
@@ -196,9 +197,11 @@ export class Renderer {
   private gpuLodIndex: GPULodIndex;
   private culler: GPUCuller | null = null;
   private hiz: HiZ | null = null;
+  /** The render world of the frame being recorded (the aux pass's draw callback reads it). */
+  private passRenderWorld: RenderWorld | null = null;
   private sphereScratch = new Float32Array(4 * 1024);
-  /** Per-frame pass graph (ordering + culling of the frame's passes). */
-  readonly graph = new RenderGraph();
+  /** The frame's passes as one technique of callback nodes (ordering + culling of the frame's passes; the plan is reused while the passes stay the same). */
+  readonly frame: FrameGraph;
   private static nextId = 0;
   /** Unique id: bind-group cache keys must not collide between renderers sharing one GPU context. */
   private readonly id = Renderer.nextId++;
@@ -286,7 +289,7 @@ export class Renderer {
   }
 
   /** Stop drawing a line / point / sprite system. */
-  removeOverlay(o: Overlay): void { this.features.remove(o); }
+  removeOverlay(o: Overlay): void { this.removeFeature(o); }
 
   // ---- features -----------------------------------------------------------------------------------------------------------------
 
@@ -300,7 +303,11 @@ export class Renderer {
   }
 
   /** Unregister a feature (its GPU resources stay with the feature: destroy them yourself). */
-  removeFeature(feature: RenderFeature): boolean { return this.features.remove(feature); }
+  removeFeature(feature: RenderFeature): boolean {
+    if (!this.features.remove(feature)) return false;
+    feature.dispose?.();
+    return true;
+  }
 
   /** The object handed to the features' hooks. Its fields are refreshed by `beginFeatureFrame` every frame. */
   private createFeatureFrame(): FeatureFrame {
@@ -324,7 +331,7 @@ export class Renderer {
   /** The feature frame plus the HDR scene colour and depth, for post-processing features and the built-in chain. */
   private postFeatureFrame(): PostFeatureFrame {
     const f = this.featureFrame;
-    return { ...f, sceneTexture: this.post.sceneTexture, projection: f.camera.projection, depthView: this.depthSampleView, depthSamples: this.mainView.target.sampleCount };
+    return { ...f, sceneTexture: this.post.sceneTexture, projection: f.camera.projection, depthView: this.depthSampleView, depthTexture: this.depthTexture, depthSamples: this.mainView.target.sampleCount };
   }
 
   // ---- render-to-texture: render targets, off-screen views, probe capture (see OffscreenViews) -------------------------------------
@@ -353,31 +360,22 @@ export class Renderer {
     return this.offscreen.captureEnvironment(rw, position, o);
   }
 
-  /**
-   * Draw `objects` once from `job.camera` into the job's colour / depth views, as a self-contained mini frame: own frame uniform, queues and
-   * batches (appended to this frame's instance ring), one command buffer, one submit. Callers restore the main view's uniforms afterwards.
-   * Shading is linear HDR (no tone mapping), lighting is the plain light loop (no clusters, no fog volume), shadows are the main view's.
-   * Features do not run: no particles, ribbons, overlays or post-processing.
-   */
-  private renderJob(job: ViewJob, view: ViewState, objects: { slots: Uint32Array | null; count: number }, rw: RenderWorld): void {
-    const { device, queue } = this.gpu;
-    this.frameUniform.writeView(job.camera, this.lastTime, job.width, job.height, true);   // linear HDR output: the colour is used as a texture; no opaque copy, so views refract the environment
-    this.sceneResources.writeViewUniform();
-    view.draw.queueBuilder.build(rw, objects.slots, objects.count, this.materials.materials, this.meshes.records, job.camera, this.batching === 'unsorted' ? 'none' : 'sorted', view.draw.queues);
-    this.buildBatches(view, rw, true);
-
-    const enc = device.createCommandEncoder({ label: 'view' });
-    const pass = enc.beginRenderPass({
-      label: 'view',
-      colorAttachments: [{ view: job.colorView, clearValue: Renderer.srgbToLinear(job.clearColor), loadOp: 'clear', storeOp: 'store' }],
-      depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
-    });
-    const total = view.draw.frame.total;
-    if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'early');
-    if (job.skybox && this.skybox.visible && this.sceneResources.env.enabled) this.skybox.draw(pass, view.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup);
-    if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'late');
-    pass.end();
-    queue.submit([enc.finish()]);
+  /** What the off-screen views need from the renderer: its clear colour and baker, and ways to build a view's batches and to record its geometry and sky. */
+  private viewHost(): ViewHost {
+    const self = this;
+    return {
+      get clearColor() { return self.clearColor; },
+      get ibl() { return self.ibl; },
+      get time() { return self.lastTime; },
+      buildBatches: (job, view, objects, rw) => {
+        view.draw.queueBuilder.build(rw, objects.slots, objects.count, this.materials.materials, this.meshes.records, job.camera, this.batching === 'unsorted' ? 'none' : 'sorted', view.draw.queues);
+        this.buildBatches(view, rw, true);   // appended to this frame's instance ring
+      },
+      drawGeometry: (pass, view, part) => this.drawGeometry(pass, view, 'all', 0, part),
+      drawSky: (pass, job, view, frameBG, sceneBG) => {
+        if (job.skybox && this.skybox.visible && this.sceneResources.env.enabled) this.skybox.draw(pass, view.target, frameBG, sceneBG);
+      },
+    };
   }
 
   /** Create the GPU particle system bound to this renderer's frame layout / render target. */
@@ -431,7 +429,6 @@ export class Renderer {
     this.depthTexture = r.textures.create({
       label: 'depth', size: [Math.max(1, width), Math.max(1, height)], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING, sampleCount: this.mainView.target.sampleCount,
     });
-    this.depthView = this.depthTexture.createView();
     this.depthSampleView = this.depthTexture.createView({ aspect: 'depth-only' });
   }
 
@@ -658,83 +655,80 @@ export class Renderer {
    */
   private recordPasses(enc: GPUCommandEncoder, rw: RenderWorld): void {
     const f = this.mainView.draw.frame;
-    const g = this.graph;
-    g.reset();
+    const g = this.frame.begin();
+    this.offscreen.declarePasses(g);
     this.features.addPasses(g, this.featureFrame);
     const twoPhase = f.gpuCull && this.gpuCulling === 'hiz2';
     // (two-phase culling builds its own depth in main-A and clears it, so a prepass would only switch the pipelines to depth 'equal' and break the image)
     const prepass = this.depthPrepass && !twoPhase && rw.hasCamera && f.total > 0;
     this.mainView.prepassActive = prepass;
-    if (prepass) this.addDepthPrepass(g);
+    const targets = this.frameTargets(g);
+    if (prepass) this.addDepthPrepass(g, targets);
     if (f.gpuCull) this.addCullingPasses(g, rw, twoPhase);
-    if (twoPhase) this.addTwoPhaseMainPasses(g, rw);
-    else this.addMainPass(g, rw, prepass);
-    if (this.post.needsAux) this.addAuxPass(g, rw);
+    if (twoPhase) this.addTwoPhaseMainPasses(g, rw, targets);
+    else this.addMainPass(g, rw, prepass, targets);
+    if (this.post.needsAux) this.addAuxPass(g, rw, targets);
     if (this.post.enabled) this.features.addPostPasses(g, this.postFeatureFrame());   // user effects first, then the built-in chain
-    g.compile();
-    g.execute(enc);
+    this.frame.run(g, enc);
   }
 
   /**
    * After the main pass: redraw opaque + alpha-masked PBR batches into the aux target (view-space normal, roughness, metallic) against
    * the finished depth buffer. SSAO and SSR read it; pixels it does not cover (custom shaders, sky) fall back to depth-derived normals / no reflection.
    */
-  private addAuxPass(g: RenderGraph, rw: RenderWorld): void {
-    g.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: (enc) => {
-      const ap = enc.beginRenderPass({
-        label: 'aux', colorAttachments: [this.post.auxColorAttachment()],
-        depthStencilAttachment: { view: this.depthView, depthReadOnly: true },
-      });
-      if (rw.hasCamera && this.mainView.draw.frame.total > 0) {
-        ap.setBindGroup(0, this.frameUniform.bindGroup); ap.setBindGroup(1, this.sceneResources.bindGroup); ap.setBindGroup(3, this.objectBindGroup());
-        ap.setVertexBuffer(0, this.meshes.vertexBuffer); ap.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-        let pp: GPURenderPipeline | null = null, pm = -1;
-        const b = this.mainView.draw.batches;
-        for (let i = 0; i < b.count; i++) {
-          if (b.queue[i] > 1) continue;   // blended surfaces have no depth to reflect from or occlude with
-          const mesh = this.meshes.get(b.meshId[i]);
-          const pipe = this.materials.getAuxPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount, AUX_FORMAT);
-          if (!pipe) continue;
-          if (pipe !== pp) { ap.setPipeline(pipe); pp = pipe; }
-          if (b.materialId[i] !== pm) { ap.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); pm = b.materialId[i]; }
-          ap.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-        }
-      }
-      ap.end();
-    } });
+  private addAuxPass(g: FrameBuilder, rw: RenderWorld, t: FrameTargets): void {
+    const aux = g.importTexture('auxTex', this.post.auxTexture), msaa = this.post.auxMsaaTexture;
+    const clearValue: [number, number, number, number] = [0, 0, 1, 0];   // cleared to "nothing written"
+    const color = msaa ? { resource: g.importTexture('auxMsaa', msaa), resolve: aux, clearValue, storeOp: 'discard' as const } : { resource: aux, clearValue };
+    this.passRenderWorld = rw;
+    g.renderPass('aux', { colorTargets: [color], depthTarget: { resource: t.depth, readOnly: true }, record: (pass) => this.recordAux(pass) });
+  }
+
+  /** Draw the opaque + alpha-masked batches with the aux pipelines (against the finished depth buffer, which the pass only reads). */
+  private recordAux(pass: TrackedRenderPass): void {
+    if (!this.passRenderWorld?.hasCamera || this.mainView.draw.frame.total === 0) return;
+    pass.setBindGroup(0, this.frameUniform.bindGroup); pass.setBindGroup(1, this.sceneResources.bindGroup); pass.setBindGroup(3, this.objectBindGroup());
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer); pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    const b = this.mainView.draw.batches;
+    for (let i = 0; i < b.count; i++) {
+      if (b.queue[i] > 1) continue;   // blended surfaces have no depth to reflect from or occlude with
+      const mesh = this.meshes.get(b.meshId[i]);
+      const pipe = this.materials.getAuxPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount, AUX_FORMAT);
+      if (!pipe) continue;
+      pass.setPipeline(pipe);
+      pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i]));
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+    }
   }
 
   /** Depth-only pass over opaque + alpha-masked batches (lets the main pass shade each pixel once, and feeds the in-frame Hi-Z). */
-  private addDepthPrepass(g: RenderGraph): void {
-    g.addPass({ name: 'depth-prepass', writes: ['depth'], execute: (enc) => {
-      const dp = enc.beginRenderPass({
-        label: 'depth-prepass', colorAttachments: [], timestampWrites: this.profiler.writes('prepass'),
-        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
-      });
-      dp.setBindGroup(0, this.frameUniform.bindGroup); dp.setBindGroup(1, this.sceneResources.bindGroup); dp.setBindGroup(3, this.objectBindGroup());
-      dp.setVertexBuffer(0, this.meshes.vertexBuffer); dp.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-      let pp: GPURenderPipeline | null = null, pm = -1;
-      const b = this.mainView.draw.batches;
-      for (let i = 0; i < b.count; i++) {
-        if (b.queue[i] > 1) continue;   // transparent surfaces never write depth
-        const mesh = this.meshes.get(b.meshId[i]);
-        const pipe = this.materials.getPrepassPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount);
-        if (pipe !== pp) { dp.setPipeline(pipe); pp = pipe; }
-        if (b.materialId[i] !== pm) { dp.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); pm = b.materialId[i]; }
-        dp.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-      }
-      dp.end();
-    } });
+  private addDepthPrepass(g: FrameBuilder, t: FrameTargets): void {
+    g.renderPass('depth-prepass', { depthTarget: { resource: t.depth }, record: (pass) => this.recordDepthPrepass(pass) });
+    g.timestamps('depth-prepass', () => this.profiler.writes('prepass'));
+  }
+
+  /** The prepass draws: every opaque / alpha-masked batch with its depth-only pipeline. */
+  private recordDepthPrepass(pass: TrackedRenderPass): void {
+    pass.setBindGroup(0, this.frameUniform.bindGroup); pass.setBindGroup(1, this.sceneResources.bindGroup); pass.setBindGroup(3, this.objectBindGroup());
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer); pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    const b = this.mainView.draw.batches;
+    for (let i = 0; i < b.count; i++) {
+      if (b.queue[i] > 1) continue;   // transparent surfaces never write depth
+      const mesh = this.meshes.get(b.meshId[i]);
+      pass.setPipeline(this.materials.getPrepassPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount));
+      pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i]));
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+    }
   }
 
   /** Arguments describing the Hi-Z pyramid for the culling shader. */
-  private hizArg() { return { view: this.hiz!.fullView!, width: this.hiz!.width, height: this.hiz!.height, mips: this.hiz!.mips }; }
+  private hizArg() { return { texture: this.hiz!.texture!, width: this.hiz!.width, height: this.hiz!.height, mips: this.hiz!.mips }; }
 
   /**
    * GPU visibility passes. `hiz2` (two-phase): cull-A against last frame's visibility (cull-B is added with the main passes).
    * `frustum`: frustum cull only.
    */
-  private addCullingPasses(g: RenderGraph, rw: RenderWorld, twoPhase: boolean): void {
+  private addCullingPasses(g: FrameBuilder, rw: RenderWorld, twoPhase: boolean): void {
     const cam = rw.camera, f = this.mainView.draw.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
     if (twoPhase) {
@@ -743,13 +737,9 @@ export class Renderer {
       let maxObj = 0;
       for (let i = 0; i < f.total01; i++) maxObj = Math.max(maxObj, f.instData[i * INSTANCE_WORDS + 6]);
       this.culler!.ensureVisibility(maxObj + 1);
-      g.addPass({ name: 'cull-A', reads: [], writes: ['culledA'],
-        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cullA'), 1, cam) });
+      this.culler!.addToFrame(g, 'cull-A', this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cullA'), 1, cam);
     } else {
-      g.addPass({
-        name: 'gpu-cull', reads: [], writes: ['culled'],
-        execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cull'), 0, cam),
-      });
+      this.culler!.addToFrame(g, 'gpu-cull', this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, null, this.profiler.writes('cull'), 0, cam);
     }
   }
 
@@ -767,7 +757,7 @@ export class Renderer {
     return {
       retained, directional,
       variant: drawVariant({ retained, directional, uniformNormals: cache.uniformNormals }),
-      sceneGroup: directional ? this.sceneResources.directionalBindGroup : this.sceneResources.bindGroup,
+      sceneGroup: directional ? this.sceneResources.directionalBindGroup : view.sceneBindGroup ?? this.sceneResources.bindGroup,
     };
   }
 
@@ -781,14 +771,14 @@ export class Renderer {
    * compacted set (arguments start at `argBase`), `'rest'` draws the batches the GPU path does not cover, `'all'` does both.
    * Without GPU culling every batch is drawn directly. `part` selects the early (opaque + alpha-mask) or late (blended + transmissive) half.
    */
-  private drawGeometry(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart = 'all'): void {
+  private drawGeometry(pass: TrackedRenderPass, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart = 'all'): void {
     const path = this.resolveDrawPath(view);
-    if ((path.retained || path.directional) && this.retainedBundles && 'executeBundles' in pass) {
+    if ((path.retained || path.directional) && this.retainedBundles && !pass.isBundle) {
       this.drawThroughBundle(pass, view, which, argBase, part, path);
       return;
     }
     const f = view.draw.frame, gpuCull = f.gpuCull, culledDraws = gpuCull && which !== 'rest';
-    pass.setBindGroup(0, this.frameUniform.bindGroup);
+    pass.setBindGroup(0, view.frameBindGroup ?? this.frameUniform.bindGroup);
     pass.setBindGroup(1, path.sceneGroup);
     if (!path.retained) pass.setBindGroup(3, path.directional ? this.directionalObjectBindGroup() : this.objectBindGroup(culledDraws));
     pass.setVertexBuffer(0, (path.retained || path.directional) ? this.meshes.compactVertexBuffer : this.meshes.vertexBuffer);
@@ -802,7 +792,7 @@ export class Renderer {
   }
 
   /** GPU-compacted draws: one indirect draw per (batch, LOD level) in the culler's output. */
-  private drawIndirect(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, argBase: number, part: DrawPart, bound: BoundState): void {
+  private drawIndirect(pass: TrackedRenderPass, view: ViewState, argBase: number, part: DrawPart, bound: BoundState): void {
     const cu = this.culler!, mats = this.materials.materials, st = this.stats;
     for (let v = 0; v < cu.virtualCount; v++) {
       if (isSkippedPart(part, (mats[cu.virtualMaterial[v]].features & MaterialFeature.Transmission) !== 0)) continue;
@@ -814,7 +804,7 @@ export class Renderer {
   }
 
   /** Direct instanced draws of batches `first..count`, switching pipeline and material bind group only when they change. */
-  private drawBatches(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, first: number, part: DrawPart, path: DrawPath, bound: BoundState): void {
+  private drawBatches(pass: TrackedRenderPass, view: ViewState, first: number, part: DrawPart, path: DrawPath, bound: BoundState): void {
     const b = view.draw.batches, st = this.stats, unsorted = this.batching === 'unsorted';
     let curMesh = -1;
     for (let i = first; i < b.count; i++) {
@@ -838,7 +828,7 @@ export class Renderer {
   }
 
   /** Set the pipeline / material bind group (group 2) unless they are already the bound ones. */
-  private bindPipelineAndMaterial(pass: GPURenderPassEncoder | GPURenderBundleEncoder, bound: BoundState, pipeline: GPURenderPipeline, materialId: number, materialGroup: GPUBindGroup): void {
+  private bindPipelineAndMaterial(pass: TrackedRenderPass, bound: BoundState, pipeline: GPURenderPipeline, materialId: number, materialGroup: GPUBindGroup): void {
     if (pipeline !== bound.pipeline) { pass.setPipeline(pipeline); bound.pipeline = pipeline; }
     if (materialId !== bound.material) { pass.setBindGroup(2, materialGroup); bound.material = materialId; }
   }
@@ -848,7 +838,7 @@ export class Renderer {
    * the bind groups / buffers it references and, per draw, the pipeline, material group and geometry ranges. Camera, light and material
    * contents change inside the same buffers, so a still scene replays its commands unchanged.
    */
-  private drawThroughBundle(pass: GPURenderPassEncoder, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart, path: DrawPath): void {
+  private drawThroughBundle(pass: TrackedRenderPass, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart, path: DrawPath): void {
     const st = this.stats, target = view.target, cache = view.draw.retained, b = view.draw.batches;
     const signature: unknown[] = [target.colorFormat, target.depthFormat, target.sampleCount,
       this.frameUniform.bindGroup, path.sceneGroup, this.meshes.compactVertexBuffer, this.meshes.indexBuffer,
@@ -869,7 +859,7 @@ export class Renderer {
       const encoder = this.gpu.device.createRenderBundleEncoder({ label: 'retained-' + part,
         colorFormats: [target.colorFormat!], depthStencilFormat: target.depthFormat, sampleCount: target.sampleCount });
       const before = [st.drawCalls, st.instances, st.triangles];
-      this.drawGeometry(encoder, view, which, argBase, part);   // records through the ordinary path (an encoder is not a pass, so no recursion)
+      this.drawGeometry(new TrackedRenderPass(encoder), view, which, argBase, part);   // records through the ordinary path (a bundle encoder is not a pass, so no recursion)
       const counts: [number, number, number] = [st.drawCalls - before[0], st.instances - before[1], st.triangles - before[2]];
       saved = view.draw.bundles.set(bundleKey, signature, encoder.finish(), counts);
     } else {
@@ -877,110 +867,81 @@ export class Renderer {
       if (path.directional) st.retainedLightingDraws += saved.counts[0];
       st.drawCalls += saved.counts[0]; st.instances += saved.counts[1]; st.triangles += saved.counts[2];
     }
-    pass.executeBundles([saved.bundle]);
+    pass.executeBundles([saved.bundle]);   // (clears the wrapper's cache: a replayed bundle leaves the pass with no bindings)
     st.retainedBundleDraws += draws;
   }
 
-  /** Graph resources the main pass(es) read: whatever the features' passes produce (shadow map, cluster grid, fog volume, particles ...). */
-  private get mainReads(): readonly string[] { return this.features.producedResources; }
-
-  /** Name of the graph resource the main pass(es) produce: the swap chain, or the HDR scene target when the post chain is on. */
-  private get colorResource(): string { return this.post.enabled ? 'sceneColor' : 'backbuffer'; }
+  /** Frame resources the main pass(es) wait for: what the other passes of the frame published (shadow map, light grid, fog volume, particles, culled draws) and what user features list in `produces`. */
+  private mainAfter(g: FrameBuilder): string[] {
+    return [...new Set([...g.published, ...this.features.producedResources.filter((name) => g.hasResource(name))])];
+  }
 
   /** Clear colour as the main pass target expects it (the HDR target holds linear values, the swap chain sRGB-encoded ones). */
-  private mainClearValue(): GPUColor {
-    return this.post.enabled ? Renderer.srgbToLinear(this.clearColor) : this.clearColor;
+  private mainClearValue(): { r: number; g: number; b: number; a: number } {
+    return this.post.enabled ? srgbToLinear(this.clearColor) : this.clearColor;
   }
 
-  /** sRGB-encoded colour -> linear (HDR targets hold linear values). */
-  private static srgbToLinear(c: { r: number; g: number; b: number; a: number }): GPUColor {
-    const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
-    return { r: lin(c.r), g: lin(c.g), b: lin(c.b), a: c.a };
+  /** The frame's attachments, imported from the objects the renderer owns: the swap chain or the HDR scene image, the multisampled buffer it resolves from (MSAA), the depth buffer. */
+  private frameTargets(g: FrameBuilder): FrameTargets {
+    const msaa = this.mainView.target.sampleCount > 1 ? this.post.msaaTexture : null;
+    return {
+      image: this.post.enabled ? g.importTexture('sceneColor', this.post.sceneTexture) : g.importTexture('backbuffer', this.gpu.context.getCurrentTexture()),
+      msaa: msaa ? g.importTexture('sceneMsaa', msaa) : null,
+      depth: g.importTexture('depth', this.depthTexture),
+    };
   }
 
-  /** Colour attachment of the main pass: swap chain or HDR scene target, through the multisampled buffer (resolved) when MSAA is on. */
-  private mainColorAttachment(clear: boolean, keepMsaa = false): GPURenderPassColorAttachment {
-    const final = this.post.enabled ? this.post.sceneView : this.gpu.context.getCurrentTexture().createView();
-    const loadOp = clear ? 'clear' : 'load';
-    if (this.mainView.target.sampleCount > 1) return { view: this.post.msaaView, resolveTarget: final, clearValue: this.mainClearValue(), loadOp, storeOp: keepMsaa ? 'store' : 'discard' };
-    return { view: final, clearValue: this.mainClearValue(), loadOp, storeOp: 'store' };
+  /** One main pass as a render node of the frame: the targets, the ordered segments, the wait for what other passes produced, the GPU timestamps `timestampName` names. */
+  private addMainNode(g: FrameBuilder, name: string, t: FrameTargets, options: MainPassOptions, segments: MainPassSegment[], timestampName?: string, also: string[] = []): void {
+    declareMainPass(g, name, t, this.mainClearValue(), options, segments, { after: [...this.mainAfter(g), ...also] });
+    if (timestampName) g.timestamps(name, () => this.profiler.writes(timestampName));
+  }
+
+  /** One segment per feature that has `hook`, in feature order: the feature's draws as an ordered part of the main pass. */
+  private featureSegments(hook: 'drawBackdrop' | 'drawMain'): MainPassSegment[] {
+    const frame = this.featureFrame, out: MainPassSegment[] = [];
+    this.features.all.forEach((f, i) => {
+      if (!f[hook]) return;
+      out.push({ name: `${hook}:${i}:${f.name}`, record: (pass) => { if (frame.hasCamera) { if (hook === 'drawBackdrop') f.drawBackdrop!(pass, frame); else f.drawMain!(pass, frame); } } });
+    });
+    return out;
+  }
+
+  /** The scene geometry (`early`: opaque + alpha-masked, `late`: blended + transmissive; the GPU-culled / remaining halves in the two-phase passes) as a segment. */
+  private sceneSegment(name: string, rw: RenderWorld, draw: (pass: TrackedRenderPass) => void): MainPassSegment {
+    return { name, record: (pass) => { if (rw.hasCamera && this.mainView.draw.frame.total > 0) draw(pass); } };
   }
 
   /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
-  private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
-    const geometry = (pass: GPURenderPassEncoder, part: 'early' | 'late'): void => {
-      if (rw.hasCamera && this.mainView.draw.frame.total > 0) this.drawGeometry(pass, this.mainView, 'all', 0, part);
-    };
-    const depthAttachment = (load: boolean): GPURenderPassDepthStencilAttachment => (
-      { view: this.depthView, depthClearValue: 1, depthLoadOp: load ? 'load' : 'clear', depthStoreOp: 'store' });
+  private addMainPass(g: FrameBuilder, rw: RenderWorld, prepass: boolean, t: FrameTargets): void {
+    const early = this.sceneSegment('scene:early', rw, (pass) => this.drawGeometry(pass, this.mainView, 'all', 0, 'early'));
+    const late = this.sceneSegment('scene:late', rw, (pass) => this.drawGeometry(pass, this.mainView, 'all', 0, 'late'));
     if (!this.transmissionActive) {
       // opaque + alpha-masked, then the sky, then blended / transmissive surfaces, then particles / ribbons / overlays
-      g.addPass({ name: 'main', reads: [...this.mainReads, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
-        const pass = enc.beginRenderPass({
-          label: 'main', timestampWrites: this.profiler.writes('main'),
-          colorAttachments: [this.mainColorAttachment(true)], depthStencilAttachment: depthAttachment(prepass),
-        });
-        geometry(pass, 'early');
-        this.features.drawBackdrop(pass, this.featureFrame);
-        geometry(pass, 'late');
-        this.features.drawMain(pass, this.featureFrame);   // particles, ribbons, overlays, custom features
-        pass.end();
-      } });
+      this.addMainNode(g, 'main', t, { clear: true, depthLoad: prepass }, [early, ...this.featureSegments('drawBackdrop'), late, ...this.featureSegments('drawMain')], 'main');
       return;
     }
     // Screen-space transmission: finish the opaque scene + sky, copy it (with mips), then draw what refracts it.
-    g.addPass({ name: 'main-opaque', reads: [...this.mainReads, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-opaque', timestampWrites: this.profiler.writes('main'),
-        colorAttachments: [this.mainColorAttachment(true, true)], depthStencilAttachment: depthAttachment(prepass),
-      });
-      geometry(pass, 'early');
-      this.features.drawBackdrop(pass, this.featureFrame);
-      pass.end();
-    } });
-    g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.transmission.copyFrom(enc, this.post.sceneTexture) });
-    g.addPass({ name: 'main-late', reads: ['transmissionTex', ...this.features.producedResources], writes: ['sceneColor'], execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-late', colorAttachments: [this.mainColorAttachment(false)], depthStencilAttachment: depthAttachment(true),
-      });
-      geometry(pass, 'late');
-      this.features.drawMain(pass, this.featureFrame);   // particles, ribbons, overlays, custom features
-      pass.end();
-    } });
+    this.addMainNode(g, 'main-opaque', t, { clear: true, depthLoad: prepass, keepMsaa: true }, [early, ...this.featureSegments('drawBackdrop')], 'main');
+    this.transmission.addToFrame(g, this.post.sceneTexture);
+    this.addMainNode(g, 'main-late', t, { clear: false, depthLoad: true }, [late, ...this.featureSegments('drawMain')], undefined, ['transmissionTex']);
   }
 
   /**
    * Two-phase occlusion culling (`hiz2`). Phase A draws what was visible last frame (clears the targets); the depth is turned into a
    * Hi-Z pyramid; cull-B tests everything else against it; phase B draws the newly visible rest (loads the targets) plus extras.
    */
-  private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
+  private addTwoPhaseMainPasses(g: FrameBuilder, rw: RenderWorld, t: FrameTargets): void {
     const cam = rw.camera, f = this.mainView.draw.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
-    g.addPass({ name: 'main-A', reads: [...this.mainReads, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-A', timestampWrites: this.profiler.writes('mainA'),
-        colorAttachments: [this.mainColorAttachment(true)],
-        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
-      });
-      if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', 0);
-      pass.end();
-    } });
-    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthView, this.profiler.writes('hiz')) });
-    g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
-      execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
-    g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', ...this.features.producedResources], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-B', timestampWrites: this.profiler.writes('mainB'),
-        colorAttachments: [this.mainColorAttachment(false)],
-        depthStencilAttachment: { view: this.depthView, depthLoadOp: 'load', depthStoreOp: 'store' },
-      });
-      // same order as the single main pass: opaque (GPU-culled), sky, then the blended batches the GPU path does not cover, then extras.
-      // (Drawing the sky last would paint over blended surfaces that sit in front of it: they write no depth.)
-      if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', this.culler!.virtualCount);
-      this.features.drawBackdrop(pass, this.featureFrame);
-      if (f.total > 0) this.drawGeometry(pass, this.mainView, 'rest', 0);
-      this.features.drawMain(pass, this.featureFrame);   // particles, ribbons, overlays, custom features
-      pass.end();
-    } });
+    const culledA: MainPassSegment = { name: 'scene:culled', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', 0); } };
+    this.addMainNode(g, 'main-A', t, { clear: true, depthLoad: false }, [culledA], 'mainA');
+    this.hiz!.addToFrame(g, this.depthTexture, () => this.profiler.writes('hiz'));
+    this.culler!.addToFrame(g, 'cull-B', this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam);
+    // same order as the single main pass: opaque (GPU-culled), sky, then the blended batches the GPU path does not cover, then extras.
+    // (Drawing the sky last would paint over blended surfaces that sit in front of it: they write no depth.)
+    const culled: MainPassSegment = { name: 'scene:culled', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', this.culler!.virtualCount); } };
+    const rest: MainPassSegment = { name: 'scene:rest', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'rest', 0); } };
+    this.addMainNode(g, 'main-B', t, { clear: false, depthLoad: true }, [culled, ...this.featureSegments('drawBackdrop'), rest, ...this.featureSegments('drawMain')], 'mainB');
   }
 }

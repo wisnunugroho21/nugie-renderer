@@ -536,20 +536,24 @@ features (`renderer.features` lists them in run order), so reading one of them i
 | `addPostPasses(graph, frame)` | after the scene, before the built-in post chain (HDR chain on) | the post chain itself, your effects |
 | `drawBackdrop(pass, frame)` | main pass, after opaque geometry, before blended surfaces | the sky |
 | `drawMain(pass, frame)` | main pass, after the scene | particles, ribbons, overlays |
+
+`pass` in the two draw hooks is a `TrackedRenderPass`: it has `setPipeline`, `setBindGroup`, `setVertexBuffer`, `setIndexBuffer` and the four draw calls, remembers what is bound
+(also across the scene's draws and the other features') and skips a call that would change nothing. The raw encoder is `pass.encoder` (call `pass.invalidate()` after using it directly).
+Each feature's hooks are one ordered *segment* of the main pass in the render graph.
 | `retarget()` | the main pass's format / sample count changed | everything that owns a pipeline |
 | `endFrame()` | after the submit | overlays (`autoClear`) |
 
 Within every hook features run in `order` (`FeatureOrder`: streaming 0, shadows 10, clusters 20, fog 30, yours 100 by default, particles 100,
-ribbons 200, overlays 300, post chain 1000). `produces` names the graph resources a feature's passes write, so the scene passes wait for them.
+ribbons 200, overlays 300, post chain 1000). `produces` names the logical resources a feature's callback passes write, so the scene passes wait for them (the engine's own features use `graph.publish` / `include(..., { publish })` instead).
 
 ```ts
 const feature: RenderFeature = {
   name: 'my-feature',
   order: 150,                           // runs (in every hook) after features with a lower order
-  produces: ['myData'],                 // graph resources its passes write; the main pass waits for them
+  produces: ['myData'],                 // logical resources its callback passes write (`graph.logical`); the main pass waits for them
   prepare(frame)  { /* upload this frame's uniforms (frame.time, frame.camera) */ },
   addPasses(graph, frame) {             // compute / render passes, ordered by the declared reads and writes
-    graph.addPass({ name: 'my-sim', writes: ['myData'], execute: (enc) => { /* dispatch */ } });
+    graph.callback('my-sim', { writes: [graph.logical('myData')], execute: (enc) => { /* dispatch */ } });   // code the graph cannot see into; a callback names what it touches with logical resources
   },
   drawMain(pass, frame) {               // after the scene geometry and sky; set frame.frameBindGroup as group 0
     pass.setPipeline(pipeline); pass.setBindGroup(0, frame.frameBindGroup); pass.draw(3);
@@ -572,14 +576,14 @@ renderer.addFeature(feature);           // renderer.removeFeature(feature) to un
 const fx = new FullscreenEffect(engine.gpu, { label: 'grade', wgsl: `
   fn effect(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return vec4<f32>(color.rgb * params[0].x, color.a); }` });   // params = fx.params
 renderer.addFeature({ name: 'grade',
-  addPostPasses: (g, f) => g.addPass({ name: 'grade', reads: ['sceneColor'], writes: ['sceneColor'], execute: (enc) => fx.run(enc, f.sceneTexture) }) });
+  addPostPasses: (g, f) => fx.addToFrame(g, f.sceneTexture) });   // the effect's draw and copy become nodes of the frame's graph
 ```
 
 Effects that need their own multi-pass chain (blurs at several resolutions, screen-space techniques with several inputs) can create their own textures and
 passes in `addPostPasses` the same way; the built-in SSAO / SSR / bloom live in `src/rendering/post/PostProcessor.ts` if you want to extend those instead.
 
 **A rendering pass inside the renderer itself** (shadow-like passes that need its private state): add it in `Renderer.recordPasses` with
-`g.addPass({ name, reads, writes, execute })`; passes are created in small `add*Pass` methods in `src/rendering/Renderer.ts`.
+`g.callback(name, { reads, writes, keep, execute })`; passes are created in small `add*Pass` methods in `src/rendering/Renderer.ts`.
 
 **Tests**: pure CPU logic goes in `tests/*.test.ts` (Vitest); GPU kernels get a `SelfTest` in `src/selftest/` compared against a CPU reference.
 
