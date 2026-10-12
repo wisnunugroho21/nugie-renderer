@@ -488,6 +488,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       for (const r of node.writes ?? []) if (!(node.reads ?? []).includes(r)) out.push({ resource: r, read: false, write: true, usage: 'callback' });
       break;
   }
+  for (const r of node.after ?? []) if (!out.some((o) => o.resource === r)) out.push({ resource: r, read: true, write: false, usage: 'order' });
   return out;
 }
 
@@ -505,7 +506,7 @@ function usesOf(access: NodeAccess): ResourceUse[] {
     case 'copy-src': return ['copy-src'];
     case 'copy-dst': return ['copy-dst'];
     case 'indirect': return ['indirect'];
-    case 'callback': return ['sampled', 'render', 'copy-src', 'copy-dst'];
+    case 'callback': case 'order': return [];   // a callback does its own thing with the host's objects; ordering asks for nothing
   }
 }
 
@@ -534,8 +535,8 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
   const accesses = nodes.map((n) => accessesOf(n, graph, resolved));
   nodes.forEach((n, i) => {
     if (n.type === 'callback') return;
-    const logical = accesses[i].find((a) => graph.resources.get(a.resource)!.decl.logical);
-    if (logical) throw new TechniqueError(`node '${n.path}': '${logical.resource}' is a logical resource (a name for ordering, with no memory), which only callback nodes can use`);
+    const logical = accesses[i].find((a) => a.usage !== 'order' && graph.resources.get(a.resource)!.decl.logical);   // (waiting for a logical resource with `after` is fine)
+    if (logical) throw new TechniqueError(`node '${n.path}': '${logical.resource}' is a logical resource (a name for ordering, with no memory), which only callback nodes can read or write (any node can wait for it with after)`);
   });
   const isRoot = (n: FlatNode, a: NodeAccess[]) => n.sideEffect === true || a.some((x) => {
     if (!x.write) return false;

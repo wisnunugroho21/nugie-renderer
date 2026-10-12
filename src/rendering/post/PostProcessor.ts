@@ -1,8 +1,7 @@
 import type { GPUContext } from '../../gpu/GPUContext';
-import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
+import type { FrameBuilder } from '../graph/FrameGraph';
 import { FeatureOrder, type PostFeatureFrame, type RenderFeature } from '../RenderFeature';
 import { POST_SOURCE, POST_DEPTH_SOURCE, SSAO_SOURCE, SSR_SOURCE, registerEngineShaderChunks } from '../../shaders';
-import { TechniqueInstance } from '../graph/TechniqueInstance';
 import type { Technique } from '../graph/TechniqueTypes';
 import { AUX_FORMAT, HDR_FORMAT, buildPostChain, postChainValues, type PostChainPlan, type PostChainShape } from './PostChain';
 
@@ -143,8 +142,8 @@ export class PostProcessor implements RenderFeature {
   private auxMsaa: Target | null = null;
   private bloomSizes: [number, number][] = [];
   private dummy: GPUTexture;
-  /** The chain technique for the current targets, and the GPU instance made from it on first use. */
-  private chain: { key: string; shape: PostChainShape; plan: PostChainPlan; instance: TechniqueInstance | null } | null = null;
+  /** The chain technique for the current targets. */
+  private chain: { key: string; shape: PostChainShape; plan: PostChainPlan } | null = null;
 
   constructor(private gpu: GPUContext) {
     const { resources: r } = gpu;
@@ -199,8 +198,6 @@ export class PostProcessor implements RenderFeature {
   get sceneView(): GPUTextureView { return this.scene!.view; }
   /** The multisampled colour texture the main pass draws into when `samples > 1` (null otherwise). */
   get msaaTexture(): GPUTexture | null { return this.msaaTarget?.tex ?? null; }
-  /** Multisampled colour view the main pass draws into when `samples > 1`. */
-  get msaaView(): GPUTextureView { return this.msaaTarget!.view; }
 
   /** The aux target (view-space normal, roughness, metallic) and its multisampled twin; valid when {@link needsAux}. */
   get auxTexture(): GPUTexture { return this.aux!.tex; }
@@ -258,7 +255,6 @@ export class PostProcessor implements RenderFeature {
   }
 
   private disposeChain(): void {
-    this.chain?.instance?.dispose();
     this.chain = null;
   }
 
@@ -274,39 +270,32 @@ export class PostProcessor implements RenderFeature {
       this.disposeChain();
       const shaders = this.gpu.resources.shaders;
       const plan = buildPostChain(shape, { assemble: (src) => shaders.assemble(src, {}), post: POST_SOURCE, depth: POST_DEPTH_SOURCE, ssao: SSAO_SOURCE, ssr: SSR_SOURCE });
-      this.chain = { key, shape, plan, instance: null };
+      this.chain = { key, shape, plan };
     }
     return { technique: this.chain!.plan.technique, shape };
   }
 
   /** The post chain as a feature: runs after any user post feature (see `order`). */
-  addPostPasses(g: TechniqueBuilder, f: PostFeatureFrame): void {
+  addPostPasses(g: FrameBuilder, f: PostFeatureFrame): void {
     this.addChainPasses(g, { projection: f.projection, depthView: f.depthView, depthTexture: f.depthTexture, depthSamples: f.depthSamples });
   }
 
   /**
-   * Declare the post chain in `g` as one pass. Call after the main pass(es) (which write `'sceneColor'`) and the aux pass (`'auxTex'`).
-   * The pass writes the swap chain (`'backbuffer'`); inside it the chain's nodes run in the order the technique compiler derived.
+   * Add the post chain's nodes to the frame `g`. Call after the main pass(es) (which write the frame's `sceneColor`) and the aux pass (`auxTex`). The chain reads the HDR scene
+   * (and the aux target and the depth buffer for SSAO / SSR), writes the swap chain (`backbuffer`), and its nodes run in the order the technique compiler derived.
    */
-  addChainPasses(g: TechniqueBuilder, frame: PostFrameInfo): void {
+  addChainPasses(g: FrameBuilder, frame: PostFrameInfo): void {
     if (!this.enabled || !this.scene) return;
     this.chainPlan(frame.depthSamples);
-    g.callback('post-chain', { reads: this.needsAux ? ['sceneColor', 'auxTex'] : ['sceneColor'], writes: ['backbuffer'], keep: true,
-      execute: (enc) => this.runChain(enc, frame),
-    });
-  }
-
-  private runChain(enc: GPUCommandEncoder, frame: PostFrameInfo): void {
     const chain = this.chain!;
-    chain.instance ??= TechniqueInstance.create(this.gpu, chain.plan.technique, {
-      label: 'post', imports: { scene: this.scene!.tex, dummy: this.dummy, ...(this.aux ? { aux: this.aux.tex, depth: frame.depthTexture } : {}) },
+    const variables = postChainValues(chain.shape, this.settings, { projection: frame.projection, toneMapperId: TONE_MAPPER_ID[this.settings.toneMapper] });
+    g.include('post', chain.plan.technique, {
+      imports: {
+        scene: { as: 'sceneColor', resource: this.scene.tex }, dummy: { as: 'postDummy', resource: this.dummy },
+        backbuffer: { as: 'backbuffer', resource: this.outputTexture ?? this.gpu.context.getCurrentTexture() },
+        ...(this.aux ? { aux: { as: 'auxTex', resource: this.aux.tex }, depth: { as: 'depth', resource: frame.depthTexture } } : {}),
+      },
+      variables: Object.fromEntries(Object.entries(variables).filter(([name]) => chain.plan.variables.has(name))),
     });
-    const fx = chain.instance;
-    fx.setImport('scene', this.scene!.tex);
-    if (this.aux) { fx.setImport('aux', this.aux.tex); fx.setImport('depth', frame.depthTexture); }
-    fx.setImport('backbuffer', this.outputTexture ?? this.gpu.context.getCurrentTexture());
-    const values = postChainValues(chain.shape, this.settings, { projection: frame.projection, toneMapperId: TONE_MAPPER_ID[this.settings.toneMapper] });
-    for (const [name, value] of Object.entries(values)) if (chain.plan.variables.has(name)) fx.setVariable(name, value);
-    fx.execute(enc);
   }
 }

@@ -128,6 +128,8 @@ interface NodeOptions {
   when?: NodeCondition;
   /** Keep the node even if nothing consumes its outputs. */
   keep?: boolean;
+  /** Resources whose producers must run before this node, without it using them in a way the graph can check (see `NodeBase.after`). */
+  after?: ResourceRef[];
 }
 
 /** Bind-group options shared by compute and draw nodes. */
@@ -261,6 +263,28 @@ export class TechniqueBuilder {
     return handle;
   }
 
+  /** Declare a variable of `type` unless the name is taken (for builders that declare many names every frame, like the frame graph). */
+  protected declareVariable(name: string, type: VariableType): void {
+    if (this.variableHandles.has(name)) return;
+    this.variables.push({ name, type });
+    this.variableHandles.set(name, new VariableHandle(name, type, this));
+  }
+
+  /**
+   * Add a sub-graph node whose resource inputs and variable bindings are already names of this builder's own resources and variables (`variables`: sub-technique name ->
+   * this builder's name). The checked, handle-based form is {@link subgraph}; this one skips the lookups for callers that just declared everything they pass.
+   */
+  protected pushSubgraph(name: string, technique: Technique, inputs: Record<string, string>, variables: Record<string, string>, o: NodeOptions & { outputs?: Record<string, ResourceRef> } = {}): void {
+    const ctx = this.begin(name);
+    const bound: Record<string, { bind: string }> = {};
+    for (const key in variables) bound[key] = { bind: variables[key] };
+    this.push({
+      type: 'subgraph', name, technique, inputs, variables: bound,
+      ...(o.outputs ? { outputs: Object.fromEntries(Object.entries(o.outputs).map(([k, v]) => [k, this.resource(v, ctx).name])) } : {}),
+      ...this.base(o, ctx),
+    });
+  }
+
   /** The handle of a variable declared earlier (useful across helper functions). */
   variableNamed(name: string): VariableHandle {
     const h = this.variableHandles.get(name);
@@ -298,7 +322,7 @@ export class TechniqueBuilder {
   }
 
   /**
-   * A logical resource: a name for ordering that holds no memory (see `ResourceDecl.logical`). Only callback nodes use it. Asking again for a name declared
+   * A logical resource: a name for ordering that holds no memory (see `ResourceDecl.logical`). Callback nodes read and write it; any node can wait for it with `after`. Asking again for a name declared
    * before returns the same handle, so independent helpers can each name what they touch.
    */
   logical(name: string): ResourceHandle {
@@ -459,20 +483,40 @@ export class TechniqueBuilder {
   // ------------------------------------------------------------------------------------------------------------ results
 
   /**
-   * Identifies the shape of a technique made of callback nodes only: node names, what each reads and writes, conditions and `keep`. Two builders with the same
-   * key compile to the same plan, so a frame that declares the same passes again can reuse the previous instance (see `FrameGraph`).
+   * Identifies the shape of the technique: its resources and nodes, without the functions the host supplies (`execute`, `record`), with sub-techniques counted by
+   * identity, and without variables (their names and types follow from the sub-techniques and their values are not part of the plan). Two builders with the same key compile to
+   * the same plan, so a frame that declares the same passes again can reuse the previous instance and only swap in this frame's code (see `FrameGraph`). Sub-techniques must be
+   * kept (and reused) by the caller for this to hold. Only for techniques whose variables are bound by sub-graph nodes and set by the host, like a frame's.
    */
-  callbackKey(): string {
-    return this.nodes.map((n) => {
-      if (n.type !== 'callback') throw new TechniqueError(`technique '${this.name}': callbackKey needs callback nodes only ('${n.name}' is a ${n.type} node)`);
-      return `${n.name}|${(n.reads ?? []).join(',')}|${(n.writes ?? []).join(',')}|${n.sideEffect ? 1 : 0}`;
-    }).join(';');
+  structureKey(): string {
+    // (called every frame: the many sub-graph nodes of a frame are written out by hand, the few nodes with host code go through a replacer)
+    let key = JSON.stringify(this.resources);
+    for (const n of this.nodes) {
+      if (n.type === 'subgraph' && typeof n.technique === 'object') {
+        key += `|S${n.name}#${TechniqueBuilder.identity(n.technique)}${n.sideEffect ? '!' : ''}${JSON.stringify(n.inputs)}${JSON.stringify(n.outputs)}${JSON.stringify(n.after)}${JSON.stringify(n.condition)}${JSON.stringify(n.loop)}`;
+      } else {
+        key += '|' + JSON.stringify(n, (k, value: unknown) => (typeof value === 'function' || k === 'variables' ? undefined : k === 'technique' && typeof value === 'object' && value !== null ? TechniqueBuilder.identity(value) : value));
+      }
+    }
+    return key;
   }
 
-  /** The callback nodes' `execute` functions by node name (what a reused instance needs to run this frame's closures). */
-  callbacks(): [string, (encoder: GPUCommandEncoder) => void][] {
-    return this.nodes.map((n) => [n.name, (n as CallbackNode).execute]);
+  private static ids = new WeakMap<object, number>();
+  private static nextId = 1;
+  private static identity(o: object): number {
+    let id = TechniqueBuilder.ids.get(o);
+    if (id === undefined) TechniqueBuilder.ids.set(o, id = TechniqueBuilder.nextId++);
+    return id;
   }
+
+  /** The nodes as declared, with the host's functions (for `TechniqueInstance.setHostCode`). */
+  hostNodes(): readonly NodeDecl[] { return this.nodes; }
+
+  /** Whether a variable of that name is declared. */
+  hasVariable(name: string): boolean { return this.variableHandles.has(name); }
+
+  /** Whether a resource of that name is declared. */
+  hasResource(name: string): boolean { return this.resourceHandles.has(name); }
 
   /** The finished technique (a copy: later changes to the builder do not affect it). */
   build(): Technique {
@@ -513,7 +557,7 @@ export class TechniqueBuilder {
 
   private base(o: NodeOptions, ctx: string): { condition?: NodeCondition; sideEffect?: boolean } {
     if (o.when) this.ownVariableName(o.when.variable, ctx);
-    return { ...(o.when ? { condition: o.when } : {}), ...(o.keep ? { sideEffect: true } : {}) };
+    return { ...(o.when ? { condition: o.when } : {}), ...(o.keep ? { sideEffect: true } : {}), ...(o.after?.length ? { after: o.after.map((r) => this.resource(r, ctx).name) } : {}) };
   }
 
   /** Resolve a handle or name to a resource of this builder. */

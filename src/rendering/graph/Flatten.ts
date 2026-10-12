@@ -111,7 +111,7 @@ function inline(
     const conditions = [...inherited, ...(node.condition ? [mapCondition(node.condition, variable, ctx)] : [])];
     if (node.type === 'subgraph') { inlineSubgraph(graph, node, prefix, resource, variable, conditions, keepAll || node.sideEffect === true, options, depth, stack, ctx); continue; }
     graph.nodes.push({
-      ...mapNode(node, resource, variable, ctx), name: prefix + node.name, path: prefix + node.name, conditions, sideEffect: keepAll || node.sideEffect === true,
+      ...mapNode(node, resource, variable, ctx), ...(node.after ? { after: node.after.map((r) => mapResource(resource, r, ctx)) } : {}), name: prefix + node.name, path: prefix + node.name, conditions, sideEffect: keepAll || node.sideEffect === true,
       scope: { variables: Object.fromEntries(variable), resources: Object.fromEntries(resource) },
     } as FlatNode);
   }

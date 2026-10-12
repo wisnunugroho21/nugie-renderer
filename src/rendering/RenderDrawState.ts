@@ -76,6 +76,12 @@ export class ViewState {
   prepassActive = false;
   /** Triangle winding of this view's draws is reversed (mirrors). */
   readonly flipWinding: boolean;
+  /**
+   * An off-screen view of the frame has its own frame and scene uniforms (so several views can be recorded into one command encoder): the bind groups its draws use as groups 0 and 1.
+   * Null for the main view, which uses the renderer's.
+   */
+  frameBindGroup: GPUBindGroup | null = null;
+  sceneBindGroup: GPUBindGroup | null = null;
 
   constructor(target: PassTarget, o: { prepassTarget?: boolean } = {}) {
     this.target = target;
@@ -88,7 +94,4 @@ export class ViewState {
     for (const t of new Set([this.target, this.targetPre])) { t.colorFormat = colorFormat; t.sampleCount = sampleCount; }
     this.draw.pipelines.clear();
   }
-
-  /** The target to shade with this frame. */
-  get shadingTarget(): PassTarget { return this.prepassActive ? this.targetPre : this.target; }
 }

@@ -1,6 +1,8 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import { technique } from '../graph/TechniqueBuilder';
-import type { TechniqueInstance } from '../graph/TechniqueInstance';
+import { TechniqueInstance } from '../graph/TechniqueInstance';
+import type { FrameBuilder } from '../graph/FrameGraph';
+import type { Technique } from '../graph/TechniqueTypes';
 import { HDR_FORMAT } from './PostChain';
 
 export interface FullscreenEffectOptions {
@@ -42,26 +44,31 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
 /**
  * A full-screen effect applied to the HDR scene colour in place - the easy way to add a post-processing step from a
  * {@link RenderFeature}. It renders the scene texture through your `effect` function into a scratch texture and copies the result
- * back, so the effect can sample neighbouring pixels. Call `run` from a pass declared in `addPostPasses`:
+ * back, so the effect can sample neighbouring pixels. Add it to the frame from `addPostPasses`; its draw and copy become nodes of the frame's graph, after the scene and before
+ * the built-in post chain:
  *
- *   addPostPasses(g, f) { g.callback('grade', { reads: ['sceneColor'], writes: ['sceneColor'], execute: (e) => fx.run(e, f.sceneTexture) }); }
+ *   addPostPasses(g, f) { fx.addToFrame(g, f.sceneTexture); }
+ *
+ * (`run` records the same two commands into an encoder on its own.)
  */
 export class FullscreenEffect {
   /** The effect's uniforms (16 floats = 4 vec4), uploaded on every `run`. */
   readonly params = new Float32Array(16);
+  private tech: Technique;
   private instance: TechniqueInstance;
   private size = '1x1';
 
   /** Builds the effect at a placeholder size so a bad shader fails here, not in the middle of a frame; `run` rebuilds it for the real scene size. */
   constructor(private gpu: GPUContext, private o: FullscreenEffectOptions) {
-    this.instance = this.build(1, 1);
+    this.tech = this.build(1, 1);
+    this.instance = TechniqueInstance.create(this.gpu, this.tech, { label: `fx:${this.o.label}` });
   }
 
   /** Free the effect's scratch texture and pipeline. */
   dispose(): void { this.instance.dispose(); }
 
   /** The effect as a technique for a scene texture of this size: draw the effect into a scratch texture, then copy it back over the scene. */
-  private build(width: number, height: number): TechniqueInstance {
+  private build(width: number, height: number): Technique {
     const g = technique(this.o.label);
     for (let i = 0; i < 4; i++) g.float4(`p${i}`);
     const scene = g.texture('scene', { format: HDR_FORMAT, size: [width, height], visibility: 'imported' });
@@ -71,20 +78,35 @@ export class FullscreenEffect {
       reads: [{ resource: scene, sampler: 'linear' }], colorTargets: [{ resource: scratch, clearValue: [0, 0, 0, 1] }],
     });
     g.copy('write-back', scratch, scene);
-    return g.instantiate(this.gpu, { label: `fx:${this.o.label}` });
+    return g.build();
   }
 
-  /** Apply the effect to `sceneTexture` (the HDR scene colour, `PostFeatureFrame.sceneTexture`). Records two commands into `enc`. */
-  run(enc: GPUCommandEncoder, sceneTexture: GPUTexture): void {
+  /** Rebuild the technique when the scene texture has another size. */
+  private fit(sceneTexture: GPUTexture): void {
     const size = `${sceneTexture.width}x${sceneTexture.height}`;
-    if (this.size !== size) {
-      this.instance.dispose();
-      this.instance = this.build(sceneTexture.width, sceneTexture.height);
-      this.size = size;
-    }
+    if (this.size === size) return;
+    this.instance.dispose();
+    this.tech = this.build(sceneTexture.width, sceneTexture.height);
+    this.instance = TechniqueInstance.create(this.gpu, this.tech, { label: `fx:${this.o.label}` });
+    this.size = size;
+  }
+
+  private values(): Record<string, number[]> {
+    return Object.fromEntries([0, 1, 2, 3].map((i) => [`p${i}`, Array.from(this.params.subarray(i * 4, i * 4 + 4))]));
+  }
+
+  /** Add the effect to the frame: it draws the scene (the frame's `sceneColor`) through `effect` into a scratch texture and copies the result back. `sceneTexture` is `PostFeatureFrame.sceneTexture`. */
+  addToFrame(g: FrameBuilder, sceneTexture: GPUTexture): void {
+    this.fit(sceneTexture);
+    g.include(`fx:${this.o.label}`, this.tech, { imports: { scene: { as: 'sceneColor', resource: sceneTexture } }, variables: this.values() });
+  }
+
+  /** Apply the effect to `sceneTexture` (the HDR scene colour, `PostFeatureFrame.sceneTexture`) on its own. Records two commands into `enc`. */
+  run(enc: GPUCommandEncoder, sceneTexture: GPUTexture): void {
+    this.fit(sceneTexture);
     const fx = this.instance;
     fx.setImport('scene', sceneTexture);
-    for (let i = 0; i < 4; i++) fx.setVariable(`p${i}`, Array.from(this.params.subarray(i * 4, i * 4 + 4)));
+    for (const [name, value] of Object.entries(this.values())) fx.setVariable(name, value);
     fx.execute(enc);
   }
 }

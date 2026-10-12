@@ -4,10 +4,12 @@ import { registerEngineShaderChunks } from '../../shaders';
 import volumetricSrc from '../../shaders/volumetric.wgsl?raw';
 import type { SceneResources } from './SceneResources';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
-import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
+import type { FrameBuilder } from '../graph/FrameGraph';
 import { Mat4 } from '../../math/Mat4';
 import { technique } from '../graph/TechniqueBuilder';
-import type { TechniqueInstance } from '../graph/TechniqueInstance';
+import { TechniqueInstance } from '../graph/TechniqueInstance';
+import type { Technique } from '../graph/TechniqueTypes';
+import type { VariableValue } from '../graph/Flatten';
 
 export interface FogSettings {
   /** Extinction per world unit at height 0. */
@@ -32,39 +34,42 @@ const DEFINES = 'const HAS_MORPH_TARGETS: bool = false;\nconst HAS_SKINNING: boo
  * accumulated from the camera. A compute pass fills it each frame (directional + ranged lights, shadow-mapped); mesh and sky
  * shading apply it with one lookup (`applyFog` in scene_eval.wgsl).
  *
- * The fill is a compute node of a technique (see TECHNIQUES.md): the volume is its exported 3D texture (sized by the froxel counts), the
- * camera and grid description are variables, and the engine's frame and scene bind groups are supplied by the host.
+ * The fill is a compute node of a technique (see TECHNIQUES.md): the volume is an imported 3D texture (created here, sized by the froxel counts), the
+ * camera and grid description are variables, and the engine's frame and scene bind groups are supplied by the host. In a frame its node is part of the frame's
+ * graph (`addPasses`); `encode` runs the same technique on its own (tests, tools).
  */
 export class VolumetricFog implements RenderFeature {
   readonly name = 'volumetric-fog';
   order = FeatureOrder.fog;
-  readonly produces = ['fogVolume'];
   enabled = true;
   settings: FogSettings = { ...DEFAULT_FOG };
   readonly tile = 8;
   readonly slices = 48;
   private fx: TechniqueInstance;
+  private readonly tech: Technique;
+  private volumeTex: GPUTexture | null = null;
   private dims: [number, number, number] = [1, 1, 1];
   private width = 0;
   private height = 0;
 
   /** Create the froxel-fill technique (frame + scene bind groups from the host, the volume and its parameters from the technique). */
-  constructor(gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources) {
+  constructor(private gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources) {
     registerEngineShaderChunks(gpu.resources.shaders);
     const g = technique('volumetric-fog');
     for (const v of ['camWorld0', 'camWorld1', 'camWorld2', 'camWorld3', 'screen', 'proj']) g.float4(v);
-    const [dimX, dimY, dimZ] = ['dimX', 'dimY', 'dimZ'].map((v) => g.uint(v, 1));
+    const [dimX, dimY] = ['dimX', 'dimY', 'dimZ'].map((v) => g.uint(v, 1));
     g.uint('tile', this.tile);
-    const volume = g.texture('fogVolume', { format: 'rgba16float', dimension: '3d', size: [dimX, dimY, dimZ], visibility: 'exported' });
+    const volume = g.texture('fogVolume', { format: 'rgba16float', dimension: '3d', visibility: 'imported' });   // created by `resize`, sized by the froxel counts
     g.compute('volumetric-fog', {
       shader: DEFINES + volumetricSrc, writes: [{ resource: volume, name: 'volOut' }], dispatch: { threads: [dimX, dimY] }, workgroupSize: [8, 8, 1],
       group: 2, hostGroups: [{ group: 0, layout: 'frame' }, { group: 1, layout: 'scene' }],
     });
-    this.fx = g.instantiate(gpu, { label: 'volumetric-fog', hostLayouts: { frame: layouts.frame, scene: layouts.scene } });
+    this.tech = g.build();
+    this.fx = TechniqueInstance.create(gpu, this.tech, { label: 'volumetric-fog', hostLayouts: { frame: layouts.frame, scene: layouts.scene } });
   }
 
   /** The froxel volume (rgba16float 3D: accumulated in-scatter and transmittance), once `resize` ran. */
-  get volume(): GPUTexture | null { return this.width > 0 ? (this.fx.resource('fogVolume') as GPUTexture) : null; }
+  get volume(): GPUTexture | null { return this.width > 0 ? this.volumeTex : null; }
 
   // ---- RenderFeature hooks ----
 
@@ -74,6 +79,8 @@ export class VolumetricFog implements RenderFeature {
     this.scene.setFogVolume(null);
     this.width = 0;
     this.fx.dispose();
+    if (this.volumeTex) this.gpu.resources.textures.destroy(this.volumeTex);
+    this.volumeTex = null;
   }
 
   /** Size the volume for the canvas and mirror the settings into the scene uniform (before it is written). */
@@ -84,13 +91,21 @@ export class VolumetricFog implements RenderFeature {
   }
 
   /** The froxel fill pass: reads the shadow map and the light clusters. */
-  addPasses(graph: TechniqueBuilder, f: FeatureFrame): void {
+  addPasses(graph: FrameBuilder, f: FeatureFrame): void {
     if (!this.enabled || !f.hasCamera) return;
     const cam = f.camera, camWorld = Mat4.invert(Mat4.create(), cam.view);
-    if (!camWorld) return;
-    graph.callback('volumetrics', { reads: ['shadowMap', 'clusterGrid', 'lights'], writes: ['fogVolume'],
-      execute: (enc) => this.encode(enc, f.frameBindGroup, camWorld, cam.projection[0], cam.projection[5], cam.near, f.profiler.writes('fog')),
+    if (!camWorld || !this.volumeTex) return;
+    graph.include('fog', this.tech, {
+      imports: { fogVolume: { as: 'fogVolume', resource: this.volumeTex } },
+      variables: this.frameValues(camWorld, cam.projection[0], cam.projection[5], cam.near),
+      // the froxel shader reads the shadow map, the light clusters and the lights through the scene bind group
+      after: ['shadowMap', 'clusterGrid', 'lights'].filter((name) => graph.hasResource(name)),
+      publish: ['fogVolume'],
     });
+    graph.hostGroup('frame', f.frameBindGroup);
+    graph.hostGroup('scene', this.scene.volumePassBindGroup);
+    const timestampWrites = f.profiler.writes('fog');
+    graph.timestamps('fog', () => timestampWrites);
   }
 
   // ---- implementation ----
@@ -109,19 +124,32 @@ export class VolumetricFog implements RenderFeature {
     if (this.width > 0 && width === this.width && height === this.height) return;
     this.width = width; this.height = height;
     this.dims = [Math.max(1, Math.ceil(width / this.tile)), Math.max(1, Math.ceil(height / this.tile)), this.slices];
-    ['dimX', 'dimY', 'dimZ'].forEach((v, i) => this.fx.setVariable(v, this.dims[i]));   // sizes the volume: the technique recompiles and re-creates it
-    this.scene.setFogVolume((this.fx.resource('fogVolume') as GPUTexture).createView({ dimension: '3d' }));
+    if (this.volumeTex) this.gpu.resources.textures.destroy(this.volumeTex);
+    this.volumeTex = this.gpu.resources.textures.create({
+      label: 'fog-volume', size: { width: this.dims[0], height: this.dims[1], depthOrArrayLayers: this.dims[2] }, dimension: '3d', format: 'rgba16float',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC,
+    });
+    this.fx.setImport('fogVolume', this.volumeTex);
+    this.scene.setFogVolume(this.volumeTex.createView({ dimension: '3d' }));
   }
 
   /** Append the volume fill. `camWorld` is the camera world matrix (inverse view). `frameBG` is the renderer's frame bind group. */
   encode(enc: GPUCommandEncoder, frameBG: GPUBindGroup, camWorld: ArrayLike<number>, proj00: number, proj11: number, near: number, timestampWrites?: GPUComputePassTimestampWrites): void {
     if (!this.enabled || this.width === 0) return;
     const fx = this.fx;
-    fx.setVectors('camWorld', camWorld, 4);
-    fx.setVariable('screen', [this.width, this.height, near, this.settings.maxDistance]);
-    fx.setVariable('proj', [proj00, proj11, 0, 0]);
+    for (const [name, value] of Object.entries(this.frameValues(camWorld, proj00, proj11, near))) fx.setVariable(name, value);
     fx.setHostBindGroup('frame', frameBG);
     fx.setHostBindGroup('scene', this.scene.volumePassBindGroup);
     fx.execute(enc, { timestampWrites: () => timestampWrites });
+  }
+
+  /** The technique's variables for a camera: its world matrix, the screen and projection description and the froxel grid. */
+  private frameValues(camWorld: ArrayLike<number>, proj00: number, proj11: number, near: number): Record<string, VariableValue> {
+    const column = (i: number) => [camWorld[i * 4], camWorld[i * 4 + 1], camWorld[i * 4 + 2], camWorld[i * 4 + 3]];
+    return {
+      camWorld0: column(0), camWorld1: column(1), camWorld2: column(2), camWorld3: column(3),
+      screen: [this.width, this.height, near, this.settings.maxDistance], proj: [proj00, proj11, 0, 0],
+      dimX: this.dims[0], dimY: this.dims[1], dimZ: this.dims[2], tile: this.tile,
+    };
   }
 }

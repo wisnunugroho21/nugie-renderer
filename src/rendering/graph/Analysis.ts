@@ -1,7 +1,7 @@
 import { PriorityQueue } from '../../core/PriorityQueue';
 
 /** How a node uses a resource; a change of usage between two nodes is a resource transition (a barrier on explicit APIs). */
-export type UsageKind = 'sampled' | 'storage' | 'color' | 'depth' | 'vertex' | 'index' | 'uniform' | 'copy-src' | 'copy-dst' | 'indirect' | 'callback';
+export type UsageKind = 'order' | 'sampled' | 'storage' | 'color' | 'depth' | 'vertex' | 'index' | 'uniform' | 'copy-src' | 'copy-dst' | 'indirect' | 'callback';
 export type NodeKind = 'compute' | 'render' | 'copy' | 'callback';
 
 export interface NodeAccess {

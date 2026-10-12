@@ -544,16 +544,16 @@ Each feature's hooks are one ordered *segment* of the main pass in the render gr
 | `endFrame()` | after the submit | overlays (`autoClear`) |
 
 Within every hook features run in `order` (`FeatureOrder`: streaming 0, shadows 10, clusters 20, fog 30, yours 100 by default, particles 100,
-ribbons 200, overlays 300, post chain 1000). `produces` names the graph resources a feature's passes write, so the scene passes wait for them.
+ribbons 200, overlays 300, post chain 1000). `produces` names the logical resources a feature's callback passes write, so the scene passes wait for them (the engine's own features use `graph.publish` / `include(..., { publish })` instead).
 
 ```ts
 const feature: RenderFeature = {
   name: 'my-feature',
   order: 150,                           // runs (in every hook) after features with a lower order
-  produces: ['myData'],                 // graph resources its passes write; the main pass waits for them
+  produces: ['myData'],                 // logical resources its callback passes write (`graph.logical`); the main pass waits for them
   prepare(frame)  { /* upload this frame's uniforms (frame.time, frame.camera) */ },
   addPasses(graph, frame) {             // compute / render passes, ordered by the declared reads and writes
-    graph.callback('my-sim', { writes: ['myData'], execute: (enc) => { /* dispatch */ } });   // 'myData' is declared by `produces`; graph.logical('x') declares other names
+    graph.callback('my-sim', { writes: [graph.logical('myData')], execute: (enc) => { /* dispatch */ } });   // code the graph cannot see into; a callback names what it touches with logical resources
   },
   drawMain(pass, frame) {               // after the scene geometry and sky; set frame.frameBindGroup as group 0
     pass.setPipeline(pipeline); pass.setBindGroup(0, frame.frameBindGroup); pass.draw(3);
@@ -576,7 +576,7 @@ renderer.addFeature(feature);           // renderer.removeFeature(feature) to un
 const fx = new FullscreenEffect(engine.gpu, { label: 'grade', wgsl: `
   fn effect(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return vec4<f32>(color.rgb * params[0].x, color.a); }` });   // params = fx.params
 renderer.addFeature({ name: 'grade',
-  addPostPasses: (g, f) => g.callback('grade', { reads: ['sceneColor'], writes: ['sceneColor'], execute: (enc) => fx.run(enc, f.sceneTexture) }) });
+  addPostPasses: (g, f) => fx.addToFrame(g, f.sceneTexture) });   // the effect's draw and copy become nodes of the frame's graph
 ```
 
 Effects that need their own multi-pass chain (blurs at several resolutions, screen-space techniques with several inputs) can create their own textures and

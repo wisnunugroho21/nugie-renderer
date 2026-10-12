@@ -1,7 +1,7 @@
 import { readBuffer } from '../rendering/graph/Readback';
 import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
-import type { TechniqueBuilder } from '../rendering/graph/TechniqueBuilder';
+import type { FrameBuilder } from '../rendering/graph/FrameGraph';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { MeshManager } from '../rendering/MeshManager';
@@ -13,7 +13,8 @@ import billboardSource from '../shaders/particles_billboard.wgsl?raw';
 import meshSource from '../shaders/particles_mesh.wgsl?raw';
 import { EMITTER_BYTES, EMITTER_FLOATS, EmitterRuntime, packEmitter, type EmitterConfig } from './EmitterConfig';
 import { technique } from '../rendering/graph/TechniqueBuilder';
-import type { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
+import { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
+import type { Technique } from '../rendering/graph/TechniqueTypes';
 
 export type BillboardOrientation = 'screen' | 'camera' | 'worldUp' | 'point';
 const ORIENTATION_ID: Record<BillboardOrientation, number> = { screen: 0, camera: 1, worldUp: 2, point: 3 };
@@ -60,7 +61,8 @@ export class ParticlePool {
   private requestData: Uint32Array;
   /** The values the simulation kernels read as variables, set by `update` and handed to the technique by `encodeCompute`. */
   private sim = { dt: 0, time: 0, frame: 0, cur: 0, maxCount: 0, spawnTotal: 0, requestCount: 0, meshIndexCount: 0, meshFirstIndex: 0, meshBaseVertex: 0 };
-  /** reset -> simulate -> emit -> finalize as a technique (created on first use). */
+  /** reset -> simulate -> emit -> finalize as a technique (built on first use), and a standalone instance of it for `encodeCompute`. */
+  private tech: Technique | null = null;
   private computeFx: TechniqueInstance | null = null;
   /** Stands in for `args` in the kernels that only read it as an indirect dispatch: a buffer cannot be INDIRECT and writable storage in one scope. */
   private argsDummy!: GPUBuffer;
@@ -97,8 +99,8 @@ export class ParticlePool {
   }
 
   /** The four kernels as compute nodes of a technique, over the pool's buffers (imported). */
-  private computeInstance(): TechniqueInstance {
-    if (this.computeFx) return this.computeFx;
+  private computeTechnique(): Technique {
+    if (this.tech) return this.tech;
     const g = technique(`particles:${this.config.name ?? this.id}`);
     g.float('dt'); g.float('time');
     for (const v of ['frame', 'cur', 'maxCount', 'spawnTotal', 'requestCount', 'meshIndexCount', 'meshFirstIndex', 'meshBaseVertex']) g.uint(v);
@@ -116,13 +118,29 @@ export class ParticlePool {
     kernel('simulate', WORKGROUP, { indirect: args, offset: ARGS_DISPATCH });
     kernel('emit', WORKGROUP, { threads: [g.variableNamed('spawnTotal')] });
     kernel('finalize', 1, { threads: [1] }, true);
-    return (this.computeFx = g.instantiate(this.system.gpu, {
-      label: `particles:${this.config.name ?? this.id}`,
-      imports: {
-        emitters: this.emitterBuf, requests: this.requestBuf, particles: this.particles, aliveA: this.aliveA, aliveB: this.aliveB, deadList: this.deadList,
-        counters: this.counters, args: this.args, argsDummy: this.argsDummy,
-      },
-    }));
+    return (this.tech = g.build());
+  }
+
+  /** The pool's buffers by the technique's names for them. */
+  private buffers(): Record<string, GPUBuffer> {
+    return {
+      emitters: this.emitterBuf, requests: this.requestBuf, particles: this.particles, aliveA: this.aliveA, aliveB: this.aliveB, deadList: this.deadList,
+      counters: this.counters, args: this.args, argsDummy: this.argsDummy,
+    };
+  }
+
+  private computeInstance(): TechniqueInstance {
+    return this.computeFx ??= TechniqueInstance.create(this.system.gpu, this.computeTechnique(), { label: `particles:${this.config.name ?? this.id}`, imports: this.buffers() });
+  }
+
+  /** Add the pool's simulation to the frame: the four kernels join the frame's graph, working on the pool's buffers, ahead of the draw that reads them. */
+  addToFrame(g: FrameBuilder): void {
+    const node = `particles:${this.id}`;
+    g.include(node, this.computeTechnique(), {
+      imports: this.buffers(), variables: this.sim,
+      publish: ['particles', 'aliveA', 'aliveB', 'args'].map((name) => `${node}/${name}`),
+    });
+    this.afterCompute();
   }
 
   /** Free the pool's simulation technique (the pool's own buffers stay with the pool). */
@@ -166,10 +184,15 @@ export class ParticlePool {
 
   /** Record this pool's compute kernels (reset -> simulate -> emit -> finalize) and flip the ping-pong lists. */
   encodeCompute(enc: GPUCommandEncoder): void {
-    const sys = this.system, fx = this.computeInstance();
+    const fx = this.computeInstance();
     for (const [name, value] of Object.entries(this.sim)) fx.setVariable(name, value);
     fx.execute(enc);                                   // a spawn count of 0 dispatches no emit workgroups
+    this.afterCompute();
+  }
 
+  /** Once the frame's simulation is recorded: choose the list to draw, upload the render parameters, flip the ping-pong lists. */
+  private afterCompute(): void {
+    const sys = this.system;
     // survivors of this frame live in the NEXT list: that is what renders; it becomes `cur` for the next frame
     this.renderList = 1 - this.cur;
     const bb = this.config.billboard;
@@ -229,7 +252,6 @@ export class ParticlePool {
 export class ParticleSystem implements RenderFeature {
   readonly name = 'particles';
   order = FeatureOrder.particles;
-  readonly produces = ['particles'];
   readonly pools: ParticlePool[] = [];
   private spriteDefault: TextureRef | null = null;
 
@@ -310,8 +332,8 @@ export class ParticleSystem implements RenderFeature {
 
   // ---- RenderFeature hooks ----
 
-  /** Emit / simulate / compact in a compute pass, before any draw reads the particles. */
-  addPasses(g: TechniqueBuilder): void { g.callback('particles-sim', { writes: ['particles'], execute: (e) => this.encodeCompute(e) }); }
+  /** Emit / simulate / compact: each pool's kernels join the frame's graph, before any draw reads the particles. */
+  addPasses(g: FrameBuilder): void { for (const p of this.pools) p.addToFrame(g); }
 
   /** Free every pool's simulation pass. */
   dispose(): void { for (const p of this.pools) p.disposeCompute(); }

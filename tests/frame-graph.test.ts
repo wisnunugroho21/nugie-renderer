@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FrameGraph, FRAME_RESOURCES } from '../src/rendering/graph/FrameGraph';
+import { FrameGraph } from '../src/rendering/graph/FrameGraph';
 import { addPass, frameHost, newFrame, orderOf } from './helpers/frameGraph';
 
 const encoder = null as unknown as GPUCommandEncoder;
@@ -66,16 +66,15 @@ describe('logical resources', () => {
     g.buffer('real', { count: 4 });
     expect(() => g.logical('real')).toThrow(/real resource/);
     expect(() => g.callback('x', { reads: ['undeclared'], execute: () => {} })).toThrow(/not declared/);
-    for (const name of FRAME_RESOURCES) expect(() => g.logical(name)).not.toThrow();
   });
   it('allocate nothing, and only callback nodes may use them', () => {
     const g = newFrame().begin();
-    g.callback('c', { writes: ['depth'], keep: true, execute: () => {} });
+    g.callback('c', { writes: [g.logical('particles')], keep: true, execute: () => {} });
     const plan = g.compile();
     expect(plan.slots).toEqual([]);
     expect(plan.diagnostics).toEqual([]);
     const bad = newFrame().begin();
-    bad.compute('k', { shader: '@compute @workgroup_size(1) fn main() {}', workgroupSize: [1], dispatch: { threads: [1] }, writes: ['depth'] });
+    bad.compute('k', { shader: '@compute @workgroup_size(1) fn main() {}', workgroupSize: [1], dispatch: { threads: [1] }, writes: [bad.logical('particles')] });
     expect(() => bad.compile()).toThrow(/logical resource/);
   });
 });
@@ -124,8 +123,10 @@ describe('FrameGraph plan reuse', () => {
     expect(() => frame.run(cyc, encoder)).toThrow(/cycle/);
     expect(frame.last).toBeNull();
   });
-  it('names passed to begin() are declared', () => {
-    const g = newFrame().begin(['sim']);
-    expect(() => g.callback('x', { writes: ['sim'], keep: true, execute: () => {} })).not.toThrow();
+  it('a node can be ordered after a resource without using it', () => {
+    const g = newFrame().begin();
+    g.callback('late', { keep: true, after: [g.logical('ribbons')], execute: () => {} });
+    g.callback('early', { writes: ['ribbons'], execute: () => {} });
+    expect(orderOf(g)).toEqual(['early', 'late']);
   });
 });

@@ -13,8 +13,6 @@ export class StreamedTexture implements TextureRef {
   constructor(readonly id: string, readonly entry: StreamEntry, readonly mips: MipImage[], readonly format: GPUTextureFormat, public gpuTexture: GPUTexture, public currentView: GPUTextureView) {}
   /** The view materials bind (always the latest resident mip range). */
   get view(): GPUTextureView { return this.currentView; }
-  /** Finest resident level. */
-  get residentLevel(): number { return this.entry.resident; }
 }
 
 /**

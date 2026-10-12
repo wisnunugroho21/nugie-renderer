@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeFakeGPU } from './helpers/fakeGPU';
 import { PostProcessor, DEFAULT_POST_SETTINGS } from '../src/rendering/post/PostProcessor';
-import { addPass, newFrame, orderOf } from './helpers/frameGraph';
+import { newFrame, orderOf } from './helpers/frameGraph';
 import { compileTechnique } from '../src/rendering/graph/Compile';
 import type { GPUContext } from '../src/gpu/GPUContext';
 
@@ -14,9 +14,10 @@ function setup() {
   dev.createPipelineLayout = () => ({});
   dev.createTexture = (d: { label: string; format: string; sampleCount?: number; size: number[] }) => {
     created.push({ label: d.label, format: d.format, sampleCount: d.sampleCount ?? 1, size: d.size });
-    return { createView: () => ({}), destroy() {} };
+    return { createView: () => ({}), destroy() {}, format: d.format, width: d.size[0], height: d.size[1], depthOrArrayLayers: 1, dimension: '2d', mipLevelCount: 1, sampleCount: d.sampleCount ?? 1 };
   };
-  const gpu = { device: g.device, resources: g.res, format: 'bgra8unorm', queue: g.device.queue } as unknown as GPUContext;
+  const swapTexture = { format: 'bgra8unorm', width: 512, height: 512, depthOrArrayLayers: 1, dimension: '2d', mipLevelCount: 1, sampleCount: 1 };
+  const gpu = { device: g.device, resources: g.res, format: 'bgra8unorm', queue: g.device.queue, context: { getCurrentTexture: () => swapTexture } } as unknown as GPUContext;
   const post = new PostProcessor(gpu);
   created.length = 0;                                    // ignore the 1x1 dummy the constructor makes
   return { post, created };
@@ -28,10 +29,12 @@ const PROJ = Mat4.perspective(Mat4.create(), Math.PI / 3, 16 / 9, 0.1, 100);
 
 function passOrder(post: PostProcessor): string[] {
   const graph = newFrame().begin();
-  addPass(graph, { name: 'main', writes: ['sceneColor'], sideEffect: true, execute: () => {} });
-  if (post.needsAux) addPass(graph, { name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
-  post.addChainPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthTexture: {} as GPUTexture, depthSamples: 1 });
-  return orderOf(graph);
+  const depth = { format: 'depth24plus', width: 512, height: 512, depthOrArrayLayers: 1, dimension: '2d', mipLevelCount: 1, sampleCount: 1 } as unknown as GPUTexture;
+  graph.callback('main', { writes: [post.enabled ? graph.importTexture('sceneColor', post.sceneTexture) : graph.logical('backbuffer')], keep: true, execute: () => {} });
+  if (post.needsAux) graph.callback('aux', { reads: ['sceneColor'], writes: [graph.importTexture('auxTex', post.auxTexture)], execute: () => {} });
+  post.addChainPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthTexture: depth, depthSamples: 1 });
+  // the chain's nodes sit below 'post/': report them as the one pass they are
+  return orderOf(graph).map((name) => (name.startsWith('post/') ? 'post-chain' : name)).filter((name, i, all) => name !== all[i - 1]);
 }
 
 /** The nodes of the chain technique in execution order. */

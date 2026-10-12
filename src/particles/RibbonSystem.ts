@@ -1,7 +1,7 @@
 import { readBuffer } from '../rendering/graph/Readback';
 import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
-import type { TechniqueBuilder } from '../rendering/graph/TechniqueBuilder';
+import type { FrameBuilder } from '../rendering/graph/FrameGraph';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
 import type { TextureRef } from '../rendering/materials/Material';
@@ -11,7 +11,8 @@ import renderSource from '../shaders/ribbons_render.wgsl?raw';
 import type { Vec3, Vec4 } from './EmitterConfig';
 import { hypot3 } from '../math/hypot';
 import { technique } from '../rendering/graph/TechniqueBuilder';
-import type { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
+import { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
+import type { Technique } from '../rendering/graph/TechniqueTypes';
 
 export type RibbonMode = 'trail' | 'chain' | 'flat';
 const MODE_ID: Record<RibbonMode, number> = { trail: 0, chain: 1, flat: 2 };
@@ -55,7 +56,6 @@ export class RibbonSystem implements RenderFeature {
   private static nextId = 0;
   readonly name = `ribbons:${RibbonSystem.nextId++}`;
   order = FeatureOrder.ribbons;
-  readonly produces = ['ribbons'];
   readonly descBuf: GPUBuffer;
   readonly segmentBuf: GPUBuffer;
   count = 0;
@@ -69,7 +69,8 @@ export class RibbonSystem implements RenderFeature {
   /** Ribbons whose descriptor has been uploaded once: from then on the GPU OWNS their trail state (head/count). */
   private gpuStateKnown = new Set<number>();
   private resetPending = new Set<number>();
-  /** The trail update as a technique (created on first use). */
+  /** The trail update as a technique (built on first use), and a standalone instance of it for `encodeCompute`. */
+  private updateTech: Technique | null = null;
   private updateFx: TechniqueInstance | null = null;
   private updateTime = 0;
   private N: number;
@@ -211,7 +212,14 @@ export class RibbonSystem implements RenderFeature {
   // ---- RenderFeature hooks ----
 
   /** Advance the trail histories on the GPU, before the draw reads them. */
-  addPasses(g: TechniqueBuilder): void { g.callback(`${this.name}:update`, { writes: ['ribbons'], execute: (e) => this.encodeCompute(e) }); }
+  addPasses(g: FrameBuilder): void {
+    if (this.count === 0) return;
+    const node = `${this.name}:update`;
+    g.include(node, this.updateTechnique(), {
+      imports: { ribbons: this.descBuf, segments: this.segmentBuf }, variables: { time: this.updateTime, ribbonCount: this.count },
+      publish: [`${node}/ribbons`, `${node}/segments`],
+    });
+  }
 
   /** Free the trail-update pass. */
   dispose(): void { this.updateFx?.dispose(); this.updateFx = null; }
@@ -219,18 +227,23 @@ export class RibbonSystem implements RenderFeature {
   /** One draw call, after the scene. */
   drawMain(pass: TrackedRenderPass, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
 
+  /** The trail update: one compute node over every ribbon, the descriptor and segment buffers imported. */
+  private updateTechnique(): Technique {
+    if (this.updateTech) return this.updateTech;
+    const g = technique(`${this.config.name ?? 'ribbons'}-update`);
+    g.float('time'); g.uint('ribbonCount');
+    const ribbons = g.buffer('ribbons', { element: 'RibbonDesc', stride: RIBBON_DESC_FLOATS * 4, visibility: 'imported' });
+    const segments = g.buffer('segments', { element: 'Segment', stride: SEGMENT_FLOATS * 4, visibility: 'imported' });
+    g.compute('update-trails', {
+      shader: updateSource, entryPoint: 'update_trails', workgroupSize: [64], writes: [ribbons, segments], dispatch: { threads: [g.variableNamed('ribbonCount')] },
+    });
+    return (this.updateTech = g.build());
+  }
+
+  /** Record the trail update on its own (tests, tools). */
   encodeCompute(enc: GPUCommandEncoder): void {
     if (this.count === 0) return;
-    if (!this.updateFx) {
-      const g = technique(`${this.config.name ?? 'ribbons'}-update`);
-      g.float('time'); g.uint('ribbonCount');
-      const ribbons = g.buffer('ribbons', { element: 'RibbonDesc', stride: RIBBON_DESC_FLOATS * 4, visibility: 'imported' });
-      const segments = g.buffer('segments', { element: 'Segment', stride: SEGMENT_FLOATS * 4, visibility: 'imported' });
-      g.compute('update-trails', {
-        shader: updateSource, entryPoint: 'update_trails', workgroupSize: [64], writes: [ribbons, segments], dispatch: { threads: [g.variableNamed('ribbonCount')] },
-      });
-      this.updateFx = g.instantiate(this.gpu, { label: 'ribbons-update', imports: { ribbons: this.descBuf, segments: this.segmentBuf } });
-    }
+    this.updateFx ??= TechniqueInstance.create(this.gpu, this.updateTechnique(), { label: 'ribbons-update', imports: { ribbons: this.descBuf, segments: this.segmentBuf } });
     this.updateFx.setVariable('time', this.updateTime);
     this.updateFx.setVariable('ribbonCount', this.count);
     this.updateFx.execute(enc);

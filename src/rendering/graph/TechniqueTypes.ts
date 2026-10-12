@@ -51,8 +51,8 @@ interface ResourceBase {
   /** Default `transient`. Imported resources ignore it. */
   lifetime?: ResourceLifetime;
   /**
-   * A name for ordering only: no memory is allocated and no declaration is needed beyond the name. Only `callback` nodes may use it (they order
-   * themselves by it); it is how a frame's engine passes say "this pass produces the shadow map, that one consumes it". Always internal and transient.
+   * A name for ordering only: no memory is allocated and no declaration is needed beyond the name. `callback` nodes read and write it (they order themselves by it) and any
+   * node can wait for it with `after`; other nodes cannot bind or target it. It is how code the graph cannot see into says "this pass produces X, that one consumes it". Always internal and transient.
    */
   logical?: boolean;
   /**
@@ -138,6 +138,11 @@ interface NodeBase {
   condition?: NodeCondition;
   /** Keep the node even if nothing consumes its outputs. */
   sideEffect?: boolean;
+  /**
+   * Resources whose producers must run before this node, without the node using them in any way the graph could check (a logical resource a callback produces, or a
+   * host-owned resource the node's code reads on its own). Ordering only: it asks for no GPU usage.
+   */
+  after?: string[];
 }
 
 /** A bind group the host supplies to a node (the engine's frame and scene groups): the shader declares its bindings itself. */

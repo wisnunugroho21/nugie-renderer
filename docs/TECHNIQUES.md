@@ -251,19 +251,20 @@ A transient internal resource read before its first write still waits for its pr
 
 ## What the engine runs as techniques
 
-The frame graph (`FrameGraph`, a technique of callback nodes) orders the frame's passes, and these now are techniques (compute / draw / copy nodes), each checked against the previous hand-written passes
-(pixel-identical output through the engine, or the GPU self-tests):
+The frame is one technique (`FrameGraph`, see [In the engine's frame graph](#in-the-engines-frame-graph)) and every engine pass is a set of data nodes in it (compute / draw / copy / clear / render nodes), ordered by
+the resources they really read and write. Each was checked against the previous hand-written passes (pixel-identical output through the engine, or the GPU self-tests). Node paths in the plan are
+`<pass>/<node>` for a pass that comes from a sub-technique (`clusters/cluster-cull`, `hiz/hiz-down-3`, `post/post-composite`):
 
 | Pass | Where | Nodes |
 |---|---|---|
 | Post chain: view depth, SSAO (+2 blurs), SSR, bloom mip chain, composite, FXAA | `rendering/post/PostChain.ts` (+ `PostProcessor.ts`) | one draw node each; the scene, aux, depth and swap chain are imported, every other target is transient and memory-aliased |
 | User full-screen effects | `FullscreenEffect.ts` | draw into a scratch image, copy back over the scene |
 | Transmission copy + mip chain | `TransmissionCopy.ts` | copy, then one draw per mip |
-| Light-cluster assignment | `ClusterGrid.ts` | compute over the clusters |
-| Volumetric fog fill | `VolumetricFog.ts` | compute with the engine's frame and scene bind groups from the host, exported 3D volume |
-| GPU culling (frustum, Hi-Z, LOD), three phases | `GPUCuller.ts` | compute, one technique per phase |
+| Light-cluster assignment | `ClusterGrid.ts` | clear the overflow counter, compute over the clusters |
+| Volumetric fog fill | `VolumetricFog.ts` | compute with the engine's frame and scene bind groups from the host, imported 3D volume |
+| GPU culling (frustum, Hi-Z, LOD), three phases | `GPUCuller.ts` | one compute node per phase (`gpu-cull`, `cull-A`, `cull-B`), each with its own parameters |
 | Hi-Z pyramid | `HiZ.ts` | compute: copy depth, then one reduction per mip |
-| GPU particles | `particles/ParticleSystem.ts` | compute: reset, simulate (indirect dispatch), emit, finalize |
+| GPU particles | `particles/ParticleSystem.ts` | per pool, compute: reset, simulate (indirect dispatch), emit, finalize |
 | Ribbon trails | `particles/RibbonSystem.ts` | compute |
 | Depth prepass | `Renderer.ts` | render node, depth target |
 | Aux pass (normal / roughness / metallic for SSAO and SSR) | `Renderer.ts` | render node, MSAA colour with resolve, read-only depth |
@@ -276,10 +277,14 @@ The frame graph (`FrameGraph`, a technique of callback nodes) orders the frame's
 | GPU profiler: query results into the staging ring | `profiling/GPUProfiler.ts` | copy node whose size is a variable, in a technique kept across frames |
 | Readbacks: `RenderTarget.readPixels`, particle / ribbon debug reads, the self-test helpers | `graph/Readback.ts` | copy node into a mappable staging buffer (one-shot) |
 | Light-cluster overflow counter reset | `lighting/ClusterGrid.ts` | clear node |
-| Render-to-texture views (mirrors, minimaps, security cameras) and reflection-probe captures | `OffscreenViews.ts` (+ `Renderer.renderJob`) | one render node per target (and cube face): colour texture or one array layer of a cube, depth discarded after the pass; segments for the geometry, the sky and the blended geometry |
+| Render-to-texture views (mirrors, minimaps, security cameras) | `OffscreenViews.ts` (`renderDue` prepares, `declarePasses` declares) | one render node per due view (`view:<n>`), ahead of the frame's other passes: colour texture, depth discarded after the pass; segments for the geometry, the sky and the blended geometry. Each view has its own frame and scene uniform (`FrameUniform`, `ViewScene`) and draw state, so all the views record into the frame's one command encoder |
+| Reflection-probe captures (`captureEnvironment`) | `OffscreenViews.ts` (`captureEnvironment`) | called between frames and baked straight away, so each face is a small render-node technique of its own, submitted right away |
 
  `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
 `CompactVertexStream` (derived vertex data) are asset-preparation utilities that run outside the frame.
+
+The only callback nodes left in a frame are the ones a game's own features declare (code the graph cannot see into, such as a technique with resources of its own that a material samples: `/?scene=technique`).
+The off-screen views are render nodes of the frame, declared first (a view shows the last frame's shadow map and lights, as it always did); only the probe capture, which runs between frames, is a technique of its own.
 
 The GPU-to-GPU copies the engine records are all copy / clear nodes now. What stays outside the graph are the *uploads* from the CPU (`queue.writeBuffer`, `writeTexture`, `copyExternalImageToTexture`): they are queue operations
 that run in submission order rather than commands in an encoder.
@@ -325,13 +330,24 @@ Names in tokens are the ones used in the technique the node is written in; sub-g
 
 ### In the engine's frame graph
 
-The engine's per-frame pass graph is itself a technique, made of callback nodes (`rendering/graph/FrameGraph.ts`). Each frame `FrameGraph.begin()` returns a fresh builder; the renderer and the features declare their passes
-with `graph.callback(name, { reads, writes, keep, execute })` and `FrameGraph.run(builder, encoder)` compiles (dependencies, culling, ordering) and records them. A pass names what it touches with **logical resources**: a
-resource with `logical: true` (`graph.logical('shadowMap')`, idempotent) holds no memory, needs no size or format and only callback nodes may use it, so the passes order themselves without any storage being
-declared. The engine's names (`FRAME_RESOURCES`: `sceneColor`, `backbuffer`, `depth`, `shadowMap` ...) are declared on every frame's builder, as are the names features list in `produces`.
-The plan (`plan.steps`, `plan.culled`, `plan.resources.get(name).first / last`, `plan.stats` with transitions and kind switches) is the technique's usual one, and `compile({ order: 'transitions' })` reorders independent passes.
-Most frames declare the same passes as the one before; then `FrameGraph` reuses the compiled instance (`callbackKey()` compares names, reads, writes and `keep`) and swaps in the new closures with `setCallbacks`, so a steady scene
-does not recompile. A technique plugs into the frame as one pass: `fx.addTo(graph, { reads: ['sceneColor'], writes: ['sceneColor'] })`.
+The engine's per-frame pass graph is itself a technique (`rendering/graph/FrameGraph.ts`). Each frame `FrameGraph.begin()` returns a fresh `FrameBuilder` (a `TechniqueBuilder` that also carries what the
+frame supplies at run time); the renderer and the features add their passes to it and `FrameGraph.run(builder, encoder)` compiles (dependencies, culling, ordering) and records them.
+
+* **The host's objects are imported resources.** `importTexture(name, texture)` / `importBuffer(name, buffer, element)` declare a resource from the object itself (format, size, layers, mips, samples), once per name, and supply it.
+  The engine's names: `backbuffer` (the swap chain), `sceneColor` (the HDR scene), `sceneMsaa`, `depth`, `auxTex`, `shadowMap`, `lights`, `clusterGrid`, `fogVolume`, `hizTex`, `transmissionTex`, `culledInstances` ...
+* **A system is a technique that the frame includes.** `include(node, technique, { imports, variables, outputs, after, publish })` runs a finished `Technique` (a stable object, kept by the system) as a sub-graph: its imported
+  resources are declared from the objects in `imports` (`{ as: 'lights', resource }` uses a frame-level name several passes share), its variables are declared on the frame as `<node>/<name>` with this frame's values, and its
+  nodes join the graph under the path `<node>/...`. `publish: ['shadowMap']` (or `publish(...)`) says the main pass has to come after what the node produces; `after` is the same for one node.
+* **Render nodes** declare the frame's passes with the host recording the draws: the main passes (`declareMainPass`), the depth prepass, the aux pass and the shadow layers. A segment is one feature's part of a pass.
+* **Run-time data** goes beside the nodes: `value(name, type, v)` (variable values), `hostGroup(layout, bindGroup)`, `dynamicOffset(node, binding, offset)` and `timestamps(path, writes)` (GPU timestamps for a node or everything below a path).
+* **Logical resources** (`graph.logical('plasma')`, idempotent) hold no memory: they are names for ordering, usable by callback nodes (`reads` / `writes`) and by any node's `after`. They are how a game's own callback pass tells
+  the main pass to wait for it (`produces` on the feature, or `after`).
+* **The plan** (`plan.steps`, `plan.culled`, `plan.resources.get(name).first / last`, `plan.stats` with transitions and kind switches) is the technique's usual one, and `compile({ order: 'transitions' })` reorders independent passes.
+* **Plan reuse.** Most frames declare the same passes as the one before. `FrameGraph` computes `structureKey()` (resources and nodes without the functions, sub-techniques by identity, no variables) and, when it is unchanged, keeps the
+  compiled instance and hands it this frame's imports, variable values, bind groups, offsets and code (`setHostCode`: callback `execute`, render-node `record` and segments). A steady scene does not recompile; a change in the
+  set of passes, in a target's size or format, or in the clear colour does. Pipelines survive a recompile (`pipelineCache`).
+
+A technique of your own that owns resources (a plasma texture a material samples) plugs in as one callback node: `fx.addTo(graph, { writes: [graph.logical('plasma')] })`.
 
 ### Visualising
 

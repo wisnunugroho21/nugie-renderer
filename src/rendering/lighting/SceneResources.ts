@@ -116,8 +116,22 @@ export class SceneResources {
   /** Swap in the cluster grid / index buffers (called by ClusterGrid on resize). */
   setClusterBuffers(grid: GPUBuffer, indices: GPUBuffer): void { this.clusterGrid = grid; this.clusterIndices = indices; this.invalidate(); }
 
+  /** Counts invalidations, so a {@link ViewScene} knows its bind group is stale. */
+  private epoch = 0;
+
   /** Invalidate the bind group (call after replacing any resource). */
-  invalidate(): void { this.directionalBg = null; this.bg = null; this.shadowBg = null; this.volumeBg = null; }
+  invalidate(): void { this.epoch++; this.directionalBg = null; this.bg = null; this.shadowBg = null; this.volumeBg = null; }
+
+  /** A scene uniform and bind group of their own for one off-screen view of the frame (see {@link ViewScene}). */
+  createViewScene(): ViewScene {
+    const buffer = this.gpu.resources.buffers.create('ViewSceneUniform', SCENE_UNIFORM_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    const scene = this;
+    return new ViewScene(buffer, {
+      bytes: () => this.uniformData, epoch: () => this.epoch,
+      bindGroup: (label, uniform) => scene.makeBindGroup(label, scene.shadowMap, scene.fogVolume, uniform),
+      destroy: (b) => this.gpu.resources.buffers.destroy(b),
+    });
+  }
 
   get directionalBindGroup(): GPUBindGroup {
     return this.directionalBg ??= this.gpu.device.createBindGroup({ layout: this.layouts.directionalScene, entries: [
@@ -148,11 +162,11 @@ export class SceneResources {
   }
 
   /** Create the scene bind group from the current resources (`shadowView` / `fogView` are overridable for off-screen passes). */
-  private makeBindGroup(label: string, shadowView: GPUTextureView, fogView: GPUTextureView = this.fogVolume): GPUBindGroup {
+  private makeBindGroup(label: string, shadowView: GPUTextureView, fogView: GPUTextureView = this.fogVolume, uniform: GPUBuffer = this.uniform): GPUBindGroup {
     return this.gpu.device.createBindGroup({
       label, layout: this.layouts.scene,
       entries: [
-        { binding: 0, resource: { buffer: this.uniform } },
+        { binding: 0, resource: { buffer: uniform } },
         { binding: 1, resource: { buffer: this.lightBuffer } },
         { binding: 2, resource: { buffer: this.clusterGrid } },
         { binding: 3, resource: { buffer: this.clusterIndices } },
@@ -263,4 +277,39 @@ export class SceneResources {
     f[40] = fg.ambient[0]; f[41] = fg.ambient[1]; f[42] = fg.ambient[2]; f[43] = fg.enabled ? 1 : 0;
     this.uploadUniform();
   }
+}
+
+/**
+ * The scene bind group of one off-screen view of a frame: the main view's resources and last uniform, with clustered shading and the fog volume switched off (both belong to
+ * the main camera), in a uniform buffer and bind group of its own. Several views can then be recorded into one command encoder: each one sees its own scene uniform, where a
+ * single shared uniform would hold only the last value written before the submit.
+ */
+export class ViewScene {
+  private group: GPUBindGroup | null = null;
+  private groupEpoch = -1;
+  private readonly scratch = new ArrayBuffer(SCENE_UNIFORM_BYTES);
+
+  constructor(
+    readonly buffer: GPUBuffer,
+    private source: { bytes(): ArrayBuffer; epoch(): number; bindGroup(label: string, uniform: GPUBuffer): GPUBindGroup; destroy(buffer: GPUBuffer): void },
+  ) {}
+
+  /** Write this frame's scene uniform for the view (the main view's, with clusters and fog off). */
+  write(queue: GPUQueue): void {
+    const copy = this.scratch;   // writeBuffer copies the bytes at once, so one scratch serves every frame
+    new Uint8Array(copy).set(new Uint8Array(this.source.bytes()));
+    new Uint32Array(copy)[7] = 0;
+    new Float32Array(copy)[43] = 0;
+    queue.writeBuffer(this.buffer, 0, copy);
+  }
+
+  /** The bind group (group 1) for this view; rebuilt after any scene resource changed. */
+  get bindGroup(): GPUBindGroup {
+    const epoch = this.source.epoch();
+    if (!this.group || this.groupEpoch !== epoch) { this.group = this.source.bindGroup('scene-view-bg', this.buffer); this.groupEpoch = epoch; }
+    return this.group;
+  }
+
+  /** Free the uniform buffer. */
+  destroy(): void { this.source.destroy(this.buffer); }
 }

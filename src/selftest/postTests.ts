@@ -72,8 +72,8 @@ async function runCase(gpu: GPUContext, c: Case): Promise<Uint8Array> {
   draw({ colorAttachments: [], depthStencilAttachment: { view: depth.createView({ aspect: 'depth-only' }), depthLoadOp: 'clear', depthClearValue: 1, depthStoreOp: 'store' } }, pipe('fs_depth', null, c.samples));
   device.queue.submit([enc.finish()]);
   const frame = new FrameGraph(gpu), g = frame.begin();
-  g.callback('main', { writes: ['sceneColor'], keep: true, execute: () => {} });
-  if (post.needsAux) g.callback('aux', { reads: ['sceneColor'], writes: ['auxTex'], execute: () => {} });
+  g.callback('main', { writes: [g.importTexture('sceneColor', post.sceneTexture)], keep: true, execute: () => {} });   // the scene was drawn above: this stands in for the passes that wrote it
+  if (post.needsAux) g.callback('aux', { reads: ['sceneColor'], writes: [g.importTexture('auxTex', post.auxTexture)], execute: () => {} });
   post.addChainPasses(g, { projection: PROJ, depthView: depth.createView({ aspect: 'depth-only' }), depthTexture: depth, depthSamples: c.samples });
   const enc2 = device.createCommandEncoder();
   frame.run(g, enc2);

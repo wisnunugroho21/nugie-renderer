@@ -1,6 +1,6 @@
 import type { TrackedRenderPass } from './graph/TrackedRenderPass';
 import type { Camera } from './Camera';
-import type { TechniqueBuilder } from './graph/TechniqueBuilder';
+import type { FrameBuilder } from './graph/FrameGraph';
 import type { RenderWorld } from './RenderWorld';
 import type { PassTarget } from './materials/MaterialManager';
 import type { LightData } from './lighting/LightData';
@@ -96,16 +96,17 @@ export interface RenderFeature {
   /** Upload CPU-side changes. Called once per frame, before the passes are recorded. */
   prepare?(frame: FeatureFrame): void;
   /**
-   * Declare this frame's passes on the frame's technique: `graph.callback(name, { reads, writes, keep?, execute })`. `reads` / `writes` name logical resources (a shadow map, the scene colour);
-   * the engine's own names are declared already (see `FRAME_RESOURCES`), the ones in `produces` too, and `graph.logical('name')` declares any other. Passes are ordered by what they read and write, and dropped when nothing consumes their output.
+   * Declare this frame's passes on the frame's technique. The engine's own features add data nodes (`graph.include(node, technique, { imports, variables, publish })`, `graph.renderPass(...)`, compute / copy / clear nodes)
+   * over the host's objects, which they import with `graph.importTexture` / `graph.importBuffer`. Code the graph cannot see into is a callback node, `graph.callback(name, { reads, writes, keep?, execute })`, whose `reads` / `writes`
+   * name logical resources (`graph.logical('name')`; list one in `produces` to make the scene passes wait for it). Passes are ordered by what they read and write, and dropped when nothing consumes their output.
    */
-  addPasses?(graph: TechniqueBuilder, frame: FeatureFrame): void;
+  addPasses?(graph: FrameBuilder, frame: FeatureFrame): void;
   /**
    * Post-process the scene colour (only while the HDR post chain is on: `renderer.post.configure({})`). Called after the scene is drawn and
    * before the built-in SSAO / SSR / bloom / tone mapping, so the effect works on linear HDR values. A pass that changes the colour declares
    * `reads: ['sceneColor'], writes: ['sceneColor']`; {@link FullscreenEffect} does the rest for a per-pixel effect.
    */
-  addPostPasses?(graph: TechniqueBuilder, frame: PostFeatureFrame): void;
+  addPostPasses?(graph: FrameBuilder, frame: PostFeatureFrame): void;
   /**
    * Draw behind blended surfaces: after the opaque geometry, before the blended batches. Skipped when the scene has no camera. The feature's draws form one segment of the
    * main pass's render node; `pass` tracks the pipeline, bind groups and buffers across all segments, so set state through it (`pass.encoder` is the raw encoder: call `pass.invalidate()` after using it).
@@ -157,8 +158,8 @@ export class FeatureRegistry {
   beginFrame(frame: FeatureFrame): void { for (const f of this.list) f.beginFrame?.(frame); }
   buildInstances(frame: FeatureFrame): void { for (const f of this.list) f.buildInstances?.(frame); }
   prepare(frame: FeatureFrame): void { for (const f of this.list) f.prepare?.(frame); }
-  addPasses(graph: TechniqueBuilder, frame: FeatureFrame): void { for (const f of this.list) f.addPasses?.(graph, frame); }
-  addPostPasses(graph: TechniqueBuilder, frame: PostFeatureFrame): void { for (const f of this.list) f.addPostPasses?.(graph, frame); }
+  addPasses(graph: FrameBuilder, frame: FeatureFrame): void { for (const f of this.list) f.addPasses?.(graph, frame); }
+  addPostPasses(graph: FrameBuilder, frame: PostFeatureFrame): void { for (const f of this.list) f.addPostPasses?.(graph, frame); }
   drawBackdrop(pass: TrackedRenderPass, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawBackdrop?.(pass, frame); }
   drawMain(pass: TrackedRenderPass, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawMain?.(pass, frame); }
   retarget(): void { for (const f of this.list) f.retarget?.(); }

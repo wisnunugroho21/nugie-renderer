@@ -3,10 +3,12 @@ import { registerEngineShaderChunks } from '../../shaders';
 import cullSrc from '../../shaders/cluster_cull.wgsl?raw';
 import { LIGHT_BYTES, type LightData } from './LightData';
 import { technique } from '../graph/TechniqueBuilder';
-import type { TechniqueInstance } from '../graph/TechniqueInstance';
+import { TechniqueInstance } from '../graph/TechniqueInstance';
+import type { Technique } from '../graph/TechniqueTypes';
+import type { VariableValue } from '../graph/Flatten';
 import type { SceneResources } from './SceneResources';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
-import type { TechniqueBuilder } from '../graph/TechniqueBuilder';
+import type { FrameBuilder } from '../graph/FrameGraph';
 
 export interface ClusterConfig {
   /** Tile size in pixels (screen-space cluster XY). */
@@ -24,13 +26,12 @@ export const DEFAULT_CLUSTER_CONFIG: ClusterConfig = { tileSize: 64, slices: 24,
  * cluster, the list of ranged lights that can reach it. The fragment shader then loops only over its own cluster's list
  * (plus the few global lights). Buffers are the same ones bound in the scene bind group (2 = grid, 3 = indices).
  *
- * The pass is a compute node of a technique (see TECHNIQUES.md): the light buffer, the grid, the index lists and the overflow counter are imported
- * resources, the camera and grid description are variables.
+ * The pass is a technique (see TECHNIQUES.md): the light buffer, the grid, the index lists and the overflow counter are imported resources, the camera and grid
+ * description are variables. In a frame its nodes are part of the frame's graph (`addPasses`); `encode` runs the same technique on its own (tests, tools).
  */
 export class ClusterGrid implements RenderFeature {
   readonly name = 'light-clusters';
   order = FeatureOrder.clusters;
-  readonly produces = ['clusterGrid'];
   /** false = every fragment loops over every light (the naive baseline). */
   enabled = true;
   /** Clustered shading is used this frame: it is `enabled` and the scene has ranged lights to assign. Set by `beginFrame`. */
@@ -40,6 +41,7 @@ export class ClusterGrid implements RenderFeature {
   private indices: GPUBuffer | null = null;
   private overflowBuf: GPUBuffer;
   private fx: TechniqueInstance;
+  private readonly tech: Technique;
   private width = 0;
   private height = 0;
   /** Dispatches issued (diagnostics / tests). */
@@ -61,7 +63,8 @@ export class ClusterGrid implements RenderFeature {
       shader: cullSrc, reads: [lights], writes: [grid, indices], readWrites: [overflow],
       dispatch: { threads: [g.variableNamed('clusters')] },
     });
-    this.fx = g.instantiate(gpu, { label: 'light-clusters', imports: { overflow: this.overflowBuf } });
+    this.tech = g.build();
+    this.fx = TechniqueInstance.create(gpu, this.tech, { label: 'light-clusters', imports: { overflow: this.overflowBuf } });
   }
 
   // ---- RenderFeature hooks ----
@@ -79,13 +82,21 @@ export class ClusterGrid implements RenderFeature {
     if (this.active) this.resize(f.width, f.height);
   }
 
-  /** The light-assignment compute pass. */
-  addPasses(graph: TechniqueBuilder, f: FeatureFrame): void {
-    if (!this.active || !f.hasCamera) return;
+  /** The light-assignment compute pass: the technique's nodes join the frame, reading the light buffer and writing the grid and index lists. */
+  addPasses(graph: FrameBuilder, f: FeatureFrame): void {
+    if (!this.active || !f.hasCamera || !this.grid) return;
     const cam = f.camera;
-    graph.callback('clusters', { reads: ['lights'], writes: ['clusterGrid'],
-      execute: (enc) => this.encode(enc, cam.view, cam.projection[0], cam.projection[5], cam.near, cam.far, f.lights, f.profiler.writes('clusters')),
+    graph.include('clusters', this.tech, {
+      imports: {
+        lights: { as: 'lights', resource: this.scene.lightBuffer }, clusterGrid: { as: 'clusterGrid', resource: this.grid },
+        clusterIndices: { as: 'clusterIndices', resource: this.indices! }, overflow: this.overflowBuf,
+      },
+      variables: this.frameValues(cam.view, cam.projection[0], cam.projection[5], cam.near, cam.far, f.lights),
+      publish: ['clusterGrid', 'clusterIndices'],
     });
+    const timestampWrites = f.profiler.writes('clusters');
+    graph.timestamps('clusters', () => timestampWrites);
+    this.dispatches++;
   }
 
   // ---- implementation ----
@@ -116,18 +127,23 @@ export class ClusterGrid implements RenderFeature {
    */
   encode(enc: GPUCommandEncoder, view: ArrayLike<number>, proj00: number, proj11: number, near: number, far: number, lights: LightData, timestampWrites?: GPUComputePassTimestampWrites): void {
     if (!this.grid || lights.count === 0) return;
-    const fx = this.fx, c = this.config;
+    const fx = this.fx;
     fx.setImport('lights', this.scene.lightBuffer);
     fx.setImport('clusterGrid', this.grid);
     fx.setImport('clusterIndices', this.indices!);
-    fx.setVectors('view', view, 4);
-    fx.setVariable('screen', [this.width, this.height, near, far]);
-    fx.setVariable('proj', [proj00, proj11, 0, 0]);
-    this.dims.forEach((d, i) => fx.setVariable(['dimX', 'dimY', 'dimZ'][i], d));
-    fx.setVariable('tile', c.tileSize);
-    fx.setVariable('lightCount', lights.count); fx.setVariable('globalCount', lights.globalCount); fx.setVariable('maxLights', c.maxLightsPerCluster);
-    fx.setVariable('clusters', this.clusterCount);
+    for (const [name, value] of Object.entries(this.frameValues(view, proj00, proj11, near, far, lights))) fx.setVariable(name, value);
     fx.execute(enc, { timestampWrites: () => timestampWrites });
     this.dispatches++;
+  }
+
+  /** The technique's variables for a camera and the frame's lights. */
+  private frameValues(view: ArrayLike<number>, proj00: number, proj11: number, near: number, far: number, lights: LightData): Record<string, VariableValue> {
+    const column = (i: number) => [view[i * 4], view[i * 4 + 1], view[i * 4 + 2], view[i * 4 + 3]];
+    return {
+      view0: column(0), view1: column(1), view2: column(2), view3: column(3),
+      screen: [this.width, this.height, near, far], proj: [proj00, proj11, 0, 0],
+      dimX: this.dims[0], dimY: this.dims[1], dimZ: this.dims[2], tile: this.config.tileSize,
+      lightCount: lights.count, globalCount: lights.globalCount, maxLights: this.config.maxLightsPerCluster, clusters: this.clusterCount,
+    };
   }
 }

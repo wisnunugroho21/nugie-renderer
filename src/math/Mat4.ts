@@ -30,20 +30,6 @@ export const Mat4 = {
     return o;
   },
 
-  /** out[oo..] = a[ao..] * b[bo..]; each matrix may live at an offset of a larger array. Aliasing-safe. */
-  multiplyAt(out: M4, oo: number, a: M4, ao: number, b: M4, bo: number): M4 {
-    const a00 = a[ao], a01 = a[ao + 1], a02 = a[ao + 2], a03 = a[ao + 3], a10 = a[ao + 4], a11 = a[ao + 5], a12 = a[ao + 6], a13 = a[ao + 7],
-      a20 = a[ao + 8], a21 = a[ao + 9], a22 = a[ao + 10], a23 = a[ao + 11], a30 = a[ao + 12], a31 = a[ao + 13], a32 = a[ao + 14], a33 = a[ao + 15];
-    for (let c = 0; c < 4; c++) {
-      const b0 = b[bo + c * 4], b1 = b[bo + c * 4 + 1], b2 = b[bo + c * 4 + 2], b3 = b[bo + c * 4 + 3];
-      out[oo + c * 4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
-      out[oo + c * 4 + 1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
-      out[oo + c * 4 + 2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
-      out[oo + c * 4 + 3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
-    }
-    return out;
-  },
-
   /** o = T(p) * R(q) * S(s), written at optional offset into a larger array. */
   compose(o: M4, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number,
     sx: number, sy: number, sz: number, off = 0): M4 {

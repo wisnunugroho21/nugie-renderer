@@ -5,7 +5,7 @@ import { bufferStride, compileTechnique, evalDim, type CompileOptions, type Comp
 import type { VariableValue } from './Flatten';
 import { TrackedRenderPass } from './TrackedRenderPass';
 import { expandShader, sampleTypeOf, writeUniform, type ExpandedShader } from './ShaderTokens';
-import { TechniqueError, type BindingDecl, type BufferDecl, type ClearNode, type ColorTarget, type CopyEnd, type CopyNode, type ComputeNode, type DepthTarget, type DrawNode, type RenderPassNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
+import { TechniqueError, type BindingDecl, type BufferDecl, type ClearNode, type NodeDecl, type ColorTarget, type CopyEnd, type CopyNode, type ComputeNode, type DepthTarget, type DrawNode, type RenderPassNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
 
 /**
  * What a technique instance needs from the engine. A `GPUContext` is one; code that only has a device (an allocator, the profiler) can pass
@@ -23,6 +23,8 @@ export interface TechniqueInstanceOptions extends CompileOptions {
   imports?: Record<string, GPUTexture | GPUBuffer>;
   /** Prefix for GPU object labels. */
   label?: string;
+  /** Pipelines to keep across instances: an instance rebuilt for a slightly different plan (a frame graph) finds the pipelines it needs already made. */
+  pipelineCache?: Map<string, GPUComputePipeline | GPURenderPipeline>;
   /** Layouts of the bind groups the host supplies to nodes (`hostGroups`), by name. */
   hostLayouts?: Record<string, GPUBindGroupLayout>;
 }
@@ -124,7 +126,7 @@ export class TechniqueInstance {
   private dynamicOffsets = new Map<string, number>();
   private emptyLayout: GPUBindGroupLayout | null = null;
   private values = new Map<string, VariableValue>();
-  private pipelines = new Map<string, GPUComputePipeline | GPURenderPipeline>();
+  private pipelines: Map<string, GPUComputePipeline | GPURenderPipeline>;
   private runtimes = new Map<CompiledStep, StepRuntime>();
   private declarations: Map<string, VariableDecl>;
   private dirty = true;
@@ -134,9 +136,11 @@ export class TechniqueInstance {
   compileCount = 0;
   private listeners = new Set<(names: string[]) => void>();
   private callbackFns = new Map<string, (encoder: GPUCommandEncoder) => void>();
+  private renderHost = new Map<string, { record?: (pass: TrackedRenderPass) => void; segments: ((pass: TrackedRenderPass) => void)[] }>();
 
   private constructor(readonly gpu: TechniqueHost, readonly technique: Technique, private options: TechniqueInstanceOptions) {
     this.declarations = new Map((technique.variables ?? []).map((v) => [v.name, v]));
+    this.pipelines = options.pipelineCache ?? new Map();
   }
 
   /** Compile `technique` and create its GPU resources. Throws a {@link TechniqueError} if it is invalid. */
@@ -211,8 +215,8 @@ export class TechniqueInstance {
   setImport(name: string, resource: GPUTexture | GPUBuffer): void {
     const plan = this.plan.resources.get(name);
     if (!plan || plan.visibility !== 'imported') throw new TechniqueError(`'${name}' is not an imported resource of technique '${this.technique.name}'`);
-    this.checkImport(plan, resource);
     if (this.imports.get(name) === resource) return;
+    this.checkImport(plan, resource);
     this.imports.set(name, resource);
     // bind groups only hold resources that a shader binding names: a render target changing every frame (the swap chain) does not invalidate them
     for (const rt of this.runtimes.values()) if (rt.shader?.slots.some((s) => s.decl?.resource === name)) { this.bindingsDirty = true; break; }
@@ -581,9 +585,9 @@ export class TechniqueInstance {
   private runRenderPass(encoder: GPUCommandEncoder, node: RenderPassNode & { path: string }, timestampWrites?: GPURenderPassTimestampWrites): void {
     const pass = this.beginPass(encoder, node, timestampWrites);
     try {
-      const tracked = new TrackedRenderPass(pass);
-      node.record?.(tracked);
-      for (const segment of node.segments ?? []) segment.record(tracked);
+      const tracked = new TrackedRenderPass(pass), host = this.renderHost.get(node.path);
+      (host ? host.record : node.record)?.(tracked);
+      (node.segments ?? []).forEach((segment, i) => (host?.segments[i] ?? segment.record)(tracked));
     } finally { pass.end(); }
   }
 
@@ -669,9 +673,15 @@ export class TechniqueInstance {
     graph.callback(node.name ?? this.technique.name, { reads: node.reads, writes: node.writes, keep: node.keep, execute: (encoder) => this.execute(encoder) });
   }
 
-  /** Swap the code of callback nodes (by node name) without recompiling: a technique reused frame after frame runs this frame's closures (see `FrameGraph`). */
-  setCallbacks(callbacks: Iterable<[string, (encoder: GPUCommandEncoder) => void]>): void {
-    for (const [name, fn] of callbacks) this.callbackFns.set(name, fn);
+  /**
+   * Swap the code the host supplies for top-level nodes (a callback's `execute`, a render node's `record` and its segments' `record`) without recompiling: a technique
+   * reused frame after frame runs this frame's closures (see `FrameGraph`). `nodes` must have the same shape as the technique the instance was made from.
+   */
+  setHostCode(nodes: readonly NodeDecl[]): void {
+    for (const n of nodes) {
+      if (n.type === 'callback') this.callbackFns.set(n.name, n.execute);
+      else if (n.type === 'render') this.renderHost.set(n.name, { record: n.record, segments: (n.segments ?? []).map((s) => s.record) });
+    }
   }
 
   /** Free every GPU object the instance created (imported resources are the host's and stay). */

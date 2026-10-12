@@ -2,6 +2,8 @@ import type { TrackedRenderPass } from '../src/rendering/graph/TrackedRenderPass
 import { describe, expect, it } from 'vitest';
 import { FeatureOrder, FeatureRegistry, type FeatureFrame, type PostFeatureFrame, type RenderFeature } from '../src/rendering/RenderFeature';
 import { addPass, newFrame, orderOf } from './helpers/frameGraph';
+import { technique } from '../src/rendering/graph/TechniqueBuilder';
+import type { FrameBuilder } from '../src/rendering/graph/FrameGraph';
 import { OverlaySystem } from '../src/rendering/overlay/Overlay';
 import { ParticleSystem } from '../src/particles/ParticleSystem';
 import { RibbonSystem } from '../src/particles/RibbonSystem';
@@ -96,26 +98,39 @@ describe('built-in features', () => {
     expect(log).toEqual([]);
   });
 
-  it('particles: simulate in a graph pass, draw only when pools exist', () => {
+  it('particles: each pool declares its simulation in the frame, draws only when pools exist', () => {
     const log: string[] = [];
-    const ps = bare(ParticleSystem, { pools: [] as unknown[], encodeCompute: () => log.push('compute'), encodeDraw: () => log.push('draw') });
+    const pool = { addToFrame: (g: FrameBuilder) => { log.push('declare'); g.callback('pool-sim', { writes: [g.logical('pool-buffers')], execute: () => log.push('compute') }); }, encodeDraw: () => log.push('draw') };
+    const ps = bare(ParticleSystem, { pools: [] as unknown[], encodeDraw: () => log.push('draw') });
     const g = newFrame().begin();
     ps.addPasses(g);
-    addPass(g, { name: 'reader', reads: ['particles'], sideEffect: true, execute: () => {} });
-    expect(orderOf(g)).toEqual(['particles-sim', 'reader']);
+    expect(orderOf(g)).toEqual([]);                  // no pools: nothing to simulate
+    (ps.pools as unknown[]).push(pool);
+    ps.addPasses(g);
+    g.callback('reader', { reads: ['pool-buffers'], keep: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['pool-sim', 'reader']);
     newFrame().run(g, {} as GPUCommandEncoder);
     ps.drawMain(pass, frame());
-    (ps.pools as unknown[]).push({});
-    ps.drawMain(pass, frame());
-    expect(log).toEqual(['compute', 'draw']);
+    expect(log).toEqual(['declare', 'compute', 'draw']);
   });
 
-  it('ribbons: one update pass per system, named after the system', () => {
-    const made = [0, 1].map(() => bare(RibbonSystem, { name: `ribbons:${Math.random()}`, encodeCompute: () => {} }));
+  it('ribbons: one update node per system, below the system name', () => {
+    // a stand-in for the trail-update technique with the same imports and variables (the real one needs a GPU to compile its shader)
+    const tb = technique('ribbon-stand-in');
+    tb.float('time'); tb.uint('ribbonCount');
+    const ribbons = tb.importedBuffer('ribbons', 'u32'), segments = tb.importedBuffer('segments', 'u32');
+    void segments;
+    tb.clear('update-trails', ribbons);
+    const tech = tb.build(), buffers = { desc: { id: 'desc' }, segments: { id: 'segments' } } as unknown as Record<string, GPUBuffer>;
+    const made = [0, 1].map((i) => bare(RibbonSystem, { name: `ribbons:${i}`, count: i + 1, updateTime: 0.5, updateTechnique: () => tech, descBuf: buffers.desc, segmentBuf: buffers.segments }));
     const g = newFrame().begin();
     for (const rs of made) rs.addPasses(g);
-    addPass(g, { name: 'reader', reads: ['ribbons'], sideEffect: true, execute: () => {} });
-    expect(orderOf(g)).toEqual([`${made[0].name}:update`, `${made[1].name}:update`, 'reader']);
+    expect(orderOf(g)).toEqual(['ribbons:0:update/update-trails', 'ribbons:1:update/update-trails']);
+    expect(g.values.get('ribbons:1:update/ribbonCount')).toBe(2);
+    expect([...g.published]).toContain('ribbons:0:update/ribbons');
+    const empty = bare(RibbonSystem, { name: 'ribbons:9', count: 0 });
+    empty.addPasses(g);                              // no ribbons: no pass
+    expect(orderOf(g)).toHaveLength(2);
   });
 
   it('the sky draws only when visible and an environment is bound', () => {
@@ -134,9 +149,19 @@ describe('built-in features', () => {
 
   it('clusters: active only when enabled and there are ranged lights; the grid pass is declared only then', () => {
     const resized: number[][] = [], g = newFrame().begin();
-    const grid = bare(ClusterGrid, { enabled: true, active: false, resize: (w: number, h: number) => resized.push([w, h]), encode: () => {} });
+    // a stand-in for the light-assignment technique with the same imports (the real one needs a GPU to compile its shader)
+    const tb = technique('cluster-stand-in');
+    const lightsRes = tb.importedBuffer('lights', 'u32'), gridRes = tb.importedBuffer('clusterGrid', 'u32'), indicesRes = tb.importedBuffer('clusterIndices', 'u32'), overflow = tb.importedBuffer('overflow', 'u32');
+    tb.clear('clear-overflow', overflow);
+    void indicesRes;
+    tb.copy('cluster-cull', lightsRes, gridRes);
+    const buffers = { lights: { id: 'lights' }, grid: { id: 'grid' }, indices: { id: 'indices' }, overflow: { id: 'overflow' } } as unknown as Record<string, GPUBuffer>;
+    const grid = bare(ClusterGrid, {
+      enabled: true, active: false, resize: (w: number, h: number) => resized.push([w, h]), encode: () => {}, tech: tb.build(), grid: buffers.grid, indices: buffers.indices, overflowBuf: buffers.overflow,
+      scene: { lightBuffer: buffers.lights }, dims: [10, 6, 24], width: 640, height: 360, config: { tileSize: 64, slices: 24, maxLightsPerCluster: 256 }, dispatches: 0,
+    });
     const lights = { count: 5, globalCount: 5 };
-    const f = { ...frame(), lights, width: 640, height: 360, camera: { view: [], projection: [], near: 0.1, far: 100 }, profiler: { writes: () => undefined } } as unknown as FeatureFrame;
+    const f = { ...frame(), lights, width: 640, height: 360, camera: { view: new Float32Array(16), projection: new Float32Array(16), near: 0.1, far: 100 }, profiler: { writes: () => undefined } } as unknown as FeatureFrame;
     grid.beginFrame(f);
     expect(grid.active).toBe(false);                // every light is global: nothing to cluster
     grid.addPasses(g, f);
@@ -146,30 +171,34 @@ describe('built-in features', () => {
     expect(grid.active).toBe(true);
     expect(resized).toEqual([[640, 360]]);
     grid.addPasses(g, f);
-    addPass(g, { name: 'reader', reads: ['clusterGrid'], sideEffect: true, execute: () => {} });
-    expect(orderOf(g)).toEqual(['clusters', 'reader']);
+    expect(g.imports.get('lights')).toBe(buffers.lights);   // the scene's light buffer is the frame's 'lights' resource
+    g.callback('reader', { reads: ['clusterGrid'], keep: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['clusters/clear-overflow', 'clusters/cluster-cull', 'reader']);
     grid.enabled = false;
     grid.beginFrame(f);
     expect(grid.active).toBe(false);
   });
 
-  it('shadows: slots are assigned in beginFrame, casters are built only with a camera, the depth pass only with layers', () => {
-    const log: string[] = [];
-    const shadows = bare(ShadowSystem, { layers: [], assign: () => log.push('assign'), buildCasterBatches: () => log.push('casters'), encode: () => log.push('encode') });
+  it('shadows: slots are assigned in beginFrame, casters are built only with a camera, one depth pass (render node) per layer', () => {
+    const log: string[] = [], writes: string[] = [];
+    const map = { format: 'depth32float', width: 1024, height: 1024, depthOrArrayLayers: 4, dimension: '2d', mipLevelCount: 1, sampleCount: 1 } as unknown as GPUTexture;
+    const shadows = bare(ShadowSystem, {
+      layers: [], assign: () => log.push('assign'), buildCasterBatches: () => log.push('casters'), texture: map, frameData: new Float32Array(64), config: { mapSize: 1024 },
+      frameBuffers: [{ label: 'f0' }, { label: 'f1' }], gpu: { device: { queue: { writeBuffer: (b: { label: string }) => writes.push(b.label) } } },
+    });
     shadows.beginFrame(frame());
     shadows.buildInstances(frame(false));
     shadows.buildInstances(frame());
     const g = newFrame().begin();
     shadows.addPasses(g, frame());
-    addPass(g, { name: 'reader', reads: ['shadowMap'], sideEffect: true, execute: () => {} });
-    expect(orderOf(g)).toEqual(['reader']);        // no layers: no depth pass
-    (shadows.layers as unknown[]).push({});
+    expect(g.hasResource('shadowMap')).toBe(false);   // no layers: no depth pass, nothing declared
+    (shadows.layers as unknown[]).push({ index: 0, vp: new Float32Array(16) }, { index: 1, vp: new Float32Array(16) });
     const g2 = newFrame().begin();
-    shadows.addPasses(g2, { ...frame(), objectBindGroup: () => ({}) as GPUBindGroup, profiler: {} } as unknown as FeatureFrame);
-    addPass(g2, { name: 'reader', reads: ['shadowMap'], sideEffect: true, execute: () => {} });
-    expect(orderOf(g2)).toEqual(['shadows', 'reader']);
-    newFrame().run(g2, {} as GPUCommandEncoder);
-    expect(log).toEqual(['assign', 'casters', 'encode']);
+    shadows.addPasses(g2, { ...frame(), objectBindGroup: () => ({}) as GPUBindGroup, profiler: { writes: () => undefined } } as unknown as FeatureFrame);
+    g2.callback('reader', { reads: ['shadowMap'], keep: true, execute: () => {} });
+    expect(orderOf(g2)).toEqual(['shadow-layer-0', 'shadow-layer-1', 'reader']);
+    expect(writes).toEqual(['f0', 'f1']);             // each layer's frame uniforms are written when the passes are declared
+    expect(log).toEqual(['assign', 'casters']);
   });
 
   it('texture streaming reports coverage in beginFrame, only with a streamer and a camera', () => {
