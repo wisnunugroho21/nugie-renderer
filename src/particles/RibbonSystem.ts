@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
 import type { RenderGraph } from '../rendering/RenderGraph';
 import type { GPUContext } from '../gpu/GPUContext';
@@ -215,7 +216,7 @@ export class RibbonSystem implements RenderFeature {
   dispose(): void { this.updateFx?.dispose(); this.updateFx = null; }
 
   /** One draw call, after the scene. */
-  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
+  drawMain(pass: TrackedRenderPass, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
 
   encodeCompute(enc: GPUCommandEncoder): void {
     if (this.count === 0) return;
@@ -235,7 +236,7 @@ export class RibbonSystem implements RenderFeature {
   }
 
   /** Record the ribbon draw: all segments of all ribbons in one instanced draw call. */
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void {
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void {
     if (this.count === 0) return;
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, frameBG);

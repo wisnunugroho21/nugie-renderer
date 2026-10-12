@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from '../graph/TrackedRenderPass';
 import type { GPUContext } from '../../gpu/GPUContext';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
 
@@ -6,7 +7,7 @@ export interface Overlay extends RenderFeature {
   /** Upload CPU-side changes (called by the renderer once per frame, before the passes are recorded). */
   flush(): void;
   /** Record the draw call(s) into the main pass. */
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void;
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void;
   /** The shared colour / depth target changed (MSAA, HDR): re-resolve the render pipeline. */
   retarget(): void;
   /** Cleared after every frame when true (immediate-mode drawing). */
@@ -29,12 +30,12 @@ export abstract class OverlaySystem implements Overlay {
   constructor(readonly name: string) {}
 
   abstract flush(): void;
-  abstract encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void;
+  abstract encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void;
   abstract retarget(): void;
   abstract clear(): void;
 
   prepare(): void { this.flush(); }
-  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
+  drawMain(pass: TrackedRenderPass, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
   endFrame(): void { if (this.autoClear) this.clear(); }
 }
 

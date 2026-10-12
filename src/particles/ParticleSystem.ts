@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
 import type { RenderGraph } from '../rendering/RenderGraph';
 import type { GPUContext } from '../gpu/GPUContext';
@@ -179,7 +180,7 @@ export class ParticlePool {
   }
 
   /** Record the indirect draw (alive count never leaves the GPU). */
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void {
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, frameBG);
     pass.setBindGroup(1, this.renderBG);
@@ -340,14 +341,14 @@ export class ParticleSystem implements RenderFeature {
   dispose(): void { for (const p of this.pools) p.disposeCompute(); }
 
   /** One indirect draw per pool, after the scene. */
-  drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { if (this.pools.length) this.encodeDraw(pass, f.frameBindGroup); }
+  drawMain(pass: TrackedRenderPass, f: FeatureFrame): void { if (this.pools.length) this.encodeDraw(pass, f.frameBindGroup); }
 
   /** CPU step for all pools (decide how many particles each emitter spawns this frame, upload emitter data). */
   update(dt: number, time: number): void { for (const p of this.pools) p.update(dt, time); }
   /** Record every pool's emit / simulate / compact compute passes. */
   encodeCompute(enc: GPUCommandEncoder): void { for (const p of this.pools) p.encodeCompute(enc); }
   /** Record every pool's indirect draw into the main render pass. */
-  encodeDraw(pass: GPURenderPassEncoder, frameBG: GPUBindGroup): void { for (const p of this.pools) p.encodeDraw(pass, frameBG); }
+  encodeDraw(pass: TrackedRenderPass, frameBG: GPUBindGroup): void { for (const p of this.pools) p.encodeDraw(pass, frameBG); }
 
   /** The shared target changed (MSAA / HDR): re-resolve every pool's render pipeline. */
   retarget(): void { for (const p of this.pools) p.rebuildPipeline(); }

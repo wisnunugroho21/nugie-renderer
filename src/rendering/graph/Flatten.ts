@@ -232,6 +232,7 @@ function mapNode(node: Exclude<NodeDecl, SubGraphNode>, resource: Map<string, st
         colorTargets: node.colorTargets.map((t) => ({ ...t, resource: mapResource(resource, t.resource, ctx), ...(t.resolve !== undefined ? { resolve: mapResource(resource, t.resolve, ctx) } : {}) })),
         ...(node.depthTarget ? { depthTarget: { ...node.depthTarget, resource: mapResource(resource, node.depthTarget.resource, ctx) } } : {}),
         ...(node.uses ? { uses: node.uses.map((u) => ({ ...u, resource: mapResource(resource, u.resource, ctx) })) } : {}),
+        ...(node.segments ? { segments: node.segments.map((sg) => ({ ...sg, ...(sg.uses ? { uses: sg.uses.map((u) => ({ ...u, resource: mapResource(resource, u.resource, ctx) })) } : {}) })) } : {}),
       };
     case 'callback': return { ...node, reads: (node.reads ?? []).map((r) => mapResource(resource, r, ctx)), writes: (node.writes ?? []).map((r) => mapResource(resource, r, ctx)) };
   }

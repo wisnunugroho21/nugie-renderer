@@ -6,7 +6,7 @@ import { techniqueToJSON } from './TechniqueJSON';
 import {
   TechniqueError, type BindingAccess, type BindingDecl, type BufferDecl, type CallbackNode, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type NodeCondition,
   type NodeDecl, type ResourceLifetime, type ResourceVisibility, type SizeDim, type TextureDecl, type Technique, type TechniqueRegistry, type VariableDecl, type VariableType,
-  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup, type RenderPassNode, type RenderPassUse,
+  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup, type RenderPassNode, type RenderPassSegment, type RenderPassUse,
 } from './TechniqueTypes';
 
 /**
@@ -196,6 +196,13 @@ export interface RenderPassOptions extends NodeOptions {
   depthTarget?: DrawOptions['depthTarget'];
   /** What the draws read or write besides the attachments: `{ resource, usage: 'sampled' | 'storage' | 'uniform' | 'vertex' | 'index' | 'indirect', write? }`. */
   uses?: (Omit<RenderPassUse, 'resource'> & { resource: ResourceRef })[];
+  /** Draws recorded first; more can be added as ordered segments (`segments`, or `passSegment` later). */
+  record?: (pass: TrackedRenderPass) => void;
+  segments?: (Omit<RenderPassSegment, 'uses'> & { uses?: (Omit<RenderPassUse, 'resource'> & { resource: ResourceRef })[] })[];
+}
+
+export interface PassSegmentOptions {
+  uses?: (Omit<RenderPassUse, 'resource'> & { resource: ResourceRef })[];
   record: (pass: TrackedRenderPass) => void;
 }
 
@@ -352,13 +359,28 @@ export class TechniqueBuilder {
   renderPass(name: string, o: RenderPassOptions): this {
     const ctx = this.begin(name);
     const node: RenderPassNode = {
-      type: 'render', name, record: o.record, ...this.base(o, ctx),
+      type: 'render', name, ...(o.record ? { record: o.record } : {}), ...this.base(o, ctx),
       colorTargets: (o.colorTargets ?? []).map((t) => (typeof t === 'string' || t instanceof ResourceHandle ? { resource: this.resource(t, ctx).name }
         : (({ resolve, ...rest }) => ({ ...rest, resource: this.resource(t.resource, ctx).name, ...(resolve !== undefined ? { resolve: this.resource(resolve, ctx).name } : {}) }))(t))),
     };
     if (o.depthTarget) node.depthTarget = { ...o.depthTarget, resource: this.resource(o.depthTarget.resource, ctx).name };
     if (o.uses) node.uses = o.uses.map((u) => ({ ...u, resource: this.resource(u.resource, ctx).name }));
-    return this.push(node);
+    this.push(node);
+    for (const sg of o.segments ?? []) this.passSegment(name, sg.name, sg);
+    return this;
+  }
+
+  /**
+   * Add an ordered segment to the render node `pass` declared earlier: a part of its draws that one feature or system contributes. Segments are recorded after the node's own
+   * `record`, in the order they are added, through the same tracking wrapper; their `uses` count as the pass's.
+   */
+  passSegment(pass: string, name: string, o: PassSegmentOptions): this {
+    const ctx = `technique '${this.name}', render node '${pass}', segment '${name}'`;
+    const node = this.nodes.find((n) => n.type === 'render' && n.name === pass) as RenderPassNode | undefined;
+    if (!node) throw new TechniqueError(`${ctx}: there is no render node '${pass}' to add a segment to`);
+    if (node.segments?.some((sg) => sg.name === name)) throw new TechniqueError(`${ctx}: the pass already has a segment of that name`);
+    (node.segments ??= []).push({ name, record: o.record, ...(o.uses ? { uses: o.uses.map((u) => ({ ...u, resource: this.resource(u.resource, ctx).name })) } : {}) });
+    return this;
   }
 
   /** Copy one resource to another of the same kind, format and size. */

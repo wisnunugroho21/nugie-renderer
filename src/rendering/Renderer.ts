@@ -24,7 +24,8 @@ import { GPULodIndex } from './GPULodIndex';
 import { HiZ } from './HiZ';
 import { RenderGraph } from './RenderGraph';
 import { CachedTechnique } from './graph/CachedTechnique';
-import type { TrackedRenderPass } from './graph/TrackedRenderPass';
+import { MainPassNode, type MainPassSegment, type MainPassTargets } from './MainPassNode';
+import { TrackedRenderPass } from './graph/TrackedRenderPass';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
 import { PostProcessor, HDR_FORMAT, AUX_FORMAT } from './post/PostProcessor';
@@ -115,7 +116,6 @@ export class Renderer {
   private fbKey = '';
   private msaaWarned = false;
   private depthTexture!: GPUTexture;
-  private depthView!: GPUTextureView;
   /** Depth-only view of the depth buffer for sampling in post passes (SSAO / SSR). */
   private depthSampleView!: GPUTextureView;
   /** The main view: its target formats, draw state and prepass flag. Off-screen views have their own (see `OffscreenViews`). */
@@ -152,6 +152,10 @@ export class Renderer {
     this.transmission = new TransmissionCopy(gpu, this.sceneResources);
     this.prepassPass = new CachedTechnique(gpu, 'depth-prepass');
     this.auxPass = new CachedTechnique(gpu, 'aux');
+    this.mainPasses = {
+      single: new MainPassNode(gpu, 'main'), opaque: new MainPassNode(gpu, 'main-opaque'), late: new MainPassNode(gpu, 'main-late'),
+      phaseA: new MainPassNode(gpu, 'main-A'), phaseB: new MainPassNode(gpu, 'main-B'),
+    };
     this.streaming = new StreamingDriver(this.materials);
     this.gpuLodIndex = new GPULodIndex(this.lodLibrary);
 
@@ -203,6 +207,8 @@ export class Renderer {
   /** The depth prepass and the aux pass: render nodes of small techniques, rebuilt when the target changes. */
   private prepassPass: CachedTechnique;
   private auxPass: CachedTechnique;
+  /** The main pass variants as render nodes: the single pass, the opaque / late halves around the transmission copy, and the two culling phases. */
+  private mainPasses: { single: MainPassNode; opaque: MainPassNode; late: MainPassNode; phaseA: MainPassNode; phaseB: MainPassNode };
   /** The render world of the frame being recorded (the aux pass's draw callback reads it). */
   private passRenderWorld: RenderWorld | null = null;
   private sphereScratch = new Float32Array(4 * 1024);
@@ -380,16 +386,17 @@ export class Renderer {
     this.buildBatches(view, rw, true);
 
     const enc = device.createCommandEncoder({ label: 'view' });
-    const pass = enc.beginRenderPass({
+    const raw = enc.beginRenderPass({
       label: 'view',
       colorAttachments: [{ view: job.colorView, clearValue: Renderer.srgbToLinear(job.clearColor), loadOp: 'clear', storeOp: 'store' }],
       depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
     });
+    const pass = new TrackedRenderPass(raw);
     const total = view.draw.frame.total;
     if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'early');
     if (job.skybox && this.skybox.visible && this.sceneResources.env.enabled) this.skybox.draw(pass, view.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup);
     if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'late');
-    pass.end();
+    raw.end();
     queue.submit([enc.finish()]);
   }
 
@@ -444,7 +451,6 @@ export class Renderer {
     this.depthTexture = r.textures.create({
       label: 'depth', size: [Math.max(1, width), Math.max(1, height)], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING, sampleCount: this.mainView.target.sampleCount,
     });
-    this.depthView = this.depthTexture.createView();
     this.depthSampleView = this.depthTexture.createView({ aspect: 'depth-only' });
   }
 
@@ -811,9 +817,9 @@ export class Renderer {
    * compacted set (arguments start at `argBase`), `'rest'` draws the batches the GPU path does not cover, `'all'` does both.
    * Without GPU culling every batch is drawn directly. `part` selects the early (opaque + alpha-mask) or late (blended + transmissive) half.
    */
-  private drawGeometry(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart = 'all'): void {
+  private drawGeometry(pass: TrackedRenderPass, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart = 'all'): void {
     const path = this.resolveDrawPath(view);
-    if ((path.retained || path.directional) && this.retainedBundles && 'executeBundles' in pass) {
+    if ((path.retained || path.directional) && this.retainedBundles && !pass.isBundle) {
       this.drawThroughBundle(pass, view, which, argBase, part, path);
       return;
     }
@@ -832,7 +838,7 @@ export class Renderer {
   }
 
   /** GPU-compacted draws: one indirect draw per (batch, LOD level) in the culler's output. */
-  private drawIndirect(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, argBase: number, part: DrawPart, bound: BoundState): void {
+  private drawIndirect(pass: TrackedRenderPass, view: ViewState, argBase: number, part: DrawPart, bound: BoundState): void {
     const cu = this.culler!, mats = this.materials.materials, st = this.stats;
     for (let v = 0; v < cu.virtualCount; v++) {
       if (isSkippedPart(part, (mats[cu.virtualMaterial[v]].features & MaterialFeature.Transmission) !== 0)) continue;
@@ -844,7 +850,7 @@ export class Renderer {
   }
 
   /** Direct instanced draws of batches `first..count`, switching pipeline and material bind group only when they change. */
-  private drawBatches(pass: GPURenderPassEncoder | GPURenderBundleEncoder, view: ViewState, first: number, part: DrawPart, path: DrawPath, bound: BoundState): void {
+  private drawBatches(pass: TrackedRenderPass, view: ViewState, first: number, part: DrawPart, path: DrawPath, bound: BoundState): void {
     const b = view.draw.batches, st = this.stats, unsorted = this.batching === 'unsorted';
     let curMesh = -1;
     for (let i = first; i < b.count; i++) {
@@ -868,7 +874,7 @@ export class Renderer {
   }
 
   /** Set the pipeline / material bind group (group 2) unless they are already the bound ones. */
-  private bindPipelineAndMaterial(pass: GPURenderPassEncoder | GPURenderBundleEncoder, bound: BoundState, pipeline: GPURenderPipeline, materialId: number, materialGroup: GPUBindGroup): void {
+  private bindPipelineAndMaterial(pass: TrackedRenderPass, bound: BoundState, pipeline: GPURenderPipeline, materialId: number, materialGroup: GPUBindGroup): void {
     if (pipeline !== bound.pipeline) { pass.setPipeline(pipeline); bound.pipeline = pipeline; }
     if (materialId !== bound.material) { pass.setBindGroup(2, materialGroup); bound.material = materialId; }
   }
@@ -878,7 +884,7 @@ export class Renderer {
    * the bind groups / buffers it references and, per draw, the pipeline, material group and geometry ranges. Camera, light and material
    * contents change inside the same buffers, so a still scene replays its commands unchanged.
    */
-  private drawThroughBundle(pass: GPURenderPassEncoder, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart, path: DrawPath): void {
+  private drawThroughBundle(pass: TrackedRenderPass, view: ViewState, which: 'all' | 'culled' | 'rest', argBase: number, part: DrawPart, path: DrawPath): void {
     const st = this.stats, target = view.target, cache = view.draw.retained, b = view.draw.batches;
     const signature: unknown[] = [target.colorFormat, target.depthFormat, target.sampleCount,
       this.frameUniform.bindGroup, path.sceneGroup, this.meshes.compactVertexBuffer, this.meshes.indexBuffer,
@@ -899,7 +905,7 @@ export class Renderer {
       const encoder = this.gpu.device.createRenderBundleEncoder({ label: 'retained-' + part,
         colorFormats: [target.colorFormat!], depthStencilFormat: target.depthFormat, sampleCount: target.sampleCount });
       const before = [st.drawCalls, st.instances, st.triangles];
-      this.drawGeometry(encoder, view, which, argBase, part);   // records through the ordinary path (an encoder is not a pass, so no recursion)
+      this.drawGeometry(new TrackedRenderPass(encoder), view, which, argBase, part);   // records through the ordinary path (a bundle encoder is not a pass, so no recursion)
       const counts: [number, number, number] = [st.drawCalls - before[0], st.instances - before[1], st.triangles - before[2]];
       saved = view.draw.bundles.set(bundleKey, signature, encoder.finish(), counts);
     } else {
@@ -907,7 +913,7 @@ export class Renderer {
       if (path.directional) st.retainedLightingDraws += saved.counts[0];
       st.drawCalls += saved.counts[0]; st.instances += saved.counts[1]; st.triangles += saved.counts[2];
     }
-    pass.executeBundles([saved.bundle]);
+    pass.executeBundles([saved.bundle]);   // (clears the wrapper's cache: a replayed bundle leaves the pass with no bindings)
     st.retainedBundleDraws += draws;
   }
 
@@ -918,64 +924,59 @@ export class Renderer {
   private get colorResource(): string { return this.post.enabled ? 'sceneColor' : 'backbuffer'; }
 
   /** Clear colour as the main pass target expects it (the HDR target holds linear values, the swap chain sRGB-encoded ones). */
-  private mainClearValue(): GPUColor {
+  private mainClearValue(): { r: number; g: number; b: number; a: number } {
     return this.post.enabled ? Renderer.srgbToLinear(this.clearColor) : this.clearColor;
   }
 
   /** sRGB-encoded colour -> linear (HDR targets hold linear values). */
-  private static srgbToLinear(c: { r: number; g: number; b: number; a: number }): GPUColor {
+  private static srgbToLinear(c: { r: number; g: number; b: number; a: number }): { r: number; g: number; b: number; a: number } {
     const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
     return { r: lin(c.r), g: lin(c.g), b: lin(c.b), a: c.a };
   }
 
-  /** Colour attachment of the main pass: swap chain or HDR scene target, through the multisampled buffer (resolved) when MSAA is on. */
-  private mainColorAttachment(clear: boolean, keepMsaa = false): GPURenderPassColorAttachment {
-    const final = this.post.enabled ? this.post.sceneView : this.gpu.context.getCurrentTexture().createView();
-    const loadOp = clear ? 'clear' : 'load';
-    if (this.mainView.target.sampleCount > 1) return { view: this.post.msaaView, resolveTarget: final, clearValue: this.mainClearValue(), loadOp, storeOp: keepMsaa ? 'store' : 'discard' };
-    return { view: final, clearValue: this.mainClearValue(), loadOp, storeOp: 'store' };
+  /** Where a main pass draws this frame: the swap chain or the HDR scene image, through the multisampled buffer (resolved) when MSAA is on. */
+  private mainTargets(): MainPassTargets {
+    return {
+      final: this.post.enabled ? this.post.sceneTexture : this.gpu.context.getCurrentTexture(),
+      msaa: this.mainView.target.sampleCount > 1 ? this.post.msaaTexture : null,
+      depth: this.depthTexture, clear: this.mainClearValue(),
+    };
+  }
+
+  /** One segment per feature that has `hook`, in feature order: the feature's draws as an ordered part of the main pass. */
+  private featureSegments(hook: 'drawBackdrop' | 'drawMain'): MainPassSegment[] {
+    const frame = this.featureFrame, out: MainPassSegment[] = [];
+    this.features.all.forEach((f, i) => {
+      if (!f[hook]) return;
+      out.push({ name: `${hook}:${i}:${f.name}`, record: (pass) => { if (frame.hasCamera) { if (hook === 'drawBackdrop') f.drawBackdrop!(pass, frame); else f.drawMain!(pass, frame); } } });
+    });
+    return out;
+  }
+
+  /** The scene geometry (`early`: opaque + alpha-masked, `late`: blended + transmissive; the GPU-culled / remaining halves in the two-phase passes) as a segment. */
+  private sceneSegment(name: string, rw: RenderWorld, draw: (pass: TrackedRenderPass) => void): MainPassSegment {
+    return { name, record: (pass) => { if (rw.hasCamera && this.mainView.draw.frame.total > 0) draw(pass); } };
   }
 
   /** The standard single main pass: clear (or load the prepass depth), draw geometry, then skybox / particles / ribbons. */
   private addMainPass(g: RenderGraph, rw: RenderWorld, prepass: boolean): void {
-    const geometry = (pass: GPURenderPassEncoder, part: 'early' | 'late'): void => {
-      if (rw.hasCamera && this.mainView.draw.frame.total > 0) this.drawGeometry(pass, this.mainView, 'all', 0, part);
-    };
-    const depthAttachment = (load: boolean): GPURenderPassDepthStencilAttachment => (
-      { view: this.depthView, depthClearValue: 1, depthLoadOp: load ? 'load' : 'clear', depthStoreOp: 'store' });
+    const early = this.sceneSegment('scene:early', rw, (pass) => this.drawGeometry(pass, this.mainView, 'all', 0, 'early'));
+    const late = this.sceneSegment('scene:late', rw, (pass) => this.drawGeometry(pass, this.mainView, 'all', 0, 'late'));
     if (!this.transmissionActive) {
       // opaque + alpha-masked, then the sky, then blended / transmissive surfaces, then particles / ribbons / overlays
       g.addPass({ name: 'main', reads: [...this.mainReads, 'depth', 'culled'], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
-        const pass = enc.beginRenderPass({
-          label: 'main', timestampWrites: this.profiler.writes('main'),
-          colorAttachments: [this.mainColorAttachment(true)], depthStencilAttachment: depthAttachment(prepass),
-        });
-        geometry(pass, 'early');
-        this.features.drawBackdrop(pass, this.featureFrame);
-        geometry(pass, 'late');
-        this.features.drawMain(pass, this.featureFrame);   // particles, ribbons, overlays, custom features
-        pass.end();
+        this.mainPasses.single.run(enc, this.mainTargets(), { clear: true, depthLoad: prepass },
+          [early, ...this.featureSegments('drawBackdrop'), late, ...this.featureSegments('drawMain')], this.profiler.writes('main'));
       } });
       return;
     }
     // Screen-space transmission: finish the opaque scene + sky, copy it (with mips), then draw what refracts it.
     g.addPass({ name: 'main-opaque', reads: [...this.mainReads, 'depth', 'culled'], writes: ['sceneColor'], execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-opaque', timestampWrites: this.profiler.writes('main'),
-        colorAttachments: [this.mainColorAttachment(true, true)], depthStencilAttachment: depthAttachment(prepass),
-      });
-      geometry(pass, 'early');
-      this.features.drawBackdrop(pass, this.featureFrame);
-      pass.end();
+      this.mainPasses.opaque.run(enc, this.mainTargets(), { clear: true, depthLoad: prepass, keepMsaa: true }, [early, ...this.featureSegments('drawBackdrop')], this.profiler.writes('main'));
     } });
     g.addPass({ name: 'transmission-copy', reads: ['sceneColor'], writes: ['transmissionTex'], execute: (enc) => this.transmission.copyFrom(enc, this.post.sceneTexture) });
     g.addPass({ name: 'main-late', reads: ['transmissionTex', ...this.features.producedResources], writes: ['sceneColor'], execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-late', colorAttachments: [this.mainColorAttachment(false)], depthStencilAttachment: depthAttachment(true),
-      });
-      geometry(pass, 'late');
-      this.features.drawMain(pass, this.featureFrame);   // particles, ribbons, overlays, custom features
-      pass.end();
+      this.mainPasses.late.run(enc, this.mainTargets(), { clear: false, depthLoad: true }, [late, ...this.featureSegments('drawMain')]);
     } });
   }
 
@@ -986,31 +987,19 @@ export class Renderer {
   private addTwoPhaseMainPasses(g: RenderGraph, rw: RenderWorld): void {
     const cam = rw.camera, f = this.mainView.draw.frame;
     const srcBase = f.byteOffset / INSTANCE_BYTES;
+    const culledA: MainPassSegment = { name: 'scene:culled', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', 0); } };
     g.addPass({ name: 'main-A', reads: [...this.mainReads, 'culledA'], writes: ['depth', 'color'], execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-A', timestampWrites: this.profiler.writes('mainA'),
-        colorAttachments: [this.mainColorAttachment(true)],
-        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
-      });
-      if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', 0);
-      pass.end();
+      this.mainPasses.phaseA.run(enc, this.mainTargets(), { clear: true, depthLoad: false }, [culledA], this.profiler.writes('mainA'));
     } });
     g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture, this.profiler.writes('hiz')) });
     g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
       execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
     g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', ...this.features.producedResources], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {
-      const pass = enc.beginRenderPass({
-        label: 'main-B', timestampWrites: this.profiler.writes('mainB'),
-        colorAttachments: [this.mainColorAttachment(false)],
-        depthStencilAttachment: { view: this.depthView, depthLoadOp: 'load', depthStoreOp: 'store' },
-      });
       // same order as the single main pass: opaque (GPU-culled), sky, then the blended batches the GPU path does not cover, then extras.
       // (Drawing the sky last would paint over blended surfaces that sit in front of it: they write no depth.)
-      if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', this.culler!.virtualCount);
-      this.features.drawBackdrop(pass, this.featureFrame);
-      if (f.total > 0) this.drawGeometry(pass, this.mainView, 'rest', 0);
-      this.features.drawMain(pass, this.featureFrame);   // particles, ribbons, overlays, custom features
-      pass.end();
+      const culled: MainPassSegment = { name: 'scene:culled', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', this.culler!.virtualCount); } };
+      const rest: MainPassSegment = { name: 'scene:rest', record: (pass) => { if (f.total > 0) this.drawGeometry(pass, this.mainView, 'rest', 0); } };
+      this.mainPasses.phaseB.run(enc, this.mainTargets(), { clear: false, depthLoad: true }, [culled, ...this.featureSegments('drawBackdrop'), rest, ...this.featureSegments('drawMain')], this.profiler.writes('mainB'));
     } });
   }
 }

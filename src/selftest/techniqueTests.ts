@@ -2,6 +2,7 @@ import type { GPUContext } from '../gpu/GPUContext';
 import { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
 import { technique, wgsl, bindings } from '../rendering/graph/TechniqueBuilder';
 import type { ComputeNode, NodeDecl, Technique } from '../rendering/graph/TechniqueTypes';
+import { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { readBuffer, readTextureRGBA8, type SelfTest } from './harness';
 
 const f = Math.fround;
@@ -541,6 +542,61 @@ struct C { color: vec4<f32> };
         if (at(3, 8) !== '0,255,255' || at(12, 8) !== '0,255,0') throw new Error(`left ${at(3, 8)}, right ${at(12, 8)} (${stats})`);
         if (stats !== '3 draws, pipeline 2/1 (set/skipped), bind group 3') throw new Error(`unexpected state tracking: ${stats}`);
         return stats;
+      },
+    },
+    {
+      name: 'technique render node: ordered segments share one tracker; a replayed render bundle invalidates it',
+      run: async () => {
+        const { device } = gpu;
+        const module = device.createShaderModule({ code: `
+struct V { @builtin(position) p: vec4<f32> };
+@vertex fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> V {
+  var q = array<vec2<f32>, 6>(vec2<f32>(0.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0));
+  return V(vec4<f32>(q[vi].x - 1.0 + f32(ii), q[vi].y, 0.0, 1.0));      // instance 0: left half, instance 1: right half
+}
+struct C { color: vec4<f32> };
+@group(0) @binding(0) var<uniform> c: C;
+@fragment fn fs() -> @location(0) vec4<f32> { return c.color; }` });
+        const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
+        const pipeline = device.createRenderPipeline({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+          vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        });
+        const make = (rgba: number[]) => {
+          const buffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+          device.queue.writeBuffer(buffer, 0, new Float32Array(rgba));
+          return { buffer, group: device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] }) };
+        };
+        const red = make([1, 0, 0, 1]), blue = make([0, 0, 1, 1]);
+        const bundleEncoder = device.createRenderBundleEncoder({ colorFormats: ['rgba8unorm'] });
+        const inBundle = new TrackedRenderPass(bundleEncoder);
+        inBundle.setPipeline(pipeline); inBundle.setBindGroup(0, red.group); inBundle.draw(6, 1, 0, 0);     // left half, red, recorded once
+        const bundle = bundleEncoder.finish();
+
+        const g = technique('segments');
+        const out = g.texture('out', { format: 'rgba8unorm', size: [16, 16], visibility: 'exported' });
+        const log: string[] = [];
+        let stats = '';
+        g.renderPass('scene', { colorTargets: [out] });
+        g.passSegment('scene', 'replay-bundle', { record: (pass) => { log.push('bundle'); pass.executeBundles([bundle]); } });
+        g.passSegment('scene', 'blue-right', { record: (pass) => {
+          log.push('blue');
+          pass.setPipeline(pipeline); pass.setBindGroup(0, blue.group);                           // must reach the GPU: the bundle left the pass with nothing bound
+          pass.draw(6, 1, 0, 1);
+          pass.setPipeline(pipeline);                                                             // now really redundant
+          stats = `pipeline ${pass.switches.pipeline}/${pass.skipped.pipeline} (set/skipped), bind group ${pass.switches.bindGroup}`;
+        } });
+        device.pushErrorScope('validation');
+        const fx = g.instantiate(gpu);
+        const { pixels, w } = await run(gpu, fx, 'out');
+        const error = await device.popErrorScope();
+        const at = (x: number, y: number) => Array.from(pixels.slice((y * w + x) * 4, (y * w + x) * 4 + 3)).join(',');
+        fx.dispose(); red.buffer.destroy(); blue.buffer.destroy();
+        if (error) throw new Error(`validation error: ${error.message}`);
+        if (log.join() !== 'bundle,blue') throw new Error(`segment order ${log.join()}`);
+        if (at(3, 8) !== '255,0,0' || at(12, 8) !== '0,0,255') throw new Error(`left ${at(3, 8)}, right ${at(12, 8)}`);
+        if (stats !== 'pipeline 1/1 (set/skipped), bind group 1') throw new Error(`unexpected tracking after the bundle: ${stats}`);
+        return `bundle then segment: ${stats}`;
       },
     },
   ];

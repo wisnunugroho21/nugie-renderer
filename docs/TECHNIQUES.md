@@ -184,7 +184,14 @@ g.renderPass('shadow-layer-2', { depthTarget: { resource: shadowMap, layer: 2 },
 `TrackedRenderPass` remembers the pipeline, bind groups (per group index), vertex and index buffers and skips a call that would change nothing (`switches` / `skipped` count them); a bind group set with dynamic offsets is
 always forwarded. Pipelines and bind groups are ordinary WebGPU objects the host built, so any number of material variants, vertex layouts and per-draw dynamic offsets are possible. `uses: [{ resource, usage }]` names host
 resources the draws read (`sampled`, `storage`, `uniform`, `vertex`, `index`, `indirect`; `write: true` if they write) so the graph orders the pass and gives the resources the right usage flags.
-Attachments are validated like a draw node's (same size and sample count, resolve target, depth format). A pass whose draw callback depends on the frame (the target size, the set of active layers) is kept in a `CachedTechnique`, which rebuilds only when its key changes.
+Attachments are validated like a draw node's (same size and sample count, resolve target, depth format).
+
+**Segments.** A render node's draws can be split into ordered, named parts that different owners contribute: `g.passSegment('main', 'sky', { record, uses })` (or `segments: [...]` on the node). The node's own
+`record` runs first, then the segments in order, all through the *same* `TrackedRenderPass`, so a pipeline or bind group that two neighbouring segments share is set once. A segment's `uses` count as the pass's
+(ordering, lifetimes, usage flags). The renderer's main pass is built this way: a segment for the scene's opaque geometry, one for each feature's `drawBackdrop`, one for the blended geometry, one for each feature's `drawMain`.
+
+`TrackedRenderPass` wraps a render pass encoder *or a render bundle encoder* (`isBundle`), so one draw loop records into either. `executeBundles(bundles)` replays bundles and clears the cache (a replayed bundle leaves the
+pass with nothing bound); `invalidate()` does the same after you used the raw `encoder` yourself. A pass whose draw callback depends on the frame (the target size, the set of active layers) is kept in a `CachedTechnique`, which rebuilds only when its key changes.
 
 ## Mip views, bind groups and imported contents
 
@@ -239,9 +246,11 @@ The frame graph (`RenderGraph`) still orders the frame's passes, but these now a
 | Depth prepass | `Renderer.ts` | render node, depth target |
 | Aux pass (normal / roughness / metallic for SSAO and SSR) | `Renderer.ts` | render node, MSAA colour with resolve, read-only depth |
 | Shadow maps | `shadows/ShadowSystem.ts` | one render node per active layer, writing that layer of the shadow-map array |
+| **Main pass(es)**: single pass, opaque + late around the transmission copy, the two Hi-Z culling phases | `rendering/MainPassNode.ts` (+ `Renderer.ts`) | one render node each: swap chain or HDR scene image, MSAA buffer with resolve, depth load / clear, clear colour; **segments** for the scene geometry and for every feature's `drawBackdrop` / `drawMain` |
+| Scene draw loop (batches, GPU-culled indirect draws, retained render bundles) | `Renderer.ts` (`drawGeometry`) | records through `TrackedRenderPass`, into the pass or into a bundle encoder; bundles replay with `executeBundles` |
+| Feature draws: sky, lines, points, sprites, particles, ribbons, custom features | `Skybox`, `overlay/*`, `particles/*` | the segment of the pass; state set through the shared tracker |
 
-These stay callback nodes of the frame graph because they draw into the main pass itself (feature hooks, the sky, render bundles, MSAA resolve shared with the post chain):
-the main pass(es) and the line / point / sprite / particle / ribbon / sky draws inside them. They could become render nodes next: the pass declaration is the only thing missing. `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
+The render-to-texture views (`OffscreenViews`, probe captures) still begin their own passes, but draw them through `TrackedRenderPass` too. `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
 `CompactVertexStream` (derived vertex data) are asset-preparation utilities that run outside the frame.
 
 ## Shader tokens

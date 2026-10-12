@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from '../src/rendering/graph/TrackedRenderPass';
 import { describe, expect, it } from 'vitest';
 import { FeatureOrder, FeatureRegistry, type FeatureFrame, type PostFeatureFrame, type RenderFeature } from '../src/rendering/RenderFeature';
 import { RenderGraph } from '../src/rendering/RenderGraph';
@@ -11,7 +12,7 @@ import { Skybox } from '../src/rendering/Skybox';
 import { StreamingDriver } from '../src/streaming/StreamingDriver';
 
 const frame = (hasCamera = true) => ({ hasCamera, time: 1, frameBindGroup: { id: 'frame' } } as unknown as FeatureFrame);
-const pass = {} as GPURenderPassEncoder;
+const pass = {} as TrackedRenderPass;
 /** A feature object of a built-in class without running its (GPU) constructor: only the fields a hook reads need to exist. */
 const bare = <T extends object>(cls: { prototype: T }, fields: object): T => Object.assign(Object.create(cls.prototype), fields);
 
@@ -82,7 +83,7 @@ describe('built-in features', () => {
     const log: string[] = [];
     class TestOverlay extends OverlaySystem {
       flush() { log.push('flush'); }
-      encodeDraw(_p: GPURenderPassEncoder, bg: GPUBindGroup) { log.push('draw:' + (bg as unknown as { id: string }).id); }
+      encodeDraw(_p: TrackedRenderPass, bg: GPUBindGroup) { log.push('draw:' + (bg as unknown as { id: string }).id); }
       retarget() { log.push('retarget'); }
       clear() { log.push('clear'); }
     }

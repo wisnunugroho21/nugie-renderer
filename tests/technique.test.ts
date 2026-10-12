@@ -4,6 +4,7 @@ import { compileTechnique } from '../src/rendering/graph/Compile';
 import { flatten } from '../src/rendering/graph/Flatten';
 import { expandShader } from '../src/rendering/graph/ShaderTokens';
 import { parseTechnique, techniqueToJSON } from '../src/rendering/graph/TechniqueJSON';
+import { technique as builder } from '../src/rendering/graph/TechniqueBuilder';
 import { techniqueToDot } from '../src/rendering/graph/Dot';
 import { RenderGraph } from '../src/rendering/RenderGraph';
 import { TechniqueError, type ComputeNode, type NodeDecl, type ResourceDecl, type Technique, type VariableDecl } from '../src/rendering/graph/TechniqueTypes';
@@ -447,6 +448,50 @@ describe('validation', () => {
 
     it('cannot be stored as JSON', () => {
       expect(() => techniqueToJSON(technique([rnode()], [rt]))).toThrow(/is a render node and cannot be serialized/);
+    });
+  });
+
+  describe('render pass segments', () => {
+    const rt = tex('rt', { visibility: 'exported' });
+
+    it('are added in order to a render node, with their uses counted as the pass uses', () => {
+      const g = builder('t');
+      const target = g.texture('rt', { format: 'rgba8unorm', size: [8, 8], visibility: 'exported' });
+      const verts = g.buffer('verts', { element: 'f32', stride: 16, count: 4 });
+      g.compute('gen', { workgroupSize: [1], dispatch: { threads: [1] }, writes: [verts], shader: 'x' });
+      g.renderPass('main', { colorTargets: [target], record: () => {} });
+      g.passSegment('main', 'sky', { record: () => {} });
+      g.passSegment('main', 'particles', { uses: [{ resource: verts, usage: 'vertex' }], record: () => {} });
+      const node = g.build().nodes.find((n) => n.type === 'render') as { segments: { name: string }[] };
+      expect(node.segments.map((s) => s.name)).toEqual(['sky', 'particles']);
+      const plan = g.compile();
+      expect(plan.steps.map((s) => s.node.path)).toEqual(['gen', 'main']);               // the segment's vertex use orders the pass after the compute that writes it
+      expect(plan.resources.get('verts')!.uses.has('vertex')).toBe(true);
+    });
+
+    it('can be given with the pass (segments option) and need no record of their own', () => {
+      const g = builder('t');
+      const target = g.texture('rt', { format: 'rgba8unorm', size: [8, 8], visibility: 'exported' });
+      g.renderPass('main', { colorTargets: [target], segments: [{ name: 'a', record: () => {} }, { name: 'b', record: () => {} }] });
+      expect(() => g.compile()).not.toThrow();
+      const node = g.build().nodes[0] as { record?: unknown; segments: unknown[] };
+      expect(node.record).toBeUndefined();
+      expect(node.segments).toHaveLength(2);
+    });
+
+    it('rejects a duplicate segment name and a pass that does not exist', () => {
+      const g = builder('t');
+      const target = g.texture('rt', { format: 'rgba8unorm', size: [8, 8], visibility: 'exported' });
+      g.renderPass('main', { colorTargets: [target] });
+      g.passSegment('main', 'sky', { record: () => {} });
+      expect(() => g.passSegment('main', 'sky', { record: () => {} })).toThrow(/already has a segment of that name/);
+      expect(() => g.passSegment('nope', 'sky', { record: () => {} })).toThrow(/no render node 'nope'/);
+      expect(() => g.passSegment('main', 'x', { uses: [{ resource: 'ghost', usage: 'vertex' }], record: () => {} })).toThrow(/ghost/);
+    });
+
+    it('validates a segment use like a pass use', () => {
+      const node = (usage: string): NodeDecl => ({ type: 'render', name: 'r', colorTargets: [{ resource: 'rt' }], segments: [{ name: 's', uses: [{ resource: 'rt', usage }], record: () => {} }] }) as NodeDecl;
+      expect(() => compileTechnique(technique([node('vertex')], [rt]))).toThrow(/can only be used as sampled or storage/);
     });
   });
 

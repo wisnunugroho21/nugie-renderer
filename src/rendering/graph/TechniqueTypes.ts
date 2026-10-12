@@ -282,6 +282,15 @@ export interface RenderPassUse {
   write?: boolean;
 }
 
+/** One ordered part of a render node's draws, typically contributed by one feature (the sky, an overlay, the scene's opaque geometry ...). */
+export interface RenderPassSegment {
+  name: string;
+  /** What this segment's draws read or write (added to the pass's own `uses`). */
+  uses?: RenderPassUse[];
+  /** Record the segment's draws into the pass; every segment of a pass gets the same tracking wrapper, so redundant state changes across segments are skipped too. */
+  record: (pass: TrackedRenderPass) => void;
+}
+
 /**
  * A render pass whose draws the host records: the technique owns the attachments (colour targets with MSAA resolve, depth target with a layer or read-only), the pass
  * timestamps and the ordering, and the host issues the draws through a {@link TrackedRenderPass}, which skips redundant pipeline / bind group / buffer switches.
@@ -293,8 +302,10 @@ export interface RenderPassNode extends NodeBase {
   depthTarget?: DepthTarget;
   /** What the draws read or write besides the attachments (host-owned resources the technique declares). */
   uses?: RenderPassUse[];
-  /** Record the draws. Called once per `execute`, between the pass's begin and end. */
-  record: (pass: TrackedRenderPass) => void;
+  /** Record the draws. Called once per `execute`, between the pass's begin and end, before the segments. */
+  record?: (pass: TrackedRenderPass) => void;
+  /** More draws, recorded in this order after `record`: each is a separate, nameable part of the pass (see {@link RenderPassSegment}); add them with `TechniqueBuilder.passSegment`. */
+  segments?: RenderPassSegment[];
 }
 
 /** Engine code as a node (how the renderer's own passes plug in): declares what it reads and writes and records commands itself. */

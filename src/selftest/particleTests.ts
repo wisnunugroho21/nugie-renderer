@@ -5,6 +5,7 @@ import { createCube } from '../rendering/primitives';
 import { Camera } from '../rendering/Camera';
 import { ParticleSystem, type ParticlePool, type ParticlePoolConfig } from '../particles/ParticleSystem';
 import type { EmitterConfig } from '../particles/EmitterConfig';
+import { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { readTextureRGBA8, type SelfTest } from './harness';
 
 const TARGET = { colorFormat: 'rgba8unorm' as GPUTextureFormat, depthFormat: 'depth24plus' as GPUTextureFormat, sampleCount: 1 };
@@ -192,7 +193,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
               colorAttachments: [{ view: color.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
               depthStencilAttachment: { view: depth.createView(), depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1 },
             });
-            p.encodeDraw(pass, frameBG); pass.end();
+            p.encodeDraw(new TrackedRenderPass(pass), frameBG); pass.end();
             device.queue.submit([enc.finish()]);
             const px = await readTextureRGBA8(device, color, 0, 64, 64);
             /** Sum of the RGB channels of pixel (x, y). */
@@ -229,7 +230,7 @@ export function particleTests(gpu: GPUContext): SelfTest[] {
           colorAttachments: [{ view: color.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
           depthStencilAttachment: { view: depth.createView(), depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1 },
         });
-        p.encodeDraw(pass, frameBG); pass.end();
+        p.encodeDraw(new TrackedRenderPass(pass), frameBG); pass.end();
         device.queue.submit([enc.finish()]);
         const err = await device.popErrorScope();
         if (err) throw new Error('validation error: ' + err.message);

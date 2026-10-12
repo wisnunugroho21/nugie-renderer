@@ -237,6 +237,56 @@ describe('TechniqueInstance runtime', () => {
     });
   });
 
+  describe('render pass segments and the main pass node', () => {
+    const attachment = (label: string, extra: Entry = {}) => ({
+      label, usage: 16 | 4, format: 'rgba8unorm', width: 8, height: 8, sampleCount: 1, mipLevelCount: 1, destroy() {},
+      createView: (v?: Entry) => ({ of: label, v }), ...extra,
+    }) as unknown as GPUTexture;
+    const encoderWith = (events: string[]) => ({
+      beginRenderPass: () => {
+        events.push('begin');
+        return { setPipeline() {}, setBindGroup() {}, draw() {}, end() { events.push('end'); } };
+      },
+    }) as unknown as GPUCommandEncoder;
+
+    it('records the pass record, then the segments in order, through one tracking wrapper', () => {
+      const events: string[] = [], wrappers = new Set<unknown>();
+      const t: Technique = {
+        name: 't', resources: [{ kind: 'texture', name: 'color', format: 'rgba8unorm', size: [8, 8], visibility: 'imported' }],
+        nodes: [{
+          type: 'render', name: 'r', colorTargets: [{ resource: 'color' }],
+          record: (p: unknown) => { events.push('record'); wrappers.add(p); },
+          segments: [{ name: 'a', record: (p: unknown) => { events.push('a'); wrappers.add(p); } }, { name: 'b', record: (p: unknown) => { events.push('b'); wrappers.add(p); } }],
+        }] as never,
+      };
+      TechniqueInstance.create(ctx.gpu, t, { imports: { color: attachment('color') } }).execute(encoderWith(events));
+      expect(events).toEqual(['begin', 'record', 'a', 'b', 'end']);
+      expect(wrappers.size).toBe(1);
+    });
+
+    it('MainPassNode: draws its segments in order each frame with that frame\'s closures, and ends the pass', async () => {
+      const { MainPassNode } = await import('../src/rendering/MainPassNode');
+      const node = new MainPassNode(ctx.gpu, 'main');
+      const targets = { final: attachment('final'), msaa: null, depth: attachment('depth', { format: 'depth24plus' }), clear: { r: 0, g: 0, b: 0, a: 1 } };
+      const events: string[] = [];
+      const frame = (tag: string) => ['scene', 'sky', 'particles'].map((name) => ({ name, record: () => { events.push(`${tag}:${name}`); } }));
+      node.run(encoderWith(events), targets, { clear: true, depthLoad: false }, frame('f1'));
+      node.run(encoderWith(events), targets, { clear: true, depthLoad: false }, frame('f2'));
+      expect(events).toEqual(['begin', 'f1:scene', 'f1:sky', 'f1:particles', 'end', 'begin', 'f2:scene', 'f2:sky', 'f2:particles', 'end']);
+    });
+
+    it('MainPassNode: a different set of segments (a feature added) is recorded, in the new order', async () => {
+      const { MainPassNode } = await import('../src/rendering/MainPassNode');
+      const node = new MainPassNode(ctx.gpu, 'main');
+      const targets = { final: attachment('final'), msaa: null, depth: attachment('depth', { format: 'depth24plus' }), clear: { r: 0, g: 0, b: 0, a: 1 } };
+      const events: string[] = [];
+      const seg = (name: string) => ({ name, record: () => { events.push(name); } });
+      node.run(encoderWith(events), targets, { clear: true, depthLoad: false }, [seg('scene')]);
+      node.run(encoderWith(events), targets, { clear: true, depthLoad: false }, [seg('scene'), seg('overlay'), seg('sky')]);
+      expect(events.filter((e) => e !== 'begin' && e !== 'end')).toEqual(['scene', 'scene', 'overlay', 'sky']);
+    });
+  });
+
   describe('execute options', () => {
     it('hands each compute node its timestamp writes by path, and skips nodes the callback ignores', () => {
       const t: Technique = {

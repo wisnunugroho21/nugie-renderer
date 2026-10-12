@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from './graph/TrackedRenderPass';
 import type { Camera } from './Camera';
 import type { RenderGraph } from './RenderGraph';
 import type { RenderWorld } from './RenderWorld';
@@ -102,10 +103,13 @@ export interface RenderFeature {
    * `reads: ['sceneColor'], writes: ['sceneColor']`; {@link FullscreenEffect} does the rest for a per-pixel effect.
    */
   addPostPasses?(graph: RenderGraph, frame: PostFeatureFrame): void;
-  /** Draw behind blended surfaces: after the opaque geometry, before the blended batches. Skipped when the scene has no camera. */
-  drawBackdrop?(pass: GPURenderPassEncoder, frame: FeatureFrame): void;
-  /** Record draw calls into the main pass, after the scene. Skipped when the scene has no camera. */
-  drawMain?(pass: GPURenderPassEncoder, frame: FeatureFrame): void;
+  /**
+   * Draw behind blended surfaces: after the opaque geometry, before the blended batches. Skipped when the scene has no camera. The feature's draws form one segment of the
+   * main pass's render node; `pass` tracks the pipeline, bind groups and buffers across all segments, so set state through it (`pass.encoder` is the raw encoder: call `pass.invalidate()` after using it).
+   */
+  drawBackdrop?(pass: TrackedRenderPass, frame: FeatureFrame): void;
+  /** Record draw calls into the main pass, after the scene (also one segment of the main pass; see `drawBackdrop`). Skipped when the scene has no camera. */
+  drawMain?(pass: TrackedRenderPass, frame: FeatureFrame): void;
   /** The main pass's colour format or sample count changed (HDR, MSAA): re-create pipelines that target it. */
   retarget?(): void;
   /** Release the GPU objects the feature owns. `renderer.removeFeature` calls it, so a removed feature cannot be added again. */
@@ -152,8 +156,8 @@ export class FeatureRegistry {
   prepare(frame: FeatureFrame): void { for (const f of this.list) f.prepare?.(frame); }
   addPasses(graph: RenderGraph, frame: FeatureFrame): void { for (const f of this.list) f.addPasses?.(graph, frame); }
   addPostPasses(graph: RenderGraph, frame: PostFeatureFrame): void { for (const f of this.list) f.addPostPasses?.(graph, frame); }
-  drawBackdrop(pass: GPURenderPassEncoder, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawBackdrop?.(pass, frame); }
-  drawMain(pass: GPURenderPassEncoder, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawMain?.(pass, frame); }
+  drawBackdrop(pass: TrackedRenderPass, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawBackdrop?.(pass, frame); }
+  drawMain(pass: TrackedRenderPass, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawMain?.(pass, frame); }
   retarget(): void { for (const f of this.list) f.retarget?.(); }
   endFrame(): void { for (const f of this.list) f.endFrame?.(); }
 }

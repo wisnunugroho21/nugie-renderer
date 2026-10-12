@@ -531,7 +531,11 @@ export class TechniqueInstance {
   /** A render node: begin the pass, let the host record its draws through a state-tracking wrapper, end the pass. */
   private runRenderPass(encoder: GPUCommandEncoder, node: RenderPassNode & { path: string }, timestampWrites?: GPURenderPassTimestampWrites): void {
     const pass = this.beginPass(encoder, node, timestampWrites);
-    try { node.record(new TrackedRenderPass(pass)); } finally { pass.end(); }
+    try {
+      const tracked = new TrackedRenderPass(pass);
+      node.record?.(tracked);
+      for (const segment of node.segments ?? []) segment.record(tracked);
+    } finally { pass.end(); }
   }
 
   private runDraw(encoder: GPUCommandEncoder, node: DrawNode & { path: string }, rt: StepRuntime, timestampWrites?: GPURenderPassTimestampWrites): void {

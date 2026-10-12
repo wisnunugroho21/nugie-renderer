@@ -536,6 +536,10 @@ features (`renderer.features` lists them in run order), so reading one of them i
 | `addPostPasses(graph, frame)` | after the scene, before the built-in post chain (HDR chain on) | the post chain itself, your effects |
 | `drawBackdrop(pass, frame)` | main pass, after opaque geometry, before blended surfaces | the sky |
 | `drawMain(pass, frame)` | main pass, after the scene | particles, ribbons, overlays |
+
+`pass` in the two draw hooks is a `TrackedRenderPass`: it has `setPipeline`, `setBindGroup`, `setVertexBuffer`, `setIndexBuffer` and the four draw calls, remembers what is bound
+(also across the scene's draws and the other features') and skips a call that would change nothing. The raw encoder is `pass.encoder` (call `pass.invalidate()` after using it directly).
+Each feature's hooks are one ordered *segment* of the main pass in the render graph.
 | `retarget()` | the main pass's format / sample count changed | everything that owns a pipeline |
 | `endFrame()` | after the submit | overlays (`autoClear`) |
 

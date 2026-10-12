@@ -387,7 +387,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
     }
     case 'render': {
       attachments(node);
-      for (const u of node.uses ?? []) {
+      for (const u of [...(node.uses ?? []), ...(node.segments ?? []).flatMap((sg) => sg.uses ?? [])]) {
         const kind = decl(u.resource).kind;
         if (kind === 'texture' && u.usage !== 'sampled' && u.usage !== 'storage') throw new TechniqueError(`${ctx}: texture '${u.resource}' can only be used as sampled or storage, not ${u.usage}`);
         add({ resource: u.resource, read: u.write !== true, write: u.write === true, usage: u.usage });

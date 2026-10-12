@@ -1,3 +1,4 @@
+import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import type { Demo } from './Demo';
 import type { GPUContext } from '../gpu/GPUContext';
 import type { BindLayouts } from '../gpu/BindLayouts';
@@ -62,7 +63,7 @@ class GradientBackdrop implements RenderFeature {
     this.gpu.queue.writeBuffer(this.params, 0, new Float32Array([frame.time, 0, 0, 0]));
   }
 
-  drawMain(pass: GPURenderPassEncoder, frame: FeatureFrame): void {
+  drawMain(pass: TrackedRenderPass, frame: FeatureFrame): void {
     this.pipeline ??= this.createPipeline(frame);
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, frame.frameBindGroup);

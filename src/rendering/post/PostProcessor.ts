@@ -197,6 +197,8 @@ export class PostProcessor implements RenderFeature {
   get sceneTexture(): GPUTexture { return this.scene!.tex; }
   /** Scene colour view the main pass draws into (resolve target when multisampled). Valid after {@link ensureTargets}. */
   get sceneView(): GPUTextureView { return this.scene!.view; }
+  /** The multisampled colour texture the main pass draws into when `samples > 1` (null otherwise). */
+  get msaaTexture(): GPUTexture | null { return this.msaaTarget?.tex ?? null; }
   /** Multisampled colour view the main pass draws into when `samples > 1`. */
   get msaaView(): GPUTextureView { return this.msaaTarget!.view; }
 

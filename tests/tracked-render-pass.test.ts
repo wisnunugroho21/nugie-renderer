@@ -60,3 +60,39 @@ describe('TrackedRenderPass', () => {
     expect(pass.drawCalls).toBe(4);
   });
 });
+
+describe('TrackedRenderPass: invalidation and render bundles', () => {
+  it('invalidate() forgets everything, so the next identical calls reach the GPU again', () => {
+    const { calls, pass } = recorder();
+    const p = obj('p'), g = obj('g'), v = obj('v'), i = obj('i');
+    pass.setPipeline(p); pass.setBindGroup(0, g); pass.setVertexBuffer(0, v); pass.setIndexBuffer(i, 'uint32');
+    pass.invalidate();
+    pass.setPipeline(p); pass.setBindGroup(0, g); pass.setVertexBuffer(0, v); pass.setIndexBuffer(i, 'uint32');
+    expect(calls.map((c) => c[0])).toEqual(['setPipeline', 'setBindGroup', 'setVertexBuffer', 'setIndexBuffer', 'setPipeline', 'setBindGroup', 'setVertexBuffer', 'setIndexBuffer']);
+  });
+
+  it('executeBundles replays the bundles and clears the cache (a replayed bundle leaves the pass with no bindings)', () => {
+    const calls: unknown[][] = [];
+    const encoder = {
+      setPipeline: (...a: unknown[]) => calls.push(['setPipeline', ...a]), setBindGroup: (...a: unknown[]) => calls.push(['setBindGroup', ...a]),
+      executeBundles: (...a: unknown[]) => calls.push(['executeBundles', ...a]),
+    } as unknown as GPURenderPassEncoder;
+    const pass = new TrackedRenderPass(encoder);
+    const p = obj('p'), g = obj('g'), bundle = obj('bundle');
+    pass.setPipeline(p); pass.setBindGroup(0, g);
+    pass.executeBundles([bundle]);
+    pass.setPipeline(p); pass.setBindGroup(0, g);
+    expect(calls.map((c) => c[0])).toEqual(['setPipeline', 'setBindGroup', 'executeBundles', 'setPipeline', 'setBindGroup']);
+    expect(pass.isBundle).toBe(false);
+  });
+
+  it('wraps a render bundle encoder too, which cannot execute bundles', () => {
+    const calls: string[] = [];
+    const bundleEncoder = { setPipeline: () => calls.push('setPipeline'), draw: () => calls.push('draw') } as unknown as GPURenderBundleEncoder;
+    const pass = new TrackedRenderPass(bundleEncoder);
+    expect(pass.isBundle).toBe(true);
+    pass.setPipeline(obj('p')); pass.setPipeline(obj('p')); pass.draw(3);
+    expect(calls).toEqual(['setPipeline', 'setPipeline', 'draw']);                 // two different (fake) pipeline objects
+    expect(() => pass.executeBundles([obj('b')])).toThrow(/cannot execute bundles/);
+  });
+});
