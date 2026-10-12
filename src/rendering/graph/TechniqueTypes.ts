@@ -93,6 +93,10 @@ export interface BindingDecl {
   name?: string;
   /** Also declare `<name>_sampler` with this filter (sampled textures only). */
   sampler?: GPUFilterMode;
+  /** Textures: first mip level of the view (default 0). */
+  mip?: number;
+  /** Textures: mip levels in the view. Default: the whole chain for `read`, 1 for `write` / `readwrite` (storage views have one level). */
+  mipCount?: number;
 }
 
 /** WGSL source. It may contain Gigi-style tokens (`$(Variable:Name)`, `$(Bindings)`, `$(Size:Resource)` inside a block comment); see ShaderTokens.ts. */
@@ -112,9 +116,21 @@ interface NodeBase {
   sideEffect?: boolean;
 }
 
+/** A bind group the host supplies to a node (the engine's frame and scene groups): the shader declares its bindings itself. */
+export interface HostBindGroup {
+  /** `@group(n)` of the shader; must differ from the node's own `group`. */
+  group: number;
+  /** Name of the layout, registered with `TechniqueInstance` (`hostLayouts`); the bind group is supplied with `setHostBindGroup(layout, ...)`. */
+  layout: string;
+}
+
 export interface ComputeNode extends NodeBase {
   type: 'compute';
   shader: ShaderSource;
+  /** `@group` of the bindings the technique generates (resources, variables). Default 0. */
+  group?: number;
+  /** Bind groups the host supplies at other group indices. */
+  hostGroups?: HostBindGroup[];
   entryPoint?: string;
   /** Must match the shader's `@workgroup_size`; read from the source when it uses plain numbers. */
   workgroupSize?: [number, number?, number?];
@@ -179,6 +195,10 @@ export interface IndexBufferBinding {
 
 export interface DrawNode extends NodeBase {
   type: 'draw';
+  /** `@group` of the bindings the technique generates (resources, variables). Default 0. */
+  group?: number;
+  /** Bind groups the host supplies at other group indices. */
+  hostGroups?: HostBindGroup[];
   /** One WGSL module with both entry points. Geometry is procedural (`@builtin(vertex_index)`), read from bound storage buffers, or fed by `vertexBuffers`. */
   shader: ShaderSource;
   vertexEntry?: string;

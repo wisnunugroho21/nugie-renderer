@@ -1,8 +1,6 @@
 // Depth buffer -> linear view distance (r32float), so SSAO / SSR can use plain loads regardless of MSAA.
-// fs_depth reads a single-sample depth texture, fs_depth_ms sample 0 of a multisampled one. Q = (proj[2][2], proj[3][2]).
-@group(0) @binding(0) var depthTex: texture_depth_2d;
-@group(0) @binding(1) var depthTexMs: texture_depth_multisampled_2d;
-@group(0) @binding(2) var<uniform> Q: vec4<f32>;
+// The technique binds the depth buffer as depthTex (texture_depth_2d, or texture_depth_multisampled_2d: sample 0 is read either way).
+// The `depthQ` variable holds (proj[2][2], proj[3][2]).
 
 struct VOut { @builtin(position) pos: vec4<f32> };
 
@@ -15,14 +13,9 @@ fn vs_full(@builtin(vertex_index) vi: u32) -> VOut {
 }
 
 // Standard-Z perspective: view distance = proj[3][2] / (depth + proj[2][2]) (near at depth 0, far at depth 1).
-fn linearize(d: f32) -> f32 { return Q.y / (d + Q.x); }
+fn linearize(d: f32) -> f32 { let q = /*$(Variable:depthQ)*/; return q.y / (d + q.x); }
 
 @fragment
 fn fs_depth(in: VOut) -> @location(0) vec4<f32> {
   return vec4<f32>(linearize(textureLoad(depthTex, vec2<i32>(in.pos.xy), 0)), 0.0, 0.0, 1.0);
-}
-
-@fragment
-fn fs_depth_ms(in: VOut) -> @location(0) vec4<f32> {
-  return vec4<f32>(linearize(textureLoad(depthTexMs, vec2<i32>(in.pos.xy), 0)), 0.0, 0.0, 1.0);
 }

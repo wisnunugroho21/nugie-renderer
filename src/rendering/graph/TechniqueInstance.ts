@@ -10,6 +10,14 @@ export interface TechniqueInstanceOptions extends CompileOptions {
   imports?: Record<string, GPUTexture | GPUBuffer>;
   /** Prefix for GPU object labels. */
   label?: string;
+  /** Layouts of the bind groups the host supplies to nodes (`hostGroups`), by name. */
+  hostLayouts?: Record<string, GPUBindGroupLayout>;
+}
+
+/** Per-execution hooks of {@link TechniqueInstance.execute}. */
+export interface ExecuteOptions {
+  /** GPU timestamps for a compute / draw node's pass, by the node's path (e.g. from the engine's `GPUProfiler`). Return nothing to skip a node. */
+  timestampWrites?: (path: string) => GPUComputePassTimestampWrites | GPURenderPassTimestampWrites | undefined;
 }
 
 type Physical = GPUTexture | GPUBuffer;
@@ -24,6 +32,9 @@ interface StepRuntime {
   uniform: GPUBuffer | null;
   uniformData: DataView | null;
   workgroup: [number, number, number];
+  /** `@group` index of the generated bindings, and the host groups at the others. */
+  group: number;
+  hostGroups: { group: number; layout: string }[];
 }
 
 const BLEND: Record<string, GPUBlendState> = {
@@ -70,6 +81,8 @@ export class TechniqueInstance {
   private compiled!: CompiledTechnique;
   private allocations = new Map<string, Physical>();
   private imports = new Map<string, Physical>();
+  private hostBindGroups = new Map<string, GPUBindGroup>();
+  private emptyLayout: GPUBindGroupLayout | null = null;
   private values = new Map<string, VariableValue>();
   private pipelines = new Map<string, GPUComputePipeline | GPURenderPipeline>();
   private runtimes = new Map<CompiledStep, StepRuntime>();
@@ -136,9 +149,14 @@ export class TechniqueInstance {
     const plan = this.plan.resources.get(name);
     if (!plan || plan.visibility !== 'imported') throw new TechniqueError(`'${name}' is not an imported resource of technique '${this.technique.name}'`);
     this.checkImport(plan, resource);
+    if (this.imports.get(name) === resource) return;
     this.imports.set(name, resource);
-    this.bindingsDirty = true;
+    // bind groups only hold resources that a shader binding names: a render target changing every frame (the swap chain) does not invalidate them
+    for (const rt of this.runtimes.values()) if (rt.shader?.slots.some((s) => s.decl?.resource === name)) { this.bindingsDirty = true; break; }
   }
+
+  /** Supply the bind group for host layout `layout` (see `hostGroups` on compute / draw nodes); every node that declares the layout binds it. */
+  setHostBindGroup(layout: string, bindGroup: GPUBindGroup): void { this.hostBindGroups.set(layout, bindGroup); }
 
   /** The GPU object behind a resource (an exported one after `execute`, or any resource for inspection), if it has one. */
   resource(name: string): GPUTexture | GPUBuffer | undefined {
@@ -233,7 +251,7 @@ export class TechniqueInstance {
 
   /** Expand the shader and create the pipeline of a compute / draw step. */
   private prepareStep(step: CompiledStep): StepRuntime {
-    const rt: StepRuntime = { shader: null, pipeline: null, layout: null, bindGroup: null, uniform: null, uniformData: null, workgroup: [8, 8, 1] };
+    const rt: StepRuntime = { shader: null, pipeline: null, layout: null, bindGroup: null, uniform: null, uniformData: null, workgroup: [8, 8, 1], group: 0, hostGroups: [] };
     const node = step.node;
     if (node.type !== 'compute' && node.type !== 'draw') return rt;
     const device = this.gpu.device;
@@ -265,13 +283,26 @@ export class TechniqueInstance {
       return { binding: slot.binding, visibility, storageTexture: { access: b.access === 'write' ? 'write-only' : 'read-write', format, viewDimension: dimension } };
     });
     rt.layout = device.createBindGroupLayout({ label: `${node.path}:layout`, entries });
-    const layout = device.createPipelineLayout({ bindGroupLayouts: [rt.layout] });
+    rt.group = node.group ?? 0;
+    rt.hostGroups = (node.hostGroups ?? []).map((h) => ({ ...h }));
+    // bind group layouts are positional: the generated group and the host's go to their indices, any gap gets an empty layout
+    const layouts: GPUBindGroupLayout[] = [];
+    const empty = (this.emptyLayout ??= device.createBindGroupLayout({ label: 'empty', entries: [] }));
+    for (let i = 0; i <= Math.max(rt.group, ...rt.hostGroups.map((h) => h.group)); i++) layouts.push(empty);
+    layouts[rt.group] = rt.layout;
+    for (const h of rt.hostGroups) {
+      const hostLayout = this.options.hostLayouts?.[h.layout];
+      if (!hostLayout) throw new TechniqueError(`${ctx}: host layout '${h.layout}' was not given in the instance's hostLayouts`);
+      layouts[h.group] = hostLayout;
+    }
+    const layout = device.createPipelineLayout({ bindGroupLayouts: layouts });
+    const groupsKey = `${rt.group}|${rt.hostGroups.map((h) => `${h.group}=${h.layout}`).join(',')}`;
     const module = this.gpu.resources.shaders.get(`technique:${rt.shader.code}`, rt.shader.code);
     if (node.type === 'compute') {
       const wg = node.workgroupSize ?? WORKGROUP.exec(node.shader.code)?.slice(1).map((v) => (v ? Number(v) : 1));
       if (!wg) throw new TechniqueError(`${ctx}: set workgroupSize (the shader's @workgroup_size is not a plain number)`);
       rt.workgroup = [wg[0] ?? 1, wg[1] ?? 1, wg[2] ?? 1];
-      const key = `c|${node.entryPoint ?? 'main'}|${rt.shader.code}`;
+      const key = `c|${node.entryPoint ?? 'main'}|${groupsKey}|${rt.shader.code}`;
       rt.pipeline = (this.pipelines.get(key) as GPUComputePipeline | undefined) ?? device.createComputePipeline({ label: node.path, layout, compute: { module, entryPoint: node.entryPoint ?? 'main' } });
       this.pipelines.set(key, rt.pipeline);
     } else {
@@ -292,7 +323,7 @@ export class TechniqueInstance {
       }));
       // strip topologies need the index format in the pipeline when drawn indexed
       const stripFormat = node.indexBuffer && /strip$/.test(node.topology ?? '') ? node.indexBuffer.format ?? 'uint32' : undefined;
-      const key = `r|${node.vertexEntry}|${node.fragmentEntry}|${node.topology}|${node.cullMode}|${samples}|${stripFormat ?? ''}|${JSON.stringify(buffers)}|${JSON.stringify(targets)}|${JSON.stringify(depth)}|${rt.shader.code}`;
+      const key = `r|${groupsKey}|${node.vertexEntry}|${node.fragmentEntry}|${node.topology}|${node.cullMode}|${samples}|${stripFormat ?? ''}|${JSON.stringify(buffers)}|${JSON.stringify(targets)}|${JSON.stringify(depth)}|${rt.shader.code}`;
       rt.pipeline = (this.pipelines.get(key) as GPURenderPipeline | undefined) ?? device.createRenderPipeline({
         label: node.path, layout,
         vertex: { module, entryPoint: node.vertexEntry ?? 'vs_main', ...(buffers.length ? { buffers } : {}) },
@@ -349,7 +380,10 @@ export class TechniqueInstance {
       if (!isTexture(res)) return { binding: slot.binding, resource: { buffer: res } };
       const plan = this.compiled.resources.get(b.resource)!;
       const dimension = ((plan.decl as TextureDecl).dimension ?? (plan.resolved as ResolvedTexture | null)?.dimension ?? '2d') as GPUTextureViewDimension;
-      return { binding: slot.binding, resource: res.createView(b.access === 'read' ? { dimension } : { dimension, baseMipLevel: 0, mipLevelCount: 1 }) };
+      const mips = b.mip !== undefined || b.mipCount !== undefined
+        ? { baseMipLevel: b.mip ?? 0, mipLevelCount: b.mipCount ?? 1 }
+        : b.access === 'read' ? {} : { baseMipLevel: 0, mipLevelCount: 1 };
+      return { binding: slot.binding, resource: res.createView({ dimension, ...mips }) };
     });
     rt.bindGroup = this.gpu.device.createBindGroup({ label: `${step.node.path}:bindings`, layout: rt.layout, entries });
   }
@@ -357,7 +391,7 @@ export class TechniqueInstance {
   // ---------------------------------------------------------------------------------------------------------- execution
 
   /** Record every live node, in order, into `encoder`. */
-  execute(encoder: GPUCommandEncoder): void {
+  execute(encoder: GPUCommandEncoder, options: ExecuteOptions = {}): void {
     if (this.dirty) this.build();
     if (this.bindingsDirty) { for (const [step, rt] of this.runtimes) this.bindStep(step, rt); this.bindingsDirty = false; }
     if (this.uniformDirty) {
@@ -367,18 +401,28 @@ export class TechniqueInstance {
     for (const step of this.compiled.steps) {
       const node = step.node, rt = this.runtimes.get(step)!;
       switch (node.type) {
-        case 'compute': this.runCompute(encoder, node, rt); break;
-        case 'draw': this.runDraw(encoder, node, rt); break;
+        case 'compute': this.runCompute(encoder, node, rt, options.timestampWrites?.(node.path) as GPUComputePassTimestampWrites | undefined); break;
+        case 'draw': this.runDraw(encoder, node, rt, options.timestampWrites?.(node.path) as GPURenderPassTimestampWrites | undefined); break;
         case 'copy': this.runCopy(encoder, node.path, node.source, node.dest); break;
         case 'callback': node.execute(encoder); break;
       }
     }
   }
 
-  private runCompute(encoder: GPUCommandEncoder, node: ComputeNode & { path: string }, rt: StepRuntime): void {
-    const pass = encoder.beginComputePass({ label: node.path });
+  /** Set the generated bind group and the host's on a pass. */
+  private bindGroups(pass: GPUComputePassEncoder | GPURenderPassEncoder, path: string, rt: StepRuntime): void {
+    pass.setBindGroup(rt.group, rt.bindGroup);
+    for (const h of rt.hostGroups) {
+      const bg = this.hostBindGroups.get(h.layout);
+      if (!bg) throw new TechniqueError(`node '${path}': no bind group was supplied for host layout '${h.layout}' (call setHostBindGroup)`);
+      pass.setBindGroup(h.group, bg);
+    }
+  }
+
+  private runCompute(encoder: GPUCommandEncoder, node: ComputeNode & { path: string }, rt: StepRuntime, timestampWrites?: GPUComputePassTimestampWrites): void {
+    const pass = encoder.beginComputePass({ label: node.path, ...(timestampWrites ? { timestampWrites } : {}) });
     pass.setPipeline(rt.pipeline as GPUComputePipeline);
-    pass.setBindGroup(0, rt.bindGroup);
+    this.bindGroups(pass, node.path, rt);
     const d = node.dispatch;
     if ('indirect' in d) pass.dispatchWorkgroupsIndirect(this.physical(d.indirect, `node '${node.path}'`) as GPUBuffer, d.offset ?? 0);
     else {
@@ -391,11 +435,11 @@ export class TechniqueInstance {
     pass.end();
   }
 
-  private runDraw(encoder: GPUCommandEncoder, node: DrawNode & { path: string }, rt: StepRuntime): void {
+  private runDraw(encoder: GPUCommandEncoder, node: DrawNode & { path: string }, rt: StepRuntime, timestampWrites?: GPURenderPassTimestampWrites): void {
     const ctx = `node '${node.path}'`;
     const view = (name: string, mip: number, layer: number) => (this.physical(name, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: mip, mipLevelCount: 1, baseArrayLayer: layer, arrayLayerCount: 1 });
     const pass = encoder.beginRenderPass({
-      label: node.path,
+      label: node.path, ...(timestampWrites ? { timestampWrites } : {}),
       colorAttachments: node.colorTargets.map((t) => ({
         view: view(t.resource, t.mip ?? 0, t.layer ?? 0), loadOp: t.loadOp ?? 'clear', storeOp: t.storeOp ?? 'store', clearValue: t.clearValue ?? [0, 0, 0, 0],
         ...(t.resolve !== undefined ? { resolveTarget: view(t.resolve, 0, 0) } : {}),
@@ -408,7 +452,7 @@ export class TechniqueInstance {
       } : {}),
     });
     pass.setPipeline(rt.pipeline as GPURenderPipeline);
-    pass.setBindGroup(0, rt.bindGroup);
+    this.bindGroups(pass, node.path, rt);
     const buffers = node.vertexBuffers ?? [];
     buffers.forEach((v, slot) => pass.setVertexBuffer(slot, this.physical(v.resource, ctx) as GPUBuffer, v.offset ?? 0));
     // counts not given explicitly come from the vertex buffers: every element of the first per-vertex / per-instance buffer

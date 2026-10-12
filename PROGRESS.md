@@ -262,7 +262,19 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 * Tests: `tests/technique.test.ts` (37) and four GPU self-tests (compute chain with aliased textures, size-variable recompile, looped sub-graph, draw into an imported texture) checked against CPU values.
 * `TechniqueBuilder` (`technique(name)`): the same graphs from code, with typed variable / resource handles, a `wgsl` template tag and `instantiate(gpu)`; `tests/technique-builder.test.ts` (7, including equality with the JSON example files) and a GPU self-test.
 * Demo `/?scene=technique`: a builder-made plasma + blur technique running as a frame-graph pass (via `asPass` in a `RenderFeature`), with live recompiles. Writing it exposed (and fixed) texture reallocation on condition toggles; `TechniqueInstance.onResourcesReplaced` reports genuine replacements.
-* Not done: a visual editor / viewer, code generation backends, ray tracing nodes, vertex buffers on draw nodes.
+* Not done: a visual editor / viewer, code generation backends, ray tracing nodes.
+* Draw nodes later gained vertex / index buffers, indirect (indexed) draws, `baseVertex` and MSAA targets with resolve.
+
+## Engine passes moved onto the technique render graph (October 2026)
+
+* The post chain (view depth, SSAO, SSR, bloom, composite, FXAA), user full-screen effects, the transmission copy + mip chain, light-cluster assignment, volumetric fog, GPU culling (3 phases),
+  the Hi-Z pyramid, GPU particles and ribbon trails now run as technique nodes inside the frame graph (table: `docs/TECHNIQUES.md`, "What the engine runs as techniques").
+* New technique capabilities this needed: host-supplied bind groups + a configurable group index for generated bindings, bindings to a mip range (disjoint ranges of one texture in one node),
+  GPU timestamp hooks on `execute`, and dependency analysis that lets a node read the incoming contents of an imported / persistent resource that a later node overwrites.
+* Verification: `postTests` (GPU self-test, golden images recorded from the hand-written chain: 4 configurations incl. a multisampled depth buffer, bit-exact), the cluster / fog / Hi-Z / particle / ribbon
+  self-tests against their CPU references, and pixel-identical frames through the real engine against a build of the previous commit for the post chain (5 configurations), the feature demo, lights + fog,
+  LOD with GPU culling (off / frustum / hiz2), the material gallery with transmission, and particles.
+* Still callback nodes: the per-batch scene passes (main, depth prepass, aux, shadows), the sky and the in-pass overlay / particle / ribbon draws. `IBLBaker`, `MipmapGenerator`, `CompactVertexStream` are asset-preparation utilities.
 
 ## Compressed assets (October 2026)
 

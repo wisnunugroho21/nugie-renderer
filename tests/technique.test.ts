@@ -28,6 +28,17 @@ describe('compile: order, culling, roots', () => {
     expect(t.culled).toEqual(['unused']);
     expect(t.unused).toEqual(['scratch']);
   });
+  it('lets a node read the incoming contents of an imported or persistent resource that a later node overwrites', () => {
+    // e.g. an effect that reads the host's scene texture into a scratch image, then a copy writes the result back over the scene
+    for (const extra of [{ visibility: 'imported' as const }, { lifetime: 'persistent' as const }]) {
+      const copy: NodeDecl = { type: 'copy', name: 'write-back', source: 'scratch', dest: 'scene' };
+      const t = compileTechnique(technique([pass('effect', ['scene'], ['scratch']), copy], [tex('scene', extra), tex('scratch')]));
+      expect(names(t)).toEqual(['effect', 'write-back']);
+    }
+    // an internal transient resource read before any write still waits for its producer
+    const forward = compileTechnique(technique([pass('use', ['late'], ['out']), pass('make', [], ['late'])], [tex('late'), tex('out', { visibility: 'exported' })]));
+    expect(names(forward)).toEqual(['make', 'use']);
+  });
   it('treats writes to imported and persistent resources as outputs', () => {
     const t = compileTechnique(technique(
       [pass('a', [], ['host']), pass('b', [], ['history']), pass('c', [], ['tmp'])],
@@ -286,6 +297,55 @@ describe('validation', () => {
       const withBase = technique([draw({ indexBuffer: { resource: 'idx' }, baseVertex: -4 })], [rt, buf('idx')]);
       expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
       expect(parseTechnique(JSON.parse(techniqueToJSON(withBase)))).toEqual(withBase);
+    });
+  });
+
+  describe('host bind groups and mip views', () => {
+    const buf = (name: string): ResourceDecl => ({ kind: 'buffer', name, count: 4, visibility: 'exported' });
+    const host = (extra: Partial<ComputeNode>): NodeDecl => ({ ...pass('c', [], []), bindings: [{ resource: 'b', access: 'write' }], ...extra });
+    it('validates host groups', () => {
+      const ok = host({ group: 2, hostGroups: [{ group: 0, layout: 'frame' }, { group: 1, layout: 'scene' }] });
+      expect(() => compileTechnique(technique([ok], [buf('b')]))).not.toThrow();
+      expect(() => compileTechnique(technique([host({ group: 1, hostGroups: [{ group: 1, layout: 'x' }] })], [buf('b')]))).toThrow(/@group\(1\) is used twice/);
+      expect(() => compileTechnique(technique([host({ hostGroups: [{ group: 1, layout: 'x' }, { group: 1, layout: 'y' }] })], [buf('b')]))).toThrow(/used twice/);
+      expect(() => compileTechnique(technique([host({ hostGroups: [{ group: 4, layout: 'x' }] })], [buf('b')]))).toThrow(/from 0 to 3/);
+      expect(() => compileTechnique(technique([host({ group: 7 })], [buf('b')]))).toThrow(/from 0 to 3/);
+      expect(() => compileTechnique(technique([host({ hostGroups: [{ group: 1, layout: '' }] })], [buf('b')]))).toThrow(/needs a layout name/);
+    });
+    it('puts the generated bindings at the node group', () => {
+      const t = technique([host({ group: 2, shader: { code: '/*$(Bindings)*/' }, hostGroups: [{ group: 0, layout: 'frame' }] })], [buf('b')]);
+      const plan = compileTechnique(t);
+      expect(expandShader(plan.steps[0].node as never, plan).code).toContain('@group(2) @binding(0) var<storage, read_write> b: array<u32>;');
+    });
+    it('round-trips host groups and mip views through JSON', () => {
+      const t = technique([host({ group: 1, hostGroups: [{ group: 0, layout: 'frame' }], bindings: [{ resource: 'b', access: 'write' }] })], [buf('b')]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+      const tex2 = technique([pass('p', [], ['t'], { bindings: [{ resource: 't', access: 'read', mip: 1, mipCount: 2 }] })], [tex('t', { mips: 4, visibility: 'exported' })]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(tex2)))).toEqual(tex2);
+    });
+
+    const pyramid = (bindings: ComputeNode['bindings']) => technique([{ ...pass('down', [], []), bindings }], [tex('hiz', { mips: 4, visibility: 'exported' })]);
+    it('lets one node read mip i-1 and write mip i of the same texture', () => {
+      const plan = compileTechnique(pyramid([{ resource: 'hiz', access: 'read', name: 'src', mip: 0, mipCount: 1 }, { resource: 'hiz', access: 'write', name: 'dst', mip: 1 }]));
+      expect(plan.steps[0].accesses.filter((a) => a.resource === 'hiz')).toHaveLength(2);
+      expect(plan.resources.get('hiz')!.uses).toEqual(new Set(['sampled', 'storage', 'copy-src']));
+    });
+    it('rejects overlapping or malformed mip ranges', () => {
+      expect(() => compileTechnique(pyramid([{ resource: 'hiz', access: 'read', name: 'src', mip: 0, mipCount: 2 }, { resource: 'hiz', access: 'write', name: 'dst', mip: 1 }]))).toThrow(/conflicting usage/);
+      expect(() => compileTechnique(pyramid([{ resource: 'hiz', access: 'read', name: 'src' }, { resource: 'hiz', access: 'write', name: 'dst', mip: 1 }]))).toThrow(/conflicting usage/);
+      expect(() => compileTechnique(pyramid([{ resource: 'hiz', access: 'write', mip: 4 }]))).toThrow(/out of range/);
+      expect(() => compileTechnique(pyramid([{ resource: 'hiz', access: 'write', mip: 0, mipCount: 2 }]))).toThrow(/one mip level/);
+      expect(() => compileTechnique(pyramid([{ resource: 'hiz', access: 'read', mip: -1 }]))).toThrow(/level >= 0/);
+    });
+    it('lets a draw render into mip i while sampling mip i-1', () => {
+      const blit: NodeDecl = {
+        type: 'draw', name: 'blit', shader: { code: 'x' }, vertexCount: 3, bindings: [{ resource: 'chain', access: 'read', name: 'src', mip: 0, mipCount: 1, sampler: 'linear' }],
+        colorTargets: [{ resource: 'chain', mip: 1 }],
+      };
+      const plan = compileTechnique(technique([blit], [tex('chain', { mips: 3, visibility: 'exported' })]));
+      expect(plan.resources.get('chain')!.uses.has('render')).toBe(true);
+      const same: NodeDecl = { ...blit, colorTargets: [{ resource: 'chain', mip: 0 }] };
+      expect(() => compileTechnique(technique([same], [tex('chain', { mips: 3, visibility: 'exported' })]))).toThrow(/conflicting usage/);
     });
   });
 

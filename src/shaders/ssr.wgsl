@@ -75,7 +75,7 @@ fn fs_ssr(in: VOut) -> @location(0) vec4<f32> {
   let fresnel = f0 + (1.0 - f0) * pow(1.0 - cosV, 5.0);
   let w = clamp(edge * distFade * roughFade * roughFade * facing * fresnel * P.b.x, 0.0, 1.0);
 
-  let hitColor = min(textureSampleLevel(texA, samp, huv, 0.0).rgb, vec3<f32>(16.0));
+  let hitColor = min(textureSampleLevel(texA, texA_sampler, huv, 0.0).rgb, vec3<f32>(16.0));
   let base = textureLoad(texA, px, 0).rgb;
   let tint = mix(vec3<f32>(1.0), base / max(max(base.r, max(base.g, base.b)), 1e-3), metallic);   // metals tint their reflection
   return vec4<f32>(hitColor * tint, w);

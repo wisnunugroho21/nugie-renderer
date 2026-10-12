@@ -105,7 +105,7 @@ fn fs_composite(in: VOut) -> @location(0) vec4<f32> {
   var c = textureLoad(texA, px, 0).rgb;
   if (P.d.y > 0.5) { c *= textureLoad(texD, px, 0).r; }                          // SSAO (blurred occlusion)
   if (P.d.z > 0.5) { let r = textureLoad(texC, px, 0); c = mix(c, r.rgb, r.a); }   // SSR (reflected radiance, weight)
-  if (P.c.z > 0.5) { c += textureSampleLevel(texB, samp, in.uv, 0.0).rgb * P.b.y; }
+  if (P.c.z > 0.5) { c += textureSampleLevel(texB, texA_sampler, in.uv, 0.0).rgb * P.b.y; }
   c = tonemap(c * P.b.x, u32(P.c.y));
   var s = linearToSrgb(c);
   // grading in display space

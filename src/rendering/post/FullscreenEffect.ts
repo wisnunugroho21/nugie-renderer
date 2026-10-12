@@ -1,5 +1,7 @@
 import type { GPUContext } from '../../gpu/GPUContext';
-import { HDR_FORMAT } from './PostProcessor';
+import { technique } from '../graph/TechniqueBuilder';
+import type { TechniqueInstance } from '../graph/TechniqueInstance';
+import { HDR_FORMAT } from './PostChain';
 
 export interface FullscreenEffectOptions {
   label: string;
@@ -14,11 +16,9 @@ export interface FullscreenEffectOptions {
 }
 
 const PRELUDE = /* wgsl */ `
-@group(0) @binding(0) var scene: texture_2d<f32>;
-@group(0) @binding(1) var sceneSampler: sampler;
-@group(0) @binding(2) var<uniform> params: array<vec4<f32>, 4>;
-
 struct VOut { @builtin(position) clip: vec4<f32>, @location(0) uv: vec2<f32> };
+
+var<private> params: array<vec4<f32>, 4>;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VOut {
@@ -29,11 +29,12 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VOut {
   return o;
 }
 
-fn sceneAt(uv: vec2<f32>) -> vec4<f32> { return textureSampleLevel(scene, sceneSampler, uv, 0.0); }
+fn sceneAt(uv: vec2<f32>) -> vec4<f32> { return textureSampleLevel(scene, scene_sampler, uv, 0.0); }
 fn texelSize() -> vec2<f32> { return 1.0 / vec2<f32>(textureDimensions(scene)); }
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4<f32> {
+  params = array<vec4<f32>, 4>(/*$(Variable:p0)*/, /*$(Variable:p1)*/, /*$(Variable:p2)*/, /*$(Variable:p3)*/);
   return effect(in.uv, sceneAt(in.uv));
 }
 `;
@@ -48,50 +49,36 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
 export class FullscreenEffect {
   /** The effect's uniforms (16 floats = 4 vec4), uploaded on every `run`. */
   readonly params = new Float32Array(16);
-  private uniform: GPUBuffer;
-  private layout: GPUBindGroupLayout;
-  private pipeline: GPURenderPipeline;
-  private sampler: GPUSampler;
-  private scratch: GPUTexture | null = null;
-  private scratchView: GPUTextureView | null = null;
-  private groups = new WeakMap<GPUTexture, GPUBindGroup>();
+  private instance: TechniqueInstance | null = null;
+  private size = '';
 
-  constructor(private gpu: GPUContext, o: FullscreenEffectOptions) {
-    const { device, resources } = gpu;
-    this.uniform = resources.buffers.create(`${o.label}:params`, 64, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-    this.sampler = resources.samplers.get({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
-    this.layout = device.createBindGroupLayout({ entries: [
-      { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-    ] });
-    const module = resources.shaders.get(`fx:${o.label}`, PRELUDE + o.wgsl);
-    this.pipeline = device.createRenderPipeline({
-      label: o.label, layout: device.createPipelineLayout({ bindGroupLayouts: [this.layout] }),
-      vertex: { module, entryPoint: 'vs_main' },
-      fragment: { module, entryPoint: 'fs_main', targets: [{ format: HDR_FORMAT }] },
-      primitive: { topology: 'triangle-list' },
+  constructor(private gpu: GPUContext, private o: FullscreenEffectOptions) {}
+
+  /** The effect as a technique for a scene texture of this size: draw the effect into a scratch texture, then copy it back over the scene. */
+  private build(width: number, height: number): TechniqueInstance {
+    const g = technique(this.o.label);
+    for (let i = 0; i < 4; i++) g.float4(`p${i}`);
+    const scene = g.texture('scene', { format: HDR_FORMAT, size: [width, height], visibility: 'imported' });
+    const scratch = g.texture('scratch', { like: scene });
+    g.draw('effect', {
+      shader: PRELUDE + this.o.wgsl, vertexEntry: 'vs_main', fragmentEntry: 'fs_main', vertices: 3,
+      reads: [{ resource: scene, sampler: 'linear' }], colorTargets: [{ resource: scratch, clearValue: [0, 0, 0, 1] }],
     });
+    g.copy('write-back', scratch, scene);
+    return g.instantiate(this.gpu, { label: `fx:${this.o.label}` });
   }
 
   /** Apply the effect to `sceneTexture` (the HDR scene colour, `PostFeatureFrame.sceneTexture`). Records two commands into `enc`. */
   run(enc: GPUCommandEncoder, sceneTexture: GPUTexture): void {
-    const { device, resources } = this.gpu;
-    const { width, height } = sceneTexture;
-    if (!this.scratch || this.scratch.width !== width || this.scratch.height !== height) {
-      if (this.scratch) resources.textures.destroy(this.scratch);
-      this.scratch = resources.textures.create({ label: 'fx-scratch', size: [width, height], format: HDR_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
-      this.scratchView = this.scratch.createView();
+    const size = `${sceneTexture.width}x${sceneTexture.height}`;
+    if (!this.instance || this.size !== size) {
+      this.instance?.dispose();
+      this.instance = this.build(sceneTexture.width, sceneTexture.height);
+      this.size = size;
     }
-    let group = this.groups.get(sceneTexture);
-    if (!group) {
-      group = device.createBindGroup({ layout: this.layout, entries: [
-        { binding: 0, resource: sceneTexture.createView() }, { binding: 1, resource: this.sampler }, { binding: 2, resource: { buffer: this.uniform } }] });
-      this.groups.set(sceneTexture, group);
-    }
-    this.gpu.queue.writeBuffer(this.uniform, 0, this.params);
-    const pass = enc.beginRenderPass({ label: 'fx', colorAttachments: [{ view: this.scratchView!, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
-    pass.setPipeline(this.pipeline); pass.setBindGroup(0, group); pass.draw(3); pass.end();
-    enc.copyTextureToTexture({ texture: this.scratch }, { texture: sceneTexture }, [width, height]);
+    const fx = this.instance;
+    fx.setImport('scene', sceneTexture);
+    for (let i = 0; i < 4; i++) fx.setVariable(`p${i}`, Array.from(this.params.subarray(i * 4, i * 4 + 4)));
+    fx.execute(enc);
   }
 }

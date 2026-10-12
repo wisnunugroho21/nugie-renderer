@@ -19,21 +19,22 @@ type Rule =
 const opt = (r: Rule): Rule => ({ optional: r });
 const SIZE_DIM: Rule = 'size';
 
-const BINDING: Spec = { resource: 'string', access: { enum: ['read', 'write', 'readwrite'] }, name: opt('string'), sampler: opt({ enum: ['nearest', 'linear'] }) };
+const BINDING: Spec = { resource: 'string', access: { enum: ['read', 'write', 'readwrite'] }, name: opt('string'), sampler: opt({ enum: ['nearest', 'linear'] }), mip: opt('number'), mipCount: opt('number') };
 const CONDITION: Spec = { variable: 'string', op: { enum: ['eq', 'ne', 'lt', 'le', 'gt', 'ge'] }, value: 'number' };
 const VERTEX_BUFFER: Spec = {
   resource: 'string', stepMode: opt({ enum: ['vertex', 'instance'] }), arrayStride: opt('number'), offset: opt('number'),
   attributes: { list: { location: 'number', format: 'string', offset: 'number' } },
 };
+const HOST_GROUPS: Rule = { list: { group: 'number', layout: 'string' } };
 const NODE_BASE: Spec = { name: 'string', condition: opt({ object: CONDITION }), sideEffect: opt('boolean') };
 
 const NODE_SPECS: Record<string, Spec> = {
   compute: {
-    ...NODE_BASE, type: 'string', shader: { object: { code: 'string' } }, entryPoint: opt('string'), workgroupSize: opt('number[]'),
+    ...NODE_BASE, type: 'string', shader: { object: { code: 'string' } }, entryPoint: opt('string'), workgroupSize: opt('number[]'), group: opt('number'), hostGroups: opt(HOST_GROUPS),
     bindings: { list: BINDING }, dispatch: { oneOf: [{ object: { threads: 'size[]' } }, { object: { like: 'string' } }, { object: { indirect: 'string', offset: opt('number') } }], label: 'threads / like / indirect' },
   },
   draw: {
-    ...NODE_BASE, type: 'string', shader: { object: { code: 'string' } }, vertexEntry: opt('string'), fragmentEntry: opt('string'), bindings: { list: BINDING },
+    ...NODE_BASE, type: 'string', shader: { object: { code: 'string' } }, vertexEntry: opt('string'), fragmentEntry: opt('string'), bindings: { list: BINDING }, group: opt('number'), hostGroups: opt(HOST_GROUPS),
     colorTargets: { list: { resource: 'string', loadOp: opt({ enum: ['clear', 'load'] }), clearValue: opt('number[]'), blend: opt({ enum: ['none', 'alpha', 'additive'] }), mip: opt('number'), layer: opt('number'), resolve: opt('string'), storeOp: opt({ enum: ['store', 'discard'] }) } },
     depthTarget: opt({ object: { resource: 'string', loadOp: opt({ enum: ['clear', 'load'] }), clearValue: opt('number'), compare: opt('string'), write: opt('boolean') } }),
     vertexBuffers: opt({ list: VERTEX_BUFFER }), indexBuffer: opt({ object: { resource: 'string', format: opt({ enum: ['uint16', 'uint32'] }), offset: opt('number') } }), indexCount: opt(SIZE_DIM), baseVertex: opt(SIZE_DIM), indirect: opt({ object: { resource: 'string', offset: opt('number') } }),

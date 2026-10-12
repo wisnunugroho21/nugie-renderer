@@ -1,16 +1,8 @@
-// Shared header of the full-screen post passes: one bind layout (sampler, texA, texB, parameters, texC, texD) and helpers that turn the
-// linear-depth texture (texD, r32float, positive view distance, loaded with textureLoad) into view-space positions and normals.
-//   P.a .. P.d: pass specific.  P.e = (proj[0][0], proj[1][1], proj[2][2], proj[3][2]), P.f = (1/width, 1/height, width, height)
+// Shared header of the full-screen post passes (the post-chain technique, see rendering/post/PostChain.ts). The technique generates the bindings: texA..texD
+// (the sampler of texA is texA_sampler) and the pass parameters, which the shaders write as P.a .. P.d (pass specific); PostChain rewrites P.x to the
+// node's own variables. P.e = (proj[0][0], proj[1][1], proj[2][2], proj[3][2]), P.f = (1/width, 1/height, width, height) are shared by all nodes.
+// The helpers below turn the linear-depth texture (texD, r32float, positive view distance, loaded with textureLoad) into view-space positions and normals.
 //#include common_color
-
-struct Params { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32>, f: vec4<f32> };
-
-@group(0) @binding(0) var samp: sampler;
-@group(0) @binding(1) var texA: texture_2d<f32>;
-@group(0) @binding(2) var texB: texture_2d<f32>;
-@group(0) @binding(3) var<uniform> P: Params;
-@group(0) @binding(4) var texC: texture_2d<f32>;
-@group(0) @binding(5) var texD: texture_2d<f32>;
 
 struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
 
@@ -23,7 +15,7 @@ fn vs_full(@builtin(vertex_index) vi: u32) -> VOut {
   return o;
 }
 
-fn src(uv: vec2<f32>) -> vec3<f32> { return textureSampleLevel(texA, samp, uv, 0.0).rgb; }
+fn src(uv: vec2<f32>) -> vec3<f32> { return textureSampleLevel(texA, texA_sampler, uv, 0.0).rgb; }
 
 fn luma709(c: vec3<f32>) -> f32 { return dot(c, vec3<f32>(0.2126, 0.7152, 0.0722)); }
 

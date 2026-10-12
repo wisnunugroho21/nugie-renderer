@@ -5,7 +5,7 @@ import { techniqueToJSON } from './TechniqueJSON';
 import {
   TechniqueError, type BindingAccess, type BindingDecl, type BufferDecl, type CallbackNode, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type NodeCondition,
   type NodeDecl, type ResourceLifetime, type ResourceVisibility, type SizeDim, type TextureDecl, type Technique, type TechniqueRegistry, type VariableDecl, type VariableType,
-  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding,
+  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup,
 } from './TechniqueTypes';
 
 /**
@@ -110,7 +110,7 @@ export interface BufferOptions {
 export interface VariableOptions { value?: number | number[]; visibility?: VariableVisibility; }
 
 /** A binding with a per-binding WGSL name or sampler; a bare handle / string is the same with defaults. */
-export type BindingRef = ResourceRef | { resource: ResourceRef; name?: string; sampler?: GPUFilterMode };
+export type BindingRef = ResourceRef | { resource: ResourceRef; name?: string; sampler?: GPUFilterMode; mip?: number; mipCount?: number };
 
 interface NodeOptions {
   /** Run only while the comparison holds, e.g. `when: quality.gt(0)`. */
@@ -119,7 +119,15 @@ interface NodeOptions {
   keep?: boolean;
 }
 
-export interface ComputeOptions extends NodeOptions {
+/** Bind-group options shared by compute and draw nodes. */
+interface HostGroupOptions {
+  /** `@group` of the generated bindings (default 0); use another index when the shader's group 0 is the engine's. */
+  group?: number;
+  /** Bind groups the host supplies at other group indices (see `TechniqueInstance.setHostBindGroup`). */
+  hostGroups?: HostBindGroup[];
+}
+
+export interface ComputeOptions extends NodeOptions, HostGroupOptions {
   shader: string;
   entryPoint?: string;
   workgroupSize?: [number, number?, number?];
@@ -135,7 +143,7 @@ export interface ComputeOptions extends NodeOptions {
 /** A vertex buffer of a draw: a buffer handle (attributes still needed) is written as `{ resource, attributes }`. */
 export type VertexBufferRef = Omit<VertexBufferBinding, 'resource'> & { resource: ResourceRef };
 
-export interface DrawOptions extends NodeOptions {
+export interface DrawOptions extends NodeOptions, HostGroupOptions {
   shader: string;
   vertexEntry?: string;
   fragmentEntry?: string;
@@ -277,6 +285,8 @@ export class TechniqueBuilder {
     const dispatch: ComputeNode['dispatch'] = 'threads' in d ? { threads: d.threads.map((t) => this.dim(t, ctx)) }
       : 'like' in d ? { like: this.resource(d.like, ctx).name } : { indirect: this.resource(d.indirect, ctx).name, ...(d.offset !== undefined ? { offset: d.offset } : {}) };
     const node: ComputeNode = { type: 'compute', name, shader: { code: o.shader }, bindings: list, dispatch, ...this.base(o, ctx) };
+    if (o.group !== undefined) node.group = o.group;
+    if (o.hostGroups) node.hostGroups = o.hostGroups.map((h) => ({ ...h }));
     if (o.entryPoint) node.entryPoint = o.entryPoint;
     if (o.workgroupSize) node.workgroupSize = o.workgroupSize;
     return this.push(node);
@@ -301,6 +311,8 @@ export class TechniqueBuilder {
     if (o.indirect) node.indirect = { ...o.indirect, resource: this.resource(o.indirect.resource, ctx).name };
     if (o.indices !== undefined) node.indexCount = this.dim(o.indices, ctx);
     if (o.instances !== undefined) node.instanceCount = this.dim(o.instances, ctx);
+    if (o.group !== undefined) node.group = o.group;
+    if (o.hostGroups) node.hostGroups = o.hostGroups.map((h) => ({ ...h }));
     if (o.vertexEntry) node.vertexEntry = o.vertexEntry;
     if (o.fragmentEntry) node.fragmentEntry = o.fragmentEntry;
     if (o.topology) node.topology = o.topology;
@@ -414,7 +426,12 @@ export class TechniqueBuilder {
       const plain = typeof ref === 'string' || ref instanceof ResourceHandle;
       const resource = this.resource(plain ? ref : ref.resource, ctx).name;
       const b: BindingDecl = { resource, access };
-      if (!plain) { if (ref.name) b.name = ref.name; if (ref.sampler) b.sampler = ref.sampler; }
+      if (!plain) {
+        if (ref.name) b.name = ref.name;
+        if (ref.sampler) b.sampler = ref.sampler;
+        if (ref.mip !== undefined) b.mip = ref.mip;
+        if (ref.mipCount !== undefined) b.mipCount = ref.mipCount;
+      }
       out.push(b);
     }
   }

@@ -7,7 +7,7 @@ import { TechniqueError, type BindingDecl, type ComputeNode, type DrawNode, type
  *
  *   `$(Variable:name)`  ->  `gigi.name`, a field of a generated uniform struct (only the variables a shader mentions are included)
  *   `$(Size:resource)`  ->  the resource's size as a constant: `vec3<u32>(w, h, d)` for textures, `<count>u` for buffers
- *   `$(Bindings)`       ->  the generated declarations: the variables uniform and one `@group(0) @binding(n) var ...` per node binding
+ *   `$(Bindings)`       ->  the generated declarations: the variables uniform and one `@group(g) @binding(n) var ...` per node binding (g = the node's `group`, default 0)
  *
  * Without a `$(Bindings)` token the declarations are put in front of the source. A texture binding named `src` with a sampler also
  * gets `src_sampler`. Names in tokens are those of the technique the node was written in (sub-graph renames are handled for you).
@@ -74,7 +74,7 @@ const VIEW: Record<string, string> = { '2d': '2d', '2d-array': '2d_array', '3d':
 
 /** WGSL declaration of one binding. */
 function declare(slot: BindingSlot, plan: CompiledTechnique, node: ComputeNode | DrawNode, ctx: string): string {
-  const at = `@group(0) @binding(${slot.binding})`;
+  const at = `@group(${node.group ?? 0}) @binding(${slot.binding})`;
   if (slot.kind === 'sampler') return `${at} var ${slot.name}: sampler;`;
   const b = slot.decl!;
   const p = plan.resources.get(b.resource)!;
@@ -138,7 +138,7 @@ export function expandShader(node: FlatNode & { type: 'compute' | 'draw' }, plan
   const declarations: string[] = [];
   if (uniform) {
     declarations.push(`struct GigiVariables {\n${uniform.members.map((m) => `  ${m.name}: ${m.type},`).join('\n')}\n}`);
-    declarations.push(`@group(0) @binding(0) var<uniform> gigi: GigiVariables;`);
+    declarations.push(`@group(${node.group ?? 0}) @binding(0) var<uniform> gigi: GigiVariables;`);
   }
   for (const slot of slots) if (slot.kind !== 'variables') declarations.push(declare(slot, plan, node, ctx));
   const block = declarations.join('\n');

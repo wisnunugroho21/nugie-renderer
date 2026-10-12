@@ -163,6 +163,43 @@ It cannot be a storage texture. Memory accounting (`plan.stats.bytes`) counts al
 
 Self-tests: `/selftest.html` (an anti-aliased triangle from a compute-generated vertex buffer, per-instance data from the host, per-sample reads).
 
+## Mip views, host bind groups and imported contents
+
+**Mip views.** A texture binding can name a sub-range of the mip chain: `{ resource, mip, mipCount }` (builder: `reads: [{ resource: t, mip: 1, mipCount: 1 }]`). Without them a `read` sees
+the whole chain and a storage `write` mip 0. A draw's colour target already names a mip (`ColorTarget.mip`). Bindings of **disjoint** ranges of one texture may sit in the same node, which is
+how a mip chain is built: node *i* reads level *i-1* and writes level *i* (compute pyramid: `HiZ.ts`; render blit chain: `TransmissionCopy.ts`). Overlapping ranges are a usage conflict.
+
+**Host bind groups.** The engine's frame and scene bind groups are not resources a technique can generate. A compute or draw node can say that the host supplies them:
+`hostGroups: [{ group: 0, layout: 'frame' }, { group: 1, layout: 'scene' }]` with `group: 2` for the bindings the technique generates (default 0). The instance is created with
+`hostLayouts: { frame, scene }` (the `GPUBindGroupLayout`s) and given the bind groups with `setHostBindGroup('frame', bindGroup)` before `execute` (`VolumetricFog.ts`).
+
+**Reading incoming contents.** A node that reads an *imported* or *persistent* resource before any node writes it sees the contents from outside the execution (the host's texture, last frame's history);
+it does not wait for a later writer, which instead waits for the reader. That lets an effect read the scene texture and a later copy write the result back over it (`FullscreenEffect.ts`).
+A transient internal resource read before its first write still waits for its producer.
+
+**Execute options.** `execute(encoder, { timestampWrites: (nodePath) => ... })` lets the host attach GPU timestamp queries to a node's pass (the engine's `GPUProfiler`).
+
+## What the engine runs as techniques
+
+The frame graph (`RenderGraph`) still orders the frame's passes, but these now are techniques (compute / draw / copy nodes), each checked against the previous hand-written passes
+(pixel-identical output through the engine, or the GPU self-tests):
+
+| Pass | Where | Nodes |
+|---|---|---|
+| Post chain: view depth, SSAO (+2 blurs), SSR, bloom mip chain, composite, FXAA | `rendering/post/PostChain.ts` (+ `PostProcessor.ts`) | one draw node each; the scene, aux, depth and swap chain are imported, every other target is transient and memory-aliased |
+| User full-screen effects | `FullscreenEffect.ts` | draw into a scratch image, copy back over the scene |
+| Transmission copy + mip chain | `TransmissionCopy.ts` | copy, then one draw per mip |
+| Light-cluster assignment | `ClusterGrid.ts` | compute over the clusters |
+| Volumetric fog fill | `VolumetricFog.ts` | compute with the engine's frame and scene bind groups from the host, exported 3D volume |
+| GPU culling (frustum, Hi-Z, LOD), three phases | `GPUCuller.ts` | compute, one technique per phase |
+| Hi-Z pyramid | `HiZ.ts` | compute: copy depth, then one reduction per mip |
+| GPU particles | `particles/ParticleSystem.ts` | compute: reset, simulate (indirect dispatch), emit, finalize |
+| Ribbon trails | `particles/RibbonSystem.ts` | compute |
+
+These stay callback nodes of the frame graph because they draw per-batch with material bind groups, pipeline variants and render bundles, or draw inside the main pass's attachments:
+the main / depth-prepass / aux / shadow passes, the sky, and the line / point / sprite / particle / ribbon draws. `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
+`CompactVertexStream` (derived vertex data) are asset-preparation utilities that run outside the frame.
+
 ## Shader tokens
 
 Written inside WGSL block comments, replaced before the shader module is created:
@@ -171,7 +208,7 @@ Written inside WGSL block comments, replaced before the shader module is created
 |---|---|
 | `$(Variable:radius)` | `gigi.radius`, a field of a generated uniform struct (only variables the shader mentions; `float4` is `vec4<f32>`, aligned as WGSL requires) |
 | `$(Size:img)` | `vec3<u32>(w, h, d)` for a texture, `<count>u` for a buffer: baked in at compile time |
-| `$(Bindings)` | the generated declarations: the uniform, then one `@group(0) @binding(n) var ...` per binding (`name`, or `name_sampler` when `sampler` is set). Without the token they are put in front of the code |
+| `$(Bindings)` | the generated declarations: the uniform, then one `@group(g) @binding(n) var ...` per binding (g = the node's `group`, default 0; `name`, or `name_sampler` when `sampler` is set). Without the token they are put in front of the code |
 
 Names in tokens are the ones used in the technique the node is written in; sub-graph renames are resolved for you.
 
@@ -216,7 +253,7 @@ memory shared through aliasing drawn as a cluster. `dot -Tsvg graph.dot -o graph
 ## Differences from Gigi, and limits
 
 * No visual editor or viewer application, no code generation: techniques are JSON (or TypeScript objects) interpreted by `TechniqueInstance`.
-* WGSL only; no ray tracing nodes; draw nodes have no vertex buffers (procedural or storage-buffer vertex fetch), no MSAA targets, and always use bind group 0.
+* WGSL only; no ray tracing nodes; a draw node issues one draw (no multi-draw, no per-batch pipeline switching), so per-material scene rendering stays in callback nodes; no pipeline-overridable constants.
 * Conditions and loop counts are evaluated at compile time (a change recompiles) rather than per frame on the GPU.
-* Copies cover mip 0 (and all layers); textures sampled by a node see every mip, storage and render targets use one mip.
+* Copies cover mip 0 (and all layers); textures sampled by a node see every mip unless the binding names a range, storage and render targets use one mip.
 * Variables are scalars and `float4`; sub-graph variables cannot be changed from the host except through binding to a parent variable.

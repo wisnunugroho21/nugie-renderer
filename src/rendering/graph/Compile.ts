@@ -201,7 +201,14 @@ export function textureSize(r: Resolved | null): [number, number, number] | null
 
 /** How a binding touches its resource. */
 function bindingAccess(b: BindingDecl, kind: 'texture' | 'buffer'): NodeAccess {
-  return { resource: b.resource, read: b.access !== 'write', write: b.access !== 'read', usage: b.access === 'read' ? (kind === 'texture' ? 'sampled' : 'sampled') : 'storage' };
+  const access: NodeAccess = { resource: b.resource, read: b.access !== 'write', write: b.access !== 'read', usage: b.access === 'read' ? (kind === 'texture' ? 'sampled' : 'sampled') : 'storage' };
+  if (kind === 'texture' && (b.mip !== undefined || b.mipCount !== undefined)) access.mips = [b.mip ?? 0, b.mipCount ?? 1];
+  return access;
+}
+
+/** Two sub-ranges of a texture's mip chain that do not overlap (both must be given). */
+function disjointMips(a: [number, number] | undefined, b: [number, number] | undefined): boolean {
+  return a !== undefined && b !== undefined && (a[0] + a[1] <= b[0] || b[0] + b[1] <= a[0]);
 }
 
 /** The accesses of a flat node (what the dependency analysis and lifetimes use), with validation of how it uses its resources. */
@@ -211,9 +218,20 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
   const out: NodeAccess[] = [];
   /** Merge accesses of one resource: two reads are fine, any write combined with another use of the same resource in one node is a usage conflict. */
   const add = (a: NodeAccess) => {
-    const same = out.find((o) => o.resource === a.resource);
+    // bindings of disjoint mip ranges of one texture (a pyramid build reads level i-1 and writes level i) are separate accesses
+    const same = out.find((o) => o.resource === a.resource && !disjointMips(o.mips, a.mips));
     if (!same) { out.push(a); return; }
     if (a.write || same.write || a.usage !== same.usage) throw new TechniqueError(`${ctx}: resource '${a.resource}' is bound more than once with conflicting usage (${same.usage} and ${a.usage})`);
+  };
+  const groups = (n: { group?: number; hostGroups?: { group: number; layout: string }[] }) => {
+    const own = n.group ?? 0, seen = new Set<number>([own]);
+    if (!Number.isInteger(own) || own < 0 || own > 3) throw new TechniqueError(`${ctx}: group ${own} must be from 0 to 3`);
+    for (const h of n.hostGroups ?? []) {
+      if (!Number.isInteger(h.group) || h.group < 0 || h.group > 3) throw new TechniqueError(`${ctx}: host group ${h.group} must be from 0 to 3`);
+      if (seen.has(h.group)) throw new TechniqueError(`${ctx}: @group(${h.group}) is used twice (the generated bindings are at group ${own})`);
+      seen.add(h.group);
+      if (!h.layout) throw new TechniqueError(`${ctx}: host group ${h.group} needs a layout name`);
+    }
   };
   const bindings = (list: BindingDecl[]) => {
     const names = new Set<string>();
@@ -225,6 +243,13 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       names.add(wgsl);
       if (b.sampler && (kind !== 'texture' || b.access !== 'read')) throw new TechniqueError(`${ctx}: only sampled (read) textures can have a sampler ('${b.resource}')`);
       if (b.sampler && ((resolved.get(b.resource) as ResolvedTexture | null)?.samples ?? 1) > 1) throw new TechniqueError(`${ctx}: multisampled texture '${b.resource}' cannot be filtered; read it with textureLoad (no sampler)`);
+      if (b.mip !== undefined || b.mipCount !== undefined) {
+        const r = resolved.get(b.resource) as ResolvedTexture | null, first = b.mip ?? 0, count = b.mipCount ?? 1;
+        if (kind !== 'texture') throw new TechniqueError(`${ctx}: mip / mipCount only apply to textures ('${b.resource}')`);
+        if (!Number.isInteger(first) || first < 0 || !Number.isInteger(count) || count < 1) throw new TechniqueError(`${ctx}: '${b.resource}': mip ${first} / mipCount ${count} must be a level >= 0 and a count >= 1`);
+        if (r && first + count > r.mips) throw new TechniqueError(`${ctx}: '${b.resource}' has ${r.mips} mip level(s); mip ${first} + mipCount ${count} is out of range`);
+        if (b.access !== 'read' && count !== 1) throw new TechniqueError(`${ctx}: a storage view of '${b.resource}' covers one mip level (mipCount ${count})`);
+      }
       if (kind === 'texture' && b.access !== 'read') {
         const r = resolved.get(b.resource) as ResolvedTexture | null;
         if (r && r.samples > 1) throw new TechniqueError(`${ctx}: '${b.resource}' is multisampled and cannot be a storage texture`);
@@ -237,6 +262,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
   };
   switch (node.type) {
     case 'compute':
+      groups(node);
       bindings(node.bindings);
       if ('like' in node.dispatch) {
         if (!textureSize(resolved.get(node.dispatch.like) ?? null)) throw new TechniqueError(`${ctx}: dispatch 'like' needs a texture with a known size ('${node.dispatch.like}')`);
@@ -246,6 +272,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       } else if (node.dispatch.threads.length < 1 || node.dispatch.threads.length > 3) throw new TechniqueError(`${ctx}: dispatch needs one to three thread extents`);
       break;
     case 'draw': {
+      groups(node);
       if (!node.colorTargets.length && !node.depthTarget) throw new TechniqueError(`${ctx}: a draw needs at least one color or depth target`);
       let target: [number, number, number] | null = null;
       let samples: number | null = null;
@@ -275,7 +302,8 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
         } else if (r && r.samples > 1 && t.storeOp === 'discard') {
           throw new TechniqueError(`${ctx}: '${t.resource}' is multisampled and discarded without a resolve target; its result would be lost`);
         }
-        add({ resource: t.resource, read: t.loadOp === 'load' || (t.blend ?? 'none') !== 'none', write: true, usage: 'color' });
+        // a target names its mip level, so it can sit beside a binding of another mip of the same texture (a mip chain built by draws)
+        add({ resource: t.resource, read: t.loadOp === 'load' || (t.blend ?? 'none') !== 'none', write: true, usage: 'color', ...(t.mip !== undefined ? { mips: [t.mip, 1] as [number, number] } : {}) });
       }
       if (node.depthTarget) {
         const r = resolved.get(node.depthTarget.resource) as ResolvedTexture | null;
@@ -393,7 +421,10 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
   });
   const analysis: AnalysisNode[] = nodes.map((n, i) => ({ name: n.path, kind: nodeKind(n), accesses: accesses[i], root: isRoot(n, accesses[i]) }));
 
-  const dependencies = dependenciesOf(analysis);
+  // imported and persistent resources carry contents in from outside the execution: reading one before a write sees those, not a later producer's
+  const external = new Set<string>();
+  for (const [name, r] of graph.resources) if (r.decl.visibility === 'imported' || r.decl.lifetime === 'persistent') external.add(name);
+  const dependencies = dependenciesOf(analysis, external);
   const live = liveNodes(analysis, dependencies);
   const order = orderNodes(analysis, dependencies, live, options.order ?? 'declaration');
   const steps: CompiledStep[] = order.map((nodeIndex, index) => ({ index, node: nodes[nodeIndex], accesses: accesses[nodeIndex] }));

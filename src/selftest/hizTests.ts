@@ -40,11 +40,11 @@ export function hizTests(gpu: GPUContext): SelfTest[] {
           depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'always' },
         });
         const hiz = new HiZ(gpu);
-        hiz.resize(W, H);
+        hiz.resize(W, H, 'depth32float');
         const enc = device.createCommandEncoder();
         const pass = enc.beginRenderPass({ colorAttachments: [], depthStencilAttachment: { view: depth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' } });
         pass.setPipeline(pipe); pass.draw(3); pass.end();
-        hiz.encode(enc, depth.createView());
+        hiz.encode(enc, depth);
         device.queue.submit([enc.finish()]);
         let prev = await readR32(gpu, hiz.texture!, 0), worst = 0, checked = 0;
         for (let m = 1; m < hiz.mips; m++) {

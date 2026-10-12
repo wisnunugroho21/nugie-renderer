@@ -57,6 +57,8 @@ export interface PostFeatureFrame extends FeatureFrame {
   projection: ArrayLike<number>;
   /** Depth-only view of the main depth buffer, for sampling (multisampled when `depthSamples` > 1). */
   depthView: GPUTextureView;
+  /** The texture behind `depthView`. */
+  depthTexture: GPUTexture;
   depthSamples: number;
 }
 

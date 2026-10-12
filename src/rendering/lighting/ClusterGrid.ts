@@ -1,7 +1,9 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import { registerEngineShaderChunks } from '../../shaders';
 import cullSrc from '../../shaders/cluster_cull.wgsl?raw';
-import type { LightData } from './LightData';
+import { LIGHT_BYTES, type LightData } from './LightData';
+import { technique } from '../graph/TechniqueBuilder';
+import type { TechniqueInstance } from '../graph/TechniqueInstance';
 import type { SceneResources } from './SceneResources';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
 import type { RenderGraph } from '../RenderGraph';
@@ -17,13 +19,13 @@ export interface ClusterConfig {
 
 export const DEFAULT_CLUSTER_CONFIG: ClusterConfig = { tileSize: 64, slices: 24, maxLightsPerCluster: 256 };
 
-/** Params uniform size: mat4 + 4 x vec4 = 144 bytes. */
-const PARAMS_BYTES = 64 + 4 * 16;
-
 /**
  * Clustered forward light assignment. A compute pass (one thread per cluster) builds, for every screen-tile x depth-slice
  * cluster, the list of ranged lights that can reach it. The fragment shader then loops only over its own cluster's list
  * (plus the few global lights). Buffers are the same ones bound in the scene bind group (2 = grid, 3 = indices).
+ *
+ * The pass is a compute node of a technique (see TECHNIQUES.md): the light buffer, the grid, the index lists and the overflow counter are imported
+ * resources, the camera and grid description are variables.
  */
 export class ClusterGrid implements RenderFeature {
   readonly name = 'light-clusters';
@@ -36,28 +38,30 @@ export class ClusterGrid implements RenderFeature {
   dims: [number, number, number] = [1, 1, 1];
   private grid: GPUBuffer | null = null;
   private indices: GPUBuffer | null = null;
-  private params: GPUBuffer;
   private overflowBuf: GPUBuffer;
-  private pipeline: GPUComputePipeline;
-  private bindGroup: GPUBindGroup | null = null;
-  private lightBufferSeen: GPUBuffer | null = null;
-  private data = new ArrayBuffer(PARAMS_BYTES);
-  private f32 = new Float32Array(this.data);
-  private u32 = new Uint32Array(this.data);
+  private fx: TechniqueInstance;
   private width = 0;
   private height = 0;
   /** Dispatches issued (diagnostics / tests). */
   dispatches = 0;
 
-  /** Create the compute pipeline, parameter buffer and overflow counter for clustered light assignment (screen tiles x exponential depth slices). */
+  /** Create the technique, and the overflow counter, for clustered light assignment (screen tiles x exponential depth slices). */
   constructor(private gpu: GPUContext, private scene: SceneResources, readonly config: ClusterConfig = { ...DEFAULT_CLUSTER_CONFIG }) {
     registerEngineShaderChunks(gpu.resources.shaders);
-    this.params = gpu.resources.buffers.create('ClusterParams', PARAMS_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     this.overflowBuf = gpu.resources.buffers.create('ClusterOverflow', 4, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST);
-    this.pipeline = gpu.device.createComputePipeline({
-      label: 'cluster-cull', layout: 'auto',
-      compute: { module: gpu.resources.shaders.get('cluster-cull', cullSrc), entryPoint: 'main' },
+    const g = technique('light-clusters');
+    for (const v of ['view0', 'view1', 'view2', 'view3', 'screen', 'proj']) g.float4(v);
+    for (const v of ['dimX', 'dimY', 'dimZ', 'tile', 'lightCount', 'globalCount', 'maxLights', 'clusters']) g.uint(v);
+    const lights = g.buffer('lights', { element: 'Light', stride: LIGHT_BYTES, visibility: 'imported' });
+    const grid = g.buffer('clusterGrid', { element: 'vec2<u32>', visibility: 'imported' });
+    const indices = g.buffer('clusterIndices', { element: 'u32', visibility: 'imported' });
+    const overflow = g.buffer('overflow', { element: 'atomic<u32>', stride: 4, count: 1, visibility: 'imported' });
+    g.callback('clear-overflow', { writes: [overflow], execute: (enc) => enc.clearBuffer(this.overflowBuf) });
+    g.compute('cluster-cull', {
+      shader: cullSrc, reads: [lights], writes: [grid, indices], readWrites: [overflow],
+      dispatch: { threads: [g.variableNamed('clusters')] },
     });
+    this.fx = g.instantiate(gpu, { label: 'light-clusters', imports: { overflow: this.overflowBuf } });
   }
 
   // ---- RenderFeature hooks ----
@@ -98,7 +102,6 @@ export class ClusterGrid implements RenderFeature {
     this.grid = r.create('ClusterGridBuffer', this.clusterCount * 8, S | GPUBufferUsage.COPY_SRC);
     this.indices = r.create('ClusterLightIndexBuffer', this.clusterCount * c.maxLightsPerCluster * 4, S | GPUBufferUsage.COPY_SRC);
     this.scene.setClusterBuffers(this.grid, this.indices);
-    this.bindGroup = null;
   }
 
   /**
@@ -107,31 +110,18 @@ export class ClusterGrid implements RenderFeature {
    */
   encode(enc: GPUCommandEncoder, view: ArrayLike<number>, proj00: number, proj11: number, near: number, far: number, lights: LightData, timestampWrites?: GPUComputePassTimestampWrites): void {
     if (!this.grid || lights.count === 0) return;
-    const lb = this.scene.lightBuffer;
-    if (this.lightBufferSeen !== lb) { this.lightBufferSeen = lb; this.bindGroup = null; }
-    this.bindGroup ??= this.gpu.device.createBindGroup({
-      label: 'cluster-cull-bg', layout: this.pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this.params } },
-        { binding: 1, resource: { buffer: lb } },
-        { binding: 2, resource: { buffer: this.grid } },
-        { binding: 3, resource: { buffer: this.indices! } },
-        { binding: 4, resource: { buffer: this.overflowBuf } },
-      ],
-    });
-    const f = this.f32, u = this.u32;
-    for (let i = 0; i < 16; i++) f[i] = view[i];
-    u[16] = this.dims[0]; u[17] = this.dims[1]; u[18] = this.dims[2]; u[19] = this.config.tileSize;
-    f[20] = this.width; f[21] = this.height; f[22] = near; f[23] = far;
-    f[24] = proj00; f[25] = proj11;
-    u[28] = lights.count; u[29] = lights.globalCount; u[30] = this.config.maxLightsPerCluster;
-    this.gpu.device.queue.writeBuffer(this.params, 0, this.data);
-    enc.clearBuffer(this.overflowBuf);
-    const pass = enc.beginComputePass({ label: 'cluster-cull', timestampWrites });
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(this.clusterCount / 64));
-    pass.end();
+    const fx = this.fx, c = this.config;
+    fx.setImport('lights', this.scene.lightBuffer);
+    fx.setImport('clusterGrid', this.grid);
+    fx.setImport('clusterIndices', this.indices!);
+    for (let i = 0; i < 4; i++) fx.setVariable(`view${i}`, Array.from(view as ArrayLike<number>).slice(i * 4, i * 4 + 4));
+    fx.setVariable('screen', [this.width, this.height, near, far]);
+    fx.setVariable('proj', [proj00, proj11, 0, 0]);
+    this.dims.forEach((d, i) => fx.setVariable(['dimX', 'dimY', 'dimZ'][i], d));
+    fx.setVariable('tile', c.tileSize);
+    fx.setVariable('lightCount', lights.count); fx.setVariable('globalCount', lights.globalCount); fx.setVariable('maxLights', c.maxLightsPerCluster);
+    fx.setVariable('clusters', this.clusterCount);
+    fx.execute(enc, { timestampWrites: () => timestampWrites });
     this.dispatches++;
   }
 }

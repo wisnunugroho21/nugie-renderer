@@ -21,6 +21,7 @@ import { iblTests } from './iblTests';
 import { clusterTests } from './clusterTests';
 import { hizTests } from './hizTests';
 import { fogTests } from './fogTests';
+import { postTests } from './postTests';
 import { ribbonTests } from './ribbonTests';
 
 const out = document.getElementById('out')!;
@@ -227,6 +228,7 @@ async function mipmapTest(gpu: GPUContext, srgb: boolean): Promise<string> {
       ...retainedTests(gpu),
       ...codecTests(gpu),
       ...techniqueTests(gpu),
+      ...postTests(gpu),
     ];
     for (const t of tests) {
       try { const m = await t.run(); results.push({ name: t.name, ok: true, msg: String(m ?? '') }); }

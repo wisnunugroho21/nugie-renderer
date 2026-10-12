@@ -324,7 +324,7 @@ export class Renderer {
   /** The feature frame plus the HDR scene colour and depth, for post-processing features and the built-in chain. */
   private postFeatureFrame(): PostFeatureFrame {
     const f = this.featureFrame;
-    return { ...f, sceneTexture: this.post.sceneTexture, projection: f.camera.projection, depthView: this.depthSampleView, depthSamples: this.mainView.target.sampleCount };
+    return { ...f, sceneTexture: this.post.sceneTexture, projection: f.camera.projection, depthView: this.depthSampleView, depthTexture: this.depthTexture, depthSamples: this.mainView.target.sampleCount };
   }
 
   // ---- render-to-texture: render targets, off-screen views, probe capture (see OffscreenViews) -------------------------------------
@@ -728,7 +728,7 @@ export class Renderer {
   }
 
   /** Arguments describing the Hi-Z pyramid for the culling shader. */
-  private hizArg() { return { view: this.hiz!.fullView!, width: this.hiz!.width, height: this.hiz!.height, mips: this.hiz!.mips }; }
+  private hizArg() { return { texture: this.hiz!.texture!, width: this.hiz!.width, height: this.hiz!.height, mips: this.hiz!.mips }; }
 
   /**
    * GPU visibility passes. `hiz2` (two-phase): cull-A against last frame's visibility (cull-B is added with the main passes).
@@ -965,7 +965,7 @@ export class Renderer {
       if (f.total > 0) this.drawGeometry(pass, this.mainView, 'culled', 0);
       pass.end();
     } });
-    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthView, this.profiler.writes('hiz')) });
+    g.addPass({ name: 'hiz-build', reads: ['depth'], writes: ['hizTex'], execute: (e) => this.hiz!.encode(e, this.depthTexture, this.profiler.writes('hiz')) });
     g.addPass({ name: 'cull-B', reads: ['hizTex'], writes: ['culledB'],
       execute: (e) => this.culler!.encode(e, this.instanceAlloc.buffer, srcBase, cam.frustum.planes, cam.viewProjection, this.hizArg(), this.profiler.writes('cullB'), 2, cam) });
     g.addPass({ name: 'main-B', reads: ['culledB', 'depth', 'color', ...this.features.producedResources], writes: [this.colorResource], sideEffect: !this.post.enabled, execute: (enc) => {

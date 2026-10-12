@@ -8,6 +8,8 @@ import updateSource from '../shaders/ribbons_update.wgsl?raw';
 import renderSource from '../shaders/ribbons_render.wgsl?raw';
 import type { Vec3, Vec4 } from './EmitterConfig';
 import { hypot3 } from '../math/hypot';
+import { technique } from '../rendering/graph/TechniqueBuilder';
+import type { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
 
 export type RibbonMode = 'trail' | 'chain' | 'flat';
 const MODE_ID: Record<RibbonMode, number> = { trail: 0, chain: 1, flat: 2 };
@@ -54,11 +56,9 @@ export class RibbonSystem implements RenderFeature {
   readonly produces = ['ribbons'];
   readonly descBuf: GPUBuffer;
   readonly segmentBuf: GPUBuffer;
-  readonly updateParams: GPUBuffer;
   count = 0;
   private desc: Float32Array;
   private descU32: Uint32Array;
-  private updateBG: GPUBindGroup;
   private renderBG: GPUBindGroup;
   private pipeline!: GPURenderPipeline;
   private rebuildPipeline!: () => void;
@@ -67,8 +67,9 @@ export class RibbonSystem implements RenderFeature {
   /** Ribbons whose descriptor has been uploaded once: from then on the GPU OWNS their trail state (head/count). */
   private gpuStateKnown = new Set<number>();
   private resetPending = new Set<number>();
-  private updatePipeline: GPUComputePipeline;
-  private upData = new ArrayBuffer(16);
+  /** The trail update as a technique (created on first use). */
+  private updateFx: TechniqueInstance | null = null;
+  private updateTime = 0;
   private N: number;
 
   /** Allocate the ribbon descriptor and shared segment ring buffers (`maxRibbons` x `pointsPerRibbon`) and build the update + render pipelines. */
@@ -80,23 +81,10 @@ export class RibbonSystem implements RenderFeature {
     const S = GPUBufferUsage.STORAGE, D = GPUBufferUsage.COPY_DST, C = GPUBufferUsage.COPY_SRC;
     this.descBuf = res.buffers.create(`${label}:RibbonDescBuffer`, M * RIBBON_DESC_FLOATS * 4, S | D | C);
     this.segmentBuf = res.buffers.create(`${label}:RibbonSegmentBuffer`, M * this.N * SEGMENT_FLOATS * 4, S | D | C);
-    this.updateParams = res.buffers.create(`${label}:RibbonUpdateParams`, 16, GPUBufferUsage.UNIFORM | D);
     this.desc = new Float32Array(M * RIBBON_DESC_FLOATS);
     this.descU32 = new Uint32Array(this.desc.buffer);
 
-    const C_ = GPUShaderStage.COMPUTE, V = GPUShaderStage.VERTEX, F = GPUShaderStage.FRAGMENT;
-    const updateLayout = device.createBindGroupLayout({ entries: [
-      { binding: 0, visibility: C_, buffer: { type: 'uniform' } },
-      { binding: 1, visibility: C_, buffer: { type: 'storage' } },
-      { binding: 2, visibility: C_, buffer: { type: 'storage' } },
-    ] });
-    this.updateBG = device.createBindGroup({ layout: updateLayout, entries: [
-      { binding: 0, resource: { buffer: this.updateParams } }, { binding: 1, resource: { buffer: this.descBuf } }, { binding: 2, resource: { buffer: this.segmentBuf } },
-    ] });
-    this.updatePipeline = res.pipelines.getCompute(`ribbons-update:${label}`, () => device.createComputePipeline({
-      label: 'ribbons-update', compute: { module: res.shaders.get('ribbons-update', updateSource), entryPoint: 'update_trails' },
-      layout: device.createPipelineLayout({ bindGroupLayouts: [updateLayout] }),
-    }));
+    const V = GPUShaderStage.VERTEX, F = GPUShaderStage.FRAGMENT;
 
     this.layout = device.createBindGroupLayout({ entries: [
       { binding: 0, visibility: V, buffer: { type: 'read-only-storage' } },
@@ -214,8 +202,7 @@ export class RibbonSystem implements RenderFeature {
       }
     }
     this.dirty.clear();
-    new Float32Array(this.upData)[0] = time; new Uint32Array(this.upData)[1] = this.count;
-    device.queue.writeBuffer(this.updateParams, 0, this.upData);
+    this.updateTime = time;
   }
 
   /** Record the compute pass that extends trails and writes new segments (skipped when there are no ribbons). */
@@ -229,11 +216,19 @@ export class RibbonSystem implements RenderFeature {
 
   encodeCompute(enc: GPUCommandEncoder): void {
     if (this.count === 0) return;
-    const pass = enc.beginComputePass({ label: 'ribbons-update' });
-    pass.setPipeline(this.updatePipeline);
-    pass.setBindGroup(0, this.updateBG);
-    pass.dispatchWorkgroups(Math.ceil(this.count / 64));
-    pass.end();
+    if (!this.updateFx) {
+      const g = technique(`${this.config.name ?? 'ribbons'}-update`);
+      g.float('time'); g.uint('ribbonCount');
+      const ribbons = g.buffer('ribbons', { element: 'RibbonDesc', stride: RIBBON_DESC_FLOATS * 4, visibility: 'imported' });
+      const segments = g.buffer('segments', { element: 'Segment', stride: SEGMENT_FLOATS * 4, visibility: 'imported' });
+      g.compute('update-trails', {
+        shader: updateSource, entryPoint: 'update_trails', workgroupSize: [64], writes: [ribbons, segments], dispatch: { threads: [g.variableNamed('ribbonCount')] },
+      });
+      this.updateFx = g.instantiate(this.gpu, { label: 'ribbons-update', imports: { ribbons: this.descBuf, segments: this.segmentBuf } });
+    }
+    this.updateFx.setVariable('time', this.updateTime);
+    this.updateFx.setVariable('ribbonCount', this.count);
+    this.updateFx.execute(enc);
   }
 
   /** Record the ribbon draw: all segments of all ribbons in one instanced draw call. */

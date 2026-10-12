@@ -6,6 +6,8 @@ import type { SceneResources } from './SceneResources';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../RenderFeature';
 import type { RenderGraph } from '../RenderGraph';
 import { Mat4 } from '../../math/Mat4';
+import { technique } from '../graph/TechniqueBuilder';
+import type { TechniqueInstance } from '../graph/TechniqueInstance';
 
 export interface FogSettings {
   /** Extinction per world unit at height 0. */
@@ -22,12 +24,16 @@ export interface FogSettings {
 
 export const DEFAULT_FOG: FogSettings = { density: 0.02, heightFalloff: 0.1, anisotropy: 0.4, ambient: [0.02, 0.025, 0.035], maxDistance: 120 };
 
-const PARAM_BYTES = 64 + 3 * 16;
+/** The shader module is built without skinning / morphing, like the engine's other non-mesh passes. */
+const DEFINES = 'const HAS_MORPH_TARGETS: bool = false;\nconst HAS_SKINNING: bool = false;\n';
 
 /**
  * Froxel volumetric fog: a 3D texture (screen tiles x exponential depth slices) holding in-scattered light and transmittance
  * accumulated from the camera. A compute pass fills it each frame (directional + ranged lights, shadow-mapped); mesh and sky
  * shading apply it with one lookup (`applyFog` in scene_eval.wgsl).
+ *
+ * The fill is a compute node of a technique (see TECHNIQUES.md): the volume is its exported 3D texture (sized by the froxel counts), the
+ * camera and grid description are variables, and the engine's frame and scene bind groups are supplied by the host.
  */
 export class VolumetricFog implements RenderFeature {
   readonly name = 'volumetric-fog';
@@ -37,37 +43,28 @@ export class VolumetricFog implements RenderFeature {
   settings: FogSettings = { ...DEFAULT_FOG };
   readonly tile = 8;
   readonly slices = 48;
-  volume: GPUTexture | null = null;
-  private pipeline: GPUComputePipeline;
-  private paramsBuf: GPUBuffer;
-  private paramsBG: GPUBindGroup | null = null;
-  private pdata = new ArrayBuffer(PARAM_BYTES);
-  private pf = new Float32Array(this.pdata);
-  private pu = new Uint32Array(this.pdata);
+  private fx: TechniqueInstance;
   private dims: [number, number, number] = [1, 1, 1];
   private width = 0;
   private height = 0;
 
-  /** Create the froxel compute pipeline (frame + scene + volume bind groups) and parameter buffer. */
-  constructor(private gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources) {
-    const { device, resources: r } = gpu;
-    registerEngineShaderChunks(r.shaders);
-    const volLayout = device.createBindGroupLayout({
-      label: 'layout-volume',
-      entries: [
-        { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-        { binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba16float', viewDimension: '3d' } },
-      ],
+  /** Create the froxel-fill technique (frame + scene bind groups from the host, the volume and its parameters from the technique). */
+  constructor(gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources) {
+    registerEngineShaderChunks(gpu.resources.shaders);
+    const g = technique('volumetric-fog');
+    for (const v of ['camWorld0', 'camWorld1', 'camWorld2', 'camWorld3', 'screen', 'proj']) g.float4(v);
+    const [dimX, dimY, dimZ] = ['dimX', 'dimY', 'dimZ'].map((v) => g.uint(v, 1));
+    g.uint('tile', this.tile);
+    const volume = g.texture('fogVolume', { format: 'rgba16float', dimension: '3d', size: [dimX, dimY, dimZ], visibility: 'exported' });
+    g.compute('volumetric-fog', {
+      shader: DEFINES + volumetricSrc, writes: [{ resource: volume, name: 'volOut' }], dispatch: { threads: [dimX, dimY] }, workgroupSize: [8, 8, 1],
+      group: 2, hostGroups: [{ group: 0, layout: 'frame' }, { group: 1, layout: 'scene' }],
     });
-    this.volLayout = volLayout;
-    this.paramsBuf = r.buffers.create('VolumetricParams', PARAM_BYTES, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-    this.pipeline = device.createComputePipeline({
-      label: 'volumetric-fog', layout: device.createPipelineLayout({ bindGroupLayouts: [layouts.frame, layouts.scene, volLayout] }),
-      compute: { module: r.shaders.get('volumetric', volumetricSrc, { HAS_SKINNING: false, HAS_MORPH_TARGETS: false }), entryPoint: 'main' },
-    });
+    this.fx = g.instantiate(gpu, { label: 'volumetric-fog', hostLayouts: { frame: layouts.frame, scene: layouts.scene } });
   }
 
-  private volLayout: GPUBindGroupLayout;
+  /** The froxel volume (rgba16float 3D: accumulated in-scatter and transmittance), once `resize` ran. */
+  get volume(): GPUTexture | null { return this.width > 0 ? (this.fx.resource('fogVolume') as GPUTexture) : null; }
 
   // ---- RenderFeature hooks ----
 
@@ -102,36 +99,22 @@ export class VolumetricFog implements RenderFeature {
 
   /** (Re)allocate the volume for a render-target size. */
   resize(width: number, height: number): void {
-    if (this.volume && width === this.width && height === this.height) return;
+    if (this.width > 0 && width === this.width && height === this.height) return;
     this.width = width; this.height = height;
     this.dims = [Math.max(1, Math.ceil(width / this.tile)), Math.max(1, Math.ceil(height / this.tile)), this.slices];
-    if (this.volume) this.gpu.resources.textures.destroy(this.volume);
-    this.volume = this.gpu.resources.textures.create({
-      label: 'fog-volume', size: this.dims, dimension: '3d', format: 'rgba16float',
-      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
-    });
-    this.paramsBG = this.gpu.device.createBindGroup({
-      label: 'volume-params', layout: this.volLayout,
-      entries: [{ binding: 0, resource: { buffer: this.paramsBuf } }, { binding: 1, resource: this.volume.createView({ dimension: '3d' }) }],
-    });
-    this.scene.setFogVolume(this.volume.createView({ dimension: '3d' }));
+    ['dimX', 'dimY', 'dimZ'].forEach((v, i) => this.fx.setVariable(v, this.dims[i]));   // sizes the volume: the technique recompiles and re-creates it
+    this.scene.setFogVolume((this.fx.resource('fogVolume') as GPUTexture).createView({ dimension: '3d' }));
   }
 
   /** Append the volume fill. `camWorld` is the camera world matrix (inverse view). `frameBG` is the renderer's frame bind group. */
   encode(enc: GPUCommandEncoder, frameBG: GPUBindGroup, camWorld: ArrayLike<number>, proj00: number, proj11: number, near: number, timestampWrites?: GPUComputePassTimestampWrites): void {
-    if (!this.enabled || !this.volume) return;
-    const f = this.pf, u = this.pu;
-    for (let i = 0; i < 16; i++) f[i] = camWorld[i];
-    u[16] = this.dims[0]; u[17] = this.dims[1]; u[18] = this.dims[2]; u[19] = this.tile;
-    f[20] = this.width; f[21] = this.height; f[22] = near; f[23] = this.settings.maxDistance;
-    f[24] = proj00; f[25] = proj11;
-    this.gpu.device.queue.writeBuffer(this.paramsBuf, 0, this.pdata);
-    const pass = enc.beginComputePass({ label: 'volumetric-fog', timestampWrites });
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, frameBG);
-    pass.setBindGroup(1, this.scene.volumePassBindGroup);
-    pass.setBindGroup(2, this.paramsBG!);
-    pass.dispatchWorkgroups(Math.ceil(this.dims[0] / 8), Math.ceil(this.dims[1] / 8));
-    pass.end();
+    if (!this.enabled || this.width === 0) return;
+    const fx = this.fx;
+    for (let i = 0; i < 4; i++) fx.setVariable(`camWorld${i}`, Array.from(camWorld).slice(i * 4, i * 4 + 4));
+    fx.setVariable('screen', [this.width, this.height, near, this.settings.maxDistance]);
+    fx.setVariable('proj', [proj00, proj11, 0, 0]);
+    fx.setHostBindGroup('frame', frameBG);
+    fx.setHostBindGroup('scene', this.scene.volumePassBindGroup);
+    fx.execute(enc, { timestampWrites: () => timestampWrites });
   }
 }

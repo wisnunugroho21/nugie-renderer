@@ -9,6 +9,8 @@ export interface NodeAccess {
   read: boolean;
   write: boolean;
   usage: UsageKind;
+  /** Mip levels (first, count) a texture binding covers, when it names a sub-range. */
+  mips?: [number, number];
 }
 
 /** What the analysis needs to know about a node. */
@@ -30,8 +32,10 @@ const writes = (node: AnalysisNode): string[] => node.accesses.filter((a) => a.w
  * Derive read / write hazards in declaration order. Read-only accesses link back to the last write of the resource (no false ordering
  * between readers); a write waits for the previous writer and every reader since. Forward reads (a read before any write) consume later
  * producers; a first read-modify-write consumes the resource's external contents and then becomes its first producer.
+ * `external` names resources that hold contents from outside the execution (imported resources, persistent ones carrying last frame's data):
+ * a read of one before any write sees those incoming contents, so it does not wait for a later writer (which must instead wait for the reader).
  */
-export function dependenciesOf(nodes: readonly AnalysisNode[]): Dependencies {
+export function dependenciesOf(nodes: readonly AnalysisNode[], external: ReadonlySet<string> = new Set()): Dependencies {
   const dependencies: Dependencies = nodes.map(() => new Set<number>());
   const lastWriter = new Map<string, number>();
   const readers = new Map<string, number[]>();
@@ -46,7 +50,7 @@ export function dependenciesOf(nodes: readonly AnalysisNode[]): Dependencies {
     for (const resource of nodeReads[i]) {
       const writer = lastWriter.get(resource);
       if (writer !== undefined) dependencies[i].add(writer);
-      else if (!nodeWrites[i].includes(resource)) {
+      else if (!nodeWrites[i].includes(resource) && !external.has(resource)) {
         for (const producer of writers.get(resource) ?? []) dependencies[i].add(producer);
         continue;
       }
