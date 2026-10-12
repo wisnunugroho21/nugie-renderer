@@ -523,7 +523,7 @@ export class TechniqueInstance {
       ...(depth ? {
         depthStencilAttachment: depth.readOnly
           ? { view: view(depth.resource, 0, depth.layer ?? 0), depthReadOnly: true }
-          : { view: view(depth.resource, 0, depth.layer ?? 0), depthLoadOp: depth.loadOp ?? 'clear', depthStoreOp: 'store' as const, depthClearValue: depth.clearValue ?? 1 },
+          : { view: view(depth.resource, 0, depth.layer ?? 0), depthLoadOp: depth.loadOp ?? 'clear', depthStoreOp: depth.storeOp ?? 'store', depthClearValue: depth.clearValue ?? 1 },
       } : {}),
     });
   }

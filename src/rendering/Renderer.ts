@@ -208,6 +208,7 @@ export class Renderer {
   private prepassPass: CachedTechnique;
   private auxPass: CachedTechnique;
   /** The main pass variants as render nodes: the single pass, the opaque / late halves around the transmission copy, and the two culling phases. */
+  private viewPasses = new WeakMap<GPUTexture, Map<number, MainPassNode>>();
   private mainPasses: { single: MainPassNode; opaque: MainPassNode; late: MainPassNode; phaseA: MainPassNode; phaseB: MainPassNode };
   /** The render world of the frame being recorded (the aux pass's draw callback reads it). */
   private passRenderWorld: RenderWorld | null = null;
@@ -386,18 +387,25 @@ export class Renderer {
     this.buildBatches(view, rw, true);
 
     const enc = device.createCommandEncoder({ label: 'view' });
-    const raw = enc.beginRenderPass({
-      label: 'view',
-      colorAttachments: [{ view: job.colorView, clearValue: Renderer.srgbToLinear(job.clearColor), loadOp: 'clear', storeOp: 'store' }],
-      depthStencilAttachment: { view: job.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' },
-    });
-    const pass = new TrackedRenderPass(raw);
     const total = view.draw.frame.total;
-    if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'early');
-    if (job.skybox && this.skybox.visible && this.sceneResources.env.enabled) this.skybox.draw(pass, view.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup);
-    if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'late');
-    raw.end();
+    const segments: MainPassSegment[] = [
+      { name: 'scene:early', record: (pass) => { if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'early'); } },
+      { name: 'skybox', record: (pass) => { if (job.skybox && this.skybox.visible && this.sceneResources.env.enabled) this.skybox.draw(pass, view.target, this.frameUniform.bindGroup, this.sceneResources.bindGroup); } },
+      { name: 'scene:late', record: (pass) => { if (total > 0) this.drawGeometry(pass, view, 'all', 0, 'late'); } },
+    ];
+    // linear HDR colour (the clear colour converted), a fresh depth buffer nothing reads afterwards
+    this.viewPass(job).run(enc, { final: job.colorTexture, layer: job.colorLayer, msaa: null, depth: job.depthTexture, clear: Renderer.srgbToLinear(job.clearColor) },
+      { clear: true, depthLoad: false, depthStore: 'discard' }, segments);
     queue.submit([enc.finish()]);
+  }
+
+  /** The render node of an off-screen view: one per colour texture and layer (a cube capture draws its six faces through six), released with the texture. */
+  private viewPass(job: ViewJob): MainPassNode {
+    let layers = this.viewPasses.get(job.colorTexture);
+    if (!layers) this.viewPasses.set(job.colorTexture, layers = new Map());
+    let node = layers.get(job.colorLayer);
+    if (!node) layers.set(job.colorLayer, node = new MainPassNode(this.gpu, `view-${job.colorLayer}`));
+    return node;
   }
 
   /** Create the GPU particle system bound to this renderer's frame layout / render target. */

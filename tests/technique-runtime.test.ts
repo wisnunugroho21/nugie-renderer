@@ -285,6 +285,19 @@ describe('TechniqueInstance runtime', () => {
       node.run(encoderWith(events), targets, { clear: true, depthLoad: false }, [seg('scene'), seg('overlay'), seg('sky')]);
       expect(events.filter((e) => e !== 'begin' && e !== 'end')).toEqual(['scene', 'scene', 'overlay', 'sky']);
     });
+
+    it('MainPassNode: draws into one face (array layer) of a cube capture and discards the depth', async () => {
+      const { MainPassNode } = await import('../src/rendering/MainPassNode');
+      const node = new MainPassNode(ctx.gpu, 'probe');
+      const cube = attachment('cube', { depthOrArrayLayers: 6, format: 'rgba16float' });
+      const targets = { final: cube, layer: 3, msaa: null, depth: attachment('depth', { format: 'depth24plus' }), clear: { r: 0.1, g: 0.2, b: 0.3, a: 1 } };
+      const begun: Entry[] = [];
+      const encoder = { beginRenderPass: (d: Entry) => { begun.push(d); return { setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }; } } as unknown as GPUCommandEncoder;
+      node.run(encoder, targets, { clear: true, depthLoad: false, depthStore: 'discard' }, [{ name: 'scene', record: () => {} }]);
+      const pass = begun[0] as { colorAttachments: Entry[]; depthStencilAttachment: Entry };
+      expect(pass.colorAttachments[0]).toMatchObject({ view: { of: 'cube', v: { dimension: '2d', baseArrayLayer: 3, arrayLayerCount: 1 } }, loadOp: 'clear', clearValue: [0.1, 0.2, 0.3, 1] });
+      expect(pass.depthStencilAttachment).toMatchObject({ depthLoadOp: 'clear', depthStoreOp: 'discard', depthClearValue: 1 });
+    });
   });
 
   describe('execute options', () => {

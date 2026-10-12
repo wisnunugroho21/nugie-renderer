@@ -249,8 +249,9 @@ The frame graph (`RenderGraph`) still orders the frame's passes, but these now a
 | **Main pass(es)**: single pass, opaque + late around the transmission copy, the two Hi-Z culling phases | `rendering/MainPassNode.ts` (+ `Renderer.ts`) | one render node each: swap chain or HDR scene image, MSAA buffer with resolve, depth load / clear, clear colour; **segments** for the scene geometry and for every feature's `drawBackdrop` / `drawMain` |
 | Scene draw loop (batches, GPU-culled indirect draws, retained render bundles) | `Renderer.ts` (`drawGeometry`) | records through `TrackedRenderPass`, into the pass or into a bundle encoder; bundles replay with `executeBundles` |
 | Feature draws: sky, lines, points, sprites, particles, ribbons, custom features | `Skybox`, `overlay/*`, `particles/*` | the segment of the pass; state set through the shared tracker |
+| Render-to-texture views (mirrors, minimaps, security cameras) and reflection-probe captures | `OffscreenViews.ts` (+ `Renderer.renderJob`) | one render node per target (and cube face): colour texture or one array layer of a cube, depth discarded after the pass; segments for the geometry, the sky and the blended geometry |
 
-The render-to-texture views (`OffscreenViews`, probe captures) still begin their own passes, but draw them through `TrackedRenderPass` too. `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
+ `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
 `CompactVertexStream` (derived vertex data) are asset-preparation utilities that run outside the frame.
 
 ## Shader tokens

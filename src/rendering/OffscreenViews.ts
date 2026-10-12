@@ -16,8 +16,10 @@ import { VisibilitySystem } from '../visibility/VisibilitySystem';
 /** Everything an off-screen render needs besides the scene: a camera and the colour / depth views to draw into. */
 export interface ViewJob {
   camera: Camera;
-  colorView: GPUTextureView;
-  depthView: GPUTextureView;
+  /** The colour texture to draw into, and the array layer of it (a cube capture's face; 0 for a target). */
+  colorTexture: GPUTexture;
+  colorLayer: number;
+  depthTexture: GPUTexture;
   width: number;
   height: number;
   clearColor: { r: number; g: number; b: number; a: number };
@@ -108,7 +110,7 @@ export class OffscreenViews {
       }
       const s = this.scratchFor(v.mirror !== null);
       this.render({
-        camera: v.camera, colorView: v.target.view, depthView: v.target.depthView, width: v.target.width, height: v.target.height,
+        camera: v.camera, colorTexture: v.target.texture, colorLayer: 0, depthTexture: v.target.depthTexture, width: v.target.width, height: v.target.height,
         clearColor: v.clearColor ?? this.host.clearColor, skybox: v.skybox, visibility: v.visibility,
         excludeRef: v.target.ref, exclude: v.exclude,
       }, s, rw);
@@ -127,7 +129,6 @@ export class OffscreenViews {
     const { ibl } = this.host;
     const source = ibl.createCaptureCube(size);
     const depth = this.gpu.resources.textures.create({ label: 'probe-depth', size: [size, size], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT });
-    const depthView = depth.createView();
     this.gpu.resources.pipelines.unfreeze();
     this.probeVisibility.mode = 'linear';
     const cam = new Camera(), s = this.scratchFor(true);
@@ -137,8 +138,8 @@ export class OffscreenViews {
       cubeFaceView(view, face, position[0], position[1], position[2]);
       cam.setMatrices(view, proj, near, far);
       this.render({
-        camera: cam, colorView: source.createView({ dimension: '2d', baseArrayLayer: face, arrayLayerCount: 1, baseMipLevel: 0, mipLevelCount: 1 }),
-        depthView, width: size, height: size, clearColor: this.host.clearColor, skybox: o.skybox ?? true,
+        camera: cam, colorTexture: source, colorLayer: face,
+        depthTexture: depth, width: size, height: size, clearColor: this.host.clearColor, skybox: o.skybox ?? true,
         visibility: this.probeVisibility, excludeRef: null, exclude: o.exclude ?? null,
       }, s, rw);
     }

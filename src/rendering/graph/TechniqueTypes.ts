@@ -185,6 +185,8 @@ export interface DepthTarget {
   layer?: number;
   /** The pass only tests against the depth (load and store are not performed, no depth is written): the depth buffer can be sampled or shared meanwhile. */
   readOnly?: boolean;
+  /** `discard` when nothing reads the depth after the pass (an off-screen view); default `store`. */
+  storeOp?: 'store' | 'discard';
 }
 
 /** One attribute of a vertex buffer: the shader reads it with `@location(location)`. */

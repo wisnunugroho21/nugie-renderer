@@ -4,8 +4,10 @@ import type { TrackedRenderPass } from './graph/TrackedRenderPass';
 
 /** What a main pass renders into this frame. */
 export interface MainPassTargets {
-  /** The image the pass ends up in: the HDR scene texture, or the swap chain's current texture. */
+  /** The image the pass ends up in: the HDR scene texture, the swap chain's current texture, an off-screen target, or (with `layer`) one face of a cube capture. */
   final: GPUTexture;
+  /** Array layer of `final` to draw into (a cube map face). Default 0. */
+  layer?: number;
   /** The multisampled colour buffer drawn into (and resolved into `final`) when MSAA is on. */
   msaa: GPUTexture | null;
   depth: GPUTexture;
@@ -26,6 +28,8 @@ export interface MainPassOptions {
   depthLoad: boolean;
   /** MSAA: keep the multisampled samples after the resolve (a later pass loads them). Default: discard. */
   keepMsaa?: boolean;
+  /** `discard` when nothing reads the depth afterwards (an off-screen view). Default `store`. */
+  depthStore?: 'store' | 'discard';
 }
 
 /**
@@ -50,17 +54,18 @@ export class MainPassNode {
   ): void {
     const { final, msaa, depth, clear } = targets;
     const color = [clear.r, clear.g, clear.b, clear.a] as [number, number, number, number];
-    const key = [final.width, final.height, final.format, msaa ? msaa.sampleCount : 1, msaa?.format, depth.format, depth.sampleCount, options.clear, options.depthLoad, options.keepMsaa === true, options.clear ? color.join(',') : '', segments.map((s) => s.name).join(',')].join('|');
+    const layers = final.depthOrArrayLayers, layer = targets.layer ?? 0;
+    const key = [final.width, final.height, layers, layer, options.depthStore ?? 'store', final.format, msaa ? msaa.sampleCount : 1, msaa?.format, depth.format, depth.sampleCount, options.clear, options.depthLoad, options.keepMsaa === true, options.clear ? color.join(',') : '', segments.map((s) => s.name).join(',')].join('|');
     const fx = this.pass.get(key, (t) => {
       const size = [final.width, final.height];
-      const image = t.texture('color', { format: final.format, size, visibility: 'imported' });
+      const image = t.texture('color', { format: final.format, size: layers > 1 ? [...size, layers] : size, ...(layers > 1 ? { dimension: '2d-array' as const } : {}), visibility: 'imported' });
       const loadOp = options.clear ? 'clear' as const : 'load' as const;
       const target = msaa
         ? { resource: t.texture('msaa', { format: msaa.format, size, samples: msaa.sampleCount as 1 | 4, visibility: 'imported' }), resolve: image, loadOp, clearValue: color, storeOp: options.keepMsaa ? 'store' as const : 'discard' as const }
-        : { resource: image, loadOp, clearValue: color };
+        : { resource: image, loadOp, clearValue: color, ...(layer ? { layer } : {}) };
       const depthTarget = t.texture('depth', { format: depth.format, size, samples: depth.sampleCount as 1 | 4, visibility: 'imported' });
       t.renderPass(this.name, {
-        colorTargets: [target], depthTarget: { resource: depthTarget, loadOp: options.depthLoad ? 'load' : 'clear', clearValue: 1 },
+        colorTargets: [target], depthTarget: { resource: depthTarget, loadOp: options.depthLoad ? 'load' : 'clear', clearValue: 1, ...(options.depthStore ? { storeOp: options.depthStore } : {}) },
         segments: segments.map((segment, i) => ({ name: segment.name, record: (pass) => this.records[i](pass) })),
       });
     });
