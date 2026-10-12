@@ -1,4 +1,5 @@
 import { retainedTests } from './retainedTests';
+import { codecTests } from './codecTests';
 import { GPUContext } from '../gpu/GPUContext';
 import { createBindLayouts } from '../gpu/BindLayouts';
 import { MeshManager } from '../rendering/MeshManager';
@@ -223,6 +224,7 @@ async function mipmapTest(gpu: GPUContext, srgb: boolean): Promise<string> {
       ...particleTests(gpu),
       ...ribbonTests(gpu),
       ...retainedTests(gpu),
+      ...codecTests(gpu),
     ];
     for (const t of tests) {
       try { const m = await t.run(); results.push({ name: t.name, ok: true, msg: String(m ?? '') }); }

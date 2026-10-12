@@ -1,6 +1,8 @@
 import type { GLTFJson } from './GLTFTypes';
+import { decompressGLTF } from './GLTFCompression';
+import { GLTFError } from './GLTFError';
 
-export class GLTFError extends Error {}
+export { GLTFError };
 
 export interface GLTFDocument {
   json: GLTFJson;
@@ -57,7 +59,8 @@ export function decodeDataURI(uri: string): Uint8Array {
 
 /**
  * Parse a .glb or .gltf into a GLTFDocument (JSON + resolved buffers). External buffer URIs are
- * fetched through `resolver` in parallel.
+ * fetched through `resolver` in parallel. Documents using `EXT_meshopt_compression` or `KHR_draco_mesh_compression` are decoded
+ * here: the returned document looks like plain glTF (decoded data lives in one extra buffer; the extension objects are gone).
  */
 export async function parseGLTF(data: ArrayBuffer | Uint8Array | string, resolver?: ResourceResolver): Promise<GLTFDocument> {
   let json: GLTFJson, glbBin: Uint8Array | null = null;
@@ -75,6 +78,7 @@ export async function parseGLTF(data: ArrayBuffer | Uint8Array | string, resolve
   const defs = json.buffers ?? [];
   const buffers = await Promise.all(defs.map(async (b, i) => {
     let data: Uint8Array;
+    if (b.extensions?.EXT_meshopt_compression?.fallback) return new Uint8Array(0);   // uncompressed stand-in for decoders without meshopt: never read
     if (b.uri === undefined) {
       if (i !== 0 || !glbBin) throw new GLTFError(`Buffer ${i} has no uri and no GLB BIN chunk`);
       data = glbBin;
@@ -86,12 +90,17 @@ export async function parseGLTF(data: ArrayBuffer | Uint8Array | string, resolve
     if (data.byteLength < b.byteLength) throw new GLTFError(`Buffer ${i} is shorter (${data.byteLength}) than declared (${b.byteLength})`);
     return data;
   }));
+  await decompressGLTF(json, buffers);
   return { json, buffers };
 }
 
 /** Extensions we can honor (or safely ignore) when listed as REQUIRED. */
 const SUPPORTED_REQUIRED_EXTENSIONS = new Set([
   'KHR_materials_emissive_strength', 'KHR_texture_transform',
+  // compression: decoded while parsing (EXT_meshopt_compression, KHR_draco_mesh_compression) or when textures are uploaded (KHR_texture_basisu)
+  'EXT_meshopt_compression', 'KHR_draco_mesh_compression', 'KHR_texture_basisu',
+  // quantized vertex data: the accessor reader already handles normalised / integer attributes (positions come with a node transform)
+  'KHR_mesh_quantization',
   // physical material extensions: factors are honoured, their textures are ignored with a warning
   'KHR_materials_clearcoat', 'KHR_materials_sheen', 'KHR_materials_transmission', 'KHR_materials_volume', 'KHR_materials_ior',
   'KHR_materials_specular', 'KHR_materials_iridescence', 'KHR_materials_anisotropy', 'KHR_materials_dispersion', 'KHR_materials_unlit',
