@@ -65,12 +65,12 @@ export { parseTechnique, techniqueToJSON } from './rendering/graph/TechniqueJSON
 export {
   technique, TechniqueBuilder, VariableHandle, ResourceHandle, wgsl, sizeOf, bindings,
   type TextureHandle, type BufferHandle, type Dim, type ResourceRef, type BindingRef, type TextureOptions, type BufferOptions, type VariableOptions,
-  type ComputeOptions, type DrawOptions, type SubGraphOptions, type CallbackOptions,
+  type ComputeOptions, type DrawOptions, type VertexBufferRef, type SubGraphOptions, type CallbackOptions,
 } from './rendering/graph/TechniqueBuilder';
 export { techniqueToDot } from './rendering/graph/Dot';
 export {
   TechniqueError, type Technique, type TechniqueRegistry, type NodeDecl, type ResourceDecl, type VariableDecl, type TextureDecl, type BufferDecl, type ComputeNode, type DrawNode,
-  type CopyNode, type SubGraphNode, type CallbackNode, type SizeDim, type Diagnostic,
+  type CopyNode, type ColorTarget, type DepthTarget, type VertexBufferBinding, type IndexBufferBinding, type VertexAttribute, type SubGraphNode, type CallbackNode, type SizeDim, type Diagnostic,
 } from './rendering/graph/TechniqueTypes';
 
 // --- render-to-texture ---------------------------------------------------------------------------------------------------

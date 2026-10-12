@@ -3,7 +3,7 @@ import type { PassDesc } from '../RenderGraph';
 import { compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
 import type { VariableValue } from './Flatten';
 import { expandShader, sampleTypeOf, writeUniform, type ExpandedShader } from './ShaderTokens';
-import { TechniqueError, type BindingDecl, type ColorTarget, type ComputeNode, type DrawNode, type Technique, type TextureDecl, type VariableVisibility } from './TechniqueTypes';
+import { TechniqueError, type BindingDecl, type ComputeNode, type DrawNode, type Technique, type TextureDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
 
 export interface TechniqueInstanceOptions extends CompileOptions {
   /** Host resources for the technique's `imported` resources. They can also be attached (or replaced) later with `setImport`. */
@@ -50,6 +50,8 @@ function bufferUsage(uses: Iterable<ResourceUse>): number {
   for (const u of uses) {
     if (u === 'sampled' || u === 'storage') flags |= GPUBufferUsage.STORAGE;
     else if (u === 'indirect') flags |= GPUBufferUsage.INDIRECT;
+    else if (u === 'vertex') flags |= GPUBufferUsage.VERTEX;
+    else if (u === 'index') flags |= GPUBufferUsage.INDEX;
     else if (u === 'copy-src') flags |= GPUBufferUsage.COPY_SRC;
     else if (u === 'copy-dst') flags |= GPUBufferUsage.COPY_DST;
   }
@@ -157,6 +159,7 @@ export class TechniqueInstance {
       const r = plan.resolved as ResolvedTexture | null, d = plan.decl as TextureDecl;
       const format = d.format ?? r?.format;
       if (format && resource.format !== format) throw new TechniqueError(`${what}: expected ${format} but the texture is ${resource.format}`);
+      if (resource.sampleCount !== (d.samples ?? 1)) throw new TechniqueError(`${what}: expected ${d.samples ?? 1} sample(s) but the texture has ${resource.sampleCount}`);
       if (r && (resource.width !== r.size[0] || resource.height !== r.size[1])) throw new TechniqueError(`${what}: expected ${r.size[0]}x${r.size[1]} but the texture is ${resource.width}x${resource.height}`);
     } else {
       if (isTexture(resource)) throw new TechniqueError(`${what} is a buffer but a texture was given`);
@@ -184,12 +187,13 @@ export class TechniqueInstance {
       const old = this.allocations.get(slot.key);
       const label = `${this.options.label ?? this.technique.name}:${slot.resources.join('+')}`;
       if (plan.resolved?.kind === 'texture') {
-        const flags = textureUsage(slot.uses);
-        if (old && isTexture(old) && (old.usage & flags) === flags) { next.set(slot.key, old); continue; }
         const r = plan.resolved;
+        // multisampled textures are render targets that cannot be storage textures (the compiler rejects storage use)
+        const flags = textureUsage(slot.uses) | (r.samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
+        if (old && isTexture(old) && (old.usage & flags) === flags) { next.set(slot.key, old); continue; }
         next.set(slot.key, this.gpu.resources.textures.create({
           label, size: r.dimension === '3d' ? { width: r.size[0], height: r.size[1], depthOrArrayLayers: r.size[2] } : [r.size[0], r.size[1], r.dimension === '2d' ? 1 : r.size[2]],
-          dimension: r.dimension === '3d' ? '3d' : '2d', format: r.format, mipLevelCount: r.mips, usage: flags | (flags === 0 ? GPUTextureUsage.TEXTURE_BINDING : 0),
+          dimension: r.dimension === '3d' ? '3d' : '2d', format: r.format, mipLevelCount: r.mips, sampleCount: r.samples, usage: flags | (flags === 0 ? GPUTextureUsage.TEXTURE_BINDING : 0),
         }));
       } else if (plan.resolved?.kind === 'buffer') {
         const flags = bufferUsage(slot.uses);
@@ -253,7 +257,11 @@ export class TechniqueInstance {
       if (plan.decl.kind === 'buffer') return { binding: slot.binding, visibility, buffer: { type: b.access === 'read' ? 'read-only-storage' : 'storage' } };
       const r = plan.resolved as ResolvedTexture | null, d = plan.decl as TextureDecl;
       const format = d.format ?? r!.format, dimension = (d.dimension ?? r?.dimension ?? '2d') as GPUTextureViewDimension;
-      if (b.access === 'read') return { binding: slot.binding, visibility, texture: { sampleType: sampleTypeOf(format), viewDimension: dimension } };
+      if (b.access === 'read') {
+        const multisampled = (r?.samples ?? d.samples ?? 1) > 1, type = sampleTypeOf(format);
+        // WebGPU: a multisampled texture cannot be bound as filterable float
+        return { binding: slot.binding, visibility, texture: { sampleType: multisampled && type === 'float' ? 'unfilterable-float' : type, viewDimension: dimension, multisampled } };
+      }
       return { binding: slot.binding, visibility, storageTexture: { access: b.access === 'write' ? 'write-only' : 'read-write', format, viewDimension: dimension } };
     });
     rt.layout = device.createBindGroupLayout({ label: `${node.path}:layout`, entries });
@@ -277,17 +285,48 @@ export class TechniqueInstance {
         const plan = this.compiled.resources.get(node.depthTarget!.resource)!;
         return { format: ((plan.decl as TextureDecl).format ?? (plan.resolved as ResolvedTexture).format), depthWriteEnabled: node.depthTarget!.write !== false, depthCompare: node.depthTarget!.compare ?? 'less' } as GPUDepthStencilState;
       })();
-      const key = `r|${node.vertexEntry}|${node.fragmentEntry}|${node.topology}|${node.cullMode}|${JSON.stringify(targets)}|${JSON.stringify(depth)}|${rt.shader.code}`;
+      const samples = this.sampleCountOf(node);
+      const buffers: GPUVertexBufferLayout[] = (node.vertexBuffers ?? []).map((v) => ({
+        arrayStride: this.vertexStride(v, ctx), stepMode: v.stepMode ?? 'vertex',
+        attributes: v.attributes.map((a) => ({ shaderLocation: a.location, format: a.format, offset: a.offset })),
+      }));
+      // strip topologies need the index format in the pipeline when drawn indexed
+      const stripFormat = node.indexBuffer && /strip$/.test(node.topology ?? '') ? node.indexBuffer.format ?? 'uint32' : undefined;
+      const key = `r|${node.vertexEntry}|${node.fragmentEntry}|${node.topology}|${node.cullMode}|${samples}|${stripFormat ?? ''}|${JSON.stringify(buffers)}|${JSON.stringify(targets)}|${JSON.stringify(depth)}|${rt.shader.code}`;
       rt.pipeline = (this.pipelines.get(key) as GPURenderPipeline | undefined) ?? device.createRenderPipeline({
         label: node.path, layout,
-        vertex: { module, entryPoint: node.vertexEntry ?? 'vs_main' },
+        vertex: { module, entryPoint: node.vertexEntry ?? 'vs_main', ...(buffers.length ? { buffers } : {}) },
         fragment: node.colorTargets.length ? { module, entryPoint: node.fragmentEntry ?? 'fs_main', targets } : undefined,
-        primitive: { topology: node.topology ?? 'triangle-list', cullMode: node.cullMode ?? 'none' },
+        primitive: { topology: node.topology ?? 'triangle-list', cullMode: node.cullMode ?? 'none', ...(stripFormat ? { stripIndexFormat: stripFormat } : {}) },
+        ...(samples > 1 ? { multisample: { count: samples } } : {}),
         ...(depth ? { depthStencil: depth } : {}),
       });
       this.pipelines.set(key, rt.pipeline);
     }
     return rt;
+  }
+
+  /** Sample count of a draw's attachments (the compiler guarantees they agree). */
+  private sampleCountOf(node: DrawNode): number {
+    const first = node.colorTargets[0]?.resource ?? node.depthTarget?.resource;
+    if (first === undefined) return 1;
+    const plan = this.compiled.resources.get(first)!;
+    return (plan.resolved as ResolvedTexture | null)?.samples ?? (plan.decl as TextureDecl).samples ?? 1;
+  }
+
+  /** Bytes between the elements of a vertex buffer: the draw's override, else the buffer's element size. */
+  private vertexStride(v: VertexBufferBinding, ctx: string): number {
+    const stride = v.arrayStride ?? (this.compiled.resources.get(v.resource)!.resolved as ResolvedBuffer | null)?.stride;
+    if (stride === undefined) throw new TechniqueError(`${ctx}: vertex buffer '${v.resource}' has no known element size; set arrayStride (or declare 'stride' on the buffer)`);
+    return stride;
+  }
+
+  /** Elements of a vertex buffer that follow its start offset. */
+  private vertexElements(v: VertexBufferBinding, ctx: string): number {
+    // a declared buffer may sit in a larger shared allocation, so its declared size wins over the GPU object's
+    const declared = (this.compiled.resources.get(v.resource)!.resolved as ResolvedBuffer | null);
+    const bytes = declared ? declared.stride * declared.count : (this.physical(v.resource, ctx) as GPUBuffer).size;
+    return Math.max(0, Math.floor((bytes - (v.offset ?? 0)) / this.vertexStride(v, ctx)));
   }
 
   /** The physical resource of a plan (host import or technique allocation). */
@@ -354,10 +393,13 @@ export class TechniqueInstance {
 
   private runDraw(encoder: GPUCommandEncoder, node: DrawNode & { path: string }, rt: StepRuntime): void {
     const ctx = `node '${node.path}'`;
-    const view = (t: ColorTarget) => (this.physical(t.resource, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: t.mip ?? 0, mipLevelCount: 1, baseArrayLayer: t.layer ?? 0, arrayLayerCount: 1 });
+    const view = (name: string, mip: number, layer: number) => (this.physical(name, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: mip, mipLevelCount: 1, baseArrayLayer: layer, arrayLayerCount: 1 });
     const pass = encoder.beginRenderPass({
       label: node.path,
-      colorAttachments: node.colorTargets.map((t) => ({ view: view(t), loadOp: t.loadOp ?? 'clear', storeOp: 'store' as const, clearValue: t.clearValue ?? [0, 0, 0, 0] })),
+      colorAttachments: node.colorTargets.map((t) => ({
+        view: view(t.resource, t.mip ?? 0, t.layer ?? 0), loadOp: t.loadOp ?? 'clear', storeOp: t.storeOp ?? 'store', clearValue: t.clearValue ?? [0, 0, 0, 0],
+        ...(t.resolve !== undefined ? { resolveTarget: view(t.resolve, 0, 0) } : {}),
+      })),
       ...(node.depthTarget ? {
         depthStencilAttachment: {
           view: (this.physical(node.depthTarget.resource, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: 0, mipLevelCount: 1 }),
@@ -367,7 +409,31 @@ export class TechniqueInstance {
     });
     pass.setPipeline(rt.pipeline as GPURenderPipeline);
     pass.setBindGroup(0, rt.bindGroup);
-    const vertices = evalDim(node.vertexCount, this.compiled.variables, ctx), instances = node.instanceCount === undefined ? 1 : evalDim(node.instanceCount, this.compiled.variables, ctx);
+    const buffers = node.vertexBuffers ?? [];
+    buffers.forEach((v, slot) => pass.setVertexBuffer(slot, this.physical(v.resource, ctx) as GPUBuffer, v.offset ?? 0));
+    // counts not given explicitly come from the vertex buffers: every element of the first per-vertex / per-instance buffer
+    const first = (mode: GPUVertexStepMode) => buffers.find((v) => (v.stepMode ?? 'vertex') === mode);
+    const fromBuffer = (v: VertexBufferBinding | undefined, fallback: number) => (v ? this.vertexElements(v, ctx) : fallback);
+    const vertices = node.vertexCount === undefined ? fromBuffer(first('vertex'), 0) : evalDim(node.vertexCount, this.compiled.variables, ctx);
+    const instances = node.instanceCount === undefined ? fromBuffer(first('instance'), 1) : evalDim(node.instanceCount, this.compiled.variables, ctx);
+    const ib = node.indexBuffer;
+    if (node.indirect) {
+      if (ib) pass.setIndexBuffer(this.physical(ib.resource, ctx) as GPUBuffer, ib.format ?? 'uint32', ib.offset ?? 0);
+      const args = this.physical(node.indirect.resource, ctx) as GPUBuffer, offset = node.indirect.offset ?? 0;
+      if (ib) pass.drawIndexedIndirect(args, offset); else pass.drawIndirect(args, offset);
+      pass.end();
+      return;
+    }
+    if (ib) {
+      const format = ib.format ?? 'uint32', size = format === 'uint16' ? 2 : 4;
+      pass.setIndexBuffer(this.physical(ib.resource, ctx) as GPUBuffer, format, ib.offset ?? 0);
+      const declared = this.compiled.resources.get(ib.resource)!.resolved as ResolvedBuffer | null;
+      const bytes = declared ? declared.stride * declared.count : (this.physical(ib.resource, ctx) as GPUBuffer).size;
+      const indices = node.indexCount === undefined ? Math.max(0, Math.floor((bytes - (ib.offset ?? 0)) / size)) : evalDim(node.indexCount, this.compiled.variables, ctx);
+      if (indices > 0 && instances > 0) pass.drawIndexed(indices, instances, 0, node.baseVertex === undefined ? 0 : evalDim(node.baseVertex, this.compiled.variables, ctx));
+      pass.end();
+      return;
+    }
     if (vertices > 0 && instances > 0) pass.draw(vertices, instances);
     pass.end();
   }

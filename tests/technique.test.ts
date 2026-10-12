@@ -198,6 +198,154 @@ describe('validation', () => {
     expect(run([draw([], 'a')], [tex('a')])).toThrow(/depth format/);
     expect(run([draw([])], [])).toThrow(/at least one/);
   });
+  describe('draw: vertex buffers', () => {
+    const vb = (extra: Record<string, unknown> = {}) => ({ resource: 'verts', attributes: [{ location: 0, format: 'float32x3', offset: 0 }, { location: 1, format: 'float32x2', offset: 12 }], ...extra });
+    const verts = (extra: Partial<Extract<ResourceDecl, { kind: 'buffer' }>> = {}): ResourceDecl => ({ kind: 'buffer', name: 'verts', stride: 20, count: 8, visibility: 'imported', ...extra });
+    const draw = (extra: Record<string, unknown> = {}): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: 'x' }, bindings: [], colorTargets: [{ resource: 'rt' }], ...extra } as NodeDecl);
+    const rt = tex('rt', { visibility: 'exported' });
+    it('derives the vertex count from the buffer and tracks the vertex usage', () => {
+      const t = compileTechnique(technique([draw({ vertexBuffers: [vb()] })], [rt, verts()]));
+      expect(t.resources.get('verts')!.uses.has('vertex')).toBe(true);
+      expect(t.steps[0].accesses.find((a) => a.resource === 'verts')).toMatchObject({ usage: 'vertex', read: true, write: false });
+    });
+    it('requires a count when nothing per-vertex supplies one', () => {
+      expect(() => compileTechnique(technique([draw()], [rt]))).toThrow(/set vertexCount/);
+      expect(() => compileTechnique(technique([draw({ vertexBuffers: [vb({ stepMode: 'instance' })] })], [rt, verts()]))).toThrow(/set vertexCount/);
+      expect(() => compileTechnique(technique([draw({ vertexBuffers: [vb({ stepMode: 'instance' })], vertexCount: 3 })], [rt, verts()]))).not.toThrow();
+    });
+    it('validates attributes against WebGPU rules', () => {
+      const bad = (v: Record<string, unknown>) => () => compileTechnique(technique([draw({ vertexBuffers: [vb(v)] })], [rt, verts()]));
+      expect(bad({ attributes: [] })).toThrow(/at least one attribute/);
+      expect(bad({ attributes: [{ location: 0, format: 'float32x4', offset: 8 }] })).toThrow(/does not fit in a 20-byte/);
+      expect(bad({ attributes: [{ location: 0, format: 'float32x2', offset: 0 }, { location: 0, format: 'float32', offset: 8 }] })).toThrow(/@location\(0\) is used by two/);
+      expect(bad({ attributes: [{ location: 0, format: 'float32x2', offset: 2 }] })).toThrow(/not aligned/);
+      expect(bad({ attributes: [{ location: 0, format: 'float99', offset: 0 }] })).toThrow(/unknown vertex format/);
+      expect(bad({ attributes: [{ location: 16, format: 'float32', offset: 0 }] })).toThrow(/from 0 to 15/);
+      expect(bad({ arrayStride: 6 })).toThrow(/multiple of 4/);
+    });
+    it('needs a buffer, and conflicts with a storage binding of the same buffer', () => {
+      expect(() => compileTechnique(technique([draw({ vertexBuffers: [vb({ resource: 'rt' })] })], [rt]))).toThrow(/must be a buffer/);
+      expect(() => compileTechnique(technique([draw({ vertexBuffers: [vb()], bindings: [{ resource: 'verts', access: 'read' }] })], [rt, verts()]))).toThrow(/conflicting usage/);
+    });
+    it('keeps work that feeds a vertex buffer alive', () => {
+      const gen: NodeDecl = { type: 'compute', name: 'gen', shader: { code: '' }, workgroupSize: [8], bindings: [{ resource: 'verts', access: 'write' }], dispatch: { threads: [8] } };
+      const t = compileTechnique(technique([gen, draw({ vertexBuffers: [vb()] })], [rt, verts({ visibility: 'internal' })]));
+      expect(names(t)).toEqual(['gen', 'd']);
+    });
+    it('round-trips through JSON and rejects unknown keys', () => {
+      const t = technique([draw({ vertexBuffers: [vb()] })], [rt, verts()]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+      const j = JSON.parse(techniqueToJSON(t));
+      j.nodes[0].vertexBuffers[0].stride = 4;
+      expect(() => parseTechnique(j)).toThrow(/vertexBuffers\[0\]\.stride: unknown field/);
+    });
+  });
+
+  describe('draw: index buffers', () => {
+    const rt = tex('rt', { visibility: 'exported' });
+    const idx = (extra: Partial<Extract<ResourceDecl, { kind: 'buffer' }>> = {}): ResourceDecl => ({ kind: 'buffer', name: 'idx', count: 6, visibility: 'imported', ...extra });
+    const draw = (extra: Record<string, unknown> = {}): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: 'x' }, bindings: [], colorTargets: [{ resource: 'rt' }], ...extra } as NodeDecl);
+    it('needs no vertexCount, tracks the index usage', () => {
+      const t = compileTechnique(technique([draw({ indexBuffer: { resource: 'idx', format: 'uint16' } })], [rt, idx()]));
+      expect(t.resources.get('idx')!.uses.has('index')).toBe(true);
+      expect(t.steps[0].accesses.find((a) => a.resource === 'idx')).toMatchObject({ usage: 'index', read: true, write: false });
+    });
+    it('validates the binding', () => {
+      expect(() => compileTechnique(technique([draw({ indexBuffer: { resource: 'rt' } })], [rt]))).toThrow(/must be a buffer/);
+      expect(() => compileTechnique(technique([draw({ indexBuffer: { resource: 'idx', format: 'uint16', offset: 3 } })], [rt, idx()]))).toThrow(/multiple of 2/);
+      expect(() => compileTechnique(technique([draw({ indexBuffer: { resource: 'idx', offset: 2 } })], [rt, idx()]))).toThrow(/multiple of 4/);
+      expect(() => compileTechnique(technique([draw({ indexBuffer: { resource: 'idx', format: 'uint8' } })], [rt, idx()]))).toThrow(/uint16 or uint32/);
+      expect(() => compileTechnique(technique([draw({ indexCount: 3, vertexCount: 3 })], [rt]))).toThrow(/needs an indexBuffer/);
+    });
+    it('round-trips through JSON', () => {
+      const t = technique([draw({ indexBuffer: { resource: 'idx', format: 'uint16', offset: 4 }, indexCount: 6 })], [rt, idx()]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+    });
+  });
+
+  describe('draw: baseVertex and indirect', () => {
+    const rt = tex('rt', { visibility: 'exported' });
+    const buf = (name: string, extra: Partial<Extract<ResourceDecl, { kind: 'buffer' }>> = {}): ResourceDecl => ({ kind: 'buffer', name, count: 8, visibility: 'imported', ...extra });
+    const draw = (extra: Record<string, unknown> = {}): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: 'x' }, bindings: [], colorTargets: [{ resource: 'rt' }], ...extra } as NodeDecl);
+    it('baseVertex needs an index buffer', () => {
+      expect(() => compileTechnique(technique([draw({ vertexCount: 3, baseVertex: 1 })], [rt]))).toThrow(/baseVertex needs an indexBuffer/);
+      expect(() => compileTechnique(technique([draw({ indexBuffer: { resource: 'idx' }, baseVertex: { variable: 'b' } })], [rt, buf('idx')], [{ name: 'b', type: 'int', value: -2 }]))).not.toThrow();
+    });
+    it('indirect draws need no counts, forbid explicit ones, and track the indirect usage', () => {
+      const t = compileTechnique(technique([draw({ indirect: { resource: 'args', offset: 8 } })], [rt, buf('args')]));
+      expect(t.resources.get('args')!.uses.has('indirect')).toBe(true);
+      expect(t.steps[0].accesses.find((a) => a.resource === 'args')).toMatchObject({ usage: 'indirect', read: true, write: false });
+      for (const k of ['vertexCount', 'instanceCount']) expect(() => compileTechnique(technique([draw({ indirect: { resource: 'args' }, [k]: 3 })], [rt, buf('args')]))).toThrow(/is indirect/);
+      expect(() => compileTechnique(technique([draw({ indirect: { resource: 'args', offset: 6 } })], [rt, buf('args')]))).toThrow(/multiple of 4/);
+      expect(() => compileTechnique(technique([draw({ indirect: { resource: 'rt' } })], [rt]))).toThrow(/must be a buffer/);
+    });
+    it('keeps the compute node that writes the arguments, and round-trips through JSON', () => {
+      const gen: NodeDecl = { type: 'compute', name: 'gen', shader: { code: 'x' }, workgroupSize: [1], bindings: [{ resource: 'args', access: 'write' }], dispatch: { threads: [1] } };
+      const t = technique([gen, draw({ indirect: { resource: 'args' }, indexBuffer: { resource: 'idx' } })], [rt, buf('args', { visibility: 'internal' }), buf('idx')]);
+      expect(names(compileTechnique(t))).toEqual(['gen', 'd']);
+      const withBase = technique([draw({ indexBuffer: { resource: 'idx' }, baseVertex: -4 })], [rt, buf('idx')]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(withBase)))).toEqual(withBase);
+    });
+  });
+
+  describe('draw: MSAA targets', () => {
+    const color = tex('color', { samples: 4 }), resolved = tex('resolved', { visibility: 'exported' });
+    const draw = (target: Record<string, unknown>, depth?: string): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: 'x' }, bindings: [], vertexCount: 3, colorTargets: [{ resource: 'color', ...target }], ...(depth ? { depthTarget: { resource: depth } } : {}) } as NodeDecl);
+    it('resolves a multisampled target and accounts for the sample memory', () => {
+      const t = compileTechnique(technique([draw({ resolve: 'resolved' })], [color, resolved]));
+      expect(t.resources.get('color')!.resolved).toMatchObject({ samples: 4 });
+      expect(t.resources.get('color')!.bytes).toBe(4 * t.resources.get('resolved')!.bytes);
+      expect(t.steps[0].accesses.find((a) => a.resource === 'resolved')).toMatchObject({ write: true, read: false });
+    });
+    it('does not let `like` borrow the sample count', () => {
+      const t = compileTechnique(technique([draw({ resolve: 'resolved' })], [resolved, { kind: 'texture', name: 'color', like: 'resolved', samples: 4 }]));
+      expect(t.resources.get('resolved')!.resolved).toMatchObject({ samples: 1 });
+      expect(t.resources.get('color')!.resolved).toMatchObject({ samples: 4, size: [64, 64, 1] });
+    });
+    it('rejects invalid sample counts and shapes', () => {
+      expect(() => compileTechnique(technique([], [tex('x', { samples: 2 as 4 })]))).toThrow(/1 or 4/);
+      expect(() => compileTechnique(technique([], [tex('x', { samples: 4, dimension: '2d-array', size: [8, 8, 2] })]))).toThrow(/plain 2d/);
+      expect(() => compileTechnique(technique([], [tex('x', { samples: 4, mips: 3 })]))).toThrow(/one mip/);
+    });
+    it('checks the resolve target', () => {
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' })], [tex('color'), resolved]))).toThrow(/not multisampled/);
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' })], [color, tex('resolved', { samples: 4, visibility: 'exported' })]))).toThrow(/single-sample/);
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' })], [color, tex('resolved', { size: [32, 32], visibility: 'exported' })]))).toThrow(/must match/);
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' })], [color, tex('resolved', { format: 'bgra8unorm', visibility: 'exported' })]))).toThrow(/must match/);
+      expect(() => compileTechnique(technique([draw({ resolve: 'color' })], [color]))).toThrow(/into itself/);
+      expect(() => compileTechnique(technique([draw({ storeOp: 'discard' })], [{ ...color, visibility: 'exported' }]))).toThrow(/result would be lost/);
+    });
+    it('requires every attachment to agree on the sample count', () => {
+      const depth = tex('depth', { format: 'depth24plus' });
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' }, 'depth')], [color, resolved, depth]))).toThrow(/differ in sample count/);
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' }, 'depth')], [color, resolved, { ...depth, samples: 4 } as ResourceDecl]))).not.toThrow();
+    });
+    it('rejects storage and filtered use of a multisampled texture, allows plain reads', () => {
+      const out = tex('out', { visibility: 'exported' });
+      expect(() => compileTechnique(technique([draw({ resolve: 'resolved' }), pass('p', [], ['color'])], [color, resolved]))).toThrow(/multisampled and cannot be a storage/);
+      const read = (sampler?: 'nearest') => technique([draw({ resolve: 'resolved' }), pass('p', ['color'], ['out'], sampler ? { bindings: [{ resource: 'color', access: 'read', sampler }, { resource: 'out', access: 'write' }] } : {})], [color, resolved, out]);
+      expect(() => compileTechnique(read())).not.toThrow();
+      expect(() => compileTechnique(read('nearest'))).toThrow(/cannot be filtered/);
+    });
+    it('declares multisampled WGSL types for reads', () => {
+      const out = tex('out', { visibility: 'exported' });
+      const plan = compileTechnique(technique([draw({ resolve: 'resolved' }), pass('p', ['color'], ['out'])], [color, resolved, out]));
+      expect(expandShader(plan.steps[1].node as never, plan).code).toContain('var color: texture_multisampled_2d<f32>;');
+    });
+    it('keeps multisampled textures out of single-sample aliasing slots', () => {
+      const t = compileTechnique(technique([draw({ resolve: 'resolved' })], [color, resolved]));
+      expect(t.slots.find((s) => s.resources.includes('color'))!.signature).toContain('x4');
+    });
+    it('round-trips through JSON', () => {
+      const t = technique([draw({ resolve: 'resolved', storeOp: 'discard' })], [color, resolved]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+      const j = JSON.parse(techniqueToJSON(t));
+      j.resources[0].samples = 8;
+      expect(() => parseTechnique(j)).toThrow(/samples: expected 1 or 4/);
+    });
+  });
+
   it('needs a format and size for non-imported textures and rejects like-cycles', () => {
     expect(run([], [{ kind: 'texture', name: 'x', size: [4, 4] }])).toThrow(/needs a format/);
     expect(run([], [{ kind: 'texture', name: 'x', format: 'rgba8unorm' }])).toThrow(/needs a size/);

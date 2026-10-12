@@ -261,5 +261,197 @@ export function techniqueTests(gpu: GPUContext): SelfTest[] {
         return 'texture kept across 3 condition toggles; resize 16 -> 32 replaced it and notified once';
       },
     },
+    {
+      name: 'technique draw: a compute-generated vertex buffer feeds an MSAA target that is resolved (edges are anti-aliased)',
+      run: async () => {
+        const g = technique('msaa-triangle');
+        const verts = g.buffer('verts', { element: 'f32', stride: 20, count: 3 });
+        const msaa = g.texture('msaa', { format: 'rgba8unorm', size: [16, 16], samples: 4 });
+        const out = g.texture('out', { like: msaa, visibility: 'exported' });
+        g.compute('gen', {
+          writes: [verts], dispatch: { threads: [3] }, workgroupSize: [3],
+          shader: wgsl`${bindings}
+@compute @workgroup_size(3) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+  // lower-left triangle: (-1,-1) (1,-1) (-1,1), all red
+  let i = id.x;
+  let x = select(-1.0, 1.0, i == 1u);
+  let y = select(-1.0, 1.0, i == 2u);
+  let o = i * 5u;
+  ${verts}[o] = x; ${verts}[o + 1u] = y; ${verts}[o + 2u] = 1.0; ${verts}[o + 3u] = 0.0; ${verts}[o + 4u] = 0.0;
+}`,
+        });
+        g.draw('tri', {
+          vertexBuffers: [{ resource: verts, attributes: [{ location: 0, format: 'float32x2', offset: 0 }, { location: 1, format: 'float32x3', offset: 8 }] }],
+          colorTargets: [{ resource: msaa, resolve: out, storeOp: 'discard' }],
+          shader: wgsl`
+struct VOut { @builtin(position) p: vec4<f32>, @location(0) c: vec3<f32> };
+@vertex fn vs_main(@location(0) pos: vec2<f32>, @location(1) col: vec3<f32>) -> VOut { return VOut(vec4<f32>(pos, 0.0, 1.0), col); }
+@fragment fn fs_main(v: VOut) -> @location(0) vec4<f32> { return vec4<f32>(v.c, 1.0); }`,
+        });
+        const fx = g.instantiate(gpu);
+        const { pixels, w } = await run(gpu, fx, 'out');
+        const at = (x: number, y: number) => Array.from(pixels.slice((y * w + x) * 4, (y * w + x) * 4 + 4));
+        const partial = Array.from({ length: 16 * 16 }, (_, i) => pixels[i * 4 + 3]).filter((a) => a > 0 && a < 255).length;
+        fx.dispose();
+        const inside = at(2, 13).join(','), outside = at(13, 2).join(',');
+        if (inside !== '255,0,0,255') throw new Error(`inside pixel ${inside}`);
+        if (outside !== '0,0,0,0') throw new Error(`outside pixel ${outside}`);
+        if (partial < 8) throw new Error(`only ${partial} anti-aliased edge pixels; the target was not multisampled`);
+        return `vertex buffer written by compute, ${partial} anti-aliased edge pixels after the 4x resolve`;
+      },
+    },
+    {
+      name: 'technique draw: instance-stepped vertex buffer from the host; a stored MSAA target is read per sample by compute',
+      run: async () => {
+        const { device } = gpu;
+        const g = technique('msaa-instances');
+        const inst = g.buffer('inst', { element: 'f32', stride: 20, count: 2, visibility: 'imported' });
+        const msaa = g.texture('msaa', { format: 'rgba8unorm', size: [16, 16], samples: 4 });
+        const out = g.texture('out', { format: 'rgba8unorm', size: [16, 16], visibility: 'exported' });
+        g.draw('quads', {
+          vertices: 3,
+          vertexBuffers: [{ resource: inst, stepMode: 'instance', attributes: [{ location: 0, format: 'float32x2', offset: 0 }, { location: 1, format: 'float32x3', offset: 8 }] }],
+          colorTargets: [msaa],
+          shader: wgsl`
+struct VOut { @builtin(position) p: vec4<f32>, @location(0) c: vec3<f32> };
+@vertex fn vs_main(@builtin(vertex_index) vi: u32, @location(0) offset: vec2<f32>, @location(1) col: vec3<f32>) -> VOut {
+  var local = array<vec2<f32>, 3>(vec2<f32>(-0.4, -0.4), vec2<f32>(0.4, -0.4), vec2<f32>(-0.4, 0.4));
+  return VOut(vec4<f32>(local[vi] + offset, 0.0, 1.0), col);
+}
+@fragment fn fs_main(v: VOut) -> @location(0) vec4<f32> { return vec4<f32>(v.c, 1.0); }`,
+        });
+        g.compute('average', {
+          reads: [msaa], writes: [out], dispatch: { like: out }, workgroupSize: [8, 8],
+          shader: wgsl`${bindings}
+@compute @workgroup_size(8, 8) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+  let p = vec2<i32>(id.xy);
+  var sum = vec4<f32>(0.0);
+  for (var s = 0; s < 4; s++) { sum += textureLoad(${msaa}, p, s); }
+  textureStore(${out}, p, sum / 4.0);
+}`,
+        });
+        const buffer = device.createBuffer({ size: 40, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+        // instance 0: red at (-0.5,-0.5); instance 1: green at (0.5, 0.5)
+        device.queue.writeBuffer(buffer, 0, new Float32Array([-0.5, -0.5, 1, 0, 0, 0.5, 0.5, 0, 1, 0]));
+        const fx = g.instantiate(gpu, { imports: { inst: buffer } });
+        const { pixels, w } = await run(gpu, fx, 'out');
+        const at = (x: number, y: number) => Array.from(pixels.slice((y * w + x) * 4, (y * w + x) * 4 + 3)).join(',');
+        fx.dispose(); buffer.destroy();
+        const red = at(2, 13), green = at(10, 5), none = at(13, 13);
+        if (red !== '255,0,0' || green !== '0,255,0' || none !== '0,0,0') throw new Error(`instances: red ${red}, green ${green}, empty ${none}`);
+        return '2 instances from a per-instance buffer; 4 samples per pixel read with texture_multisampled_2d';
+      },
+    },
+    {
+      name: 'technique draw: validation errors for host resources (vertex usage, sample count)',
+      run: async () => {
+        const { device } = gpu;
+        const g = technique('imports');
+        const inst = g.buffer('verts', { element: 'f32', stride: 8, count: 3, visibility: 'imported' });
+        const target = g.texture('target', { format: 'rgba8unorm', size: [8, 8], samples: 4, visibility: 'imported' });
+        const resolved = g.texture('resolved', { like: target, visibility: 'imported' });
+        g.draw('d', { shader: '@vertex fn vs_main(@location(0) p: vec2<f32>) -> @builtin(position) vec4<f32> { return vec4<f32>(p, 0.0, 1.0); } @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }',
+          vertexBuffers: [{ resource: inst, attributes: [{ location: 0, format: 'float32x2', offset: 0 }] }], colorTargets: [{ resource: target, resolve: resolved }] });
+        const fx = g.instantiate(gpu);
+        const noVertex = device.createBuffer({ size: 24, usage: GPUBufferUsage.COPY_DST });
+        const single = device.createTexture({ size: [8, 8], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT });
+        let vertexError = '', sampleError = '';
+        try { fx.setImport('verts', noVertex); } catch (e) { vertexError = String(e); }
+        try { fx.setImport('target', single); } catch (e) { sampleError = String(e); }
+        fx.dispose(); noVertex.destroy(); single.destroy();
+        if (!/lacks usage flags/.test(vertexError) || !/expected 4 sample/.test(sampleError)) throw new Error(`${vertexError} | ${sampleError}`);
+        return 'a buffer without VERTEX usage and a single-sample texture for an MSAA import are both rejected';
+      },
+    },
+    {
+      name: 'technique draw: an indexed draw from a host uint16 index buffer with a byte offset',
+      run: async () => {
+        const { device } = gpu;
+        const g = technique('indexed');
+        const verts = g.buffer('verts', { element: 'f32', stride: 8, count: 4 });
+        const idx = g.buffer('idx', { element: 'u32', count: 4, visibility: 'imported' });
+        const out = g.texture('out', { format: 'rgba8unorm', size: [16, 16], visibility: 'exported' });
+        g.compute('gen', {
+          writes: [verts], dispatch: { threads: [4] }, workgroupSize: [4],
+          shader: wgsl`${bindings}
+@compute @workgroup_size(4) fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+  // left-half quad: (-1,-1) (0,-1) (0,1) (-1,1)
+  let i = id.x;
+  ${verts}[i * 2u] = select(-1.0, 0.0, i == 1u || i == 2u);
+  ${verts}[i * 2u + 1u] = select(-1.0, 1.0, i >= 2u);
+}`,
+        });
+        g.draw('quad', {
+          vertexBuffers: [{ resource: verts, attributes: [{ location: 0, format: 'float32x2', offset: 0 }] }],
+          indexBuffer: { resource: idx, format: 'uint16', offset: 4 }, colorTargets: [out],
+          shader: '@vertex fn vs_main(@location(0) p: vec2<f32>) -> @builtin(position) vec4<f32> { return vec4<f32>(p, 0.0, 1.0); } @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0, 0.0, 0.0, 1.0); }',
+        });
+        // two leading indices (3, 3) are skipped by the offset; without it the quad would be degenerate / wrong
+        const buffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
+        device.queue.writeBuffer(buffer, 0, new Uint16Array([3, 3, 0, 1, 2, 0, 2, 3]));
+        const fx = g.instantiate(gpu, { imports: { idx: buffer } });
+        const { pixels, w } = await run(gpu, fx, 'out');
+        const at = (x: number, y: number) => Array.from(pixels.slice((y * w + x) * 4, (y * w + x) * 4 + 4)).join(',');
+        fx.dispose(); buffer.destroy();
+        if (at(2, 8) !== '255,0,0,255' || at(13, 8) !== '0,0,0,0') throw new Error(`left ${at(2, 8)}, right ${at(13, 8)}`);
+        return 'quad drawn from 6 uint16 indices starting at byte 4';
+      },
+    },
+    {
+      name: 'technique draw: baseVertex, indexed indirect (arguments from compute) and non-indexed indirect',
+      run: async () => {
+        const { device } = gpu;
+        const shader = '@vertex fn vs_main(@location(0) p: vec2<f32>) -> @builtin(position) vec4<f32> { return vec4<f32>(p, 0.0, 1.0); } @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0, 0.0, 0.0, 1.0); }';
+        // 8 vertices: 0-3 are the right-half quad (decoy), 4-7 the left-half quad
+        const quad = (x0: number, x1: number) => [x0, -1, x1, -1, x1, 1, x0, 1];
+        const vertexData = new Float32Array([...quad(0, 1), ...quad(-1, 0)]);
+        const mk = (usage: number, data: Float32Array | Uint16Array | Uint32Array) => { const b = device.createBuffer({ size: data.byteLength, usage: usage | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, data.buffer as ArrayBuffer, data.byteOffset, data.byteLength); return b; };
+        const verts = mk(GPUBufferUsage.VERTEX, vertexData), indices = mk(GPUBufferUsage.INDEX, new Uint16Array([0, 1, 2, 0, 2, 3]));
+        const pixelsOf = async (g: ReturnType<typeof technique>, imports: Record<string, GPUBuffer>) => {
+          const fx = g.instantiate(gpu, { imports });
+          const { pixels, w } = await run(gpu, fx, 'out');
+          fx.dispose();
+          return (x: number, y: number) => Array.from(pixels.slice((y * w + x) * 4, (y * w + x) * 4 + 4)).join(',');
+        };
+        const expectLeft = (at: (x: number, y: number) => string, what: string) => {
+          if (at(2, 8) !== '255,0,0,255' || at(13, 8) !== '0,0,0,0') throw new Error(`${what}: left ${at(2, 8)}, right ${at(13, 8)}`);
+        };
+        const base = () => {
+          const g = technique('ib');
+          const v = g.buffer('verts', { element: 'f32', stride: 8, count: 8, visibility: 'imported' }), i = g.buffer('idx', { element: 'u32', count: 3, visibility: 'imported' });
+          const out = g.texture('out', { format: 'rgba8unorm', size: [16, 16], visibility: 'exported' });
+          return { g, v, i, out };
+        };
+        const attributes = [{ location: 0, format: 'float32x2' as const, offset: 0 }];
+
+        // 1. baseVertex 4 moves the indices 0..3 onto vertices 4..7
+        const a = base();
+        a.g.draw('d', { shader, vertexBuffers: [{ resource: a.v, attributes }], indexBuffer: { resource: a.i, format: 'uint16' }, indices: 6, baseVertex: 4, colorTargets: [a.out] });
+        expectLeft(await pixelsOf(a.g, { verts, idx: indices }), 'baseVertex');
+
+        // 2. indexed indirect: a compute node writes (indexCount 6, instances 1, firstIndex 0, baseVertex 4, firstInstance 0)
+        const b = base();
+        const args = b.g.buffer('args', { element: 'u32', count: 5 });
+        b.g.compute('args', {
+          writes: [args], dispatch: { threads: [1] }, workgroupSize: [1],
+          shader: wgsl`${bindings}
+@compute @workgroup_size(1) fn main() { ${args}[0] = 6u; ${args}[1] = 1u; ${args}[2] = 0u; ${args}[3] = 4u; ${args}[4] = 0u; }`,
+        });
+        b.g.draw('d', { shader, vertexBuffers: [{ resource: b.v, attributes }], indexBuffer: { resource: b.i, format: 'uint16' }, indirect: { resource: args }, colorTargets: [b.out] });
+        expectLeft(await pixelsOf(b.g, { verts, idx: indices }), 'indexed indirect');
+
+        // 3. non-indexed indirect, from the host, starting at byte 8 of the buffer: 3 procedural vertices covering the whole target
+        const c = technique('direct');
+        const argBuf = c.buffer('args', { element: 'u32', count: 6, visibility: 'imported' });
+        const out = c.texture('out', { format: 'rgba8unorm', size: [16, 16], visibility: 'exported' });
+        c.draw('d', { indirect: { resource: argBuf, offset: 8 }, colorTargets: [out],
+          shader: '@vertex fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> { let p = vec2<f32>(f32((vi << 1u) & 2u), f32(vi & 2u)) * 2.0 - 1.0; return vec4<f32>(p, 0.0, 1.0); } @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 1.0, 0.0, 1.0); }' });
+        const argData = mk(GPUBufferUsage.INDIRECT, new Uint32Array([9, 9, 3, 1, 0, 0]));
+        const full = await pixelsOf(c, { args: argData });
+        if (full(8, 8) !== '0,255,0,255' || full(1, 14) !== '0,255,0,255') throw new Error(`indirect: ${full(8, 8)} / ${full(1, 14)}`);
+        verts.destroy(); indices.destroy(); argData.destroy();
+        return 'baseVertex 4 and indexed indirect select the left quad; a non-indexed indirect draw at byte offset 8 fills the target';
+      },
+    },
   ];
 }

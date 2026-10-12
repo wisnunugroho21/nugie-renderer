@@ -8,7 +8,7 @@ import { TechniqueError, type Technique } from './TechniqueTypes';
 
 type Spec = { [key: string]: Rule };
 type Rule =
-  | 'string' | 'number' | 'boolean' | 'any' | 'object' | 'size' | 'string[]' | 'number[]' | 'size[]'
+  | 'string' | 'number' | 'boolean' | 'any' | 'object' | 'size' | 'samples' | 'string[]' | 'number[]' | 'size[]'
   | { enum: readonly string[] }
   | { list: Spec; key?: string }
   | { object: Spec }
@@ -21,6 +21,10 @@ const SIZE_DIM: Rule = 'size';
 
 const BINDING: Spec = { resource: 'string', access: { enum: ['read', 'write', 'readwrite'] }, name: opt('string'), sampler: opt({ enum: ['nearest', 'linear'] }) };
 const CONDITION: Spec = { variable: 'string', op: { enum: ['eq', 'ne', 'lt', 'le', 'gt', 'ge'] }, value: 'number' };
+const VERTEX_BUFFER: Spec = {
+  resource: 'string', stepMode: opt({ enum: ['vertex', 'instance'] }), arrayStride: opt('number'), offset: opt('number'),
+  attributes: { list: { location: 'number', format: 'string', offset: 'number' } },
+};
 const NODE_BASE: Spec = { name: 'string', condition: opt({ object: CONDITION }), sideEffect: opt('boolean') };
 
 const NODE_SPECS: Record<string, Spec> = {
@@ -30,9 +34,10 @@ const NODE_SPECS: Record<string, Spec> = {
   },
   draw: {
     ...NODE_BASE, type: 'string', shader: { object: { code: 'string' } }, vertexEntry: opt('string'), fragmentEntry: opt('string'), bindings: { list: BINDING },
-    colorTargets: { list: { resource: 'string', loadOp: opt({ enum: ['clear', 'load'] }), clearValue: opt('number[]'), blend: opt({ enum: ['none', 'alpha', 'additive'] }), mip: opt('number'), layer: opt('number') } },
+    colorTargets: { list: { resource: 'string', loadOp: opt({ enum: ['clear', 'load'] }), clearValue: opt('number[]'), blend: opt({ enum: ['none', 'alpha', 'additive'] }), mip: opt('number'), layer: opt('number'), resolve: opt('string'), storeOp: opt({ enum: ['store', 'discard'] }) } },
     depthTarget: opt({ object: { resource: 'string', loadOp: opt({ enum: ['clear', 'load'] }), clearValue: opt('number'), compare: opt('string'), write: opt('boolean') } }),
-    vertexCount: SIZE_DIM, instanceCount: opt(SIZE_DIM), topology: opt('string'), cullMode: opt({ enum: ['none', 'front', 'back'] }),
+    vertexBuffers: opt({ list: VERTEX_BUFFER }), indexBuffer: opt({ object: { resource: 'string', format: opt({ enum: ['uint16', 'uint32'] }), offset: opt('number') } }), indexCount: opt(SIZE_DIM), baseVertex: opt(SIZE_DIM), indirect: opt({ object: { resource: 'string', offset: opt('number') } }),
+    vertexCount: opt(SIZE_DIM), instanceCount: opt(SIZE_DIM), topology: opt('string'), cullMode: opt({ enum: ['none', 'front', 'back'] }),
   },
   copy: { ...NODE_BASE, type: 'string', source: 'string', dest: 'string' },
   subgraph: {
@@ -46,6 +51,7 @@ const NODE_SPECS: Record<string, Spec> = {
 const TEXTURE_SPEC: Spec = {
   kind: 'string', name: 'string', visibility: opt({ enum: ['imported', 'internal', 'exported'] }), lifetime: opt({ enum: ['transient', 'persistent'] }), like: opt('string'), scale: opt('number'),
   dimension: opt({ enum: ['2d', '2d-array', '3d', 'cube'] }), format: opt('string'), size: opt('size[]'), mips: opt({ oneOf: ['number', { enum: ['full'] }], label: 'a count or "full"' }),
+  samples: opt('samples'),
 };
 const BUFFER_SPEC: Spec = {
   kind: 'string', name: 'string', visibility: opt({ enum: ['imported', 'internal', 'exported'] }), lifetime: opt({ enum: ['transient', 'persistent'] }), like: opt('string'), scale: opt('number'),
@@ -69,6 +75,7 @@ function check(value: unknown, rule: Rule, path: string): void {
         if (typeof value === 'number' && Number.isFinite(value)) return;
         if (isObject(value) && typeof value.variable === 'string') { checkKeys(value, { variable: 'string', scale: opt('number'), offset: opt('number') }, path); return; }
         return fail(path, 'expected a number or { variable, scale?, offset? }');
+      case 'samples': if (value !== 1 && value !== 4) fail(path, 'expected 1 or 4 (WebGPU sample counts)'); return;
       case 'string[]': if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) fail(path, 'expected an array of strings'); return;
       case 'number[]': if (!Array.isArray(value) || value.some((v) => typeof v !== 'number' || !Number.isFinite(v))) fail(path, 'expected an array of numbers'); return;
       case 'size[]': if (!Array.isArray(value)) fail(path, 'expected an array of sizes'); (value as unknown[]).forEach((v, i) => check(v, 'size', `${path}[${i}]`)); return;

@@ -16,9 +16,9 @@ export interface CompileOptions {
 }
 
 /** How a resource is used by the live nodes (decides the GPU usage flags it is created with). */
-export type ResourceUse = 'sampled' | 'storage' | 'render' | 'copy-src' | 'copy-dst' | 'indirect';
+export type ResourceUse = 'sampled' | 'storage' | 'render' | 'vertex' | 'index' | 'copy-src' | 'copy-dst' | 'indirect';
 
-export interface ResolvedTexture { kind: 'texture'; dimension: TextureDimension; format: GPUTextureFormat; size: [number, number, number]; mips: number; }
+export interface ResolvedTexture { kind: 'texture'; dimension: TextureDimension; format: GPUTextureFormat; size: [number, number, number]; mips: number; samples: number; }
 export interface ResolvedBuffer { kind: 'buffer'; element: string; stride: number; count: number; }
 export type Resolved = ResolvedTexture | ResolvedBuffer;
 
@@ -82,6 +82,13 @@ const STORAGE_FORMATS = new Set<string>([
   'rg32uint', 'rg32sint', 'rg32float', 'rgba32uint', 'rgba32sint', 'rgba32float',
 ]);
 const READ_WRITE_FORMATS = new Set<string>(['r32uint', 'r32sint', 'r32float']);
+/** Bytes of each vertex attribute format. */
+const VERTEX_FORMAT_BYTES: Record<string, number> = {
+  uint8x2: 2, uint8x4: 4, sint8x2: 2, sint8x4: 4, unorm8x2: 2, unorm8x4: 4, snorm8x2: 2, snorm8x4: 4,
+  uint16x2: 4, uint16x4: 8, sint16x2: 4, sint16x4: 8, unorm16x2: 4, unorm16x4: 8, snorm16x2: 4, snorm16x4: 8, float16x2: 4, float16x4: 8,
+  float32: 4, float32x2: 8, float32x3: 12, float32x4: 16, uint32: 4, uint32x2: 8, uint32x3: 12, uint32x4: 16, sint32: 4, sint32x2: 8, sint32x3: 12, sint32x4: 16,
+  'unorm10-10-10-2': 4, 'unorm8x4-bgra': 4,
+};
 const isDepthFormat = (f: string) => f.startsWith('depth') || f === 'stencil8';
 
 /** Bytes of one element of a WGSL scalar / vector / matrix type as it is laid out in a storage array, or undefined for other types. */
@@ -154,8 +161,13 @@ function resolveResources(graph: FlatGraph): Map<string, Resolved | null> {
           r = null;
         } else {
           if (size.some((v) => !Number.isInteger(v) || v < 1)) throw new TechniqueError(`${ctx}: size ${size.join('x')} is not valid (every extent must be at least 1)`);
-          const mips = decl.mips === 'full' ? Math.floor(Math.log2(Math.max(size[0], size[1]))) + 1 : decl.mips ?? base?.mips ?? 1;
-          r = { kind: 'texture', dimension, format, size, mips };
+          const samples = decl.samples ?? 1;
+          if (samples !== 1 && samples !== 4) throw new TechniqueError(`${ctx}: samples must be 1 or 4 (WebGPU), not ${samples}`);
+          if (samples > 1 && (dimension !== '2d' || size[2] !== 1)) throw new TechniqueError(`${ctx}: a multisampled texture must be a plain 2d texture`);
+          // a multisampled texture has exactly one mip; borrowing a mipped size source must not give it more
+          const mips = samples > 1 ? 1 : decl.mips === 'full' ? Math.floor(Math.log2(Math.max(size[0], size[1]))) + 1 : decl.mips ?? base?.mips ?? 1;
+          if (samples > 1 && decl.mips !== undefined && decl.mips !== 1) throw new TechniqueError(`${ctx}: a multisampled texture has one mip level`);
+          r = { kind: 'texture', dimension, format, size, mips, samples };
         }
       } else {
         const base = like as ResolvedBuffer | undefined;
@@ -181,7 +193,7 @@ function resolveResources(graph: FlatGraph): Map<string, Resolved | null> {
 export function resolvedBytes(r: Resolved | null): number {
   if (!r) return 0;
   if (r.kind === 'buffer') return r.stride * r.count;
-  return estimateTextureBytes(r.size[0], r.size[1], r.size[2], r.format, r.mips, r.dimension === '3d' ? '3d' : '2d');
+  return estimateTextureBytes(r.size[0], r.size[1], r.size[2], r.format, r.mips, r.dimension === '3d' ? '3d' : '2d') * r.samples;
 }
 
 /** Textures only: width / height of mip 0 (for dispatch-by-resource and render-target consistency checks). */
@@ -212,8 +224,10 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       if (names.has(wgsl)) throw new TechniqueError(`${ctx}: shader variable '${wgsl}' is bound twice`);
       names.add(wgsl);
       if (b.sampler && (kind !== 'texture' || b.access !== 'read')) throw new TechniqueError(`${ctx}: only sampled (read) textures can have a sampler ('${b.resource}')`);
+      if (b.sampler && ((resolved.get(b.resource) as ResolvedTexture | null)?.samples ?? 1) > 1) throw new TechniqueError(`${ctx}: multisampled texture '${b.resource}' cannot be filtered; read it with textureLoad (no sampler)`);
       if (kind === 'texture' && b.access !== 'read') {
         const r = resolved.get(b.resource) as ResolvedTexture | null;
+        if (r && r.samples > 1) throw new TechniqueError(`${ctx}: '${b.resource}' is multisampled and cannot be a storage texture`);
         const format = (decl(b.resource) as TextureDecl).format ?? r?.format;
         if (format && !STORAGE_FORMATS.has(format)) throw new TechniqueError(`${ctx}: ${format} cannot be bound for ${b.access} (storage textures: ${[...STORAGE_FORMATS].join(', ')})`);
         if (format && b.access === 'readwrite' && !READ_WRITE_FORMATS.has(format)) throw new TechniqueError(`${ctx}: ${format} supports 'write' but not 'readwrite' (only r32float / r32uint / r32sint do)`);
@@ -234,19 +248,80 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
     case 'draw': {
       if (!node.colorTargets.length && !node.depthTarget) throw new TechniqueError(`${ctx}: a draw needs at least one color or depth target`);
       let target: [number, number, number] | null = null;
+      let samples: number | null = null;
+      /** Every attachment of a pass has the same size and sample count. */
+      const attach = (name: string, r: ResolvedTexture | null) => {
+        if (!r) return;
+        if (target && (target[0] !== r.size[0] || target[1] !== r.size[1])) throw new TechniqueError(`${ctx}: targets differ in size (${target[0]}x${target[1]} and ${r.size[0]}x${r.size[1]})`);
+        target = r.size;
+        if (samples !== null && samples !== r.samples) throw new TechniqueError(`${ctx}: targets differ in sample count (${samples} and ${r.samples}; '${name}' has ${r.samples})`);
+        samples = r.samples;
+      };
       for (const t of node.colorTargets) {
         const d = decl(t.resource);
         if (d.kind !== 'texture') throw new TechniqueError(`${ctx}: color target '${t.resource}' must be a texture`);
         const r = resolved.get(t.resource) as ResolvedTexture | null;
         if (r && (isDepthFormat(r.format))) throw new TechniqueError(`${ctx}: '${t.resource}' is a depth format and cannot be a color target`);
-        if (r) { if (target && (target[0] !== r.size[0] || target[1] !== r.size[1])) throw new TechniqueError(`${ctx}: color targets differ in size (${target[0]}x${target[1]} and ${r.size[0]}x${r.size[1]})`); target = r.size; }
+        attach(t.resource, r);
+        if (t.resolve !== undefined) {
+          const rd = decl(t.resolve);
+          if (rd.kind !== 'texture') throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' must be a texture`);
+          if (t.resolve === t.resource) throw new TechniqueError(`${ctx}: '${t.resource}' cannot resolve into itself`);
+          const rr = resolved.get(t.resolve) as ResolvedTexture | null;
+          if (r && r.samples < 2) throw new TechniqueError(`${ctx}: '${t.resource}' resolves into '${t.resolve}' but is not multisampled (set samples: 4)`);
+          if (rr && rr.samples !== 1) throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' must be single-sample`);
+          if (r && rr && (r.format !== rr.format || r.size[0] !== rr.size[0] || r.size[1] !== rr.size[1])) throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' (${rr.format} ${rr.size[0]}x${rr.size[1]}) must match '${t.resource}' (${r.format} ${r.size[0]}x${r.size[1]})`);
+          add({ resource: t.resolve, read: false, write: true, usage: 'color' });
+        } else if (r && r.samples > 1 && t.storeOp === 'discard') {
+          throw new TechniqueError(`${ctx}: '${t.resource}' is multisampled and discarded without a resolve target; its result would be lost`);
+        }
         add({ resource: t.resource, read: t.loadOp === 'load' || (t.blend ?? 'none') !== 'none', write: true, usage: 'color' });
       }
       if (node.depthTarget) {
         const r = resolved.get(node.depthTarget.resource) as ResolvedTexture | null;
         if (decl(node.depthTarget.resource).kind !== 'texture' || (r && !isDepthFormat(r.format))) throw new TechniqueError(`${ctx}: depth target '${node.depthTarget.resource}' must be a texture with a depth format`);
+        attach(node.depthTarget.resource, r);
         add({ resource: node.depthTarget.resource, read: true, write: node.depthTarget.write !== false, usage: 'depth' });
       }
+      const locations = new Set<number>();
+      let perVertex: string | undefined;
+      for (const [i, v] of (node.vertexBuffers ?? []).entries()) {
+        const at = `vertexBuffers[${i}] ('${v.resource}')`;
+        if (decl(v.resource).kind !== 'buffer') throw new TechniqueError(`${ctx}: ${at} must be a buffer`);
+        const rb = resolved.get(v.resource) as ResolvedBuffer | null;
+        const stride = v.arrayStride ?? rb?.stride;
+        if (!v.attributes.length) throw new TechniqueError(`${ctx}: ${at} needs at least one attribute`);
+        if (stride !== undefined && (!Number.isInteger(stride) || stride < 4 || stride % 4)) throw new TechniqueError(`${ctx}: ${at}: arrayStride ${stride} must be a multiple of 4`);
+        if (v.offset !== undefined && (!Number.isInteger(v.offset) || v.offset < 0 || v.offset % 4)) throw new TechniqueError(`${ctx}: ${at}: offset ${v.offset} must be a multiple of 4`);
+        for (const a of v.attributes) {
+          const size = VERTEX_FORMAT_BYTES[a.format];
+          if (size === undefined) throw new TechniqueError(`${ctx}: ${at}: unknown vertex format '${a.format}'`);
+          if (!Number.isInteger(a.location) || a.location < 0 || a.location > 15) throw new TechniqueError(`${ctx}: ${at}: attribute location ${a.location} must be from 0 to 15`);
+          if (locations.has(a.location)) throw new TechniqueError(`${ctx}: ${at}: @location(${a.location}) is used by two attributes`);
+          locations.add(a.location);
+          if (!Number.isInteger(a.offset) || a.offset < 0 || a.offset % Math.min(4, size)) throw new TechniqueError(`${ctx}: ${at}: attribute offset ${a.offset} is not aligned for ${a.format}`);
+          if (stride !== undefined && a.offset + size > stride) throw new TechniqueError(`${ctx}: ${at}: ${a.format} at offset ${a.offset} does not fit in a ${stride}-byte element`);
+        }
+        if ((v.stepMode ?? 'vertex') === 'vertex') perVertex ??= v.resource;
+        add({ resource: v.resource, read: true, write: false, usage: 'vertex' });
+      }
+      if (node.indexBuffer) {
+        const ib = node.indexBuffer, at = `indexBuffer ('${ib.resource}')`;
+        if (decl(ib.resource).kind !== 'buffer') throw new TechniqueError(`${ctx}: ${at} must be a buffer`);
+        if (ib.format !== undefined && ib.format !== 'uint16' && ib.format !== 'uint32') throw new TechniqueError(`${ctx}: ${at}: format must be uint16 or uint32`);
+        const size = ib.format === 'uint16' ? 2 : 4;
+        if (ib.offset !== undefined && (!Number.isInteger(ib.offset) || ib.offset < 0 || ib.offset % size)) throw new TechniqueError(`${ctx}: ${at}: offset ${ib.offset} must be a multiple of ${size}`);
+        add({ resource: ib.resource, read: true, write: false, usage: 'index' });
+      } else if (node.indexCount !== undefined) throw new TechniqueError(`${ctx}: indexCount needs an indexBuffer`);
+      if (node.baseVertex !== undefined && !node.indexBuffer) throw new TechniqueError(`${ctx}: baseVertex needs an indexBuffer`);
+      if (node.indirect) {
+        const at = `indirect ('${node.indirect.resource}')`;
+        if (decl(node.indirect.resource).kind !== 'buffer') throw new TechniqueError(`${ctx}: ${at} must be a buffer`);
+        const off = node.indirect.offset;
+        if (off !== undefined && (!Number.isInteger(off) || off < 0 || off % 4)) throw new TechniqueError(`${ctx}: ${at}: offset ${off} must be a multiple of 4`);
+        for (const k of ['vertexCount', 'indexCount', 'instanceCount', 'baseVertex'] as const) if (node[k] !== undefined) throw new TechniqueError(`${ctx}: ${k} is set but the draw is indirect (the arguments come from '${node.indirect.resource}')`);
+        add({ resource: node.indirect.resource, read: true, write: false, usage: 'indirect' });
+      } else if (node.vertexCount === undefined && !perVertex && !node.indexBuffer) throw new TechniqueError(`${ctx}: set vertexCount (a draw without an index buffer or a per-vertex vertex buffer cannot tell how many vertices to draw)`);
       bindings(node.bindings);
       break;
     }
@@ -279,6 +354,8 @@ function usesOf(access: NodeAccess): ResourceUse[] {
     case 'sampled': return ['sampled'];
     case 'storage': return ['storage'];
     case 'color': case 'depth': return ['render'];
+    case 'vertex': return ['vertex'];
+    case 'index': return ['index'];
     case 'copy-src': return ['copy-src'];
     case 'copy-dst': return ['copy-dst'];
     case 'indirect': return ['indirect'];
@@ -372,7 +449,7 @@ export function compileFlat(graph: FlatGraph, options: CompileOptions = {}): Com
   };
   const keyOf = (plan: ResourcePlan) => {
     const r = plan.resolved!;
-    return r.kind === 'texture' ? `t|${r.dimension}|${r.format}|${r.size.join('x')}|${r.mips}` : `b|${r.stride * r.count}`;
+    return r.kind === 'texture' ? `t|${r.dimension}|${r.format}|${r.size.join('x')}|${r.mips}${r.samples > 1 ? `|x${r.samples}` : ''}` : `b|${r.stride * r.count}`;
   };
   const candidates = [...resources.values()].filter((p) => p.visibility !== 'imported' && p.first >= 0);
   let unaliased = 0;

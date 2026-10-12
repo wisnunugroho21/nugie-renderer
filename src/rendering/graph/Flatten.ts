@@ -216,9 +216,14 @@ function mapNode(node: Exclude<NodeDecl, SubGraphNode>, resource: Map<string, st
     case 'draw':
       return {
         ...node, bindings: mapBindings(node.bindings, resource, ctx),
-        colorTargets: node.colorTargets.map((t) => ({ ...t, resource: mapResource(resource, t.resource, ctx) })),
+        colorTargets: node.colorTargets.map((t) => ({ ...t, resource: mapResource(resource, t.resource, ctx), ...(t.resolve !== undefined ? { resolve: mapResource(resource, t.resolve, ctx) } : {}) })),
         ...(node.depthTarget ? { depthTarget: { ...node.depthTarget, resource: mapResource(resource, node.depthTarget.resource, ctx) } } : {}),
-        vertexCount: dim(node.vertexCount), ...(node.instanceCount !== undefined ? { instanceCount: dim(node.instanceCount) } : {}),
+        ...(node.vertexBuffers ? { vertexBuffers: node.vertexBuffers.map((v) => ({ ...v, resource: mapResource(resource, v.resource, ctx) })) } : {}),
+        ...(node.indexBuffer ? { indexBuffer: { ...node.indexBuffer, resource: mapResource(resource, node.indexBuffer.resource, ctx) } } : {}),
+        ...(node.indirect ? { indirect: { ...node.indirect, resource: mapResource(resource, node.indirect.resource, ctx) } } : {}),
+        ...(node.baseVertex !== undefined ? { baseVertex: dim(node.baseVertex) } : {}),
+        ...(node.indexCount !== undefined ? { indexCount: dim(node.indexCount) } : {}),
+        ...(node.vertexCount !== undefined ? { vertexCount: dim(node.vertexCount) } : {}), ...(node.instanceCount !== undefined ? { instanceCount: dim(node.instanceCount) } : {}),
       };
     case 'copy': return { ...node, source: mapResource(resource, node.source, ctx), dest: mapResource(resource, node.dest, ctx) };
     case 'callback': return { ...node, reads: (node.reads ?? []).map((r) => mapResource(resource, r, ctx)), writes: (node.writes ?? []).map((r) => mapResource(resource, r, ctx)) };

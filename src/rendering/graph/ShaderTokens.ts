@@ -90,6 +90,10 @@ function declare(slot: BindingSlot, plan: CompiledTechnique, node: ComputeNode |
   if (!format) throw new TechniqueError(`${ctx}: texture '${b.resource}' needs a format to be bound`);
   if (b.access === 'read') {
     const st = sampleTypeOf(format);
+    if ((r?.samples ?? decl.samples ?? 1) > 1) {
+      if (st === 'depth') return `${at} var ${slot.name}: texture_depth_multisampled_2d;`;
+      return `${at} var ${slot.name}: texture_multisampled_2d<${st === 'uint' ? 'u32' : st === 'sint' ? 'i32' : 'f32'}>;`;
+    }
     if (st === 'depth') return `${at} var ${slot.name}: texture_depth_${VIEW[dimension]};`;
     const scalar = st === 'uint' ? 'u32' : st === 'sint' ? 'i32' : 'f32';
     return `${at} var ${slot.name}: texture_${VIEW[dimension]}<${scalar}>;`;

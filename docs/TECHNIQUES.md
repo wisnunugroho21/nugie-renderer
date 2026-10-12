@@ -54,10 +54,10 @@ fx.setVariable('level', 0.75);
 | Call | Does |
 |---|---|
 | `g.int / uint / float / float4(name, value?, visibility?)` | declare a variable; returns a `VariableHandle` (`.times(k)`, `.plus(n)`, `.scaled(k, n)` make size entries; `.eq / ne / lt / le / gt / ge(v)` make conditions) |
-| `g.texture(name, { format, size, dimension, mips, like, scale, visibility, lifetime })` | declare a texture; `size` entries may be numbers or variable handles |
+| `g.texture(name, { format, size, dimension, mips, samples, like, scale, visibility, lifetime })` | declare a texture; `size` entries may be numbers or variable handles; `samples: 4` makes it an MSAA target |
 | `g.buffer(name, { element, stride, count, like, visibility, lifetime })` | declare a buffer |
 | `g.compute(name, { shader, reads, writes, readWrites, dispatch, workgroupSize, when, keep })` | compute dispatch; each list entry is a handle or `{ resource, name?, sampler? }` |
-| `g.draw(name, { shader, colorTargets, depthTarget, reads, vertices, instances, topology, ... })` | draw call |
+| `g.draw(name, { shader, colorTargets, depthTarget, vertexBuffers, reads, vertices, instances, topology, ... })` | draw call (see [Draw nodes](#draw-nodes-vertex-buffers-and-msaa)) |
 | `g.copy(name, from, to)` | copy |
 | `g.subgraph(name, builder \| technique \| 'registry-name', { inputs, outputs, variables, loop })` | sub-graph; `variables` values are a handle (bind to it) or a number / array (override); `loop` is a count or a handle |
 | `g.callback(name, { reads, writes, execute })` | engine code |
@@ -107,8 +107,10 @@ The builder and the JSON format are the same model: `g.build()` equals the parse
   `{ like: 'texture' }` or `{ indirect: 'buffer' }`. `workgroupSize` is read from `@workgroup_size(8, 8)` when it is plain numbers.
   `read` binds a sampled texture or read-only storage buffer, `write` / `readwrite` a storage texture or read-write storage buffer
   (`readwrite` textures must be `r32float` / `r32uint` / `r32sint`).
-* **draw**: `shader.code` with `vs_main` / `fs_main` (names configurable), `colorTargets` (`loadOp`, `clearValue`, `blend: 'alpha' | 'additive'`), optional `depthTarget`,
-  `vertexCount` (a number or variable), `instanceCount`, `topology`, `cullMode`, read-only `bindings`. Geometry is procedural or read from bound storage buffers.
+* **draw**: `shader.code` with `vs_main` / `fs_main` (names configurable), `colorTargets` (`loadOp`, `clearValue`, `blend: 'alpha' | 'additive'`, `resolve`, `storeOp`), optional `depthTarget`,
+  `vertexBuffers`, `vertexCount` (a number or variable), `instanceCount`, `topology`, `cullMode`, read-only `bindings`. Geometry is procedural, read from bound storage buffers,
+  or fed by vertex buffers; targets may be multisampled (see [Draw nodes](#draw-nodes-vertex-buffers-and-msaa)).
+* **texture `samples`**: `1` (default) or `4`, a 2D single-mip MSAA render target.
 * **copy**: `source` -> `dest`, same kind, format and size.
 * **subgraph**: `technique` (inline or a registry name), `inputs` / `outputs` map the sub-technique's imported / exported resources to this technique's,
   `variables` bind or override its variables, `loop` repeats it (a count or a variable's value; unrolled; a sub-technique variable named `loopIndex` gets the iteration).
@@ -118,6 +120,48 @@ The builder and the JSON format are the same model: `g.build()` equals the parse
 
 `parseTechnique(json)` checks the whole structure and names the first problem (`technique.nodes[2].bindings[0].access: expected one of ...`); unknown keys are errors.
 `techniqueToJSON` writes one back (callbacks cannot be stored).
+
+## Draw nodes: vertex buffers and MSAA
+
+**Vertex buffers.** A draw node's `vertexBuffers` bind buffer resources as vertex input, like Gigi's vertex / instance buffers. Each entry names the buffer, its attributes
+(the shader reads them with `@location(n)`) and optionally `stepMode` (`vertex`, the default, or `instance`), `arrayStride` (default: the buffer's declared `stride`) and `offset`.
+Because the buffer is an ordinary resource, a compute node can generate it (it is a `write` binding there, a `vertex` read here, and the compiler orders and keeps the work),
+or the host can import it (create it with `GPUBufferUsage.VERTEX`; `setImport` checks the flag).
+
+```ts
+const verts = g.buffer('verts', { element: 'f32', stride: 20, count: 3 });          // 3 vertices of (x, y, r, g, b)
+g.draw('tri', {
+  vertexBuffers: [{ resource: verts, attributes: [{ location: 0, format: 'float32x2', offset: 0 }, { location: 1, format: 'float32x3', offset: 8 }] }],
+  colorTargets: [screen],
+  shader: wgsl`@vertex fn vs_main(@location(0) p: vec2<f32>, @location(1) c: vec3<f32>) -> ...`,
+});                                                                                    // no `vertices`: all 3 elements are drawn
+```
+
+`vertexCount` may be left out when a per-vertex buffer is bound (every element of the first one is drawn); `instanceCount` defaults to the first `instance` buffer, else 1.
+The compiler checks attribute formats, alignment, fit inside the stride, unique `@location`s (0-15) and that the buffer is not also bound as a storage buffer in the same node.
+
+**Index buffers.** `indexBuffer: { resource, format?, offset? }` makes the draw indexed (`format` is `uint32` by default or `uint16`; `offset` is in bytes and a multiple of the index size).
+`indexCount` (builder: `indices`) defaults to every index after the offset; `vertexCount` is then not needed. Instances work as usual. Like vertex buffers, an index buffer is a
+normal resource: a compute node can fill it, or the host can import it (create it with `GPUBufferUsage.INDEX`). For strip topologies the pipeline gets the matching `stripIndexFormat`.
+
+**Base vertex and indirect draws.** `baseVertex` (a number or variable, may be negative; indexed draws only) is added to every index before the vertex fetch, so several meshes can share one vertex buffer.
+`indirect: { resource, offset? }` takes the draw arguments from a buffer instead: 4 x u32 (`vertexCount, instanceCount, firstVertex, firstInstance`), or 5 x u32 (`indexCount, instanceCount, firstIndex, baseVertex, firstInstance`)
+when `indexBuffer` is set. A compute node can write them (GPU culling), and the compiler orders it before the draw; an imported buffer needs `GPUBufferUsage.INDIRECT`. `vertexCount`, `indexCount`, `instanceCount` and `baseVertex` must be left out of an indirect draw.
+
+**MSAA targets.** Give a texture `samples: 4` (WebGPU supports 1 and 4; `like` borrows size and format, never the sample count) and use it as a color or depth target. All attachments of one
+draw must agree in size and sample count. To get a single-sample image, set the color target's `resolve` to a same-size, same-format, single-sample texture; the samples are averaged
+into it at the end of the pass. Add `storeOp: 'discard'` when the resolve is the only consumer so the multisampled samples never go back to memory.
+
+```ts
+const msaa = g.texture('msaa', { format: 'rgba8unorm', size: [w, h], samples: 4 });
+const image = g.texture('image', { like: msaa, visibility: 'exported' });
+g.draw('scene', { shader, vertexBuffers, colorTargets: [{ resource: msaa, resolve: image, storeOp: 'discard' }] });
+```
+
+A multisampled texture can also be read by later nodes, without a sampler, as `texture_multisampled_2d<f32>` (`texture_depth_multisampled_2d` for depth): `textureLoad(msaa, p, sampleIndex)`.
+It cannot be a storage texture. Memory accounting (`plan.stats.bytes`) counts all samples, and multisampled textures only alias with others of the same sample count.
+
+Self-tests: `/selftest.html` (an anti-aliased triangle from a compute-generated vertex buffer, per-instance data from the host, per-sample reads).
 
 ## Shader tokens
 

@@ -5,7 +5,7 @@ import { techniqueToJSON } from './TechniqueJSON';
 import {
   TechniqueError, type BindingAccess, type BindingDecl, type BufferDecl, type CallbackNode, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type NodeCondition,
   type NodeDecl, type ResourceLifetime, type ResourceVisibility, type SizeDim, type TextureDecl, type Technique, type TechniqueRegistry, type VariableDecl, type VariableType,
-  type VariableVisibility,
+  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding,
 } from './TechniqueTypes';
 
 /**
@@ -89,6 +89,8 @@ export type ResourceRef = ResourceHandle | string;
 
 export interface TextureOptions {
   format?: GPUTextureFormat;
+  /** MSAA sample count (1 or 4). Draw nodes render into it and resolve it with a color target's `resolve`. */
+  samples?: 1 | 4;
   size?: Dim[];
   dimension?: TextureDecl['dimension'];
   mips?: number | 'full';
@@ -130,14 +132,29 @@ export interface ComputeOptions extends NodeOptions {
   dispatch: { threads: Dim[] } | { like: ResourceRef } | { indirect: ResourceRef; offset?: number };
 }
 
+/** A vertex buffer of a draw: a buffer handle (attributes still needed) is written as `{ resource, attributes }`. */
+export type VertexBufferRef = Omit<VertexBufferBinding, 'resource'> & { resource: ResourceRef };
+
 export interface DrawOptions extends NodeOptions {
   shader: string;
   vertexEntry?: string;
   fragmentEntry?: string;
   reads?: BindingRef[];
-  colorTargets: (ResourceRef | (Omit<ColorTarget, 'resource'> & { resource: ResourceRef }))[];
+  /** A color target by handle, or with options; `resolve` names the single-sample texture an MSAA target is resolved into. */
+  colorTargets: (ResourceRef | (Omit<ColorTarget, 'resource' | 'resolve'> & { resource: ResourceRef; resolve?: ResourceRef }))[];
   depthTarget?: Omit<DepthTarget, 'resource'> & { resource: ResourceRef };
-  vertices: Dim;
+  /** Vertex input buffers (`{ resource, attributes: [{ location, format, offset }], stepMode?, arrayStride?, offset? }`). */
+  vertexBuffers?: VertexBufferRef[];
+  /** Makes the draw indexed (`format` defaults to `uint32`). */
+  indexBuffer?: Omit<IndexBufferBinding, 'resource'> & { resource: ResourceRef };
+  /** Indexed draws: added to every index (a constant or variable; may be negative). */
+  baseVertex?: Dim;
+  /** Draw arguments from a GPU buffer (4 x u32, or 5 x u32 when indexed); replaces `vertices`, `indices`, `instances` and `baseVertex`. */
+  indirect?: { resource: ResourceRef; offset?: number };
+  /** Indices to draw; defaults to every index in the buffer. */
+  indices?: Dim;
+  /** Vertices to draw; optional when a per-vertex vertex buffer supplies the count. */
+  vertices?: Dim;
   instances?: Dim;
   topology?: GPUPrimitiveTopology;
   cullMode?: GPUCullMode;
@@ -212,6 +229,7 @@ export class TechniqueBuilder {
     if (options.size) decl.size = options.size.map((d) => this.dim(d, `texture '${name}'`));
     if (options.dimension) decl.dimension = options.dimension;
     if (options.mips !== undefined) decl.mips = options.mips;
+    if (options.samples !== undefined) decl.samples = options.samples;
     this.common(decl, options, name);
     return this.addResource(decl) as TextureHandle;
   }
@@ -270,11 +288,18 @@ export class TechniqueBuilder {
     const list: BindingDecl[] = [];
     this.collect(list, o.reads, 'read', ctx);
     const node: DrawNode = {
-      type: 'draw', name, shader: { code: o.shader }, bindings: list, vertexCount: this.dim(o.vertices, ctx),
-      colorTargets: o.colorTargets.map((t) => (typeof t === 'string' || t instanceof ResourceHandle ? { resource: this.resource(t, ctx).name } : { ...t, resource: this.resource(t.resource, ctx).name })),
+      type: 'draw', name, shader: { code: o.shader }, bindings: list,
+      colorTargets: o.colorTargets.map((t) => (typeof t === 'string' || t instanceof ResourceHandle ? { resource: this.resource(t, ctx).name }
+        : (({ resolve, ...rest }) => ({ ...rest, resource: this.resource(t.resource, ctx).name, ...(resolve !== undefined ? { resolve: this.resource(resolve, ctx).name } : {}) }))(t))),
       ...this.base(o, ctx),
     };
     if (o.depthTarget) node.depthTarget = { ...o.depthTarget, resource: this.resource(o.depthTarget.resource, ctx).name };
+    if (o.vertices !== undefined) node.vertexCount = this.dim(o.vertices, ctx);
+    if (o.vertexBuffers) node.vertexBuffers = o.vertexBuffers.map((v) => ({ ...v, resource: this.resource(v.resource, ctx).name }));
+    if (o.indexBuffer) node.indexBuffer = { ...o.indexBuffer, resource: this.resource(o.indexBuffer.resource, ctx).name };
+    if (o.baseVertex !== undefined) node.baseVertex = this.dim(o.baseVertex, ctx);
+    if (o.indirect) node.indirect = { ...o.indirect, resource: this.resource(o.indirect.resource, ctx).name };
+    if (o.indices !== undefined) node.indexCount = this.dim(o.indices, ctx);
     if (o.instances !== undefined) node.instanceCount = this.dim(o.instances, ctx);
     if (o.vertexEntry) node.vertexEntry = o.vertexEntry;
     if (o.fragmentEntry) node.fragmentEntry = o.fragmentEntry;

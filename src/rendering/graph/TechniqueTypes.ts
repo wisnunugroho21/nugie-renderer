@@ -64,6 +64,11 @@ export interface TextureDecl extends ResourceBase {
   size?: SizeDim[];
   /** Mip levels: a count or `'full'`. Default 1. */
   mips?: number | 'full';
+  /**
+   * MSAA sample count: 1 (default) or 4. A multisampled texture is a 2D, single-mip render target: draw nodes render into it (and `resolve` it into a
+   * single-sample texture), shaders read it with `textureLoad(tex, p, sampleIndex)`. It cannot be a storage texture. `like` borrows size and format, never the sample count.
+   */
+  samples?: 1 | 4;
 }
 
 export interface BufferDecl extends ResourceBase {
@@ -126,6 +131,13 @@ export interface ColorTarget {
   blend?: 'none' | 'alpha' | 'additive';
   mip?: number;
   layer?: number;
+  /**
+   * MSAA targets: a single-sample texture (same size and format) the samples are averaged into when the pass ends.
+   * Written at mip 0, layer 0.
+   */
+  resolve?: string;
+  /** `discard` skips writing the multisampled samples back to memory; use it when `resolve` is the only consumer. Default `store`. */
+  storeOp?: 'store' | 'discard';
 }
 
 export interface DepthTarget {
@@ -136,16 +148,64 @@ export interface DepthTarget {
   write?: boolean;
 }
 
+/** One attribute of a vertex buffer: the shader reads it with `@location(location)`. */
+export interface VertexAttribute {
+  location: number;
+  format: GPUVertexFormat;
+  /** Byte offset inside one element. */
+  offset: number;
+}
+
+/** A buffer resource bound as vertex input of a draw node. */
+export interface VertexBufferBinding {
+  resource: string;
+  /** `vertex`: one element per vertex (default). `instance`: one element per instance. */
+  stepMode?: GPUVertexStepMode;
+  /** Bytes between elements. Defaults to the buffer's element size (`stride`). */
+  arrayStride?: number;
+  /** Byte offset of the first element inside the buffer. Default 0. */
+  offset?: number;
+  attributes: VertexAttribute[];
+}
+
+/** A buffer resource bound as the index buffer of a draw node (the draw becomes indexed). */
+export interface IndexBufferBinding {
+  resource: string;
+  /** Index width: `uint32` (default) or `uint16`. The buffer holds tightly packed indices of this width. */
+  format?: GPUIndexFormat;
+  /** Byte offset of the first index; a multiple of the index size. Default 0. */
+  offset?: number;
+}
+
 export interface DrawNode extends NodeBase {
   type: 'draw';
-  /** One WGSL module with both entry points. Geometry is procedural (`@builtin(vertex_index)`) or read from bound storage buffers. */
+  /** One WGSL module with both entry points. Geometry is procedural (`@builtin(vertex_index)`), read from bound storage buffers, or fed by `vertexBuffers`. */
   shader: ShaderSource;
   vertexEntry?: string;
   fragmentEntry?: string;
   bindings: BindingDecl[];
   colorTargets: ColorTarget[];
   depthTarget?: DepthTarget;
-  vertexCount: SizeDim;
+  /** Vertex input. The buffers are read-only for the node (they may be written by an earlier compute node or the host). Attribute locations must be unique across all buffers. */
+  vertexBuffers?: VertexBufferBinding[];
+  /** Makes the draw indexed. The buffer is read-only for the node (a compute node or the host can fill it). */
+  indexBuffer?: IndexBufferBinding;
+  /** Indices to draw when `indexBuffer` is set. Defaults to every index in the buffer after `offset`. */
+  indexCount?: SizeDim;
+  /**
+   * Vertices to draw. Optional when a `vertex` step-mode buffer is bound: then every element of the first one is drawn.
+   * Required for procedural geometry; ignored by indexed draws (use `indexCount`).
+   */
+  vertexCount?: SizeDim;
+  /** Indexed draws: added to every index before the vertex fetch (a variable or constant; may be negative). Default 0. */
+  baseVertex?: SizeDim;
+  /**
+   * Take the draw arguments from a GPU buffer (written by a compute node, e.g. after culling): 4 x u32 (`vertexCount, instanceCount, firstVertex, firstInstance`),
+   * or 5 x u32 (`indexCount, instanceCount, firstIndex, baseVertex, firstInstance`) when `indexBuffer` is set. Replaces
+   * `vertexCount`, `indexCount`, `instanceCount` and `baseVertex`, which must then be left out.
+   */
+  indirect?: { resource: string; offset?: number };
+  /** Instances to draw. Defaults to every element of the first `instance` step-mode buffer, or 1. */
   instanceCount?: SizeDim;
   topology?: GPUPrimitiveTopology;
   cullMode?: GPUCullMode;

@@ -95,6 +95,22 @@ describe('TechniqueBuilder', () => {
     expect(g.build().nodes).toHaveLength(1);
   });
 
+  it('draw nodes take vertex buffers and MSAA targets with handles', () => {
+    const g = technique('msaa');
+    const verts = g.buffer('verts', { element: 'vec4<f32>', count: 6, visibility: 'imported' });
+    const msaa = g.texture('msaa', { format: 'rgba8unorm', size: [32, 32], samples: 4 });
+    const out = g.texture('out', { like: msaa, visibility: 'exported' });
+    g.draw('tri', { shader: '', vertexBuffers: [{ resource: verts, attributes: [{ location: 0, format: 'float32x4', offset: 0 }] }], colorTargets: [{ resource: msaa, resolve: out, storeOp: 'discard' }] });
+    const t = g.build();
+    expect(t.resources![1]).toMatchObject({ samples: 4 });
+    expect(t.nodes[0]).toMatchObject({ vertexBuffers: [{ resource: 'verts' }], colorTargets: [{ resource: 'msaa', resolve: 'out', storeOp: 'discard' }] });
+    expect('vertexCount' in t.nodes[0]).toBe(false);
+    expect(() => g.compile()).not.toThrow();
+    const h = technique('x');
+    h.texture('a', { format: 'rgba8unorm', size: [4, 4] });
+    expect(() => h.draw('d', { shader: '', colorTargets: ['a'], vertexBuffers: [{ resource: 'ghost', attributes: [] }] })).toThrow(/ghost/);
+  });
+
   it('draw and callback nodes keep their options', () => {
     const g = technique('t');
     const rt = g.texture('rt', { format: 'rgba8unorm', size: [8, 8], visibility: 'exported' }), depth = g.texture('depth', { format: 'depth32float', size: [8, 8] });
