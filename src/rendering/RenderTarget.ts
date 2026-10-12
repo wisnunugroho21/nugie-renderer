@@ -1,3 +1,4 @@
+import { readTexture } from './graph/Readback';
 import type { GPUContext } from '../gpu/GPUContext';
 import { DEPTH_FORMAT } from './formats';
 import type { TextureRef } from './materials/Material';
@@ -71,20 +72,10 @@ export class RenderTarget {
 
   /** Read the colour back as linear RGBA floats (row 0 = top). Slow (waits for the GPU): for tests, debugging and CPU-side analysis. */
   async readPixels(): Promise<Float32Array> {
-    const { device } = this.gpu;
-    const bpr = Math.ceil(this.width * 8 / 256) * 256;
-    const buf = device.createBuffer({ label: `${this.label}-readback`, size: bpr * this.height, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder();
-    enc.copyTextureToBuffer({ texture: this.texture }, { buffer: buf, bytesPerRow: bpr }, [this.width, this.height]);
-    device.queue.submit([enc.finish()]);
-    await buf.mapAsync(GPUMapMode.READ);
-    const halves = new Uint16Array(buf.getMappedRange().slice(0));
-    buf.unmap(); buf.destroy();
-    const out = new Float32Array(this.width * this.height * 4);
-    const rowHalves = bpr / 2;
-    for (let y = 0; y < this.height; y++) {
-      for (let i = 0; i < this.width * 4; i++) out[y * this.width * 4 + i] = halfToFloat(halves[y * rowHalves + i]);
-    }
+    const bytes = await readTexture(this.gpu.device, this.texture, 0, this.width, this.height);
+    const halves = new Uint16Array(bytes.buffer, bytes.byteOffset, this.width * this.height * 4);
+    const out = new Float32Array(halves.length);
+    for (let i = 0; i < halves.length; i++) out[i] = halfToFloat(halves[i]);
     return out;
   }
 

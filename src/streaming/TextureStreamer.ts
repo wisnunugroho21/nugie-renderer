@@ -1,3 +1,4 @@
+import { runOnce } from '../rendering/graph/OneShot';
 import type { GPUContext } from '../gpu/GPUContext';
 import { mipLevelCount } from '../gpu/TextureManager';
 import type { TextureRef } from '../rendering/materials/Material';
@@ -65,23 +66,31 @@ export class TextureStreamer {
 
   /** (Re)create the GPU texture so that mips [base, mipCount) are resident; `oldBase` = the base of the existing texture. */
   private realise(t: StreamedTexture, base: number, oldBase: number | null): void {
-    const { device, queue, resources } = this.gpu;
+    const { queue, resources } = this.gpu;
     const mips = t.mips, count = mips.length, w = mips[base].width, h = mips[base].height;
     const tex = resources.textures.create({
       label: `${t.id}@${base}`, size: [w, h], format: t.format, mipLevelCount: count - base,
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
     });
-    const enc = oldBase !== null ? device.createCommandEncoder({ label: 'stream-copy' }) : null;
+    const shared: { from: number; to: number; w: number; h: number }[] = [];
     for (let l = base; l < count; l++) {
       const m = mips[l];
       if (oldBase !== null && l >= oldBase) {
-        enc!.copyTextureToTexture({ texture: t.gpuTexture, mipLevel: l - oldBase }, { texture: tex, mipLevel: l - base }, [m.width, m.height]);
+        shared.push({ from: l - oldBase, to: l - base, w: m.width, h: m.height });
       } else {
         queue.writeTexture({ texture: tex, mipLevel: l - base }, m.data as Uint8Array<ArrayBuffer>, { bytesPerRow: m.width * 4 }, [m.width, m.height]);
         this.stats.uploadedBytes += mipBytes(t.entry, l);
       }
     }
-    if (enc) queue.submit([enc.finish()]);
+    // the mips both textures hold are copied on the GPU: one copy node per level of a one-shot technique
+    if (shared.length) {
+      const old = t.gpuTexture;
+      runOnce(this.gpu, 'stream-copy', (g) => {
+        const src = g.texture('old', { format: t.format, size: [old.width, old.height], mips: old.mipLevelCount, visibility: 'imported' });
+        const dst = g.texture('new', { format: t.format, size: [tex.width, tex.height], mips: tex.mipLevelCount, visibility: 'imported' });
+        for (const c of shared) g.copy(`mip-${c.to}`, src, dst, { from: { mip: c.from }, to: { mip: c.to }, size: [c.w, c.h] });
+      }, { old, new: tex });
+    }
     if (t.gpuTexture) resources.textures.destroy(t.gpuTexture);
     t.gpuTexture = tex;
     t.currentView = tex.createView();

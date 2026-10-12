@@ -1,6 +1,5 @@
-import type { GPUContext } from '../../gpu/GPUContext';
 import { technique, type TechniqueBuilder } from './TechniqueBuilder';
-import type { TechniqueInstance, TechniqueInstanceOptions } from './TechniqueInstance';
+import type { TechniqueHost, TechniqueInstance, TechniqueInstanceOptions } from './TechniqueInstance';
 
 /**
  * A technique that is rebuilt only when its `key` changes: the way a pass whose resources depend on the frame (target size, sample count, the set of active
@@ -10,7 +9,7 @@ export class CachedTechnique {
   private key: string | null = null;
   private instance: TechniqueInstance | null = null;
 
-  constructor(private gpu: GPUContext, private name: string, private options: TechniqueInstanceOptions = {}) {}
+  constructor(private gpu: TechniqueHost, private name: string, private options: TechniqueInstanceOptions = {}) {}
 
   /** The instance for `key`; `build` declares its resources and nodes on a fresh builder when the key is new. */
   get(key: string, build: (g: TechniqueBuilder) => void): TechniqueInstance {

@@ -1,4 +1,5 @@
 import type { BufferManager } from './BufferManager';
+import { deviceHost, runOnce } from '../rendering/graph/OneShot';
 
 /**
  * Append-only GPU buffer arena addressed in ELEMENTS. Growth reallocates and copies on the GPU
@@ -90,9 +91,9 @@ export class Arena {
     }
     this.buffer = this.make();
     if (oldBytes > 0) {
-      const enc = this.device.createCommandEncoder({ label: `${this.label}-grow` });
-      enc.copyBufferToBuffer(old, 0, this.buffer, 0, oldBytes);
-      this.device.queue.submit([enc.finish()]);
+      runOnce(deviceHost(this.device), `${this.label}-grow`, (g) => {
+        g.copy('copy-old-contents', g.importedBuffer('old', 'u32'), g.importedBuffer('grown', 'u32'), { size: [oldBytes] });
+      }, { old, grown: this.buffer });
     }
     this.buffers.destroy(old);
     this.generation++;

@@ -1,10 +1,22 @@
-import type { GPUContext } from '../../gpu/GPUContext';
+import type { GPUResources } from '../../gpu/GPUResources';
 import type { PassDesc } from '../RenderGraph';
+import { bytesPerTexel } from '../../gpu/TextureManager';
 import { bufferStride, compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
 import type { VariableValue } from './Flatten';
 import { TrackedRenderPass } from './TrackedRenderPass';
 import { expandShader, sampleTypeOf, writeUniform, type ExpandedShader } from './ShaderTokens';
-import { TechniqueError, type BindingDecl, type BufferDecl, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type RenderPassNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
+import { TechniqueError, type BindingDecl, type BufferDecl, type ClearNode, type ColorTarget, type CopyEnd, type CopyNode, type ComputeNode, type DepthTarget, type DrawNode, type RenderPassNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
+
+/**
+ * What a technique instance needs from the engine. A `GPUContext` is one; code that only has a device (an allocator, the profiler) can pass
+ * `{ device, queue: device.queue }` for techniques made of copy / clear nodes and imported resources, which own no GPU objects and need no resource managers.
+ */
+export interface TechniqueHost {
+  readonly device: GPUDevice;
+  readonly queue: GPUQueue;
+  /** The resource managers; required when the technique creates textures, buffers or shaders of its own. */
+  readonly resources?: GPUResources;
+}
 
 export interface TechniqueInstanceOptions extends CompileOptions {
   /** Host resources for the technique's `imported` resources. They can also be attached (or replaced) later with `setImport`. */
@@ -23,6 +35,14 @@ export interface ExecuteOptions {
 
 type Physical = GPUTexture | GPUBuffer;
 const isTexture = (r: Physical): r is GPUTexture => 'createView' in r;
+
+/** Rows of a texture-to-buffer copy are padded to 256 bytes. */
+const alignRow = (bytes: number): number => Math.ceil(bytes / 256) * 256;
+
+/** Size of one mip of a texture (3D textures shrink in depth too, arrays keep their layers). */
+function mipSize(tex: GPUTexture, mip: number): [number, number, number] {
+  return [Math.max(1, tex.width >> mip), Math.max(1, tex.height >> mip), tex.dimension === '3d' ? Math.max(1, tex.depthOrArrayLayers >> mip) : tex.depthOrArrayLayers];
+}
 
 /** Whether two variable values are equal (numbers, or equal-length number arrays). */
 function sameValue(a: VariableValue, b: VariableValue): boolean {
@@ -114,17 +134,24 @@ export class TechniqueInstance {
   compileCount = 0;
   private listeners = new Set<(names: string[]) => void>();
 
-  private constructor(readonly gpu: GPUContext, readonly technique: Technique, private options: TechniqueInstanceOptions) {
+  private constructor(readonly gpu: TechniqueHost, readonly technique: Technique, private options: TechniqueInstanceOptions) {
     this.declarations = new Map((technique.variables ?? []).map((v) => [v.name, v]));
   }
 
   /** Compile `technique` and create its GPU resources. Throws a {@link TechniqueError} if it is invalid. */
-  static create(gpu: GPUContext, technique: Technique, options: TechniqueInstanceOptions = {}): TechniqueInstance {
+  static create(gpu: TechniqueHost, technique: Technique, options: TechniqueInstanceOptions = {}): TechniqueInstance {
     const instance = new TechniqueInstance(gpu, technique, options);
     for (const [name, resource] of Object.entries(options.imports ?? {})) instance.imports.set(name, resource);
     for (const [name, value] of Object.entries(options.values ?? {})) instance.values.set(name, value);
     instance.build();
     return instance;
+  }
+
+  /** The resource managers, for techniques that own resources / shaders (a bare device host has none). */
+  private get resources(): GPUResources {
+    const r = this.gpu.resources;
+    if (!r) throw new TechniqueError(`technique '${this.technique.name}' creates resources or shaders of its own, so it needs a GPUContext (a device-only host can run copy / clear nodes on imported resources)`);
+    return r;
   }
 
   /** The current plan: execution order, lifetimes, memory slots, diagnostics, statistics. */
@@ -258,17 +285,17 @@ export class TechniqueInstance {
         // multisampled textures are render targets that cannot be storage textures (the compiler rejects storage use)
         const flags = textureUsage(slot.uses) | (r.samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
         if (old && isTexture(old) && (old.usage & flags) === flags) { next.set(slot.key, old); continue; }
-        next.set(slot.key, this.gpu.resources.textures.create({
+        next.set(slot.key, this.resources.textures.create({
           label, size: r.dimension === '3d' ? { width: r.size[0], height: r.size[1], depthOrArrayLayers: r.size[2] } : [r.size[0], r.size[1], r.dimension === '2d' ? 1 : r.size[2]],
           dimension: r.dimension === '3d' ? '3d' : '2d', format: r.format, mipLevelCount: r.mips, sampleCount: r.samples, usage: flags | (flags === 0 ? GPUTextureUsage.TEXTURE_BINDING : 0),
         }));
       } else if (plan.resolved?.kind === 'buffer') {
         const flags = bufferUsage(slot.uses);
         if (old && !isTexture(old) && (old.usage & flags) === flags && old.size >= slot.bytes) { next.set(slot.key, old); continue; }
-        next.set(slot.key, this.gpu.resources.buffers.create(label, Math.max(4, slot.bytes), flags | (flags === 0 ? GPUBufferUsage.STORAGE : 0)));
+        next.set(slot.key, this.resources.buffers.create(label, Math.max(4, slot.bytes), flags | (flags === 0 ? GPUBufferUsage.STORAGE : 0)));
       }
     }
-    for (const [key, old] of this.allocations) if (next.get(key) !== old) { if (isTexture(old)) this.gpu.resources.textures.destroy(old); else this.gpu.resources.buffers.destroy(old); }
+    for (const [key, old] of this.allocations) if (next.get(key) !== old) { if (isTexture(old)) this.resources.textures.destroy(old); else this.resources.buffers.destroy(old); }
     this.allocations = next;
     for (const [name, resource] of this.imports) { const plan = this.compiled.resources.get(name); if (plan?.visibility === 'imported') this.checkImport(plan, resource); }
     // per-step pipelines and uniforms
@@ -360,7 +387,7 @@ export class TechniqueInstance {
     const layout = device.createPipelineLayout({ bindGroupLayouts: layouts });
     // the code names every @group / @binding; what it cannot show is which bindings take a dynamic offset
     const groupsKey = `${rt.shader.slots.map((s) => `${s.group}.${s.binding}${s.decl?.dynamicOffset ? 'd' : ''}`).join(',')}|${rt.hostGroups.map((h) => `${h.group}=${h.layout}`).join(',')}`;
-    const module = this.gpu.resources.shaders.get(`technique:${rt.shader.code}`, rt.shader.code);
+    const module = this.resources.shaders.get(`technique:${rt.shader.code}`, rt.shader.code);
     if (node.type === 'compute') {
       const wg = node.workgroupSize ?? WORKGROUP.exec(node.shader.code)?.slice(1).map((v) => (v ? Number(v) : 1));
       if (!wg) throw new TechniqueError(`${ctx}: set workgroupSize (the shader's @workgroup_size is not a plain number)`);
@@ -438,7 +465,7 @@ export class TechniqueInstance {
     const entries = rt.shader.slots.map((slot): GPUBindGroupEntry => {
       if (slot.kind === 'variables') return { binding: slot.binding, resource: { buffer: rt.uniform! } };
       const b = slot.decl as BindingDecl;
-      if (slot.kind === 'sampler') return { binding: slot.binding, resource: this.gpu.resources.samplers.get({ magFilter: b.sampler, minFilter: b.sampler, mipmapFilter: b.sampler, addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }) };
+      if (slot.kind === 'sampler') return { binding: slot.binding, resource: this.resources.samplers.get({ magFilter: b.sampler, minFilter: b.sampler, mipmapFilter: b.sampler, addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }) };
       const res = this.physical(b.resource, ctx);
       const plan = this.compiled.resources.get(b.resource)!;
       if (!isTexture(res)) {
@@ -473,7 +500,8 @@ export class TechniqueInstance {
       switch (node.type) {
         case 'compute': this.runCompute(encoder, node, rt, options.timestampWrites?.(node.path) as GPUComputePassTimestampWrites | undefined); break;
         case 'draw': this.runDraw(encoder, node, rt, options.timestampWrites?.(node.path) as GPURenderPassTimestampWrites | undefined); break;
-        case 'copy': this.runCopy(encoder, node.path, node.source, node.dest); break;
+        case 'copy': this.runCopy(encoder, node); break;
+        case 'clear': this.runClear(encoder, node); break;
         case 'render': this.runRenderPass(encoder, node, options.timestampWrites?.(node.path) as GPURenderPassTimestampWrites | undefined); break;
         case 'callback': node.execute(encoder); break;
       }
@@ -572,11 +600,44 @@ export class TechniqueInstance {
     pass.end();
   }
 
-  private runCopy(encoder: GPUCommandEncoder, path: string, source: string, dest: string): void {
-    const ctx = `node '${path}'`, from = this.physical(source, ctx), to = this.physical(dest, ctx);
+  /** A copy node: texture / buffer to texture / buffer, the regions, mips and layers it names (or everything the two have in common). */
+  private runCopy(encoder: GPUCommandEncoder, node: CopyNode & { path: string }): void {
+    const ctx = `node '${node.path}'`, from = this.physical(node.source, ctx), to = this.physical(node.dest, ctx);
+    const f = node.from ?? {}, t = node.to ?? {};
+    const whole = !node.from && !node.to && !node.size;
+    const given = node.size?.map((d) => evalDim(d, this.compiled.variables, ctx));
+    const origin = (e: CopyEnd): GPUOrigin3DDict => ({ x: e.origin?.[0] ?? 0, y: e.origin?.[1] ?? 0, z: e.origin?.[2] ?? 0 });
+    /** The part of the texture's mip that lies after `e.origin`: the default extent. */
+    const rest = (tex: GPUTexture, e: CopyEnd): [number, number, number] => {
+      const m = mipSize(tex, e.mip ?? 0), o = origin(e);
+      return [m[0] - o.x!, m[1] - o.y!, m[2] - o.z!];
+    };
+    const extentOf = (...parts: [number, number, number][]): [number, number, number] => {
+      const e: [number, number, number] = [given?.[0] ?? Math.min(...parts.map((p) => p[0])), given?.[1] ?? (given ? 1 : Math.min(...parts.map((p) => p[1]))), given?.[2] ?? (given ? 1 : Math.min(...parts.map((p) => p[2])))];
+      return e;
+    };
     if (isTexture(from) && isTexture(to)) {
-      encoder.copyTextureToTexture({ texture: from }, { texture: to }, [Math.min(from.width, to.width), Math.min(from.height, to.height), Math.min(from.depthOrArrayLayers, to.depthOrArrayLayers)]);
-    } else if (!isTexture(from) && !isTexture(to)) encoder.copyBufferToBuffer(from, 0, to, 0, Math.min(from.size, to.size));
+      const extent = whole ? ([Math.min(from.width, to.width), Math.min(from.height, to.height), Math.min(from.depthOrArrayLayers, to.depthOrArrayLayers)] as [number, number, number]) : extentOf(rest(from, f), rest(to, t));
+      encoder.copyTextureToTexture({ texture: from, mipLevel: f.mip ?? 0, origin: origin(f) }, { texture: to, mipLevel: t.mip ?? 0, origin: origin(t) }, extent);
+    } else if (!isTexture(from) && !isTexture(to)) {
+      const bytes = given?.[0] ?? Math.min(from.size - (f.offset ?? 0), to.size - (t.offset ?? 0));
+      encoder.copyBufferToBuffer(from, f.offset ?? 0, to, t.offset ?? 0, bytes);
+    } else if (isTexture(from)) {
+      const buffer = to as GPUBuffer, extent = extentOf(rest(from, f));
+      const bytesPerRow = t.bytesPerRow ?? alignRow(extent[0] * (bytesPerTexel(from.format) ?? 0));
+      encoder.copyTextureToBuffer({ texture: from, mipLevel: f.mip ?? 0, origin: origin(f) }, { buffer, offset: t.offset ?? 0, bytesPerRow, rowsPerImage: t.rowsPerImage ?? extent[1] }, extent);
+    } else {
+      const buffer = from as GPUBuffer, tex = to as GPUTexture, extent = extentOf(rest(tex, t));
+      const bytesPerRow = f.bytesPerRow ?? alignRow(extent[0] * (bytesPerTexel(tex.format) ?? 0));
+      encoder.copyBufferToTexture({ buffer, offset: f.offset ?? 0, bytesPerRow, rowsPerImage: f.rowsPerImage ?? extent[1] }, { texture: tex, mipLevel: t.mip ?? 0, origin: origin(t) }, extent);
+    }
+  }
+
+  /** A clear node: zero a range of a buffer. */
+  private runClear(encoder: GPUCommandEncoder, node: ClearNode & { path: string }): void {
+    const ctx = `node '${node.path}'`, buffer = this.physical(node.resource, ctx) as GPUBuffer;
+    const offset = node.offset ?? 0, size = node.size === undefined ? buffer.size - offset : evalDim(node.size, this.compiled.variables, ctx);
+    encoder.clearBuffer(buffer, offset, size);
   }
 
   /** This technique as a pass of a `RenderGraph`; `reads` / `writes` are the graph's logical names for what the technique consumes and produces. */
@@ -586,7 +647,7 @@ export class TechniqueInstance {
 
   /** Free every GPU object the instance created (imported resources are the host's and stay). */
   dispose(): void {
-    for (const r of this.allocations.values()) { if (isTexture(r)) this.gpu.resources.textures.destroy(r); else this.gpu.resources.buffers.destroy(r); }
+    for (const r of this.allocations.values()) { if (isTexture(r)) this.resources.textures.destroy(r); else this.resources.buffers.destroy(r); }
     this.allocations.clear();
     for (const rt of this.runtimes.values()) rt.uniform?.destroy();
     this.runtimes.clear();

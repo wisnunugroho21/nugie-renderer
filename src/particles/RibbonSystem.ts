@@ -1,3 +1,4 @@
+import { readBuffer } from '../rendering/graph/Readback';
 import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
 import type { RenderGraph } from '../rendering/RenderGraph';
@@ -247,15 +248,10 @@ export class RibbonSystem implements RenderFeature {
   /** DEBUG ONLY: read back descriptors (state) and segments of one ribbon. */
   async readRibbon(id: number): Promise<{ head: number; count: number; points: Float32Array }> {
     const { device } = this.gpu;
-    const rb = device.createBuffer({ size: RIBBON_DESC_FLOATS * 4 + this.N * SEGMENT_FLOATS * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder();
-    enc.copyBufferToBuffer(this.descBuf, id * RIBBON_DESC_FLOATS * 4, rb, 0, RIBBON_DESC_FLOATS * 4);
-    enc.copyBufferToBuffer(this.segmentBuf, id * this.N * SEGMENT_FLOATS * 4, rb, RIBBON_DESC_FLOATS * 4, this.N * SEGMENT_FLOATS * 4);
-    device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const all = rb.getMappedRange().slice(0); rb.unmap(); rb.destroy();
-    const u = new Uint32Array(all, 0, RIBBON_DESC_FLOATS);
-    return { head: u[20], count: u[21], points: new Float32Array(all, RIBBON_DESC_FLOATS * 4) };
+    const desc = await readBuffer(device, this.descBuf, RIBBON_DESC_FLOATS * 4, id * RIBBON_DESC_FLOATS * 4);
+    const points = await readBuffer(device, this.segmentBuf, this.N * SEGMENT_FLOATS * 4, id * this.N * SEGMENT_FLOATS * 4);
+    const u = new Uint32Array(desc, 0, RIBBON_DESC_FLOATS);
+    return { head: u[20], count: u[21], points: new Float32Array(points) };
   }
 }
 

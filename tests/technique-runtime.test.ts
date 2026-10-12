@@ -300,6 +300,98 @@ describe('TechniqueInstance runtime', () => {
     });
   });
 
+  describe('copy and clear nodes', () => {
+    /** An encoder that logs the copy / clear commands that reach it. */
+    const copyEncoder = () => {
+      const calls: unknown[][] = [];
+      const log = (name: string) => (...args: unknown[]) => { calls.push([name, ...args]); };
+      const encoder = { copyBufferToBuffer: log('buffer->buffer'), copyTextureToTexture: log('texture->texture'), copyTextureToBuffer: log('texture->buffer'), copyBufferToTexture: log('buffer->texture'), clearBuffer: log('clear') } as unknown as GPUCommandEncoder;
+      return { encoder, calls };
+    };
+    const texture = (label: string, extra: Entry = {}) => ({ label, usage: 1 | 2 | 4, format: 'rgba8unorm', width: 16, height: 16, depthOrArrayLayers: 1, dimension: '2d', sampleCount: 1, mipLevelCount: 3, destroy() {}, createView: () => ({}), ...extra }) as unknown as GPUTexture;
+    const buf = (size: number, usage = 4 | 8) => ({ size, usage, destroy() {} }) as unknown as GPUBuffer;
+    const run = (nodes: Technique['nodes'], resources: Technique['resources'], imports: Record<string, GPUBuffer | GPUTexture>, variables: Technique['variables'] = []) => {
+      const { encoder, calls } = copyEncoder();
+      const fx = TechniqueInstance.create(ctx.gpu, { name: 't', variables, resources, nodes }, { imports });
+      fx.execute(encoder);
+      return { calls, fx, encoder };
+    };
+    const tex = (name: string, extra: Record<string, unknown> = {}) => ({ kind: 'texture', name, format: 'rgba8unorm', size: [16, 16], mips: 3, visibility: 'imported', ...extra }) as never;
+    const buffer = (name: string) => ({ kind: 'buffer', name, element: 'u32', visibility: 'imported' }) as never;
+    const node = (extra: Record<string, unknown>) => ({ type: 'copy', name: 'c', source: 'a', dest: 'b', ...extra }) as never;
+
+    it('copies whole textures from mip 0, as before', () => {
+      const { calls } = run([node({})], [tex('a'), tex('b')], { a: texture('a'), b: texture('b') });
+      expect(calls).toEqual([['texture->texture', { texture: expect.anything(), mipLevel: 0, origin: { x: 0, y: 0, z: 0 } }, { texture: expect.anything(), mipLevel: 0, origin: { x: 0, y: 0, z: 0 } }, [16, 16, 1]]]);
+    });
+
+    it('copies the named mips, origins and extent between textures', () => {
+      const { calls } = run([node({ from: { mip: 1, origin: [2, 1] }, to: { mip: 2 }, size: [4, 3] })], [tex('a'), tex('b')], { a: texture('a'), b: texture('b') });
+      expect(calls[0].slice(1)).toEqual([
+        { texture: expect.anything(), mipLevel: 1, origin: { x: 2, y: 1, z: 0 } }, { texture: expect.anything(), mipLevel: 2, origin: { x: 0, y: 0, z: 0 } }, [4, 3, 1],
+      ]);
+    });
+
+    it('defaults the extent to what is left of the smaller mip from the origins', () => {
+      const { calls } = run([node({ from: { mip: 1, origin: [2, 2] } })], [tex('a'), tex('b')], { a: texture('a'), b: texture('b') });
+      expect(calls[0][3]).toEqual([6, 6, 1]);                                      // mip 1 of a is 8x8, minus the origin; b's mip 0 is 16x16
+    });
+
+    it('copies buffer ranges, with a size that may be a variable', () => {
+      const { calls, fx } = run([node({ from: { offset: 8 }, to: { offset: 16 }, size: [{ variable: 'bytes' }] })], [buffer('a'), buffer('b')], { a: buf(256), b: buf(256) }, [{ name: 'bytes', type: 'uint', value: 64 }]);
+      expect(calls[0].slice(1)).toEqual([expect.anything(), 8, expect.anything(), 16, 64]);
+      fx.setVariable('bytes', 32);
+      const again = copyEncoder();
+      fx.execute(again.encoder);
+      expect(again.calls[0][5]).toBe(32);
+    });
+
+    it('defaults a buffer copy to what the two have after their offsets', () => {
+      const { calls } = run([node({ from: { offset: 16 } })], [buffer('a'), buffer('b')], { a: buf(256), b: buf(128) });
+      expect(calls[0].slice(2).filter((v) => typeof v === 'number')).toEqual([16, 0, 128]);
+    });
+
+    it('reads a texture into a buffer with rows padded to 256 bytes (or the row layout given)', () => {
+      const a = run([node({ size: [8, 4] })], [tex('a'), buffer('b')], { a: texture('a'), b: buf(4096) });
+      expect(a.calls[0]).toEqual(['texture->buffer', { texture: expect.anything(), mipLevel: 0, origin: { x: 0, y: 0, z: 0 } }, { buffer: expect.anything(), offset: 0, bytesPerRow: 256, rowsPerImage: 4 }, [8, 4, 1]]);
+      const b = run([node({ from: { mip: 1 }, to: { offset: 512, bytesPerRow: 512, rowsPerImage: 16 } })], [tex('a'), buffer('b')], { a: texture('a'), b: buf(8192) });
+      expect(b.calls[0].slice(2)).toEqual([{ buffer: expect.anything(), offset: 512, bytesPerRow: 512, rowsPerImage: 16 }, [8, 8, 1]]);
+    });
+
+    it('writes a buffer into a texture with the same layout rules', () => {
+      const { calls } = run([node({ source: 'a', dest: 'b', size: [8, 8] })], [buffer('a'), tex('b')], { a: buf(4096), b: texture('b') });
+      expect(calls[0]).toEqual(['buffer->texture', { buffer: expect.anything(), offset: 0, bytesPerRow: 256, rowsPerImage: 8 }, { texture: expect.anything(), mipLevel: 0, origin: { x: 0, y: 0, z: 0 } }, [8, 8, 1]]);
+    });
+
+    it('copies array layers (the origin z) and keeps a 3D texture mip in depth', () => {
+      const layered = (extra: Entry = {}) => texture('layered', { depthOrArrayLayers: 6, ...extra });
+      const { calls } = run([node({ from: { origin: [0, 0, 2] }, to: { origin: [0, 0, 5] }, size: [16, 16, 1] })],
+        [tex('a', { dimension: '2d-array', size: [16, 16, 6] }), tex('b', { dimension: '2d-array', size: [16, 16, 6] })], { a: layered(), b: layered() });
+      expect(calls[0].slice(1, 3)).toEqual([{ texture: expect.anything(), mipLevel: 0, origin: { x: 0, y: 0, z: 2 } }, { texture: expect.anything(), mipLevel: 0, origin: { x: 0, y: 0, z: 5 } }]);
+    });
+
+    it('clears a buffer range: to the end by default, or a size that may be a variable', () => {
+      const a = run([{ type: 'clear', name: 'z', resource: 'a', offset: 16 } as never], [buffer('a')], { a: buf(128) });
+      expect(a.calls[0].slice(1)).toEqual([expect.anything(), 16, 112]);
+      const b = run([{ type: 'clear', name: 'z', resource: 'a', size: { variable: 'n', scale: 4 } } as never], [buffer('a')], { a: buf(128) }, [{ name: 'n', type: 'uint', value: 5 }]);
+      expect(b.calls[0].slice(1)).toEqual([expect.anything(), 0, 20]);
+    });
+
+    it('rejects an import without the copy usage the node needs', () => {
+      const { fx } = run([node({})], [buffer('a'), buffer('b')], { a: buf(64), b: buf(64) });
+      expect(() => fx.setImport('b', buf(64, 4))).toThrow(/lacks usage flags/);              // no COPY_DST
+    });
+
+    it('works with a device-only host (no resource managers) and refuses what needs them', () => {
+      const bare = { device: ctx.gpu.device, queue: ctx.gpu.queue };
+      const { encoder, calls } = copyEncoder();
+      TechniqueInstance.create(bare, { name: 't', resources: [buffer('a'), buffer('b')], nodes: [node({})] }, { imports: { a: buf(64), b: buf(64) } }).execute(encoder);
+      expect(calls).toHaveLength(1);
+      const owns: Technique = { name: 't', resources: [{ kind: 'buffer', name: 'tmp', element: 'u32', count: 4 }, buffer('out')], nodes: [node({ source: 'tmp', dest: 'out' })] };
+      expect(() => TechniqueInstance.create(bare, owns, { imports: { out: buf(64) } })).toThrow(/needs a GPUContext/);
+    });
+  });
+
   describe('execute options', () => {
     it('hands each compute node its timestamp writes by path, and skips nodes the callback ignores', () => {
       const t: Technique = {

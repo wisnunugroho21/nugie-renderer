@@ -27,6 +27,7 @@ const VERTEX_BUFFER: Spec = {
   resource: 'string', stepMode: opt({ enum: ['vertex', 'instance'] }), arrayStride: opt('number'), offset: opt('number'),
   attributes: { list: { location: 'number', format: 'string', offset: 'number' } },
 };
+const COPY_END: Rule = { object: { mip: opt('number'), origin: opt('number[]'), offset: opt('number'), bytesPerRow: opt('number'), rowsPerImage: opt('number') } };
 const HOST_GROUPS: Rule = { list: { group: 'number', layout: 'string' } };
 const NODE_BASE: Spec = { name: 'string', condition: opt({ object: CONDITION }), sideEffect: opt('boolean') };
 
@@ -42,7 +43,8 @@ const NODE_SPECS: Record<string, Spec> = {
     vertexBuffers: opt({ list: VERTEX_BUFFER }), indexBuffer: opt({ object: { resource: 'string', format: opt({ enum: ['uint16', 'uint32'] }), offset: opt('number') } }), indexCount: opt(SIZE_DIM), baseVertex: opt(SIZE_DIM), indirect: opt({ object: { resource: 'string', offset: opt('number') } }),
     vertexCount: opt(SIZE_DIM), instanceCount: opt(SIZE_DIM), topology: opt('string'), cullMode: opt({ enum: ['none', 'front', 'back'] }),
   },
-  copy: { ...NODE_BASE, type: 'string', source: 'string', dest: 'string' },
+  copy: { ...NODE_BASE, type: 'string', source: 'string', dest: 'string', from: opt(COPY_END), to: opt(COPY_END), size: opt('size[]') },
+  clear: { ...NODE_BASE, type: 'string', resource: 'string', offset: opt('number'), size: opt(SIZE_DIM) },
   subgraph: {
     ...NODE_BASE, type: 'string', technique: { oneOf: ['string', 'object'], label: 'a technique name or an inline technique' },
     inputs: opt({ record: 'string' }), outputs: opt({ record: 'string' }),

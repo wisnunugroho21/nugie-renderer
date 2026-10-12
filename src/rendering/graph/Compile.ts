@@ -1,8 +1,8 @@
-import { estimateTextureBytes } from '../../gpu/TextureManager';
+import { bytesPerTexel, estimateTextureBytes } from '../../gpu/TextureManager';
 import { dependenciesOf, liveNodes, orderNodes, orderCost, type AnalysisNode, type NodeAccess, type OrderStrategy } from './Analysis';
 import { flatten, type FlatGraph, type FlatNode, type FlatVariable, type VariableValue } from './Flatten';
 import {
-  TechniqueError, type BindingDecl, type BufferDecl, type ColorTarget, type DepthTarget, type Diagnostic, type NodeCondition, type SizeDim, type TextureDecl, type TextureDimension, type Technique, type TechniqueRegistry, type VertexBufferBinding,
+  TechniqueError, type BindingDecl, type BufferDecl, type ColorTarget, type CopyEnd, type CopyNode, type DepthTarget, type Diagnostic, type NodeCondition, type SizeDim, type TextureDecl, type TextureDimension, type Technique, type TechniqueRegistry, type VertexBufferBinding,
 } from './TechniqueTypes';
 
 export interface CompileOptions {
@@ -232,6 +232,91 @@ function checkVertexBuffer(ctx: string, at: string, v: VertexBufferBinding, stri
   }
 }
 
+/** Mip size of a resolved texture (3D textures shrink in depth too; arrays keep their layers). */
+function mipExtent(r: ResolvedTexture, mip: number): [number, number, number] {
+  return [Math.max(1, r.size[0] >> mip), Math.max(1, r.size[1] >> mip), r.dimension === '3d' ? Math.max(1, r.size[2] >> mip) : r.size[2]];
+}
+
+/**
+ * Validate a copy node against WebGPU's copy rules as far as the declarations allow, and return the mip ranges of its texture ends (for the dependency analysis).
+ * With no `from` / `to` / `size` it keeps the original strict meaning: the two resources must match in format and size.
+ */
+function checkCopy(ctx: string, node: CopyNode, src: TextureDecl | BufferDecl, dst: TextureDecl | BufferDecl, rs: Resolved | null, rd: Resolved | null): { fromMips?: [number, number]; toMips?: [number, number] } {
+  const f = node.from ?? {}, t = node.to ?? {};
+  const whole = !node.from && !node.to && !node.size;
+  const end = (e: CopyEnd, what: string, d: TextureDecl | BufferDecl, r: Resolved | null): [number, number] | undefined => {
+    if (d.kind === 'buffer') {
+      if (e.mip !== undefined || e.origin !== undefined) throw new TechniqueError(`${ctx}: ${what} is a buffer: mip and origin apply to textures`);
+      if (e.offset !== undefined && (!Number.isInteger(e.offset) || e.offset < 0 || e.offset % 4)) throw new TechniqueError(`${ctx}: ${what} offset ${e.offset} must be a multiple of 4`);
+      return undefined;
+    }
+    if (e.offset !== undefined || e.bytesPerRow !== undefined || e.rowsPerImage !== undefined) throw new TechniqueError(`${ctx}: ${what} is a texture: offset, bytesPerRow and rowsPerImage apply to buffers`);
+    const mip = e.mip ?? 0;
+    if (!Number.isInteger(mip) || mip < 0) throw new TechniqueError(`${ctx}: ${what} mip ${mip} must be a level >= 0`);
+    if (r && r.kind === 'texture' && mip >= r.mips) throw new TechniqueError(`${ctx}: ${what} has ${r.mips} mip level(s); mip ${mip} is out of range`);
+    for (const v of e.origin ?? []) if (v !== undefined && (!Number.isInteger(v) || v < 0)) throw new TechniqueError(`${ctx}: ${what} origin must be non-negative integers`);
+    return e.mip !== undefined ? [mip, 1] : undefined;
+  };
+  const fromMips = end(f, 'the source', src, rs), toMips = end(t, 'the destination', dst, rd);
+  const sizes = node.size?.every((v) => typeof v === 'number') ? (node.size as number[]) : null;
+  for (const v of sizes ?? []) if (!Number.isInteger(v) || v < 1) throw new TechniqueError(`${ctx}: copy size ${v} must be at least 1`);
+  const texture = (r: Resolved | null): ResolvedTexture | null => (r && r.kind === 'texture' ? r : null);
+  const buffer = (r: Resolved | null): ResolvedBuffer | null => (r && r.kind === 'buffer' ? r : null);
+
+  if (src.kind === 'buffer' && dst.kind === 'buffer') {
+    if (node.size && node.size.length !== 1) throw new TechniqueError(`${ctx}: a buffer copy takes one size entry (bytes)`);
+    if (typeof node.size?.[0] === 'number' && node.size[0] % 4) throw new TechniqueError(`${ctx}: copy size ${node.size[0]} must be a multiple of 4`);
+    if (rs && rd && whole && resolvedBytes(rs) !== resolvedBytes(rd)) throw new TechniqueError(`${ctx}: copy needs buffers of the same size (${resolvedBytes(rs)} -> ${resolvedBytes(rd)} bytes)`);
+    const n = sizes?.[0];
+    if (n !== undefined) {
+      const bs = buffer(rs), bd = buffer(rd);
+      if (bs && (f.offset ?? 0) + n > bs.stride * bs.count) throw new TechniqueError(`${ctx}: the copy reads past the end of '${node.source}'`);
+      if (bd && (t.offset ?? 0) + n > bd.stride * bd.count) throw new TechniqueError(`${ctx}: the copy writes past the end of '${node.dest}'`);
+    }
+    return { fromMips, toMips };
+  }
+
+  // a texture is involved
+  if (node.size && (node.size.length < 1 || node.size.length > 3)) throw new TechniqueError(`${ctx}: a texture copy takes 1 to 3 size entries (width, height, depth or layers)`);
+  const ts = texture(rs), td = texture(rd);
+  for (const [tex, what] of [[ts, 'source'], [td, 'destination']] as const) {
+    if (tex && tex.samples > 1 && (!whole || src.kind !== dst.kind)) throw new TechniqueError(`${ctx}: the ${what} is multisampled; only a whole-texture copy to a texture of the same description is allowed`);
+  }
+  if (src.kind === 'texture' && dst.kind === 'texture') {
+    if (ts && td && ts.format !== td.format) throw new TechniqueError(`${ctx}: copy needs textures of the same format (${ts.format} -> ${td.format})`);
+    if (ts && td && ts.samples !== td.samples) throw new TechniqueError(`${ctx}: copy needs textures with the same sample count`);
+    if (ts && td && whole && ts.size.some((v, i) => v !== td.size[i])) throw new TechniqueError(`${ctx}: copy needs textures of the same format and size (${ts.format} ${ts.size.join('x')} -> ${td.format} ${td.size.join('x')})`);
+    if (sizes) {
+      const fit = (tex: ResolvedTexture | null, e: CopyEnd, what: string) => {
+        if (!tex) return;
+        const m = mipExtent(tex, e.mip ?? 0), o = e.origin ?? [0, 0, 0];
+        for (let i = 0; i < sizes.length; i++) if ((o[i] ?? 0) + sizes[i] > m[i]) throw new TechniqueError(`${ctx}: the copy extends past the ${what} (${sizes.join('x')} at ${[o[0] ?? 0, o[1] ?? 0, o[2] ?? 0].join(',')} in ${m.join('x')})`);
+      };
+      fit(ts, f, 'source'); fit(td, t, 'destination');
+    }
+    return { fromMips, toMips };
+  }
+
+  // texture <-> buffer
+  const tex = src.kind === 'texture' ? ts : td, texEnd = src.kind === 'texture' ? f : t, bufEnd = src.kind === 'texture' ? t : f;
+  const bufRes = buffer(src.kind === 'buffer' ? rs : rd);
+  if (tex) {
+    if (isDepthFormat(tex.format)) throw new TechniqueError(`${ctx}: depth textures cannot be copied to or from a buffer here`);
+    if (bufEnd.bytesPerRow === undefined && bytesPerTexel(tex.format) === undefined) throw new TechniqueError(`${ctx}: set bytesPerRow on the buffer side (the byte size of ${tex.format} texels is not known)`);
+  }
+  if (bufEnd.bytesPerRow !== undefined && (!Number.isInteger(bufEnd.bytesPerRow) || bufEnd.bytesPerRow < 1 || bufEnd.bytesPerRow % 256)) throw new TechniqueError(`${ctx}: bytesPerRow ${bufEnd.bytesPerRow} must be a multiple of 256`);
+  // the extent copied: the given size, else what is left of the texture's mip from the origin
+  const extent = sizes ?? (tex ? mipExtent(tex, texEnd.mip ?? 0).map((v, i) => v - (texEnd.origin?.[i] ?? 0)) : null);
+  if (tex && bufRes && extent) {
+    const bpt = bytesPerTexel(tex.format) ?? 0;
+    const w = extent[0], h = extent[1] ?? 1, d = extent[2] ?? 1;
+    const bpr = bufEnd.bytesPerRow ?? Math.ceil((w * bpt) / 256) * 256, rpi = bufEnd.rowsPerImage ?? h;
+    const need = (bufEnd.offset ?? 0) + bpr * rpi * (d - 1) + bpr * (h - 1) + w * bpt;
+    if (need > bufRes.stride * bufRes.count) throw new TechniqueError(`${ctx}: the buffer holds ${bufRes.stride * bufRes.count} bytes but the copy needs ${need}`);
+  }
+  return { fromMips, toMips };
+}
+
 /** The accesses of a flat node (what the dependency analysis and lifetimes use), with validation of how it uses its resources. */
 function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Resolved | null>): NodeAccess[] {
   const ctx = `node '${node.path}'`;
@@ -373,16 +458,19 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       break;
     }
     case 'copy': {
-      const s = decl(node.source), d = decl(node.dest);
-      if (s.kind !== d.kind) throw new TechniqueError(`${ctx}: cannot copy a ${s.kind} to a ${d.kind}`);
-      const rs = resolved.get(node.source), rd = resolved.get(node.dest);
-      if (rs && rd) {
-        if (rs.kind === 'texture' && rd.kind === 'texture') {
-          if (rs.format !== rd.format || rs.size.some((v, i) => v !== rd.size[i])) throw new TechniqueError(`${ctx}: copy needs textures of the same format and size (${rs.format} ${rs.size.join('x')} -> ${rd.format} ${rd.size.join('x')})`);
-        } else if (resolvedBytes(rs) !== resolvedBytes(rd)) throw new TechniqueError(`${ctx}: copy needs buffers of the same size (${resolvedBytes(rs)} -> ${resolvedBytes(rd)} bytes)`);
-      }
       if (node.source === node.dest) throw new TechniqueError(`${ctx}: a copy cannot read and write the same resource`);
-      out.push({ resource: node.source, read: true, write: false, usage: 'copy-src' }, { resource: node.dest, read: false, write: true, usage: 'copy-dst' });
+      const ends = checkCopy(ctx, node, decl(node.source), decl(node.dest), resolved.get(node.source) ?? null, resolved.get(node.dest) ?? null);
+      out.push(
+        { resource: node.source, read: true, write: false, usage: 'copy-src', ...(ends.fromMips ? { mips: ends.fromMips } : {}) },
+        { resource: node.dest, read: false, write: true, usage: 'copy-dst', ...(ends.toMips ? { mips: ends.toMips } : {}) },
+      );
+      break;
+    }
+    case 'clear': {
+      if (decl(node.resource).kind !== 'buffer') throw new TechniqueError(`${ctx}: only buffers can be cleared ('${node.resource}')`);
+      if (node.offset !== undefined && (!Number.isInteger(node.offset) || node.offset < 0 || node.offset % 4)) throw new TechniqueError(`${ctx}: clear offset ${node.offset} must be a multiple of 4`);
+      if (typeof node.size === 'number' && (!Number.isInteger(node.size) || node.size < 4 || node.size % 4)) throw new TechniqueError(`${ctx}: clear size ${node.size} must be a multiple of 4`);
+      out.push({ resource: node.resource, read: false, write: true, usage: 'copy-dst' });
       break;
     }
     case 'render': {
@@ -402,7 +490,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
   return out;
 }
 
-const nodeKind = (node: FlatNode) => (node.type === 'compute' ? 'compute' : node.type === 'draw' || node.type === 'render' ? 'render' : node.type === 'copy' ? 'copy' : 'callback') as 'compute' | 'render' | 'copy' | 'callback';
+const nodeKind = (node: FlatNode) => (node.type === 'compute' ? 'compute' : node.type === 'draw' || node.type === 'render' ? 'render' : node.type === 'copy' || node.type === 'clear' ? 'copy' : 'callback') as 'compute' | 'render' | 'copy' | 'callback';
 
 /** GPU uses implied by a node access on a resource of `kind`. */
 function usesOf(access: NodeAccess): ResourceUse[] {

@@ -59,7 +59,8 @@ fx.setVariable('level', 0.75);
 | `g.compute(name, { shader, reads, writes, readWrites, dispatch, workgroupSize, when, keep })` | compute dispatch; each list entry is a handle or `{ resource, name?, sampler? }` |
 | `g.draw(name, { shader, colorTargets, depthTarget, vertexBuffers, reads, vertices, instances, topology, ... })` | draw call (see [Draw nodes](#draw-nodes-vertex-buffers-and-msaa)) |
 | `g.renderPass(name, { colorTargets, depthTarget, uses, record })` | a render pass whose draws the host records (see [Render nodes](#render-nodes-host-recorded-draws)) |
-| `g.copy(name, from, to)` | copy |
+| `g.copy(name, from, to, { from, to, size })` | copy between textures and buffers (see [Copy and clear nodes](#copy-and-clear-nodes)) |
+| `g.clear(name, buffer, { offset, size })` | zero a buffer range |
 | `g.subgraph(name, builder \| technique \| 'registry-name', { inputs, outputs, variables, loop })` | sub-graph; `variables` values are a handle (bind to it) or a number / array (override); `loop` is a count or a handle |
 | `g.callback(name, { reads, writes, execute })` | engine code |
 | `g.build()` | the finished `Technique` (a copy) |
@@ -112,7 +113,8 @@ The builder and the JSON format are the same model: `g.build()` equals the parse
   `vertexBuffers`, `vertexCount` (a number or variable), `instanceCount`, `topology`, `cullMode`, read-only `bindings`. Geometry is procedural, read from bound storage buffers,
   or fed by vertex buffers; targets may be multisampled (see [Draw nodes](#draw-nodes-vertex-buffers-and-msaa)).
 * **texture `samples`**: `1` (default) or `4`, a 2D single-mip MSAA render target.
-* **copy**: `source` -> `dest`, same kind, format and size.
+* **copy**: `source` -> `dest`; with no options the two must match in kind, format and size (textures: mip 0). `from` / `to` / `size` turn it into a region copy (see [Copy and clear nodes](#copy-and-clear-nodes)).
+* **clear**: `{ resource, offset?, size? }` zeroes a buffer range.
 * **subgraph**: `technique` (inline or a registry name), `inputs` / `outputs` map the sub-technique's imported / exported resources to this technique's,
   `variables` bind or override its variables, `loop` repeats it (a count or a variable's value; unrolled; a sub-technique variable named `loopIndex` gets the iteration).
   Resources of a sub-graph that are neither mapped nor imported are internal to each instance.
@@ -163,6 +165,26 @@ A multisampled texture can also be read by later nodes, without a sampler, as `t
 It cannot be a storage texture. Memory accounting (`plan.stats.bytes`) counts all samples, and multisampled textures only alias with others of the same sample count.
 
 Self-tests: `/selftest.html` (an anti-aliased triangle from a compute-generated vertex buffer, per-instance data from the host, per-sample reads).
+
+## Copy and clear nodes
+
+A **copy node** moves data on the GPU between any two resources: texture to texture, buffer to buffer, texture to buffer (a readback or a staged upload) and buffer to texture.
+
+```ts
+g.copy('mip-to-region', atlasMips, atlas, { from: { mip: 1 }, to: { origin: [64, 32] }, size: [128, 128] });   // texture region (mips, origins, array layers via origin z)
+g.copy('slice', ring, scratch, { from: { offset: 256 }, to: { offset: 0 }, size: [bytesVariable] });          // buffer range; size entries may be variables
+g.copy('readback', image, staging, { from: { mip: 0 }, size: [w, h] });                                          // texture -> buffer: rows padded to 256 bytes unless `to.bytesPerRow` says otherwise
+```
+
+`from` / `to` (`CopyEnd`) name where each side starts: `mip` and `origin: [x, y, z-or-layer]` for textures, `offset` (bytes, a multiple of 4) for buffers, and on the buffer side of a texture copy `bytesPerRow` (a multiple of 256) and
+`rowsPerImage`. `size` is `[bytes]` for two buffers and `[width, height?, depthOrLayers?]` when a texture is involved; without it the copy takes what is left of the smaller side after the origins. Without any of the three the node keeps its
+original strict meaning (same kind, format and size, mip 0). The compiler checks formats, sample counts, mip ranges, extents and buffer sizes against the declarations (including the bytes a texture-to-buffer copy needs), and the instance checks the
+`COPY_SRC` / `COPY_DST` usage of imported resources. A texture side that names a `mip` only claims that mip level for the dependency analysis, so copies into different mips of one texture do not conflict.
+
+A **clear node** (`g.clear`) zeroes a buffer range with `clearBuffer` (`ClusterGrid` clears its overflow counter before the culling compute this way). Textures are cleared by being a render target.
+
+**Without a `GPUContext`.** Low-level code that only has a device (an allocator, the profiler) can run copy and clear nodes on imported resources with a device-only host: `{ device, queue: device.queue }` (`deviceHost(device)`);
+a technique that owns resources or shaders asks for a full `GPUContext`. `runOnce(host, name, build, imports)` builds such a technique, records and submits it and frees it; `readBuffer` / `readTexture` (`graph/Readback.ts`) use it for tests and tools.
 
 ## Render nodes: host-recorded draws
 
@@ -249,10 +271,18 @@ The frame graph (`RenderGraph`) still orders the frame's passes, but these now a
 | **Main pass(es)**: single pass, opaque + late around the transmission copy, the two Hi-Z culling phases | `rendering/MainPassNode.ts` (+ `Renderer.ts`) | one render node each: swap chain or HDR scene image, MSAA buffer with resolve, depth load / clear, clear colour; **segments** for the scene geometry and for every feature's `drawBackdrop` / `drawMain` |
 | Scene draw loop (batches, GPU-culled indirect draws, retained render bundles) | `Renderer.ts` (`drawGeometry`) | records through `TrackedRenderPass`, into the pass or into a bundle encoder; bundles replay with `executeBundles` |
 | Feature draws: sky, lines, points, sprites, particles, ribbons, custom features | `Skybox`, `overlay/*`, `particles/*` | the segment of the pass; state set through the shared tracker |
+| Arena growth (mesh, index and deform buffers copy their contents into the bigger buffer) | `gpu/Arena.ts` | copy node (one-shot) |
+| Streamed texture levels (the mips two residencies share are copied GPU-side) | `streaming/TextureStreamer.ts` | one copy node per level (one-shot) |
+| GPU profiler: query results into the staging ring | `profiling/GPUProfiler.ts` | copy node whose size is a variable, in a technique kept across frames |
+| Readbacks: `RenderTarget.readPixels`, particle / ribbon debug reads, the self-test helpers | `graph/Readback.ts` | copy node into a mappable staging buffer (one-shot) |
+| Light-cluster overflow counter reset | `lighting/ClusterGrid.ts` | clear node |
 | Render-to-texture views (mirrors, minimaps, security cameras) and reflection-probe captures | `OffscreenViews.ts` (+ `Renderer.renderJob`) | one render node per target (and cube face): colour texture or one array layer of a cube, depth discarded after the pass; segments for the geometry, the sky and the blended geometry |
 
  `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
 `CompactVertexStream` (derived vertex data) are asset-preparation utilities that run outside the frame.
+
+The GPU-to-GPU copies the engine records are all copy / clear nodes now. What stays outside the graph are the *uploads* from the CPU (`queue.writeBuffer`, `writeTexture`, `copyExternalImageToTexture`): they are queue operations
+that run in submission order rather than commands in an encoder.
 
 ## Shader tokens
 

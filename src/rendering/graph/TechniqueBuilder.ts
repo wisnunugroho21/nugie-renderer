@@ -1,4 +1,4 @@
-import type { GPUContext } from '../../gpu/GPUContext';
+import type { TechniqueHost } from './TechniqueInstance';
 import { compileTechnique, type CompiledTechnique, type CompileOptions } from './Compile';
 import type { TrackedRenderPass } from './TrackedRenderPass';
 import { TechniqueInstance, type TechniqueInstanceOptions } from './TechniqueInstance';
@@ -6,7 +6,7 @@ import { techniqueToJSON } from './TechniqueJSON';
 import {
   TechniqueError, type BindingAccess, type BindingDecl, type BufferDecl, type CallbackNode, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type NodeCondition,
   type NodeDecl, type ResourceLifetime, type ResourceVisibility, type SizeDim, type TextureDecl, type Technique, type TechniqueRegistry, type VariableDecl, type VariableType,
-  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup, type RenderPassNode, type RenderPassSegment, type RenderPassUse,
+  type CopyEnd, type CopyNode, type ClearNode, type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup, type RenderPassNode, type RenderPassSegment, type RenderPassUse,
 } from './TechniqueTypes';
 
 /**
@@ -201,6 +201,18 @@ export interface RenderPassOptions extends NodeOptions {
   segments?: (Omit<RenderPassSegment, 'uses'> & { uses?: (Omit<RenderPassUse, 'resource'> & { resource: ResourceRef })[] })[];
 }
 
+export interface CopyOptions extends NodeOptions {
+  from?: CopyEnd;
+  to?: CopyEnd;
+  /** `[bytes]` for buffers, `[width, height?, depthOrLayers?]` for textures. */
+  size?: Dim[];
+}
+
+export interface ClearOptions extends NodeOptions {
+  offset?: number;
+  size?: Dim;
+}
+
 export interface PassSegmentOptions {
   uses?: (Omit<RenderPassUse, 'resource'> & { resource: ResourceRef })[];
   record: (pass: TrackedRenderPass) => void;
@@ -383,10 +395,26 @@ export class TechniqueBuilder {
     return this;
   }
 
-  /** Copy one resource to another of the same kind, format and size. */
-  copy(name: string, source: ResourceRef, dest: ResourceRef, o: NodeOptions = {}): this {
+  /**
+   * Copy between two resources: texture to texture (same format), buffer to buffer, texture to buffer or buffer to texture. Without options it copies what the two have in common
+   * from the start (textures of the same format and size, mip 0); `from` / `to` name the mip, origin, byte offset or row layout of each side and `size` the extent (entries may be variables).
+   */
+  copy(name: string, source: ResourceRef, dest: ResourceRef, o: CopyOptions = {}): this {
     const ctx = this.begin(name);
-    return this.push({ type: 'copy', name, source: this.resource(source, ctx).name, dest: this.resource(dest, ctx).name, ...this.base(o, ctx) });
+    const node: CopyNode = { type: 'copy', name, source: this.resource(source, ctx).name, dest: this.resource(dest, ctx).name, ...this.base(o, ctx) };
+    if (o.from) node.from = { ...o.from };
+    if (o.to) node.to = { ...o.to };
+    if (o.size) node.size = o.size.map((d) => this.dim(d, ctx));
+    return this.push(node);
+  }
+
+  /** Zero a range of a buffer (default: all of it). */
+  clear(name: string, resource: ResourceRef, o: ClearOptions = {}): this {
+    const ctx = this.begin(name);
+    const node: ClearNode = { type: 'clear', name, resource: this.resource(resource, ctx).name, ...this.base(o, ctx) };
+    if (o.offset !== undefined) node.offset = o.offset;
+    if (o.size !== undefined) node.size = this.dim(o.size, ctx);
+    return this.push(node);
   }
 
   /** Run another technique (a builder, a finished technique, or a registry name) as part of this one. */
@@ -430,7 +458,7 @@ export class TechniqueBuilder {
   compile(options: CompileOptions = {}): CompiledTechnique { return compileTechnique(this.build(), options); }
 
   /** Compile and create the GPU resources: shorthand for `TechniqueInstance.create(gpu, this.build(), options)`. */
-  instantiate(gpu: GPUContext, options: TechniqueInstanceOptions = {}): TechniqueInstance { return TechniqueInstance.create(gpu, this.build(), options); }
+  instantiate(gpu: TechniqueHost, options: TechniqueInstanceOptions = {}): TechniqueInstance { return TechniqueInstance.create(gpu, this.build(), options); }
 
   /** The technique as JSON text (fails if it contains callback nodes). */
   toJSON(): string { return techniqueToJSON(this.build()); }

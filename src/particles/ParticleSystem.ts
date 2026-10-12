@@ -1,3 +1,4 @@
+import { readBuffer } from '../rendering/graph/Readback';
 import type { TrackedRenderPass } from '../rendering/graph/TrackedRenderPass';
 import { FeatureOrder, type FeatureFrame, type RenderFeature } from '../rendering/RenderFeature';
 import type { RenderGraph } from '../rendering/RenderGraph';
@@ -193,54 +194,29 @@ export class ParticlePool {
 
   /** DEBUG ONLY (stalls the GPU): read the live counters back. Never call from the frame loop. */
   async readCounters(): Promise<ParticleCounters> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: 32, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.counters, 0, rb, 0, 32); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
+    const u = new Uint32Array(await readBuffer(this.system.gpu.device, this.counters, 32));
     // alive[cur-from-last-frame...]: after encodeCompute, `renderList` holds this frame's survivors
     return { alive: u[this.renderList], dead: u[2], spawned: u[3], rejected: u[4] };
   }
 
   /** DEBUG ONLY: read `count` particle structs (16 floats each) back. */
   async readParticles(count: number): Promise<Float32Array> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: count * 64, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.particles, 0, rb, 0, count * 64); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const f = new Float32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return f;
+    return new Float32Array(await readBuffer(this.system.gpu.device, this.particles, count * 64));
   }
 
   /** DEBUG ONLY: read the first `count` entries of the dead-index stack. */
   async readDeadIndices(count: number): Promise<Uint32Array> {
-    const { device } = this.system.gpu;
-    const size = Math.max(4, count * 4);
-    const rb = device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.deadList, 0, rb, 0, size); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return u;
+    return new Uint32Array(await readBuffer(this.system.gpu.device, this.deadList, Math.max(4, count * 4)));
   }
 
   /** DEBUG ONLY: read the indirect argument buffer (16 u32). */
   async readArgs(): Promise<Uint32Array> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: ARGS_BYTES, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.args, 0, rb, 0, ARGS_BYTES); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return u;
+    return new Uint32Array(await readBuffer(this.system.gpu.device, this.args, ARGS_BYTES));
   }
 
   /** DEBUG ONLY: read the alive list of the current render list. */
   async readAliveIndices(count: number): Promise<Uint32Array> {
-    const { device } = this.system.gpu;
-    const rb = device.createBuffer({ size: Math.max(4, count * 4), usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    const enc = device.createCommandEncoder(); enc.copyBufferToBuffer(this.renderList === 0 ? this.aliveA : this.aliveB, 0, rb, 0, Math.max(4, count * 4)); device.queue.submit([enc.finish()]);
-    await rb.mapAsync(GPUMapMode.READ);
-    const u = new Uint32Array(rb.getMappedRange().slice(0)); rb.unmap(); rb.destroy();
-    return u;
+    return new Uint32Array(await readBuffer(this.system.gpu.device, this.renderList === 0 ? this.aliveA : this.aliveB, Math.max(4, count * 4)));
   }
 }
 

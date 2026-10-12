@@ -56,7 +56,7 @@ export class ClusterGrid implements RenderFeature {
     const grid = g.importedBuffer('clusterGrid', 'vec2<u32>');
     const indices = g.importedBuffer('clusterIndices', 'u32');
     const overflow = g.importedBuffer('overflow', 'atomic<u32>', 4);
-    g.callback('clear-overflow', { writes: [overflow], execute: (enc) => enc.clearBuffer(this.overflowBuf) });
+    g.clear('clear-overflow', overflow);
     g.compute('cluster-cull', {
       shader: cullSrc, reads: [lights], writes: [grid, indices], readWrites: [overflow],
       dispatch: { threads: [g.variableNamed('clusters')] },

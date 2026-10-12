@@ -1,3 +1,6 @@
+import { CachedTechnique } from '../rendering/graph/CachedTechnique';
+import { deviceHost } from '../rendering/graph/OneShot';
+
 /**
  * GPU pass timing with timestamp queries. Passes request `timestampWrites` by name; repeated names within a frame are summed.
  * Results are read back asynchronously (a few frames late) through a small ring of staging buffers, so profiling never stalls
@@ -10,6 +13,7 @@ export class GPUProfiler {
   results = new Map<string, number>();
   /** Smoothed (exponential average) timings. */
   smoothed = new Map<string, number>();
+  private copy: CachedTechnique;
   private querySet: GPUQuerySet | null = null;
   private resolveBuf: GPUBuffer | null = null;
   private staging: { buf: GPUBuffer; names: string[]; busy: boolean }[] = [];
@@ -18,6 +22,7 @@ export class GPUProfiler {
 
   /** Create the query set and staging ring when the device supports timestamp queries (otherwise stay inert). */
   constructor(private device: GPUDevice, private maxPasses = 64) {
+    this.copy = new CachedTechnique(deviceHost(device), 'gpu-profiler');
     this.supported = device.features.has('timestamp-query');
     if (!this.supported) return;
     this.querySet = device.createQuerySet({ type: 'timestamp', count: maxPasses * 2 });
@@ -46,7 +51,14 @@ export class GPUProfiler {
     this.ringIndex = (this.ringIndex + 1) % this.staging.length;
     const n = this.names.length;
     enc.resolveQuerySet(this.querySet!, 0, n * 2, this.resolveBuf!, 0);
-    enc.copyBufferToBuffer(this.resolveBuf!, 0, slot.buf, 0, n * 16);
+    // the staging copy is a copy node whose size is a variable: the same technique serves every frame and every ring slot
+    const fx = this.copy.get('resolve', (g) => {
+      g.uint('bytes');
+      g.copy('resolve-to-staging', g.importedBuffer('resolve', 'u32'), g.importedBuffer('staging', 'u32'), { size: [g.variableNamed('bytes')] });
+    });
+    fx.setImport('resolve', this.resolveBuf!); fx.setImport('staging', slot.buf);
+    fx.setVariable('bytes', n * 16);
+    fx.execute(enc);
     slot.names = this.names.slice();
     slot.busy = true;
     // mapAsync must be issued after submit; do it in a microtask-safe way

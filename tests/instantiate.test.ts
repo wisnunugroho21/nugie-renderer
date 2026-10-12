@@ -20,8 +20,8 @@ beforeAll(() => {
 function gpu() {
   const uploads: number[] = [];
   const device = {
-    queue: { writeBuffer: (_b: any, _o: number, _d: any, _do: number, size: number) => uploads.push(size), writeTexture() {} },
-    createBuffer: (d: any) => ({ label: d.label, size: d.size, destroy() {} }),
+    queue: { writeBuffer: (_b: any, _o: number, _d: any, _do: number, size: number) => uploads.push(size), writeTexture() {}, submit() {} },
+    createBuffer: (d: any) => ({ label: d.label, size: d.size, usage: d.usage, destroy() {} }),
     createTexture: () => ({ createView: () => ({}), destroy() {} }),
     createSampler: () => ({}), createShaderModule: () => ({}), createBindGroup: () => ({}),
     createRenderPipeline: () => ({}), pushErrorScope() {}, popErrorScope: () => Promise.resolve(null),

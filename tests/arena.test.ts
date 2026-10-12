@@ -12,7 +12,7 @@ function setup(limits?: { maxBufferSize: number; maxStorageBufferBindingSize: nu
   const device = {
     limits,
     queue: { writeBuffer() {}, submit() {} },
-    createBuffer: (d: any) => { created.push(d.size); return { size: d.size, destroy() {} }; },
+    createBuffer: (d: any) => { created.push(d.size); return { size: d.size, usage: d.usage, destroy() {} }; },
     createCommandEncoder: () => ({ copyBufferToBuffer() {}, finish: () => ({}) }),
   } as unknown as GPUDevice;
   return { device, buffers: new BufferManager(device, new GPUStats()), created };

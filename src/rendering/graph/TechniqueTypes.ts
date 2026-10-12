@@ -256,10 +256,42 @@ export interface DrawNode extends NodeBase {
   cullMode?: GPUCullMode;
 }
 
+/** One side of a copy: where in the resource the copy starts. */
+export interface CopyEnd {
+  /** Textures: mip level (default 0). */
+  mip?: number;
+  /** Textures: first texel `[x, y, z or layer]` (missing entries are 0). */
+  origin?: [number, number?, number?];
+  /** Buffers: byte offset of the first byte (of the first row, when the other side is a texture). A multiple of 4. */
+  offset?: number;
+  /** The buffer side of a texture copy: bytes from one row to the next (a multiple of 256). Default: the extent's rows packed tightly, rounded up to 256. */
+  bytesPerRow?: number;
+  /** The buffer side of a texture copy: rows from one image (layer) to the next. Default: the extent's height. */
+  rowsPerImage?: number;
+}
+
+/**
+ * Copy between two resources on the GPU: texture to texture (any mips and layers, same format), buffer to buffer, texture to buffer (a readback or a buffer upload
+ * staged for later) or buffer to texture. With no `from` / `to` / `size` it copies everything the two have in common from the start (textures: mip 0, same size).
+ */
 export interface CopyNode extends NodeBase {
   type: 'copy';
   source: string;
   dest: string;
+  from?: CopyEnd;
+  to?: CopyEnd;
+  /** Extent of the copy: `[bytes]` for two buffers, `[width, height?, depthOrLayers?]` in texels when a texture is involved. Entries may be variables. */
+  size?: SizeDim[];
+}
+
+/** Zero a range of a buffer on the GPU (`clearBuffer`). */
+export interface ClearNode extends NodeBase {
+  type: 'clear';
+  resource: string;
+  /** Byte offset (a multiple of 4). Default 0. */
+  offset?: number;
+  /** Bytes to clear (a multiple of 4). Default: to the end of the buffer. */
+  size?: SizeDim;
 }
 
 export interface SubGraphNode extends NodeBase {
@@ -318,7 +350,7 @@ export interface CallbackNode extends NodeBase {
   execute: (encoder: GPUCommandEncoder) => void;
 }
 
-export type NodeDecl = ComputeNode | DrawNode | CopyNode | SubGraphNode | CallbackNode | RenderPassNode;
+export type NodeDecl = ComputeNode | DrawNode | CopyNode | ClearNode | SubGraphNode | CallbackNode | RenderPassNode;
 
 export interface Technique {
   name: string;

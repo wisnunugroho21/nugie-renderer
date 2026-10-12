@@ -203,7 +203,7 @@ describe('validation', () => {
   });
   it('validates copies and draws', () => {
     expect(run([{ type: 'copy', name: 'c', source: 'a', dest: 'b' }], [tex('a'), tex('b', { size: [32, 32] })])).toThrow(/same format and size/);
-    expect(run([{ type: 'copy', name: 'c', source: 'a', dest: 'b' }], [tex('a'), { kind: 'buffer', name: 'b', count: 4 }])).toThrow(/cannot copy a texture to a buffer/);
+    expect(run([{ type: 'copy', name: 'c', source: 'a', dest: 'b' }], [tex('a'), { kind: 'buffer', name: 'b', count: 4 }])).toThrow(/the buffer holds 16 bytes but the copy needs/);
     const draw = (targets: string[], depth?: string): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: '' }, bindings: [], colorTargets: targets.map((resource) => ({ resource })), ...(depth ? { depthTarget: { resource: depth } } : {}), vertexCount: 3 });
     expect(run([draw(['a', 'b'])], [tex('a'), tex('b', { size: [8, 8] })])).toThrow(/differ in size/);
     expect(run([draw(['d'])], [tex('d', { format: 'depth32float' })])).toThrow(/depth format/);
@@ -492,6 +492,89 @@ describe('validation', () => {
     it('validates a segment use like a pass use', () => {
       const node = (usage: string): NodeDecl => ({ type: 'render', name: 'r', colorTargets: [{ resource: 'rt' }], segments: [{ name: 's', uses: [{ resource: 'rt', usage }], record: () => {} }] }) as NodeDecl;
       expect(() => compileTechnique(technique([node('vertex')], [rt]))).toThrow(/can only be used as sampled or storage/);
+    });
+  });
+
+  describe('copy and clear nodes', () => {
+    const buf = (name: string, extra: Record<string, unknown> = {}): ResourceDecl => ({ kind: 'buffer', name, element: 'u32', count: 64, visibility: 'exported', ...extra } as ResourceDecl);
+    const copy = (extra: Record<string, unknown> = {}): NodeDecl => ({ type: 'copy', name: 'c', source: 'a', dest: 'b', ...extra }) as NodeDecl;
+    const compile = (nodes: NodeDecl[], resources: ResourceDecl[]) => () => compileTechnique(technique(nodes, resources));
+    const img = (name: string, extra: Partial<Extract<ResourceDecl, { kind: 'texture' }>> = {}) => tex(name, { mips: 4, visibility: 'exported', ...extra });
+
+    it('keeps the strict whole-resource meaning when it names no region', () => {
+      expect(compile([copy()], [img('a', { visibility: 'imported' }), img('b', { size: [32, 32] })])).toThrow(/same format and size/);
+      expect(compile([copy()], [img('a', { visibility: 'imported' }), img('b', { format: 'rgba16float' })])).toThrow(/same format/);
+      expect(compile([copy()], [buf('a', { visibility: 'imported' }), buf('b', { count: 8 })])).toThrow(/same size/);
+    });
+
+    it('copies regions between textures of different sizes, mips and layers', () => {
+      const a = img('a', { visibility: 'imported', size: [64, 64, 6], dimension: '2d-array' }), b = img('b', { size: [16, 16] });
+      expect(compile([copy({ from: { mip: 2, origin: [0, 0, 3] }, size: [16, 16, 1] })], [a, b])).not.toThrow();
+      const plan = compileTechnique(technique([copy({ from: { mip: 2 }, to: { mip: 1 }, size: [8, 8] })], [img('a', { visibility: 'imported' }), b]));
+      expect(plan.steps[0].accesses.map((x) => [x.resource, x.usage, x.mips])).toEqual([['a', 'copy-src', [2, 1]], ['b', 'copy-dst', [1, 1]]]);
+    });
+
+    it('checks mips, extents, formats and samples of texture copies', () => {
+      const a = img('a', { visibility: 'imported' });
+      expect(compile([copy({ from: { mip: 4 }, size: [1, 1] })], [a, img('b')])).toThrow(/4 mip level\(s\); mip 4 is out of range/);
+      expect(compile([copy({ size: [70, 8] })], [a, img('b', { size: [128, 128] })])).toThrow(/extends past the source/);
+      expect(compile([copy({ to: { origin: [60, 0] }, size: [8, 8] })], [a, img('b')])).toThrow(/extends past the destination/);
+      expect(compile([copy({ size: [8, 8] })], [a, img('b', { format: 'rgba16float' })])).toThrow(/same format/);
+      expect(compile([copy({ size: [8, 8] })], [a, img('b', { samples: 4, mips: 1 })])).toThrow(/multisampled/);
+      expect(compile([copy({ size: [8, 8, 1, 1] })], [a, img('b')])).toThrow(/1 to 3 size entries/);
+      expect(compile([copy({ from: { offset: 4 } })], [a, img('b')])).toThrow(/is a texture: offset/);
+      expect(compile([copy({ size: [0, 8] })], [a, img('b')])).toThrow(/at least 1/);
+    });
+
+    it('copies buffer ranges and checks them against the buffers', () => {
+      expect(compile([copy({ from: { offset: 16 }, to: { offset: 32 }, size: [64] })], [buf('a', { visibility: 'imported' }), buf('b')])).not.toThrow();
+      expect(compile([copy({ size: [260] })], [buf('a', { visibility: 'imported' }), buf('b')])).toThrow(/past the end of 'a'/);
+      expect(compile([copy({ to: { offset: 200 }, size: [64] })], [buf('a', { visibility: 'imported' }), buf('b')])).toThrow(/writes past the end of 'b'/);
+      expect(compile([copy({ size: [6] })], [buf('a', { visibility: 'imported' }), buf('b')])).toThrow(/multiple of 4/);
+      expect(compile([copy({ from: { offset: 2 }, size: [8] })], [buf('a', { visibility: 'imported' }), buf('b')])).toThrow(/multiple of 4/);
+      expect(compile([copy({ from: { mip: 1 }, size: [8] })], [buf('a', { visibility: 'imported' }), buf('b')])).toThrow(/mip and origin apply to textures/);
+      expect(compile([copy({ size: [8, 8] })], [buf('a', { visibility: 'imported' }), buf('b')])).toThrow(/one size entry/);
+    });
+
+    it('copies between a texture and a buffer with the row layout WebGPU needs', () => {
+      const a = tex('a', { visibility: 'imported', size: [8, 8] });                                        // 8x8 rgba8: rows of 32 bytes, padded to 256
+      expect(compile([copy({ size: [8, 8] })], [a, buf('b', { count: 64 })])).toThrow(/needs 1824/);      // 256*7 + 32 = 1824 bytes needed, 256 held
+      expect(compile([copy({ size: [8, 8] })], [a, buf('b', { count: 480 })])).not.toThrow();             // 1920 bytes
+      expect(compile([copy({ to: { bytesPerRow: 100 }, size: [8, 8] })], [a, buf('b', { count: 480 })])).toThrow(/multiple of 256/);
+      expect(compile([copy({ source: 'b', dest: 'a', from: { bytesPerRow: 256 }, size: [8, 8] })], [a, buf('b', { count: 480 })])).not.toThrow();
+      expect(compile([copy({ source: 'b', dest: 'a', size: [8, 8] })], [tex('a', { format: 'depth24plus', visibility: 'exported' }), buf('b', { visibility: 'imported' })])).toThrow(/depth textures cannot/);
+      expect(compile([copy({ size: [8, 8] })], [img('a', { visibility: 'imported', format: 'bc1-rgba-unorm' }), buf('b')])).toThrow(/set bytesPerRow/);
+    });
+
+    it('clears a buffer range, only buffers, only on 4-byte boundaries', () => {
+      const clear = (extra: Record<string, unknown> = {}): NodeDecl => ({ type: 'clear', name: 'z', resource: 'a', ...extra }) as NodeDecl;
+      const plan = compileTechnique(technique([clear({ offset: 16, size: 32 })], [buf('a')]));
+      expect(plan.steps[0].accesses).toEqual([{ resource: 'a', read: false, write: true, usage: 'copy-dst' }]);
+      expect(plan.resources.get('a')!.uses.has('copy-dst')).toBe(true);
+      expect(compile([clear()], [img('a')])).toThrow(/only buffers can be cleared/);
+      expect(compile([clear({ offset: 2 })], [buf('a')])).toThrow(/multiple of 4/);
+      expect(compile([clear({ size: 6 })], [buf('a')])).toThrow(/multiple of 4/);
+    });
+
+    it('orders a clear before the compute that reads and writes the buffer, and keeps both', () => {
+      const compute: NodeDecl = { type: 'compute', name: 'use', shader: { code: 'x' }, workgroupSize: [1], dispatch: { threads: [1] }, bindings: [{ resource: 'a', access: 'readwrite' }] };
+      const t = technique([{ type: 'clear', name: 'z', resource: 'a' } as NodeDecl, compute], [buf('a', { visibility: 'imported' })]);
+      expect(names(compileTechnique(t))).toEqual(['z', 'use']);
+    });
+
+    it('round-trips copy regions and clear through JSON and the builder', () => {
+      const t = technique([copy({ from: { mip: 1, origin: [2, 3, 0], offset: undefined }, to: { bytesPerRow: 256 }, size: [4, 4] }), { type: 'clear', name: 'z', resource: 'c', offset: 4, size: 8 } as NodeDecl],
+        [img('a', { visibility: 'imported' }), buf('b'), buf('c')]);
+      (t.nodes[0] as unknown as { from: Record<string, unknown> }).from = { mip: 1, origin: [2, 3, 0] };
+      (t.nodes[0] as unknown as { dest: string }).dest = 'b';
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+      const g = builder('t');
+      const a = g.texture('a', { format: 'rgba8unorm', size: [8, 8], mips: 2, visibility: 'imported' }), b = g.buffer('b', { element: 'u32', count: 480, visibility: 'exported' });
+      const n = g.uint('n', 4);
+      g.copy('read', a, b, { from: { mip: 1 }, to: { bytesPerRow: 256, offset: 64 }, size: [n, 2] });
+      g.clear('zero', b, { offset: 0, size: n.times(4) });
+      expect(g.build().nodes[0]).toMatchObject({ type: 'copy', from: { mip: 1 }, to: { bytesPerRow: 256, offset: 64 }, size: [{ variable: 'n' }, 2] });
+      expect(g.build().nodes[1]).toMatchObject({ type: 'clear', size: { variable: 'n', scale: 4 } });
     });
   });
 

@@ -599,5 +599,56 @@ struct C { color: vec4<f32> };
         return `bundle then segment: ${stats}`;
       },
     },
+    {
+      name: 'technique copy / clear nodes: buffer ranges with a variable size, a clear, a mip into a texture region, texture to buffer with padded rows',
+      run: async () => {
+        const { device } = gpu;
+        // buffers: src = 0..15; dst starts as all ones; zero it, copy src[4..11] (a variable number of bytes) to dst[2..], then clear dst[10..11]
+        const src = device.createBuffer({ size: 64, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+        const dst = device.createBuffer({ size: 64, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+        device.queue.writeBuffer(src, 0, new Uint32Array(Array.from({ length: 16 }, (_, i) => i)));
+        device.queue.writeBuffer(dst, 0, new Uint32Array(16).fill(0xffffffff));
+        const g = technique('copies');
+        const bytes = g.uint('bytes', 32);
+        const s = g.importedBuffer('src', 'u32'), d = g.importedBuffer('dst', 'u32');
+        g.clear('zero', d);
+        g.copy('range', s, d, { from: { offset: 16 }, to: { offset: 8 }, size: [bytes] });
+        g.clear('tail', d, { offset: 40, size: 8 });
+        const fx = g.instantiate(gpu, { imports: { src, dst } });
+        const run1 = () => { const enc = device.createCommandEncoder(); fx.execute(enc); device.queue.submit([enc.finish()]); };
+        run1();
+        const first = Array.from(new Uint32Array(await readBuffer(device, dst, 64)));
+        fx.setVariable('bytes', 16);
+        run1();
+        const second = Array.from(new Uint32Array(await readBuffer(device, dst, 64)));
+        fx.dispose();
+        const want1 = [0, 0, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0, 0], want2 = [0, 0, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        if (first.join() !== want1.join()) throw new Error(`buffer copy: ${first.join(',')}`);
+        if (second.join() !== want2.join()) throw new Error(`after the size variable changed to 16 bytes: ${second.join(',')}`);
+
+        // textures: mip 1 (4x4, one colour) of a goes to the 4x4 region at (2,2) of b; b is then read into a buffer with 256-byte rows
+        const usage = GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST;
+        const a = device.createTexture({ size: [8, 8], format: 'rgba8unorm', mipLevelCount: 2, usage });
+        const b = device.createTexture({ size: [8, 8], format: 'rgba8unorm', usage });
+        const level = (n: number, rgba: number[]) => { const px = new Uint8Array(n * n * 4); for (let i = 0; i < n * n; i++) px.set(rgba, i * 4); return px; };
+        device.queue.writeTexture({ texture: a, mipLevel: 0 }, level(8, [200, 0, 0, 255]), { bytesPerRow: 32 }, [8, 8]);
+        device.queue.writeTexture({ texture: a, mipLevel: 1 }, level(4, [10, 20, 30, 255]), { bytesPerRow: 16 }, [4, 4]);
+        device.queue.writeTexture({ texture: b }, level(8, [0, 0, 0, 0]), { bytesPerRow: 32 }, [8, 8]);
+        const out = device.createBuffer({ size: 2048, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+        const t = technique('texture-copies');
+        const ta = t.texture('a', { format: 'rgba8unorm', size: [8, 8], mips: 2, visibility: 'imported' }), tb = t.texture('b', { format: 'rgba8unorm', size: [8, 8], visibility: 'imported' });
+        const to = t.importedBuffer('out', 'u32');
+        t.copy('mip-to-region', ta, tb, { from: { mip: 1 }, to: { origin: [2, 2] }, size: [4, 4] });
+        t.copy('read-back', tb, to, { size: [8, 8] });
+        const tx = t.instantiate(gpu, { imports: { a, b, out } });
+        const enc = device.createCommandEncoder(); tx.execute(enc); device.queue.submit([enc.finish()]);
+        const bytesOut = new Uint8Array(await readBuffer(device, out, 2048));
+        tx.dispose(); a.destroy(); b.destroy(); out.destroy(); src.destroy(); dst.destroy();
+        const px = (x: number, y: number) => Array.from(bytesOut.subarray(y * 256 + x * 4, y * 256 + x * 4 + 4)).join(',');
+        const inside = [2, 3, 5].every((x) => [2, 4, 5].every((y) => px(x, y) === '10,20,30,255')), outside = [0, 1, 6, 7].every((x) => px(x, 3) === '0,0,0,0' && px(3, x) === '0,0,0,0');
+        if (!inside || !outside) throw new Error(`region copy: inside ${px(3, 3)}, outside ${px(0, 3)} / ${px(7, 7)}`);
+        return 'buffer range + variable size + clear, mip 1 into a 4x4 region, 8x8 texels read with 256-byte rows';
+      },
+    },
   ];
 }
