@@ -2,7 +2,7 @@ import { estimateTextureBytes } from '../../gpu/TextureManager';
 import { dependenciesOf, liveNodes, orderNodes, orderCost, type AnalysisNode, type NodeAccess, type OrderStrategy } from './Analysis';
 import { flatten, type FlatGraph, type FlatNode, type FlatVariable, type VariableValue } from './Flatten';
 import {
-  TechniqueError, type BindingDecl, type BufferDecl, type Diagnostic, type NodeCondition, type SizeDim, type TextureDecl, type TextureDimension, type Technique, type TechniqueRegistry,
+  TechniqueError, type BindingDecl, type BufferDecl, type Diagnostic, type NodeCondition, type SizeDim, type TextureDecl, type TextureDimension, type Technique, type TechniqueRegistry, type VertexBufferBinding,
 } from './TechniqueTypes';
 
 export interface CompileOptions {
@@ -211,6 +211,22 @@ function disjointMips(a: [number, number] | undefined, b: [number, number] | und
   return a !== undefined && b !== undefined && (a[0] + a[1] <= b[0] || b[0] + b[1] <= a[0]);
 }
 
+/** Validate one vertex buffer binding against WebGPU's vertex-state rules; `locations` collects the shader locations the draw has used so far. */
+function checkVertexBuffer(ctx: string, at: string, v: VertexBufferBinding, stride: number | undefined, locations: Set<number>): void {
+  if (!v.attributes.length) throw new TechniqueError(`${ctx}: ${at} needs at least one attribute`);
+  if (stride !== undefined && (!Number.isInteger(stride) || stride < 4 || stride % 4)) throw new TechniqueError(`${ctx}: ${at}: arrayStride ${stride} must be a multiple of 4`);
+  if (v.offset !== undefined && (!Number.isInteger(v.offset) || v.offset < 0 || v.offset % 4)) throw new TechniqueError(`${ctx}: ${at}: offset ${v.offset} must be a multiple of 4`);
+  for (const a of v.attributes) {
+    const size = VERTEX_FORMAT_BYTES[a.format];
+    if (size === undefined) throw new TechniqueError(`${ctx}: ${at}: unknown vertex format '${a.format}'`);
+    if (!Number.isInteger(a.location) || a.location < 0 || a.location > 15) throw new TechniqueError(`${ctx}: ${at}: attribute location ${a.location} must be from 0 to 15`);
+    if (locations.has(a.location)) throw new TechniqueError(`${ctx}: ${at}: @location(${a.location}) is used by two attributes`);
+    locations.add(a.location);
+    if (!Number.isInteger(a.offset) || a.offset < 0 || a.offset % Math.min(4, size)) throw new TechniqueError(`${ctx}: ${at}: attribute offset ${a.offset} is not aligned for ${a.format}`);
+    if (stride !== undefined && a.offset + size > stride) throw new TechniqueError(`${ctx}: ${at}: ${a.format} at offset ${a.offset} does not fit in a ${stride}-byte element`);
+  }
+}
+
 /** The accesses of a flat node (what the dependency analysis and lifetimes use), with validation of how it uses its resources. */
 function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Resolved | null>): NodeAccess[] {
   const ctx = `node '${node.path}'`;
@@ -318,18 +334,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
         if (decl(v.resource).kind !== 'buffer') throw new TechniqueError(`${ctx}: ${at} must be a buffer`);
         const rb = resolved.get(v.resource) as ResolvedBuffer | null;
         const stride = v.arrayStride ?? rb?.stride;
-        if (!v.attributes.length) throw new TechniqueError(`${ctx}: ${at} needs at least one attribute`);
-        if (stride !== undefined && (!Number.isInteger(stride) || stride < 4 || stride % 4)) throw new TechniqueError(`${ctx}: ${at}: arrayStride ${stride} must be a multiple of 4`);
-        if (v.offset !== undefined && (!Number.isInteger(v.offset) || v.offset < 0 || v.offset % 4)) throw new TechniqueError(`${ctx}: ${at}: offset ${v.offset} must be a multiple of 4`);
-        for (const a of v.attributes) {
-          const size = VERTEX_FORMAT_BYTES[a.format];
-          if (size === undefined) throw new TechniqueError(`${ctx}: ${at}: unknown vertex format '${a.format}'`);
-          if (!Number.isInteger(a.location) || a.location < 0 || a.location > 15) throw new TechniqueError(`${ctx}: ${at}: attribute location ${a.location} must be from 0 to 15`);
-          if (locations.has(a.location)) throw new TechniqueError(`${ctx}: ${at}: @location(${a.location}) is used by two attributes`);
-          locations.add(a.location);
-          if (!Number.isInteger(a.offset) || a.offset < 0 || a.offset % Math.min(4, size)) throw new TechniqueError(`${ctx}: ${at}: attribute offset ${a.offset} is not aligned for ${a.format}`);
-          if (stride !== undefined && a.offset + size > stride) throw new TechniqueError(`${ctx}: ${at}: ${a.format} at offset ${a.offset} does not fit in a ${stride}-byte element`);
-        }
+        checkVertexBuffer(ctx, at, v, stride, locations);
         if ((v.stepMode ?? 'vertex') === 'vertex') perVertex ??= v.resource;
         add({ resource: v.resource, read: true, write: false, usage: 'vertex' });
       }

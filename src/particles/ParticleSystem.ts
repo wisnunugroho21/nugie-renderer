@@ -100,7 +100,7 @@ export class ParticlePool {
     const g = technique(`particles:${this.config.name ?? this.id}`);
     g.float('dt'); g.float('time');
     for (const v of ['frame', 'cur', 'maxCount', 'spawnTotal', 'requestCount', 'meshIndexCount', 'meshFirstIndex', 'meshBaseVertex']) g.uint(v);
-    const buf = (name: string, element: string, stride?: number) => g.buffer(name, { element, ...(stride ? { stride } : {}), visibility: 'imported' });
+    const buf = (name: string, element: string, stride?: number) => g.importedBuffer(name, element, stride);
     const emitters = buf('emitters', 'Emitter', EMITTER_BYTES), requests = buf('requests', 'vec4<u32>');
     const particles = buf('particles', 'Particle', 64), aliveA = buf('aliveA', 'u32'), aliveB = buf('aliveB', 'u32'), deadList = buf('deadList', 'u32');
     const counters = buf('counters', 'atomic<u32>', 4), args = buf('args', 'u32'), argsDummy = buf('argsDummy', 'u32');
@@ -122,6 +122,9 @@ export class ParticlePool {
       },
     }));
   }
+
+  /** Free the pool's simulation technique (the pool's own buffers stay with the pool). */
+  disposeCompute(): void { this.computeFx?.dispose(); this.computeFx = null; }
 
   /** Add an emitter (returns its index inside the pool). */
   addEmitter(config: EmitterConfig): number {
@@ -332,6 +335,9 @@ export class ParticleSystem implements RenderFeature {
 
   /** Emit / simulate / compact in a compute pass, before any draw reads the particles. */
   addPasses(g: RenderGraph): void { g.addPass({ name: 'particles-sim', writes: ['particles'], execute: (e) => this.encodeCompute(e) }); }
+
+  /** Free every pool's simulation pass. */
+  dispose(): void { for (const p of this.pools) p.disposeCompute(); }
 
   /** One indirect draw per pool, after the scene. */
   drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { if (this.pools.length) this.encodeDraw(pass, f.frameBindGroup); }

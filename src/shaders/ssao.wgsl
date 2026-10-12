@@ -7,7 +7,7 @@
 fn fs_ssao(in: VOut) -> @location(0) vec4<f32> {
   let px = vec2<i32>(in.pos.xy);
   let z = linDepth(px);
-  if (z > P.b.z * 0.999) { return vec4<f32>(1.0); }                     // sky
+  if (z > P().b.z * 0.999) { return vec4<f32>(1.0); }                     // sky
   let aux = textureLoad(texA, px, 0);
   let N = viewNormal(px, aux, z);
   let pos = viewPos(px, z);
@@ -20,8 +20,8 @@ fn fs_ssao(in: VOut) -> @location(0) vec4<f32> {
   T = normalize(T);
   let B = cross(N, T);
 
-  let count = i32(P.b.x);
-  let radius = P.a.x;
+  let count = i32(P().b.x);
+  let radius = P().a.x;
   var occ = 0.0;
   for (var i = 0; i < count; i++) {
     let fi = (f32(i) + 0.5) / f32(count);
@@ -32,13 +32,13 @@ fn fs_ssao(in: VOut) -> @location(0) vec4<f32> {
     let sp = pos + (T * h.x + B * h.y + N * h.z) * (radius * scale);
     if (sp.z > -0.01) { continue; }
     let spx = projectPx(sp);
-    if (spx.x < 0.0 || spx.y < 0.0 || spx.x >= P.f.z || spx.y >= P.f.w) { continue; }
+    if (spx.x < 0.0 || spx.y < 0.0 || spx.x >= P().f.z || spx.y >= P().f.w) { continue; }
     let sceneZ = linDepth(vec2<i32>(spx));
-    if (sceneZ < -sp.z - P.a.y) {                                        // the sample lies behind the visible surface
+    if (sceneZ < -sp.z - P().a.y) {                                        // the sample lies behind the visible surface
       occ += smoothstep(0.0, 1.0, radius / max(abs(z - sceneZ), 1e-4)); // ignore occluders far in front of the pixel
     }
   }
-  let ao = pow(clamp(1.0 - P.a.z * occ / f32(count), 0.0, 1.0), P.a.w);
+  let ao = pow(clamp(1.0 - P().a.z * occ / f32(count), 0.0, 1.0), P().a.w);
   return vec4<f32>(ao, 0.0, 0.0, 1.0);
 }
 
@@ -46,13 +46,13 @@ fn fs_ssao(in: VOut) -> @location(0) vec4<f32> {
 fn fs_blur(in: VOut) -> @location(0) vec4<f32> {
   let px = vec2<i32>(in.pos.xy);
   let zc = linDepth(px);
-  let dir = vec2<i32>(i32(P.a.x), i32(P.a.y));
+  let dir = vec2<i32>(i32(P().a.x), i32(P().a.y));
   var sum = 0.0;
   var wsum = 0.0;
   for (var k = -4; k <= 4; k++) {
     let q = px + dir * k;
     let zs = linDepth(q);
-    let wd = exp(-abs(zc - zs) / max(zc, 0.1) * P.a.z);                  // do not blur across depth edges
+    let wd = exp(-abs(zc - zs) / max(zc, 0.1) * P().a.z);                  // do not blur across depth edges
     let w = wd * exp(-f32(k * k) / 8.0);
     sum += textureLoad(texA, clamp(q, vec2<i32>(0), sizePx() - vec2<i32>(1)), 0).r * w;
     wsum += w;

@@ -3,7 +3,7 @@ import type { PassDesc } from '../RenderGraph';
 import { compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
 import type { VariableValue } from './Flatten';
 import { expandShader, sampleTypeOf, writeUniform, type ExpandedShader } from './ShaderTokens';
-import { TechniqueError, type BindingDecl, type ComputeNode, type DrawNode, type Technique, type TextureDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
+import { TechniqueError, type BindingDecl, type ComputeNode, type DrawNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
 
 export interface TechniqueInstanceOptions extends CompileOptions {
   /** Host resources for the technique's `imported` resources. They can also be attached (or replaced) later with `setImport`. */
@@ -22,6 +22,14 @@ export interface ExecuteOptions {
 
 type Physical = GPUTexture | GPUBuffer;
 const isTexture = (r: Physical): r is GPUTexture => 'createView' in r;
+
+/** Whether two variable values are equal (numbers, or equal-length number arrays). */
+function sameValue(a: VariableValue, b: VariableValue): boolean {
+  if (!Array.isArray(a) || !Array.isArray(b)) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 
 /** Everything created for one step: pipeline, bind group, uniform buffer. */
 interface StepRuntime {
@@ -86,6 +94,7 @@ export class TechniqueInstance {
   private values = new Map<string, VariableValue>();
   private pipelines = new Map<string, GPUComputePipeline | GPURenderPipeline>();
   private runtimes = new Map<CompiledStep, StepRuntime>();
+  private declarations: Map<string, VariableDecl>;
   private dirty = true;
   private bindingsDirty = true;
   private uniformDirty = true;
@@ -93,7 +102,9 @@ export class TechniqueInstance {
   compileCount = 0;
   private listeners = new Set<(names: string[]) => void>();
 
-  private constructor(readonly gpu: GPUContext, readonly technique: Technique, private options: TechniqueInstanceOptions) {}
+  private constructor(readonly gpu: GPUContext, readonly technique: Technique, private options: TechniqueInstanceOptions) {
+    this.declarations = new Map((technique.variables ?? []).map((v) => [v.name, v]));
+  }
 
   /** Compile `technique` and create its GPU resources. Throws a {@link TechniqueError} if it is invalid. */
   static create(gpu: GPUContext, technique: Technique, options: TechniqueInstanceOptions = {}): TechniqueInstance {
@@ -116,15 +127,27 @@ export class TechniqueInstance {
 
   // ---------------------------------------------------------------------------------------------------------- variables
 
-  /** Set a variable of the technique (a number, or four numbers for float4). */
+  /** Set a variable of the technique (a number, or four numbers for float4). The value is copied: the caller may reuse its array. */
   setVariable(name: string, value: VariableValue): void {
-    const decl = this.technique.variables?.find((v) => v.name === name);
+    const decl = this.declarations.get(name);
     if (!decl) throw new TechniqueError(`technique '${this.technique.name}' has no variable '${name}'`);
-    const same = JSON.stringify(this.values.get(name) ?? this.current(name)) === JSON.stringify(value);
-    if (same) return;
-    this.values.set(name, value);
+    if (sameValue(this.values.get(name) ?? this.current(name), value)) return;
+    const stored = Array.isArray(value) ? value.slice() : value;
+    this.values.set(name, stored);
     if (this.compiled.structural.has(name)) this.dirty = true;
-    else { this.compiled.variables.get(name)!.value = decl.type === 'float4' ? (value as number[]).slice() : Array.isArray(value) ? value[0] : value; this.uniformDirty = true; }
+    else { this.compiled.variables.get(name)!.value = decl.type === 'float4' ? (stored as number[]).slice() : Array.isArray(stored) ? stored[0] : stored; this.uniformDirty = true; }
+  }
+
+  /** Set a `float4` variable from `source[offset .. offset + 3]` without allocating when the value did not change (the per-frame path for matrices and planes). */
+  setVector(name: string, source: ArrayLike<number>, offset = 0): void {
+    const current = this.values.get(name) ?? this.current(name);
+    if (Array.isArray(current) && current[0] === source[offset] && current[1] === source[offset + 1] && current[2] === source[offset + 2] && current[3] === source[offset + 3]) return;
+    this.setVariable(name, [source[offset], source[offset + 1], source[offset + 2], source[offset + 3]]);
+  }
+
+  /** Set `count` consecutive `float4` variables `<prefix>0 .. <prefix>N` from `source` (4 numbers each): a matrix as columns, or an array of planes. */
+  setVectors(prefix: string, source: ArrayLike<number>, count: number): void {
+    for (let i = 0; i < count; i++) this.setVector(prefix + i, source, i * 4);
   }
 
   /** Current value of a variable. */

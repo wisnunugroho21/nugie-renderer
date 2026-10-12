@@ -95,7 +95,10 @@ export interface BindingDecl {
   sampler?: GPUFilterMode;
   /** Textures: first mip level of the view (default 0). */
   mip?: number;
-  /** Textures: mip levels in the view. Default: the whole chain for `read`, 1 for `write` / `readwrite` (storage views have one level). */
+  /**
+   * Textures: mip levels in the view. With neither `mip` nor `mipCount` a `read` sees the whole chain and a `write` / `readwrite` one level (storage views have one
+   * level). As soon as either is given, `mipCount` defaults to 1.
+   */
   mipCount?: number;
 }
 

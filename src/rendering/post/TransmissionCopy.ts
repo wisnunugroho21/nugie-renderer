@@ -21,6 +21,9 @@ export class TransmissionCopy {
 
   constructor(private gpu: GPUContext, private scene: SceneResources) {}
 
+  /** Free the texture and its passes. */
+  dispose(): void { this.fx?.dispose(); this.fx = null; this.texture = null; this.scene.setTransmission(null); }
+
   /** Index of the last mip level (the value the shaders get as "mip count"), or 0 while no texture exists. */
   get maxMip(): number { return this.texture ? this.texture.mipLevelCount - 1 : 0; }
 

@@ -68,6 +68,14 @@ export class VolumetricFog implements RenderFeature {
 
   // ---- RenderFeature hooks ----
 
+  /** Switch the fog off in the scene and free the volume. */
+  dispose(): void {
+    this.scene.fog.enabled = false;
+    this.scene.setFogVolume(null);
+    this.width = 0;
+    this.fx.dispose();
+  }
+
   /** Size the volume for the canvas and mirror the settings into the scene uniform (before it is written). */
   beginFrame(f: FeatureFrame): void {
     if (!f.hasCamera) return;
@@ -110,7 +118,7 @@ export class VolumetricFog implements RenderFeature {
   encode(enc: GPUCommandEncoder, frameBG: GPUBindGroup, camWorld: ArrayLike<number>, proj00: number, proj11: number, near: number, timestampWrites?: GPUComputePassTimestampWrites): void {
     if (!this.enabled || this.width === 0) return;
     const fx = this.fx;
-    for (let i = 0; i < 4; i++) fx.setVariable(`camWorld${i}`, Array.from(camWorld).slice(i * 4, i * 4 + 4));
+    fx.setVectors('camWorld', camWorld, 4);
     fx.setVariable('screen', [this.width, this.height, near, this.settings.maxDistance]);
     fx.setVariable('proj', [proj00, proj11, 0, 0]);
     fx.setHostBindGroup('frame', frameBG);

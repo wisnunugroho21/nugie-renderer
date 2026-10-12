@@ -52,10 +52,10 @@ export class ClusterGrid implements RenderFeature {
     const g = technique('light-clusters');
     for (const v of ['view0', 'view1', 'view2', 'view3', 'screen', 'proj']) g.float4(v);
     for (const v of ['dimX', 'dimY', 'dimZ', 'tile', 'lightCount', 'globalCount', 'maxLights', 'clusters']) g.uint(v);
-    const lights = g.buffer('lights', { element: 'Light', stride: LIGHT_BYTES, visibility: 'imported' });
-    const grid = g.buffer('clusterGrid', { element: 'vec2<u32>', visibility: 'imported' });
-    const indices = g.buffer('clusterIndices', { element: 'u32', visibility: 'imported' });
-    const overflow = g.buffer('overflow', { element: 'atomic<u32>', stride: 4, count: 1, visibility: 'imported' });
+    const lights = g.importedBuffer('lights', 'Light', LIGHT_BYTES);
+    const grid = g.importedBuffer('clusterGrid', 'vec2<u32>');
+    const indices = g.importedBuffer('clusterIndices', 'u32');
+    const overflow = g.importedBuffer('overflow', 'atomic<u32>', 4);
     g.callback('clear-overflow', { writes: [overflow], execute: (enc) => enc.clearBuffer(this.overflowBuf) });
     g.compute('cluster-cull', {
       shader: cullSrc, reads: [lights], writes: [grid, indices], readWrites: [overflow],
@@ -65,6 +65,13 @@ export class ClusterGrid implements RenderFeature {
   }
 
   // ---- RenderFeature hooks ----
+
+  /** Stop assigning lights and free the pass. The grid and index buffers stay: the scene bind group still points at them. */
+  dispose(): void {
+    this.active = false;
+    this.fx.dispose();
+    this.gpu.resources.buffers.destroy(this.overflowBuf);
+  }
 
   /** Decide whether clusters are used this frame and size the grid for the canvas (before the scene uniform is written). */
   beginFrame(f: FeatureFrame): void {
@@ -114,7 +121,7 @@ export class ClusterGrid implements RenderFeature {
     fx.setImport('lights', this.scene.lightBuffer);
     fx.setImport('clusterGrid', this.grid);
     fx.setImport('clusterIndices', this.indices!);
-    for (let i = 0; i < 4; i++) fx.setVariable(`view${i}`, Array.from(view as ArrayLike<number>).slice(i * 4, i * 4 + 4));
+    fx.setVectors('view', view, 4);
     fx.setVariable('screen', [this.width, this.height, near, far]);
     fx.setVariable('proj', [proj00, proj11, 0, 0]);
     this.dims.forEach((d, i) => fx.setVariable(['dimX', 'dimY', 'dimZ'][i], d));

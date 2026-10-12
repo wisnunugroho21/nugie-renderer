@@ -61,7 +61,7 @@ export class GPUCuller {
     for (let i = 0; i < 4; i++) g.float4(`viewProj${i}`);
     g.float4('hiz'); g.float4('cam');
     for (const v of ['total', 'batchCount', 'srcBase', 'hizOn', 'phase', 'virtualBase', 'dstBase']) g.uint(v);
-    const buf = (name: string, element: string, stride?: number) => g.buffer(name, { element, ...(stride ? { stride } : {}), visibility: 'imported' });
+    const buf = (name: string, element: string, stride?: number) => g.importedBuffer(name, element, stride);
     const src = buf('src', 'u32'), dst = buf('dst', 'u32'), spheres = buf('spheres', 'vec4<f32>'), batchFirst = buf('batchFirst', 'u32'), args = buf('args', 'atomic<u32>', 4);
     const visBits = buf('visBits', 'u32'), batchInfo = buf('batchInfo', 'vec4<u32>'), lodThresholds = buf('lodThresholds', 'f32');
     const hizTex = g.texture('hizTex', { format: 'r32float', visibility: 'imported' });
@@ -71,6 +71,9 @@ export class GPUCuller {
     });
     return g.instantiate(this.gpu, { label: `gpu-cull-${phase}` });
   }
+
+  /** Free the three phase techniques. */
+  dispose(): void { for (const p of this.phases) p.dispose(); }
 
   /** Grow (by doubling) the sphere, culled-instance, batch, and indirect-argument buffers so they hold the requested counts. */
   private ensure(instances: number, dst: number, batches: number, virtuals: number): void {
@@ -191,8 +194,8 @@ export class GPUCuller {
   ): void {
     if (this.total === 0 || this.batchCount === 0) return;
     const fx = this.phases[phase];
-    for (let i = 0; i < 6; i++) fx.setVariable(`plane${i}`, Array.from(planes as ArrayLike<number>).slice(i * 4, i * 4 + 4));
-    for (let i = 0; i < 4; i++) fx.setVariable(`viewProj${i}`, Array.from(viewProj as ArrayLike<number>).slice(i * 4, i * 4 + 4));
+    fx.setVectors('plane', planes, 6);
+    fx.setVectors('viewProj', viewProj, 4);
     fx.setVariable('total', this.total); fx.setVariable('batchCount', this.batchCount); fx.setVariable('srcBase', srcBase); fx.setVariable('hizOn', hiz ? 1 : 0);
     fx.setVariable('phase', phase);
     fx.setVariable('virtualBase', phase === 2 ? this.virtualCount : 0); fx.setVariable('dstBase', phase === 2 ? this.dstInstances : 0);

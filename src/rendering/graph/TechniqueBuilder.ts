@@ -252,6 +252,11 @@ export class TechniqueBuilder {
     return this.addResource(decl) as BufferHandle;
   }
 
+  /** Declare a buffer the host supplies (shorthand for `buffer(name, { element, stride, visibility: 'imported' })`). The element count is left to the host's buffer. */
+  importedBuffer(name: string, element: string, stride?: number): BufferHandle {
+    return this.buffer(name, { element, ...(stride !== undefined ? { stride } : {}), visibility: 'imported' });
+  }
+
   private common(decl: TextureDecl | BufferDecl, o: { like?: ResourceRef; scale?: number; visibility?: ResourceVisibility; lifetime?: ResourceLifetime }, name: string): void {
     if (o.like !== undefined) decl.like = this.resource(o.like, `resource '${name}' (like)`).name;
     if (o.scale !== undefined) decl.scale = o.scale;

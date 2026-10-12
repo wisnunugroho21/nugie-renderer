@@ -7,6 +7,17 @@ import type { TechniqueInstance } from './graph/TechniqueInstance';
 import { DEPTH_FORMAT } from './formats';
 
 /**
+ * The timestamps of one pass of the pyramid build: the build is several passes, so the first one carries the start timestamp and the last one the end timestamp
+ * (together they time the whole build). `mips` is the pyramid's level count.
+ */
+export function hizPassTimestamps(path: string, mips: number, whole: GPUComputePassTimestampWrites): GPUComputePassTimestampWrites | undefined {
+  const lastPass = mips > 1 ? `hiz-down-${mips - 1}` : 'hiz-init';
+  const begin = path === 'hiz-init' ? whole.beginningOfPassWriteIndex : undefined, end = path === lastPass ? whole.endOfPassWriteIndex : undefined;
+  if (begin === undefined && end === undefined) return undefined;
+  return { querySet: whole.querySet, ...(begin !== undefined ? { beginningOfPassWriteIndex: begin } : {}), ...(end !== undefined ? { endOfPassWriteIndex: end } : {}) };
+}
+
+/**
  * Hierarchical depth pyramid (r32float, max reduction => conservative for standard-Z occlusion tests).
  *
  * The build is a technique (see TECHNIQUES.md): one compute node copies the depth buffer into mip 0, then one node per further mip reads mip i-1 and
@@ -22,6 +33,9 @@ export class HiZ {
   private depthFormat: GPUTextureFormat = DEPTH_FORMAT;
 
   constructor(private gpu: GPUContext) {}
+
+  /** Free the pyramid. */
+  dispose(): void { this.fx?.dispose(); this.fx = null; this.texture = null; this.fullView = null; }
 
   /** (Re)create the pyramid for a `width` x `height` depth buffer of `depthFormat`; no-op when unchanged. */
   resize(width: number, height: number, depthFormat: GPUTextureFormat = this.depthFormat): void {
@@ -52,16 +66,6 @@ export class HiZ {
     if (depth.format !== this.depthFormat) this.resize(this.width, this.height, depth.format);
     const fx = this.fx!;
     fx.setImport('depth', depth);
-    // the build is several passes: the first one carries the start timestamp, the last one the end timestamp
-    const last = `hiz-down-${this.mips - 1}`;
-    const last0 = this.mips > 1 ? last : 'hiz-init';
-    fx.execute(enc, {
-      timestampWrites: !timestampWrites ? undefined : (path) => {
-        const w: GPUComputePassTimestampWrites = { querySet: timestampWrites.querySet };
-        if (path === 'hiz-init' && timestampWrites.beginningOfPassWriteIndex !== undefined) w.beginningOfPassWriteIndex = timestampWrites.beginningOfPassWriteIndex;
-        if (path === last0 && timestampWrites.endOfPassWriteIndex !== undefined) w.endOfPassWriteIndex = timestampWrites.endOfPassWriteIndex;
-        return w.beginningOfPassWriteIndex !== undefined || w.endOfPassWriteIndex !== undefined ? w : undefined;
-      },
-    });
+    fx.execute(enc, { timestampWrites: timestampWrites && ((path) => hizPassTimestamps(path, this.mips, timestampWrites)) });
   }
 }

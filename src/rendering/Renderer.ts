@@ -286,7 +286,7 @@ export class Renderer {
   }
 
   /** Stop drawing a line / point / sprite system. */
-  removeOverlay(o: Overlay): void { this.features.remove(o); }
+  removeOverlay(o: Overlay): void { this.removeFeature(o); }
 
   // ---- features -----------------------------------------------------------------------------------------------------------------
 
@@ -300,7 +300,11 @@ export class Renderer {
   }
 
   /** Unregister a feature (its GPU resources stay with the feature: destroy them yourself). */
-  removeFeature(feature: RenderFeature): boolean { return this.features.remove(feature); }
+  removeFeature(feature: RenderFeature): boolean {
+    if (!this.features.remove(feature)) return false;
+    feature.dispose?.();
+    return true;
+  }
 
   /** The object handed to the features' hooks. Its fields are refreshed by `beginFeatureFrame` every frame. */
   private createFeatureFrame(): FeatureFrame {

@@ -108,6 +108,8 @@ export interface RenderFeature {
   drawMain?(pass: GPURenderPassEncoder, frame: FeatureFrame): void;
   /** The main pass's colour format or sample count changed (HDR, MSAA): re-create pipelines that target it. */
   retarget?(): void;
+  /** Release the GPU objects the feature owns. `renderer.removeFeature` calls it, so a removed feature cannot be added again. */
+  dispose?(): void;
   /** After the frame was submitted (clear immediate-mode data here). */
   endFrame?(): void;
 }

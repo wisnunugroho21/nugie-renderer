@@ -147,9 +147,9 @@ export class PostProcessor implements RenderFeature {
   private chain: { key: string; shape: PostChainShape; plan: PostChainPlan; instance: TechniqueInstance | null } | null = null;
 
   constructor(private gpu: GPUContext) {
-    const { device, resources: r } = gpu;
+    const { resources: r } = gpu;
     registerEngineShaderChunks(r.shaders);
-    this.dummy = device.createTexture({ label: 'post-dummy', size: [1, 1], format: HDR_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING });
+    this.dummy = r.textures.create({ label: 'post-dummy', size: [1, 1], format: HDR_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING });
   }
 
   /** Apply settings. Turns the post chain on (`enabled = true`) unless `enabled: false` is passed explicitly. */

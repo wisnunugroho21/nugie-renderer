@@ -49,10 +49,16 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
 export class FullscreenEffect {
   /** The effect's uniforms (16 floats = 4 vec4), uploaded on every `run`. */
   readonly params = new Float32Array(16);
-  private instance: TechniqueInstance | null = null;
-  private size = '';
+  private instance: TechniqueInstance;
+  private size = '1x1';
 
-  constructor(private gpu: GPUContext, private o: FullscreenEffectOptions) {}
+  /** Builds the effect at a placeholder size so a bad shader fails here, not in the middle of a frame; `run` rebuilds it for the real scene size. */
+  constructor(private gpu: GPUContext, private o: FullscreenEffectOptions) {
+    this.instance = this.build(1, 1);
+  }
+
+  /** Free the effect's scratch texture and pipeline. */
+  dispose(): void { this.instance.dispose(); }
 
   /** The effect as a technique for a scene texture of this size: draw the effect into a scratch texture, then copy it back over the scene. */
   private build(width: number, height: number): TechniqueInstance {
@@ -71,8 +77,8 @@ export class FullscreenEffect {
   /** Apply the effect to `sceneTexture` (the HDR scene colour, `PostFeatureFrame.sceneTexture`). Records two commands into `enc`. */
   run(enc: GPUCommandEncoder, sceneTexture: GPUTexture): void {
     const size = `${sceneTexture.width}x${sceneTexture.height}`;
-    if (!this.instance || this.size !== size) {
-      this.instance?.dispose();
+    if (this.size !== size) {
+      this.instance.dispose();
       this.instance = this.build(sceneTexture.width, sceneTexture.height);
       this.size = size;
     }

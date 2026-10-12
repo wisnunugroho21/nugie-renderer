@@ -15,8 +15,9 @@ const AO_FORMAT: GPUTextureFormat = 'r8unorm';
  * the composite (exposure, bloom, SSAO / SSR, tone mapping, grading, sRGB) and FXAA, each a full-screen draw node. The scene colour, aux
  * target, depth buffer and swap chain are imported; everything else is transient and owned (and memory-aliased) by the technique.
  *
- * The shader sources are the engine's `post*.wgsl`: they address the node's textures as `texA` .. `texD` and its parameters as `P.a` .. `P.f`.
- * Each node gets the bindings it names (unused names point at a 1 x 1 dummy texture), and `P.a` .. `P.d` become the node's own float4 variables.
+ * The shader sources are the engine's `post*.wgsl`: they address the node's textures as `texA` .. `texD` and its parameters as `P().a` .. `P().f`.
+ * Each node gets the bindings it names (unused names point at a 1 x 1 dummy texture) and a prelude defining `P()`: `a` .. `d` are the node's own float4 variables,
+ * `e` and `f` the camera terms every node shares.
  */
 export interface PostChainShape {
   width: number;
@@ -44,6 +45,8 @@ export interface PostChainPlan {
 }
 
 type Slot = 'texA' | 'texB' | 'texC' | 'texD';
+/** The node-specific parameter vectors of `P()`. */
+const LETTERS = ['a', 'b', 'c', 'd'] as const;
 const variableName = (node: string, letter: string): string => `${node.replace(/-/g, '_')}_${letter}`;
 const token = (name: string): string => `/*$(Variable:${name})*/`;
 
@@ -60,20 +63,16 @@ export function buildPostChain(shape: PostChainShape, src: PostChainSources): Po
   const variables = new Set<string>(['camE', 'camF']);
   g.float4('camE'); g.float4('camF');
 
-  /** One full-screen draw: `code` is the shader (with `P.x` for the node's parameters), `reads` names what texA .. texD are. */
+  /** One full-screen draw: `code` is the shader (reading its parameters as `P()`), `reads` names what texA .. texD are. */
   const fullscreen = (name: string, code: string, entry: string, reads: Partial<Record<Slot, TextureHandle>>, target: TextureHandle,
-    o: { load?: boolean; additive?: boolean; defaults?: Partial<Record<'a' | 'b' | 'c' | 'd', number[]>> } = {}): void => {
-    const used = new Set<string>();
-    const body = code.replace(/\bP\.([a-f])\b/g, (_m, l: string) => {
-      if (l === 'e') return token('camE');
-      if (l === 'f') return token('camF');
-      used.add(l);
-      return token(variableName(name, l));
-    });
-    for (const l of used) { const v = variableName(name, l); variables.add(v); g.float4(v, o.defaults?.[l as 'a'] ?? [0, 0, 0, 0]); }
+    o: { load?: boolean; additive?: boolean; defaults?: Partial<Record<typeof LETTERS[number], number[]>> } = {}): void => {
+    for (const l of LETTERS) { const v = variableName(name, l); variables.add(v); g.float4(v, o.defaults?.[l] ?? [0, 0, 0, 0]); }
+    const params = `struct Params { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32>, f: vec4<f32> };
+fn P() -> Params { return Params(${LETTERS.map((l) => token(variableName(name, l))).join(', ')}, ${token('camE')}, ${token('camF')}); }
+`;
     const list: BindingRef[] = (['texA', 'texB', 'texC', 'texD'] as Slot[]).map((slot) => ({ resource: reads[slot] ?? dummy, name: slot, ...(slot === 'texA' ? { sampler: 'linear' as const } : {}) }));
     g.draw(name, {
-      shader: body, vertexEntry: 'vs_full', fragmentEntry: entry, reads: list, vertices: 3,
+      shader: params + code, vertexEntry: 'vs_full', fragmentEntry: entry, reads: list, vertices: 3,
       colorTargets: [{ resource: target, loadOp: o.load ? 'load' : 'clear', clearValue: [0, 0, 0, 1], blend: o.additive ? 'additive' : 'none' }],
     });
   };

@@ -211,6 +211,9 @@ export class RibbonSystem implements RenderFeature {
   /** Advance the trail histories on the GPU, before the draw reads them. */
   addPasses(g: RenderGraph): void { g.addPass({ name: `${this.name}:update`, writes: ['ribbons'], execute: (e) => this.encodeCompute(e) }); }
 
+  /** Free the trail-update pass. */
+  dispose(): void { this.updateFx?.dispose(); this.updateFx = null; }
+
   /** One draw call, after the scene. */
   drawMain(pass: GPURenderPassEncoder, f: FeatureFrame): void { this.encodeDraw(pass, f.frameBindGroup); }
 
