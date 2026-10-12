@@ -2,7 +2,7 @@ import type { GPUContext } from '../gpu/GPUContext';
 import { TechniqueInstance } from '../rendering/graph/TechniqueInstance';
 import { technique, wgsl, bindings } from '../rendering/graph/TechniqueBuilder';
 import type { ComputeNode, NodeDecl, Technique } from '../rendering/graph/TechniqueTypes';
-import { readTextureRGBA8, type SelfTest } from './harness';
+import { readBuffer, readTextureRGBA8, type SelfTest } from './harness';
 
 const f = Math.fround;
 
@@ -451,6 +451,96 @@ struct VOut { @builtin(position) p: vec4<f32>, @location(0) c: vec3<f32> };
         if (full(8, 8) !== '0,255,0,255' || full(1, 14) !== '0,255,0,255') throw new Error(`indirect: ${full(8, 8)} / ${full(1, 14)}`);
         verts.destroy(); indices.destroy(); argData.destroy();
         return 'baseVertex 4 and indexed indirect select the left quad; a non-indexed indirect draw at byte offset 8 fills the target';
+      },
+    },
+    {
+      name: 'technique: bindings in three @groups, a uniform buffer picked by a dynamic offset (one run per view)',
+      run: async () => {
+        const { device } = gpu;
+        const g = technique('views');
+        const slot = g.uint('slot');
+        const views = g.importedBuffer('views', 'ViewData', 256);
+        const scale = g.importedBuffer('scale', 'f32');
+        const out = g.importedBuffer('out', 'vec4<f32>');
+        g.compute('mix', {
+          workgroupSize: [1], dispatch: { threads: [1] },
+          // group 0: the output (and the variables); group 1: this view's data, a 256-byte slot chosen by the dynamic offset; group 2: a shared scale
+          reads: [{ resource: views, name: 'view', uniform: true, dynamicOffset: true, group: 1 }, { resource: scale, group: 2 }], writes: [out],
+          shader: wgsl`
+struct ViewData { color: vec4<f32> };
+@compute @workgroup_size(1) fn main() { ${out}[${slot}] = view.color * scale[0]; }`,
+        });
+        const viewBuffer = device.createBuffer({ size: 768, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const data = new Float32Array(192);
+        for (let i = 0; i < 3; i++) data.set([i + 1, 10 * (i + 1), 0.5, 1], i * 64);      // slot i starts at byte 256 * i
+        device.queue.writeBuffer(viewBuffer, 0, data);
+        const scaleBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+        device.queue.writeBuffer(scaleBuffer, 0, new Float32Array([2, 0, 0, 0]));
+        const outBuffer = device.createBuffer({ size: 48, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+        const fx = g.instantiate(gpu, { imports: { views: viewBuffer, scale: scaleBuffer, out: outBuffer } });
+        for (let view = 0; view < 3; view++) {
+          fx.setVariable('slot', view);                       // uniforms are written when the technique executes: submit between runs
+          fx.setDynamicOffset('mix', 'view', view * 256);
+          const enc = device.createCommandEncoder();
+          fx.execute(enc);
+          device.queue.submit([enc.finish()]);
+        }
+        const result = new Float32Array(await readBuffer(device, outBuffer, 48));
+        let misaligned = '';
+        try { fx.setDynamicOffset('mix', 'view', 100); } catch (e) { misaligned = String(e); }
+        fx.dispose(); viewBuffer.destroy(); scaleBuffer.destroy(); outBuffer.destroy();
+        const expected = [2, 20, 1, 2, 4, 40, 1, 2, 6, 60, 1, 2];
+        if (expected.some((v, i) => result[i] !== v)) throw new Error(`result ${Array.from(result).join(',')} (expected ${expected.join(',')})`);
+        if (!/multiple of/.test(misaligned)) throw new Error(`a misaligned offset was accepted: ${misaligned}`);
+        return '3 views read from one uniform buffer at offsets 0 / 256 / 512, with a third group of shared data';
+      },
+    },
+    {
+      name: 'technique render node: host pipelines and per-draw bind groups with dynamic offsets, redundant state skipped',
+      run: async () => {
+        const { device } = gpu;
+        const module = device.createShaderModule({ code: `
+struct V { @builtin(position) p: vec4<f32> };
+@vertex fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> V {
+  var q = array<vec2<f32>, 6>(vec2<f32>(0.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0));
+  return V(vec4<f32>(q[vi].x - 1.0 + f32(ii), q[vi].y, 0.0, 1.0));      // instance 0: left half, instance 1: right half
+}
+struct C { color: vec4<f32> };
+@group(0) @binding(0) var<uniform> c: C;
+@fragment fn plain() -> @location(0) vec4<f32> { return c.color; }
+@fragment fn inverted() -> @location(0) vec4<f32> { return vec4<f32>(vec3<f32>(1.0) - c.color.rgb, 1.0); }` });
+        const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform', hasDynamicOffset: true } }] });
+        const pipeline = (entry: string) => device.createRenderPipeline({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+          vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: entry, targets: [{ format: 'rgba8unorm' }] },
+        });
+        const plain = pipeline('plain'), inverted = pipeline('inverted');
+        const colors = device.createBuffer({ size: 768, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        device.queue.writeBuffer(colors, 0, new Float32Array([1, 0, 0, 1]));            // slot 0: red
+        device.queue.writeBuffer(colors, 256, new Float32Array([0, 1, 0, 1]));          // slot 1: green
+        const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: colors, size: 16 } }] });
+
+        const g = technique('render-node');
+        const out = g.texture('out', { format: 'rgba8unorm', size: [16, 16], visibility: 'exported' });
+        let stats = '';
+        g.renderPass('draws', {
+          colorTargets: [out],
+          record: (pass) => {
+            pass.setPipeline(plain); pass.setBindGroup(0, bindGroup, [0]);   pass.draw(6, 1, 0, 0);     // left half, red
+            pass.setPipeline(plain); pass.setBindGroup(0, bindGroup, [256]); pass.draw(6, 1, 0, 1);     // right half, green: same pipeline (skipped), other offset
+            pass.setPipeline(inverted);                                                                // a third draw over the left half with the other pipeline
+            pass.setBindGroup(0, bindGroup, [0]); pass.draw(6, 1, 0, 0);
+            stats = `${pass.drawCalls} draws, pipeline ${pass.switches.pipeline}/${pass.skipped.pipeline} (set/skipped), bind group ${pass.switches.bindGroup}`;
+          },
+        });
+        const fx = g.instantiate(gpu);
+        const { pixels, w } = await run(gpu, fx, 'out');
+        const at = (x: number, y: number) => Array.from(pixels.slice((y * w + x) * 4, (y * w + x) * 4 + 3)).join(',');
+        fx.dispose(); colors.destroy();
+        // the inverted red (0,255,255) replaced the left half; the right half is still the green drawn with the second offset
+        if (at(3, 8) !== '0,255,255' || at(12, 8) !== '0,255,0') throw new Error(`left ${at(3, 8)}, right ${at(12, 8)} (${stats})`);
+        if (stats !== '3 draws, pipeline 2/1 (set/skipped), bind group 3') throw new Error(`unexpected state tracking: ${stats}`);
+        return stats;
       },
     },
   ];

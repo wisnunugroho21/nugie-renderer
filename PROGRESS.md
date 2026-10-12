@@ -274,7 +274,9 @@ Conventions: character forward = +Z; IK/look-at targets are in the owner entity'
 * Verification: `postTests` (GPU self-test, golden images recorded from the hand-written chain: 4 configurations incl. a multisampled depth buffer, bit-exact), the cluster / fog / Hi-Z / particle / ribbon
   self-tests against their CPU references, and pixel-identical frames through the real engine against a build of the previous commit for the post chain (5 configurations), the feature demo, lights + fog,
   LOD with GPU culling (off / frustum / hiz2), the material gallery with transmission, and particles.
-* Still callback nodes: the per-batch scene passes (main, depth prepass, aux, shadows), the sky and the in-pass overlay / particle / ribbon draws. `IBLBaker`, `MipmapGenerator`, `CompactVertexStream` are asset-preparation utilities.
+* Technique nodes can now declare bindings in several `@group`s (per-binding `group`), bind buffers as `var<uniform>` single elements, and give a buffer binding a dynamic offset (`setDynamicOffset`), so per-view / per-object data can live in one ring buffer. Unit tests on a recording fake device and a GPU self-test (three groups, three views from one uniform buffer).
+* **Render nodes** (`g.renderPass`): the technique owns a render pass's attachments (MSAA resolve, depth layer / read-only, timestamps) and the host records many draws with its own pipelines and bind groups through a state-tracking `TrackedRenderPass`. The depth prepass, the aux pass and the shadow-map layers now run as render nodes, pixel-identical to the callback versions (lights + prepass + 7 shadow layers, MSAA and single-sample SSAO/SSR, LOD with GPU culling).
+* Still callback nodes: the main pass(es) and the sky and in-pass overlay / particle / ribbon draws (they draw into the main pass itself). `IBLBaker`, `MipmapGenerator`, `CompactVertexStream` are asset-preparation utilities.
 
 ## Compressed assets (October 2026)
 

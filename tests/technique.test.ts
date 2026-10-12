@@ -349,6 +349,107 @@ describe('validation', () => {
     });
   });
 
+  describe('several generated bind groups, uniform buffers and dynamic offsets', () => {
+    const buf = (name: string, extra: Record<string, unknown> = {}): ResourceDecl => ({ kind: 'buffer', name, element: 'vec4<f32>', count: 8, visibility: 'exported', ...extra } as ResourceDecl);
+    /** A node that also writes `sink` (group 3), so it is live; `code` leaves the sink out of the way. */
+    const node = (bindings: ComputeNode['bindings'], extra: Partial<ComputeNode> = {}): NodeDecl => ({
+      ...pass('c', [], []), shader: { code: '/*$(Bindings)*/' }, bindings: [...bindings, { resource: 'sink', access: 'write', group: 3 }], ...extra,
+    });
+    const sink = buf('sink');
+    const code = (t: ReturnType<typeof technique>) => {
+      const plan = compileTechnique(t), out = expandShader(plan.steps[0].node as never, plan);
+      return { ...out, slots: out.slots.filter((s) => s.name !== 'sink') };
+    };
+
+    it('numbers the bindings inside each group they are declared in', () => {
+      const t = technique([node([
+        { resource: 'a', access: 'read', group: 1 }, { resource: 'b', access: 'write' }, { resource: 'c', access: 'read', group: 1 }, { resource: 'd', access: 'readwrite', group: 2 },
+      ])], [buf('a'), buf('b'), buf('c'), buf('d'), sink]);
+      const out = code(t);
+      expect(out.slots.map((s) => [s.name, s.group, s.binding])).toEqual([['a', 1, 0], ['b', 0, 0], ['c', 1, 1], ['d', 2, 0]]);
+      expect(out.code).toContain('@group(1) @binding(1) var<storage, read> c: array<vec4<f32>>;');
+      expect(out.code).toContain('@group(2) @binding(0) var<storage, read_write> d: array<vec4<f32>>;');
+    });
+
+    it('puts the variables uniform at binding 0 of the node group, and a sampler beside its texture', () => {
+      const t = technique([node([{ resource: 'img', access: 'read', group: 2, sampler: 'linear' }], { group: 1, shader: { code: '/*$(Bindings)*/ let x = /*$(Variable:v)*/;' } })],
+        [tex('img', { visibility: 'exported' }), sink], [{ name: 'v', type: 'float' }]);
+      const out = code(t);
+      expect(out.slots.map((s) => [s.name, s.group, s.binding])).toEqual([['gigi', 1, 0], ['img', 2, 0], ['img_sampler', 2, 1]]);
+      expect(out.code).toContain('@group(1) @binding(0) var<uniform> gigi: GigiVariables;');
+    });
+
+    it('declares a uniform binding as a single element and tracks the uniform usage', () => {
+      const t = technique([node([{ resource: 'view', access: 'read', uniform: true, group: 1 }])], [buf('view', { element: 'ViewData', stride: 256 }), sink]);
+      expect(code(t).code).toContain('@group(1) @binding(0) var<uniform> view: ViewData;');
+      expect(compileTechnique(t).resources.get('view')!.uses.has('uniform')).toBe(true);
+    });
+
+    it('keeps the host groups away from every group the bindings use', () => {
+      const bindings: ComputeNode['bindings'] = [{ resource: 'a', access: 'read', group: 2 }, { resource: 'b', access: 'write' }];
+      const res = [buf('a'), buf('b'), sink];
+      expect(() => compileTechnique(technique([node(bindings, { hostGroups: [{ group: 1, layout: 'frame' }] })], res))).not.toThrow();
+      expect(() => compileTechnique(technique([node(bindings, { hostGroups: [{ group: 2, layout: 'frame' }] })], res))).toThrow(/@group\(2\) is used twice \(the generated bindings use group 0, 2, 3\)/);
+      expect(() => compileTechnique(technique([node([{ resource: 'a', access: 'read', group: 4 }])], res))).toThrow(/group 4 must be from 0 to 3/);
+    });
+
+    it('validates uniform, dynamicOffset and size', () => {
+      const one = (b: ComputeNode['bindings'][number], r: ResourceDecl = buf('a')) => () => compileTechnique(technique([node([b])], [r, sink]));
+      expect(one({ resource: 'a', access: 'write', uniform: true })).toThrow(/only buffers bound for reading can be uniform/);
+      expect(one({ resource: 't', access: 'read', uniform: true }, tex('t', { visibility: 'exported' }))).toThrow(/only buffers bound for reading can be uniform/);
+      expect(one({ resource: 't', access: 'read', dynamicOffset: true }, tex('t', { visibility: 'exported' }))).toThrow(/only buffers can have a dynamicOffset/);
+      expect(one({ resource: 'a', access: 'read', size: 6 })).toThrow(/multiple of 4 bytes/);
+      expect(one({ resource: 'a', access: 'read', dynamicOffset: true })).not.toThrow();                                         // vec4<f32>: 16 bytes
+      expect(one({ resource: 'a', access: 'read', dynamicOffset: true }, buf('a', { element: 'Params', stride: 256 }))).not.toThrow();      // the window is one element
+      expect(one({ resource: 'a', access: 'read', dynamicOffset: true, size: 64 }, buf('a', { element: 'Params', stride: 256 }))).not.toThrow();
+    });
+
+    it('does not let a uniform and a storage binding of one buffer share a node', () => {
+      expect(() => compileTechnique(technique([node([{ resource: 'a', access: 'read', uniform: true }, { resource: 'a', access: 'read', name: 'a2' }])], [buf('a'), sink]))).toThrow(/conflicting usage/);
+    });
+
+    it('round-trips groups and dynamic offsets through JSON', () => {
+      const t = technique([node([{ resource: 'a', access: 'read', uniform: true, group: 1, dynamicOffset: true, size: 64 }])], [buf('a', { element: 'ViewData', stride: 64 }), sink]);
+      expect(parseTechnique(JSON.parse(techniqueToJSON(t)))).toEqual(t);
+    });
+  });
+
+  describe('render nodes', () => {
+    const rnode = (extra: Record<string, unknown> = {}): NodeDecl => ({ type: 'render', name: 'r', record: () => {}, colorTargets: [{ resource: 'rt' }], ...extra }) as NodeDecl;
+    const rt = tex('rt', { visibility: 'exported' });
+
+    it('validates attachments like a draw node', () => {
+      expect(() => compileTechnique(technique([rnode()], [rt]))).not.toThrow();
+      expect(() => compileTechnique(technique([rnode({ colorTargets: [] })], []))).toThrow(/at least one color or depth target/);
+      expect(() => compileTechnique(technique([rnode({ colorTargets: [{ resource: 'rt' }, { resource: 'big' }] })], [rt, tex('big', { size: [8, 8], visibility: 'exported' })]))).toThrow(/differ in size/);
+      expect(() => compileTechnique(technique([rnode({ colorTargets: [{ resource: 'rt' }], depthTarget: { resource: 'd' } })], [rt, tex('d', { format: 'depth24plus', samples: 4 })]))).toThrow(/differ in sample count/);
+    });
+
+    it('a read-only depth target reads and does not write; a layer and the MSAA resolve are accepted', () => {
+      const depth = tex('d', { format: 'depth24plus', visibility: 'imported' });
+      const plan = compileTechnique(technique([rnode({ depthTarget: { resource: 'd', readOnly: true } })], [rt, depth]));
+      expect(plan.steps[0].accesses.find((a) => a.resource === 'd')).toMatchObject({ read: true, write: false, usage: 'depth' });
+      const map = tex('map', { format: 'depth32float', dimension: '2d-array', size: [64, 64, 4], visibility: 'imported' });
+      expect(() => compileTechnique(technique([rnode({ colorTargets: [], depthTarget: { resource: 'map', layer: 3 } })], [map]))).not.toThrow();
+      const msaa = tex('msaa', { samples: 4 });
+      expect(() => compileTechnique(technique([rnode({ colorTargets: [{ resource: 'msaa', resolve: 'rt', storeOp: 'discard' }] })], [msaa, rt]))).not.toThrow();
+    });
+
+    it('declares what the draws read through `uses`, which orders the pass after the compute that writes it', () => {
+      const verts: ResourceDecl = { kind: 'buffer', name: 'verts', element: 'f32', stride: 16, count: 4 };
+      const gen: NodeDecl = { type: 'compute', name: 'gen', shader: { code: 'x' }, workgroupSize: [1], dispatch: { threads: [1] }, bindings: [{ resource: 'verts', access: 'write' }] };
+      const t = technique([rnode({ uses: [{ resource: 'verts', usage: 'vertex' }] }), gen], [rt, verts]);
+      const plan = compileTechnique(t);
+      expect(names(plan)).toEqual(['gen', 'r']);
+      expect(plan.resources.get('verts')!.uses.has('vertex')).toBe(true);
+      expect(() => compileTechnique(technique([rnode({ uses: [{ resource: 'rt', usage: 'vertex' }] })], [rt]))).toThrow(/can only be used as sampled or storage/);
+    });
+
+    it('cannot be stored as JSON', () => {
+      expect(() => techniqueToJSON(technique([rnode()], [rt]))).toThrow(/is a render node and cannot be serialized/);
+    });
+  });
+
   describe('draw: MSAA targets', () => {
     const color = tex('color', { samples: 4 }), resolved = tex('resolved', { visibility: 'exported' });
     const draw = (target: Record<string, unknown>, depth?: string): NodeDecl => ({ type: 'draw', name: 'd', shader: { code: 'x' }, bindings: [], vertexCount: 3, colorTargets: [{ resource: 'color', ...target }], ...(depth ? { depthTarget: { resource: depth } } : {}) } as NodeDecl);

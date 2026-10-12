@@ -200,6 +200,10 @@ export class PostProcessor implements RenderFeature {
   /** Multisampled colour view the main pass draws into when `samples > 1`. */
   get msaaView(): GPUTextureView { return this.msaaTarget!.view; }
 
+  /** The aux target (view-space normal, roughness, metallic) and its multisampled twin; valid when {@link needsAux}. */
+  get auxTexture(): GPUTexture { return this.aux!.tex; }
+  get auxMsaaTexture(): GPUTexture | null { return this.auxMsaa?.tex ?? null; }
+
   /** Colour attachment of the aux pass (cleared to "nothing written"; multisampled + resolved when MSAA is on). Valid when {@link needsAux}. */
   auxColorAttachment(): GPURenderPassColorAttachment {
     const clearValue = { r: 0, g: 0, b: 1, a: 0 };

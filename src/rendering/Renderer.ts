@@ -23,6 +23,8 @@ import { GPUCuller } from './GPUCuller';
 import { GPULodIndex } from './GPULodIndex';
 import { HiZ } from './HiZ';
 import { RenderGraph } from './RenderGraph';
+import { CachedTechnique } from './graph/CachedTechnique';
+import type { TrackedRenderPass } from './graph/TrackedRenderPass';
 import { GPUProfiler } from '../profiling/GPUProfiler';
 import { ShadowSystem } from './shadows/ShadowSystem';
 import { PostProcessor, HDR_FORMAT, AUX_FORMAT } from './post/PostProcessor';
@@ -148,6 +150,8 @@ export class Renderer {
       get ibl() { return self.ibl; },
     });
     this.transmission = new TransmissionCopy(gpu, this.sceneResources);
+    this.prepassPass = new CachedTechnique(gpu, 'depth-prepass');
+    this.auxPass = new CachedTechnique(gpu, 'aux');
     this.streaming = new StreamingDriver(this.materials);
     this.gpuLodIndex = new GPULodIndex(this.lodLibrary);
 
@@ -196,6 +200,11 @@ export class Renderer {
   private gpuLodIndex: GPULodIndex;
   private culler: GPUCuller | null = null;
   private hiz: HiZ | null = null;
+  /** The depth prepass and the aux pass: render nodes of small techniques, rebuilt when the target changes. */
+  private prepassPass: CachedTechnique;
+  private auxPass: CachedTechnique;
+  /** The render world of the frame being recorded (the aux pass's draw callback reads it). */
+  private passRenderWorld: RenderWorld | null = null;
   private sphereScratch = new Float32Array(4 * 1024);
   /** Per-frame pass graph (ordering + culling of the frame's passes). */
   readonly graph = new RenderGraph();
@@ -685,50 +694,67 @@ export class Renderer {
    */
   private addAuxPass(g: RenderGraph, rw: RenderWorld): void {
     g.addPass({ name: 'aux', reads: ['sceneColor'], writes: ['auxTex'], execute: (enc) => {
-      const ap = enc.beginRenderPass({
-        label: 'aux', colorAttachments: [this.post.auxColorAttachment()],
-        depthStencilAttachment: { view: this.depthView, depthReadOnly: true },
+      const aux = this.post.auxTexture, msaa = this.post.auxMsaaTexture, depth = this.depthTexture;
+      const fx = this.auxPass.get(`${aux.width}x${aux.height}|${aux.format}|${depth.format}|${depth.sampleCount}`, (t) => {
+        const size = [aux.width, aux.height], clearValue: [number, number, number, number] = [0, 0, 1, 0];   // cleared to "nothing written"
+        const single = t.texture('aux', { format: aux.format, size, visibility: 'imported' });
+        const color = msaa
+          ? { resource: t.texture('auxMsaa', { format: aux.format, size, samples: msaa.sampleCount as 1 | 4, visibility: 'imported' }), resolve: single, clearValue, storeOp: 'discard' as const }
+          : { resource: single, clearValue };
+        t.renderPass('aux', {
+          colorTargets: [color], depthTarget: { resource: t.texture('depth', { format: depth.format, size, samples: depth.sampleCount as 1 | 4, visibility: 'imported' }), readOnly: true },
+          record: (pass) => this.recordAux(pass),
+        });
       });
-      if (rw.hasCamera && this.mainView.draw.frame.total > 0) {
-        ap.setBindGroup(0, this.frameUniform.bindGroup); ap.setBindGroup(1, this.sceneResources.bindGroup); ap.setBindGroup(3, this.objectBindGroup());
-        ap.setVertexBuffer(0, this.meshes.vertexBuffer); ap.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-        let pp: GPURenderPipeline | null = null, pm = -1;
-        const b = this.mainView.draw.batches;
-        for (let i = 0; i < b.count; i++) {
-          if (b.queue[i] > 1) continue;   // blended surfaces have no depth to reflect from or occlude with
-          const mesh = this.meshes.get(b.meshId[i]);
-          const pipe = this.materials.getAuxPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount, AUX_FORMAT);
-          if (!pipe) continue;
-          if (pipe !== pp) { ap.setPipeline(pipe); pp = pipe; }
-          if (b.materialId[i] !== pm) { ap.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); pm = b.materialId[i]; }
-          ap.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-        }
-      }
-      ap.end();
+      this.passRenderWorld = rw;
+      fx.setImport('aux', aux); fx.setImport('depth', depth);
+      if (msaa) fx.setImport('auxMsaa', msaa);
+      fx.execute(enc);
     } });
+  }
+
+  /** Draw the opaque + alpha-masked batches with the aux pipelines (against the finished depth buffer, which the pass only reads). */
+  private recordAux(pass: TrackedRenderPass): void {
+    if (!this.passRenderWorld?.hasCamera || this.mainView.draw.frame.total === 0) return;
+    pass.setBindGroup(0, this.frameUniform.bindGroup); pass.setBindGroup(1, this.sceneResources.bindGroup); pass.setBindGroup(3, this.objectBindGroup());
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer); pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    const b = this.mainView.draw.batches;
+    for (let i = 0; i < b.count; i++) {
+      if (b.queue[i] > 1) continue;   // blended surfaces have no depth to reflect from or occlude with
+      const mesh = this.meshes.get(b.meshId[i]);
+      const pipe = this.materials.getAuxPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount, AUX_FORMAT);
+      if (!pipe) continue;
+      pass.setPipeline(pipe);
+      pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i]));
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+    }
   }
 
   /** Depth-only pass over opaque + alpha-masked batches (lets the main pass shade each pixel once, and feeds the in-frame Hi-Z). */
   private addDepthPrepass(g: RenderGraph): void {
     g.addPass({ name: 'depth-prepass', writes: ['depth'], execute: (enc) => {
-      const dp = enc.beginRenderPass({
-        label: 'depth-prepass', colorAttachments: [], timestampWrites: this.profiler.writes('prepass'),
-        depthStencilAttachment: { view: this.depthView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
+      const depth = this.depthTexture;
+      const fx = this.prepassPass.get(`${depth.width}x${depth.height}|${depth.format}|${depth.sampleCount}`, (t) => {
+        const target = t.texture('depth', { format: depth.format, size: [depth.width, depth.height], samples: depth.sampleCount as 1 | 4, visibility: 'imported' });
+        t.renderPass('depth-prepass', { depthTarget: { resource: target }, record: (pass) => this.recordDepthPrepass(pass) });
       });
-      dp.setBindGroup(0, this.frameUniform.bindGroup); dp.setBindGroup(1, this.sceneResources.bindGroup); dp.setBindGroup(3, this.objectBindGroup());
-      dp.setVertexBuffer(0, this.meshes.vertexBuffer); dp.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-      let pp: GPURenderPipeline | null = null, pm = -1;
-      const b = this.mainView.draw.batches;
-      for (let i = 0; i < b.count; i++) {
-        if (b.queue[i] > 1) continue;   // transparent surfaces never write depth
-        const mesh = this.meshes.get(b.meshId[i]);
-        const pipe = this.materials.getPrepassPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount);
-        if (pipe !== pp) { dp.setPipeline(pipe); pp = pipe; }
-        if (b.materialId[i] !== pm) { dp.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); pm = b.materialId[i]; }
-        dp.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-      }
-      dp.end();
+      fx.setImport('depth', depth);
+      fx.execute(enc, { timestampWrites: () => this.profiler.writes('prepass') });
     } });
+  }
+
+  /** The prepass draws: every opaque / alpha-masked batch with its depth-only pipeline. */
+  private recordDepthPrepass(pass: TrackedRenderPass): void {
+    pass.setBindGroup(0, this.frameUniform.bindGroup); pass.setBindGroup(1, this.sceneResources.bindGroup); pass.setBindGroup(3, this.objectBindGroup());
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer); pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    const b = this.mainView.draw.batches;
+    for (let i = 0; i < b.count; i++) {
+      if (b.queue[i] > 1) continue;   // transparent surfaces never write depth
+      const mesh = this.meshes.get(b.meshId[i]);
+      pass.setPipeline(this.materials.getPrepassPipeline(b.materialId[i], mesh.deformMask, this.mainView.target.depthFormat ?? DEPTH_FORMAT, this.mainView.target.sampleCount));
+      pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i]));
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+    }
   }
 
   /** Arguments describing the Hi-Z pyramid for the culling shader. */

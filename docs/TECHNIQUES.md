@@ -58,6 +58,7 @@ fx.setVariable('level', 0.75);
 | `g.buffer(name, { element, stride, count, like, visibility, lifetime })` | declare a buffer |
 | `g.compute(name, { shader, reads, writes, readWrites, dispatch, workgroupSize, when, keep })` | compute dispatch; each list entry is a handle or `{ resource, name?, sampler? }` |
 | `g.draw(name, { shader, colorTargets, depthTarget, vertexBuffers, reads, vertices, instances, topology, ... })` | draw call (see [Draw nodes](#draw-nodes-vertex-buffers-and-msaa)) |
+| `g.renderPass(name, { colorTargets, depthTarget, uses, record })` | a render pass whose draws the host records (see [Render nodes](#render-nodes-host-recorded-draws)) |
 | `g.copy(name, from, to)` | copy |
 | `g.subgraph(name, builder \| technique \| 'registry-name', { inputs, outputs, variables, loop })` | sub-graph; `variables` values are a handle (bind to it) or a number / array (override); `loop` is a count or a handle |
 | `g.callback(name, { reads, writes, execute })` | engine code |
@@ -163,14 +164,54 @@ It cannot be a storage texture. Memory accounting (`plan.stats.bytes`) counts al
 
 Self-tests: `/selftest.html` (an anti-aliased triangle from a compute-generated vertex buffer, per-instance data from the host, per-sample reads).
 
-## Mip views, host bind groups and imported contents
+## Render nodes: host-recorded draws
+
+A draw node issues one draw with a shader the technique owns. A **render node** (`g.renderPass`, code only like a callback node) is for passes made of many draws with different pipelines, bind groups and
+geometry, such as a batch list. The technique owns the *pass*: colour targets (with MSAA `resolve` and `storeOp`), the depth target (`layer` of a `2d-array` map, `readOnly`), timestamps, ordering and the declared
+`uses`; the host owns the *draws*, recorded in `record(pass)` through a `TrackedRenderPass`:
+
+```ts
+g.renderPass('shadow-layer-2', { depthTarget: { resource: shadowMap, layer: 2 }, record: (pass) => {
+  pass.setBindGroup(0, layerFrame); pass.setVertexBuffer(0, vertices); pass.setIndexBuffer(indices, 'uint32');
+  for (const batch of batches) {
+    pass.setPipeline(pipelineOf(batch));                       // host-built, per material variant
+    pass.setBindGroup(2, materialGroupOf(batch));              // or setBindGroup(2, group, [dynamicOffset])
+    pass.drawIndexed(batch.indexCount, batch.instances, batch.firstIndex, batch.baseVertex, batch.firstInstance);
+  }
+} });
+```
+
+`TrackedRenderPass` remembers the pipeline, bind groups (per group index), vertex and index buffers and skips a call that would change nothing (`switches` / `skipped` count them); a bind group set with dynamic offsets is
+always forwarded. Pipelines and bind groups are ordinary WebGPU objects the host built, so any number of material variants, vertex layouts and per-draw dynamic offsets are possible. `uses: [{ resource, usage }]` names host
+resources the draws read (`sampled`, `storage`, `uniform`, `vertex`, `index`, `indirect`; `write: true` if they write) so the graph orders the pass and gives the resources the right usage flags.
+Attachments are validated like a draw node's (same size and sample count, resolve target, depth format). A pass whose draw callback depends on the frame (the target size, the set of active layers) is kept in a `CachedTechnique`, which rebuilds only when its key changes.
+
+## Mip views, bind groups and imported contents
 
 **Mip views.** A texture binding can name a sub-range of the mip chain: `{ resource, mip, mipCount }` (builder: `reads: [{ resource: t, mip: 1, mipCount: 1 }]`). Without them a `read` sees
 the whole chain and a storage `write` mip 0. A draw's colour target already names a mip (`ColorTarget.mip`). Bindings of **disjoint** ranges of one texture may sit in the same node, which is
 how a mip chain is built: node *i* reads level *i-1* and writes level *i* (compute pyramid: `HiZ.ts`; render blit chain: `TransmissionCopy.ts`). Overlapping ranges are a usage conflict.
 
-**Host bind groups.** The engine's frame and scene bind groups are not resources a technique can generate. A compute or draw node can say that the host supplies them:
-`hostGroups: [{ group: 0, layout: 'frame' }, { group: 1, layout: 'scene' }]` with `group: 2` for the bindings the technique generates (default 0). The instance is created with
+**Several bind groups.** A node's bindings can be spread over up to four `@group`s. `group` on the node is the default (0 unless set; it also holds the variables uniform), and a binding can pick its own:
+`reads: [{ resource: view, group: 1 }, { resource: shared, group: 2 }]`. The compiler numbers `@binding` inside each group, creates one layout and one bind group per group and puts them all in the
+pipeline layout; a gap between groups gets an empty layout. Group an engine pass by how often its data changes (per frame / per view / per object), as the engine's own shaders do.
+
+**Uniform buffers and dynamic offsets.** A buffer bound for reading can be a `var<uniform>` single element instead of a storage array: `{ resource, uniform: true }` (the element type is the buffer's `element`, usually a struct
+defined in the shader; the buffer needs the UNIFORM usage). With `dynamicOffset: true` the binding's window slides along the buffer by an offset chosen at run time, so one buffer holds the data of many views or objects:
+
+```ts
+g.compute('shade', { reads: [{ resource: views, name: 'view', uniform: true, dynamicOffset: true, group: 1 }], ... });   // views: element 'ViewData', stride 256
+for (let v = 0; v < viewCount; v++) {
+  fx.setDynamicOffset('shade', 'view', v * 256);      // node path, WGSL name of the binding; a multiple of the device's offset alignment (256)
+  fx.execute(encoder); device.queue.submit([encoder.finish()]);
+}
+```
+
+The window is `size` bytes (default: one element, so the buffer needs a `stride` for struct elements). Offsets are read when `execute` records the passes. Variables are uploaded at `execute` too, so submit between runs
+if they change; offsets alone can change between executes into the same encoder. Self-test: "bindings in three @groups ...".
+
+**Host bind groups.** The engine's frame and scene bind groups are not resources a technique can generate. A compute or draw node can say that the host supplies them at the group indices its generated bindings do not use:
+`hostGroups: [{ group: 0, layout: 'frame' }, { group: 1, layout: 'scene' }]` with `group: 2` for the generated bindings (default 0). The instance is created with
 `hostLayouts: { frame, scene }` (the `GPUBindGroupLayout`s) and given the bind groups with `setHostBindGroup('frame', bindGroup)` before `execute` (`VolumetricFog.ts`).
 
 **Reading incoming contents.** A node that reads an *imported* or *persistent* resource before any node writes it sees the contents from outside the execution (the host's texture, last frame's history);
@@ -195,9 +236,12 @@ The frame graph (`RenderGraph`) still orders the frame's passes, but these now a
 | Hi-Z pyramid | `HiZ.ts` | compute: copy depth, then one reduction per mip |
 | GPU particles | `particles/ParticleSystem.ts` | compute: reset, simulate (indirect dispatch), emit, finalize |
 | Ribbon trails | `particles/RibbonSystem.ts` | compute |
+| Depth prepass | `Renderer.ts` | render node, depth target |
+| Aux pass (normal / roughness / metallic for SSAO and SSR) | `Renderer.ts` | render node, MSAA colour with resolve, read-only depth |
+| Shadow maps | `shadows/ShadowSystem.ts` | one render node per active layer, writing that layer of the shadow-map array |
 
-These stay callback nodes of the frame graph because they draw per-batch with material bind groups, pipeline variants and render bundles, or draw inside the main pass's attachments:
-the main / depth-prepass / aux / shadow passes, the sky, and the line / point / sprite / particle / ribbon draws. `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
+These stay callback nodes of the frame graph because they draw into the main pass itself (feature hooks, the sky, render bundles, MSAA resolve shared with the post chain):
+the main pass(es) and the line / point / sprite / particle / ribbon / sky draws inside them. They could become render nodes next: the pass declaration is the only thing missing. `IBLBaker` (offline environment baking), `MipmapGenerator` (texture import) and
 `CompactVertexStream` (derived vertex data) are asset-preparation utilities that run outside the frame.
 
 ## Shader tokens
@@ -208,7 +252,7 @@ Written inside WGSL block comments, replaced before the shader module is created
 |---|---|
 | `$(Variable:radius)` | `gigi.radius`, a field of a generated uniform struct (only variables the shader mentions; `float4` is `vec4<f32>`, aligned as WGSL requires) |
 | `$(Size:img)` | `vec3<u32>(w, h, d)` for a texture, `<count>u` for a buffer: baked in at compile time |
-| `$(Bindings)` | the generated declarations: the uniform, then one `@group(g) @binding(n) var ...` per binding (g = the node's `group`, default 0; `name`, or `name_sampler` when `sampler` is set). Without the token they are put in front of the code |
+| `$(Bindings)` | the generated declarations: the uniform, then one `@group(g) @binding(n) var ...` per binding (g = the binding's `group`, else the node's `group`, default 0; `name`, or `name_sampler` when `sampler` is set; a `uniform` buffer is `var<uniform> name: Element`). Without the token they are put in front of the code |
 
 Names in tokens are the ones used in the technique the node is written in; sub-graph renames are resolved for you.
 
@@ -253,7 +297,7 @@ memory shared through aliasing drawn as a cluster. `dot -Tsvg graph.dot -o graph
 ## Differences from Gigi, and limits
 
 * No visual editor or viewer application, no code generation: techniques are JSON (or TypeScript objects) interpreted by `TechniqueInstance`.
-* WGSL only; no ray tracing nodes; a draw node issues one draw (no multi-draw, no per-batch pipeline switching), so per-material scene rendering stays in callback nodes; no pipeline-overridable constants.
+* WGSL only; no ray tracing nodes; a draw node issues one draw with its own shader; per-batch pipeline and bind group switching is done by render nodes, whose pipelines the host builds; no pipeline-overridable constants.
 * Conditions and loop counts are evaluated at compile time (a change recompiles) rather than per frame on the GPU.
 * Copies cover mip 0 (and all layers); textures sampled by a node see every mip unless the binding names a range, storage and render targets use one mip.
 * Variables are scalars and `float4`; sub-graph variables cannot be changed from the host except through binding to a parent variable.

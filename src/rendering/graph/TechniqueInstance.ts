@@ -1,9 +1,10 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import type { PassDesc } from '../RenderGraph';
-import { compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
+import { bufferStride, compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
 import type { VariableValue } from './Flatten';
+import { TrackedRenderPass } from './TrackedRenderPass';
 import { expandShader, sampleTypeOf, writeUniform, type ExpandedShader } from './ShaderTokens';
-import { TechniqueError, type BindingDecl, type ComputeNode, type DrawNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
+import { TechniqueError, type BindingDecl, type BufferDecl, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type RenderPassNode, type Technique, type TextureDecl, type VariableDecl, type VariableVisibility, type VertexBufferBinding } from './TechniqueTypes';
 
 export interface TechniqueInstanceOptions extends CompileOptions {
   /** Host resources for the technique's `imported` resources. They can also be attached (or replaced) later with `setImport`. */
@@ -35,14 +36,22 @@ function sameValue(a: VariableValue, b: VariableValue): boolean {
 interface StepRuntime {
   shader: ExpandedShader | null;
   pipeline: GPUComputePipeline | GPURenderPipeline | null;
-  layout: GPUBindGroupLayout | null;
-  bindGroup: GPUBindGroup | null;
+  /** The bind groups the technique generates for the node, one per `@group` it declares bindings in, in group order. */
+  groups: GeneratedGroup[];
   uniform: GPUBuffer | null;
   uniformData: DataView | null;
   workgroup: [number, number, number];
-  /** `@group` index of the generated bindings, and the host groups at the others. */
-  group: number;
+  /** The host's bind groups, at the group indices the generated ones do not use. */
   hostGroups: { group: number; layout: string }[];
+}
+
+/** One `@group` of a node's generated bindings. */
+interface GeneratedGroup {
+  group: number;
+  layout: GPUBindGroupLayout;
+  bindGroup: GPUBindGroup | null;
+  /** The bindings whose window moves with a run-time offset, in binding order (the order WebGPU wants the offsets in). */
+  dynamic: { name: string; uniform: boolean }[];
 }
 
 const BLEND: Record<string, GPUBlendState> = {
@@ -68,6 +77,7 @@ function bufferUsage(uses: Iterable<ResourceUse>): number {
   let flags = 0;
   for (const u of uses) {
     if (u === 'sampled' || u === 'storage') flags |= GPUBufferUsage.STORAGE;
+    else if (u === 'uniform') flags |= GPUBufferUsage.UNIFORM;
     else if (u === 'indirect') flags |= GPUBufferUsage.INDIRECT;
     else if (u === 'vertex') flags |= GPUBufferUsage.VERTEX;
     else if (u === 'index') flags |= GPUBufferUsage.INDEX;
@@ -90,6 +100,8 @@ export class TechniqueInstance {
   private allocations = new Map<string, Physical>();
   private imports = new Map<string, Physical>();
   private hostBindGroups = new Map<string, GPUBindGroup>();
+  /** Dynamic offsets by `<node path>\0<binding name>`; a binding without one uses 0. */
+  private dynamicOffsets = new Map<string, number>();
   private emptyLayout: GPUBindGroupLayout | null = null;
   private values = new Map<string, VariableValue>();
   private pipelines = new Map<string, GPUComputePipeline | GPURenderPipeline>();
@@ -176,6 +188,20 @@ export class TechniqueInstance {
     this.imports.set(name, resource);
     // bind groups only hold resources that a shader binding names: a render target changing every frame (the swap chain) does not invalidate them
     for (const rt of this.runtimes.values()) if (rt.shader?.slots.some((s) => s.decl?.resource === name)) { this.bindingsDirty = true; break; }
+  }
+
+  /**
+   * Set the offset (in bytes) of a binding declared with `dynamicOffset`, for the nodes recorded by later `execute` calls: `node` is the node's path, `binding` the WGSL name
+   * of the binding. Executing a technique several times into one encoder with different offsets draws or dispatches it once per offset.
+   */
+  setDynamicOffset(node: string, binding: string, offset: number): void {
+    let found: { uniform: boolean } | undefined;
+    for (const [step, rt] of this.runtimes) if (step.node.path === node) for (const g of rt.groups) found ??= g.dynamic.find((d) => d.name === binding);
+    if (!found) throw new TechniqueError(`node '${node}' has no dynamic-offset binding '${binding}'`);
+    const limits = (this.gpu.device as { limits?: GPUSupportedLimits }).limits;
+    const align = (found.uniform ? limits?.minUniformBufferOffsetAlignment : limits?.minStorageBufferOffsetAlignment) ?? 256;
+    if (!Number.isInteger(offset) || offset < 0 || offset % align) throw new TechniqueError(`node '${node}': offset ${offset} of '${binding}' must be a multiple of ${align} bytes`);
+    this.dynamicOffsets.set(`${node}\0${binding}`, offset);
   }
 
   /** Supply the bind group for host layout `layout` (see `hostGroups` on compute / draw nodes); every node that declares the layout binds it. */
@@ -274,7 +300,7 @@ export class TechniqueInstance {
 
   /** Expand the shader and create the pipeline of a compute / draw step. */
   private prepareStep(step: CompiledStep): StepRuntime {
-    const rt: StepRuntime = { shader: null, pipeline: null, layout: null, bindGroup: null, uniform: null, uniformData: null, workgroup: [8, 8, 1], group: 0, hostGroups: [] };
+    const rt: StepRuntime = { shader: null, pipeline: null, groups: [], uniform: null, uniformData: null, workgroup: [8, 8, 1], hostGroups: [] };
     const node = step.node;
     if (node.type !== 'compute' && node.type !== 'draw') return rt;
     const device = this.gpu.device;
@@ -285,7 +311,7 @@ export class TechniqueInstance {
       rt.uniformData = new DataView(new ArrayBuffer(rt.shader.uniform.size));
     }
     const visibility = node.type === 'compute' ? GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
-    const entries: GPUBindGroupLayoutEntry[] = rt.shader.slots.map((slot) => {
+    const layoutEntries = rt.shader.slots.map((slot): GPUBindGroupLayoutEntry => {
       if (slot.kind === 'variables') return { binding: slot.binding, visibility, buffer: { type: 'uniform' } };
       const plan = this.compiled.resources.get(slot.decl!.resource)!;
       if (slot.kind === 'sampler') {
@@ -295,7 +321,10 @@ export class TechniqueInstance {
         return { binding: slot.binding, visibility, sampler: { type: slot.decl!.sampler === 'linear' ? 'filtering' : 'non-filtering' } };
       }
       const b = slot.decl!;
-      if (plan.decl.kind === 'buffer') return { binding: slot.binding, visibility, buffer: { type: b.access === 'read' ? 'read-only-storage' : 'storage' } };
+      if (plan.decl.kind === 'buffer') {
+        const type = b.uniform ? 'uniform' : b.access === 'read' ? 'read-only-storage' : 'storage';
+        return { binding: slot.binding, visibility, buffer: { type, ...(b.dynamicOffset ? { hasDynamicOffset: true } : {}) } };
+      }
       const r = plan.resolved as ResolvedTexture | null, d = plan.decl as TextureDecl;
       const format = d.format ?? r!.format, dimension = (d.dimension ?? r?.dimension ?? '2d') as GPUTextureViewDimension;
       if (b.access === 'read') {
@@ -305,21 +334,32 @@ export class TechniqueInstance {
       }
       return { binding: slot.binding, visibility, storageTexture: { access: b.access === 'write' ? 'write-only' : 'read-write', format, viewDimension: dimension } };
     });
-    rt.layout = device.createBindGroupLayout({ label: `${node.path}:layout`, entries });
-    rt.group = node.group ?? 0;
+    // one layout per @group the node's bindings are declared in (a node with no bindings still has its group, so the pipeline layout is complete)
+    const defaultGroup = node.group ?? 0;
+    const used = [...new Set<number>([defaultGroup, ...rt.shader.slots.map((s) => s.group)])].sort((a, b) => a - b);
+    for (const group of used) {
+      const here = rt.shader.slots.map((slot, i) => ({ slot, entry: layoutEntries[i] })).filter((x) => x.slot.group === group);
+      rt.groups.push({
+        group, bindGroup: null,
+        layout: device.createBindGroupLayout({ label: `${node.path}:layout${used.length > 1 ? `:${group}` : ''}`, entries: here.map((x) => x.entry) }),
+        dynamic: here.filter((x) => x.slot.kind === 'resource' && x.slot.decl!.dynamicOffset).sort((a, b) => a.slot.binding - b.slot.binding)
+          .map((x) => ({ name: x.slot.name, uniform: x.slot.decl!.uniform === true })),
+      });
+    }
     rt.hostGroups = (node.hostGroups ?? []).map((h) => ({ ...h }));
-    // bind group layouts are positional: the generated group and the host's go to their indices, any gap gets an empty layout
+    // bind group layouts are positional: the generated groups and the host's go to their indices, any gap gets an empty layout
     const layouts: GPUBindGroupLayout[] = [];
     const empty = (this.emptyLayout ??= device.createBindGroupLayout({ label: 'empty', entries: [] }));
-    for (let i = 0; i <= Math.max(rt.group, ...rt.hostGroups.map((h) => h.group)); i++) layouts.push(empty);
-    layouts[rt.group] = rt.layout;
+    for (let i = 0; i <= Math.max(...used, ...rt.hostGroups.map((h) => h.group)); i++) layouts.push(empty);
+    for (const g of rt.groups) layouts[g.group] = g.layout;
     for (const h of rt.hostGroups) {
       const hostLayout = this.options.hostLayouts?.[h.layout];
       if (!hostLayout) throw new TechniqueError(`${ctx}: host layout '${h.layout}' was not given in the instance's hostLayouts`);
       layouts[h.group] = hostLayout;
     }
     const layout = device.createPipelineLayout({ bindGroupLayouts: layouts });
-    const groupsKey = `${rt.group}|${rt.hostGroups.map((h) => `${h.group}=${h.layout}`).join(',')}`;
+    // the code names every @group / @binding; what it cannot show is which bindings take a dynamic offset
+    const groupsKey = `${rt.shader.slots.map((s) => `${s.group}.${s.binding}${s.decl?.dynamicOffset ? 'd' : ''}`).join(',')}|${rt.hostGroups.map((h) => `${h.group}=${h.layout}`).join(',')}`;
     const module = this.gpu.resources.shaders.get(`technique:${rt.shader.code}`, rt.shader.code);
     if (node.type === 'compute') {
       const wg = node.workgroupSize ?? WORKGROUP.exec(node.shader.code)?.slice(1).map((v) => (v ? Number(v) : 1));
@@ -393,22 +433,29 @@ export class TechniqueInstance {
 
   /** Create the bind group of a step from the current physical resources. */
   private bindStep(step: CompiledStep, rt: StepRuntime): void {
-    if (!rt.shader || !rt.layout) return;
+    if (!rt.shader) return;
     const ctx = `node '${step.node.path}'`;
-    const entries: GPUBindGroupEntry[] = rt.shader.slots.map((slot) => {
+    const entries = rt.shader.slots.map((slot): GPUBindGroupEntry => {
       if (slot.kind === 'variables') return { binding: slot.binding, resource: { buffer: rt.uniform! } };
       const b = slot.decl as BindingDecl;
       if (slot.kind === 'sampler') return { binding: slot.binding, resource: this.gpu.resources.samplers.get({ magFilter: b.sampler, minFilter: b.sampler, mipmapFilter: b.sampler, addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }) };
       const res = this.physical(b.resource, ctx);
-      if (!isTexture(res)) return { binding: slot.binding, resource: { buffer: res } };
       const plan = this.compiled.resources.get(b.resource)!;
+      if (!isTexture(res)) {
+        // a dynamic-offset window is one element (or `size` bytes) wide: the offset slides it along the buffer
+        const window = b.size ?? (b.dynamicOffset ? bufferStride(plan.decl as BufferDecl, plan.resolved) : undefined);
+        return { binding: slot.binding, resource: window === undefined ? { buffer: res } : { buffer: res, size: window } };
+      }
       const dimension = ((plan.decl as TextureDecl).dimension ?? (plan.resolved as ResolvedTexture | null)?.dimension ?? '2d') as GPUTextureViewDimension;
       const mips = b.mip !== undefined || b.mipCount !== undefined
         ? { baseMipLevel: b.mip ?? 0, mipLevelCount: b.mipCount ?? 1 }
         : b.access === 'read' ? {} : { baseMipLevel: 0, mipLevelCount: 1 };
       return { binding: slot.binding, resource: res.createView({ dimension, ...mips }) };
     });
-    rt.bindGroup = this.gpu.device.createBindGroup({ label: `${step.node.path}:bindings`, layout: rt.layout, entries });
+    for (const g of rt.groups) {
+      const here = entries.filter((_, i) => rt.shader!.slots[i].group === g.group);
+      g.bindGroup = this.gpu.device.createBindGroup({ label: `${step.node.path}:bindings${rt.groups.length > 1 ? `:${g.group}` : ''}`, layout: g.layout, entries: here });
+    }
   }
 
   // ---------------------------------------------------------------------------------------------------------- execution
@@ -427,14 +474,18 @@ export class TechniqueInstance {
         case 'compute': this.runCompute(encoder, node, rt, options.timestampWrites?.(node.path) as GPUComputePassTimestampWrites | undefined); break;
         case 'draw': this.runDraw(encoder, node, rt, options.timestampWrites?.(node.path) as GPURenderPassTimestampWrites | undefined); break;
         case 'copy': this.runCopy(encoder, node.path, node.source, node.dest); break;
+        case 'render': this.runRenderPass(encoder, node, options.timestampWrites?.(node.path) as GPURenderPassTimestampWrites | undefined); break;
         case 'callback': node.execute(encoder); break;
       }
     }
   }
 
-  /** Set the generated bind group and the host's on a pass. */
+  /** Set the generated bind groups (with their dynamic offsets) and the host's on a pass. */
   private bindGroups(pass: GPUComputePassEncoder | GPURenderPassEncoder, path: string, rt: StepRuntime): void {
-    pass.setBindGroup(rt.group, rt.bindGroup);
+    for (const g of rt.groups) {
+      if (!g.dynamic.length) { pass.setBindGroup(g.group, g.bindGroup); continue; }
+      pass.setBindGroup(g.group, g.bindGroup, g.dynamic.map((d) => this.dynamicOffsets.get(`${path}\0${d.name}`) ?? 0));
+    }
     for (const h of rt.hostGroups) {
       const bg = this.hostBindGroups.get(h.layout);
       if (!bg) throw new TechniqueError(`node '${path}': no bind group was supplied for host layout '${h.layout}' (call setHostBindGroup)`);
@@ -458,22 +509,34 @@ export class TechniqueInstance {
     pass.end();
   }
 
-  private runDraw(encoder: GPUCommandEncoder, node: DrawNode & { path: string }, rt: StepRuntime, timestampWrites?: GPURenderPassTimestampWrites): void {
+  /** Begin the render pass of a draw / render node: its colour targets (with MSAA resolve) and depth target. */
+  private beginPass(encoder: GPUCommandEncoder, node: { path: string; colorTargets: ColorTarget[]; depthTarget?: DepthTarget }, timestampWrites?: GPURenderPassTimestampWrites): GPURenderPassEncoder {
     const ctx = `node '${node.path}'`;
     const view = (name: string, mip: number, layer: number) => (this.physical(name, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: mip, mipLevelCount: 1, baseArrayLayer: layer, arrayLayerCount: 1 });
-    const pass = encoder.beginRenderPass({
+    const depth = node.depthTarget;
+    return encoder.beginRenderPass({
       label: node.path, ...(timestampWrites ? { timestampWrites } : {}),
       colorAttachments: node.colorTargets.map((t) => ({
         view: view(t.resource, t.mip ?? 0, t.layer ?? 0), loadOp: t.loadOp ?? 'clear', storeOp: t.storeOp ?? 'store', clearValue: t.clearValue ?? [0, 0, 0, 0],
         ...(t.resolve !== undefined ? { resolveTarget: view(t.resolve, 0, 0) } : {}),
       })),
-      ...(node.depthTarget ? {
-        depthStencilAttachment: {
-          view: (this.physical(node.depthTarget.resource, ctx) as GPUTexture).createView({ dimension: '2d', baseMipLevel: 0, mipLevelCount: 1 }),
-          depthLoadOp: node.depthTarget.loadOp ?? 'clear', depthStoreOp: 'store' as const, depthClearValue: node.depthTarget.clearValue ?? 1,
-        },
+      ...(depth ? {
+        depthStencilAttachment: depth.readOnly
+          ? { view: view(depth.resource, 0, depth.layer ?? 0), depthReadOnly: true }
+          : { view: view(depth.resource, 0, depth.layer ?? 0), depthLoadOp: depth.loadOp ?? 'clear', depthStoreOp: 'store' as const, depthClearValue: depth.clearValue ?? 1 },
       } : {}),
     });
+  }
+
+  /** A render node: begin the pass, let the host record its draws through a state-tracking wrapper, end the pass. */
+  private runRenderPass(encoder: GPUCommandEncoder, node: RenderPassNode & { path: string }, timestampWrites?: GPURenderPassTimestampWrites): void {
+    const pass = this.beginPass(encoder, node, timestampWrites);
+    try { node.record(new TrackedRenderPass(pass)); } finally { pass.end(); }
+  }
+
+  private runDraw(encoder: GPUCommandEncoder, node: DrawNode & { path: string }, rt: StepRuntime, timestampWrites?: GPURenderPassTimestampWrites): void {
+    const ctx = `node '${node.path}'`;
+    const pass = this.beginPass(encoder, node, timestampWrites);
     pass.setPipeline(rt.pipeline as GPURenderPipeline);
     this.bindGroups(pass, node.path, rt);
     const buffers = node.vertexBuffers ?? [];

@@ -20,6 +20,8 @@ export interface UniformLayout { members: UniformMember[]; size: number; }
 
 /** One declared binding with its WGSL slot. */
 export interface BindingSlot {
+  /** `@group` and `@binding` of the declaration. */
+  group: number;
   binding: number;
   /** `variables`: the generated uniform; `resource`: a node binding; `sampler`: the sampler that goes with a texture binding. */
   kind: 'variables' | 'resource' | 'sampler';
@@ -74,13 +76,14 @@ const VIEW: Record<string, string> = { '2d': '2d', '2d-array': '2d_array', '3d':
 
 /** WGSL declaration of one binding. */
 function declare(slot: BindingSlot, plan: CompiledTechnique, node: ComputeNode | DrawNode, ctx: string): string {
-  const at = `@group(${node.group ?? 0}) @binding(${slot.binding})`;
+  const at = `@group(${slot.group}) @binding(${slot.binding})`;
   if (slot.kind === 'sampler') return `${at} var ${slot.name}: sampler;`;
   const b = slot.decl!;
   const p = plan.resources.get(b.resource)!;
   if (p.decl.kind === 'buffer') {
     const element = (p.resolved?.kind === 'buffer' ? p.resolved.element : (p.decl.element ?? 'u32'));
     if (node.type === 'draw' && b.access !== 'read') throw new TechniqueError(`${ctx}: draw nodes can only read buffers ('${b.resource}')`);
+    if (b.uniform) return `${at} var<uniform> ${slot.name}: ${element};`;
     return `${at} var<storage, ${b.access === 'read' ? 'read' : 'read_write'}> ${slot.name}: array<${element}>;`;
   }
   const decl = p.decl as TextureDecl;
@@ -127,18 +130,21 @@ export function expandShader(node: FlatNode & { type: 'compute' | 'draw' }, plan
   }
   const uniform = used.length ? layoutUniform(used) : null;
 
+  // binding numbers count up inside each group; the variables uniform is binding 0 of the node's default group
   const slots: BindingSlot[] = [];
-  let next = 0;
-  if (uniform) slots.push({ binding: next++, kind: 'variables', name: 'gigi' });
+  const nextBinding = new Map<number, number>();
+  const take = (group: number): number => { const n = nextBinding.get(group) ?? 0; nextBinding.set(group, n + 1); return n; };
+  const defaultGroup = node.group ?? 0;
+  if (uniform) slots.push({ group: defaultGroup, binding: take(defaultGroup), kind: 'variables', name: 'gigi' });
   for (const b of node.bindings) {
-    const name = b.name ?? b.resource.replace(/[^A-Za-z0-9_]/g, '_');
-    slots.push({ binding: next++, kind: 'resource', decl: b, name });
-    if (b.sampler) slots.push({ binding: next++, kind: 'sampler', decl: b, name: `${name}_sampler` });
+    const name = b.name ?? b.resource.replace(/[^A-Za-z0-9_]/g, '_'), group = b.group ?? defaultGroup;
+    slots.push({ group, binding: take(group), kind: 'resource', decl: b, name });
+    if (b.sampler) slots.push({ group, binding: take(group), kind: 'sampler', decl: b, name: `${name}_sampler` });
   }
   const declarations: string[] = [];
   if (uniform) {
     declarations.push(`struct GigiVariables {\n${uniform.members.map((m) => `  ${m.name}: ${m.type},`).join('\n')}\n}`);
-    declarations.push(`@group(${node.group ?? 0}) @binding(0) var<uniform> gigi: GigiVariables;`);
+    declarations.push(`@group(${defaultGroup}) @binding(0) var<uniform> gigi: GigiVariables;`);
   }
   for (const slot of slots) if (slot.kind !== 'variables') declarations.push(declare(slot, plan, node, ctx));
   const block = declarations.join('\n');

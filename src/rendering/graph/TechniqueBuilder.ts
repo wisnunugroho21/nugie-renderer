@@ -1,11 +1,12 @@
 import type { GPUContext } from '../../gpu/GPUContext';
 import { compileTechnique, type CompiledTechnique, type CompileOptions } from './Compile';
+import type { TrackedRenderPass } from './TrackedRenderPass';
 import { TechniqueInstance, type TechniqueInstanceOptions } from './TechniqueInstance';
 import { techniqueToJSON } from './TechniqueJSON';
 import {
   TechniqueError, type BindingAccess, type BindingDecl, type BufferDecl, type CallbackNode, type ColorTarget, type ComputeNode, type DepthTarget, type DrawNode, type NodeCondition,
   type NodeDecl, type ResourceLifetime, type ResourceVisibility, type SizeDim, type TextureDecl, type Technique, type TechniqueRegistry, type VariableDecl, type VariableType,
-  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup,
+  type VariableVisibility, type VertexBufferBinding, type IndexBufferBinding, type HostBindGroup, type RenderPassNode, type RenderPassUse,
 } from './TechniqueTypes';
 
 /**
@@ -110,7 +111,17 @@ export interface BufferOptions {
 export interface VariableOptions { value?: number | number[]; visibility?: VariableVisibility; }
 
 /** A binding with a per-binding WGSL name or sampler; a bare handle / string is the same with defaults. */
-export type BindingRef = ResourceRef | { resource: ResourceRef; name?: string; sampler?: GPUFilterMode; mip?: number; mipCount?: number };
+export type BindingRef = ResourceRef | {
+  resource: ResourceRef; name?: string; sampler?: GPUFilterMode; mip?: number; mipCount?: number;
+  /** `@group` of this binding (default: the node's `group`). */
+  group?: number;
+  /** Buffer: bind as a `var<uniform>` single element (reads only). */
+  uniform?: boolean;
+  /** Buffer: the window moves by an offset given per execution (`setDynamicOffset`). */
+  dynamicOffset?: boolean;
+  /** Buffer: bytes of the window. */
+  size?: number;
+};
 
 interface NodeOptions {
   /** Run only while the comparison holds, e.g. `when: quality.gt(0)`. */
@@ -121,7 +132,7 @@ interface NodeOptions {
 
 /** Bind-group options shared by compute and draw nodes. */
 interface HostGroupOptions {
-  /** `@group` of the generated bindings (default 0); use another index when the shader's group 0 is the engine's. */
+  /** Default `@group` of the generated bindings (default 0); use another index when the shader's group 0 is the engine's. Bindings may choose their own. */
   group?: number;
   /** Bind groups the host supplies at other group indices (see `TechniqueInstance.setHostBindGroup`). */
   hostGroups?: HostBindGroup[];
@@ -177,6 +188,15 @@ export interface SubGraphOptions extends NodeOptions {
   variables?: Record<string, VariableHandle | number | number[]>;
   /** Repeat this many times (a count, or a variable handle whose current value is used). */
   loop?: number | VariableHandle;
+}
+
+export interface RenderPassOptions extends NodeOptions {
+  /** A colour target by handle, or with options (`resolve` names the single-sample texture an MSAA target resolves into). */
+  colorTargets?: DrawOptions['colorTargets'];
+  depthTarget?: DrawOptions['depthTarget'];
+  /** What the draws read or write besides the attachments: `{ resource, usage: 'sampled' | 'storage' | 'uniform' | 'vertex' | 'index' | 'indirect', write? }`. */
+  uses?: (Omit<RenderPassUse, 'resource'> & { resource: ResourceRef })[];
+  record: (pass: TrackedRenderPass) => void;
 }
 
 export interface CallbackOptions extends NodeOptions {
@@ -325,6 +345,22 @@ export class TechniqueBuilder {
     return this.push(node);
   }
 
+  /**
+   * Add a render pass whose draws the host records (`record` receives a {@link TrackedRenderPass}): the technique owns the attachments and ordering, the host owns the pipelines,
+   * bind groups and geometry of each draw. Code only (not storable as JSON).
+   */
+  renderPass(name: string, o: RenderPassOptions): this {
+    const ctx = this.begin(name);
+    const node: RenderPassNode = {
+      type: 'render', name, record: o.record, ...this.base(o, ctx),
+      colorTargets: (o.colorTargets ?? []).map((t) => (typeof t === 'string' || t instanceof ResourceHandle ? { resource: this.resource(t, ctx).name }
+        : (({ resolve, ...rest }) => ({ ...rest, resource: this.resource(t.resource, ctx).name, ...(resolve !== undefined ? { resolve: this.resource(resolve, ctx).name } : {}) }))(t))),
+    };
+    if (o.depthTarget) node.depthTarget = { ...o.depthTarget, resource: this.resource(o.depthTarget.resource, ctx).name };
+    if (o.uses) node.uses = o.uses.map((u) => ({ ...u, resource: this.resource(u.resource, ctx).name }));
+    return this.push(node);
+  }
+
   /** Copy one resource to another of the same kind, format and size. */
   copy(name: string, source: ResourceRef, dest: ResourceRef, o: NodeOptions = {}): this {
     const ctx = this.begin(name);
@@ -436,6 +472,10 @@ export class TechniqueBuilder {
         if (ref.sampler) b.sampler = ref.sampler;
         if (ref.mip !== undefined) b.mip = ref.mip;
         if (ref.mipCount !== undefined) b.mipCount = ref.mipCount;
+        if (ref.group !== undefined) b.group = ref.group;
+        if (ref.uniform) b.uniform = true;
+        if (ref.dynamicOffset) b.dynamicOffset = true;
+        if (ref.size !== undefined) b.size = ref.size;
       }
       out.push(b);
     }

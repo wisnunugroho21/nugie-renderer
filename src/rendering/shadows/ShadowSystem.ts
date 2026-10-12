@@ -16,6 +16,8 @@ import type { RenderGraph } from '../RenderGraph';
 import { LightData, LIGHT_FLOATS, GPU_LIGHT_TYPE, SHADOW_REQUEST } from '../lighting/LightData';
 import type { SceneResources } from '../lighting/SceneResources';
 import { cascadeSplits, fitCascade, fitPoint, fitSpot } from './ShadowMath';
+import { CachedTechnique } from '../graph/CachedTechnique';
+import type { TrackedRenderPass } from '../graph/TrackedRenderPass';
 
 export interface ShadowConfig {
   mapSize: number;
@@ -50,6 +52,9 @@ interface Layer { index: number; vp: Float32Array; batches: BatchList; count: nu
  * Shadow maps: one depth32float 2d-array (cascades of the first shadow-casting directional light, then one layer per
  * shadow-casting spot light). `assign` runs after the light list is final, `prepare` builds per-layer instance batches (before
  * the instance buffer is flushed) and `encode` renders the depth passes.
+ *
+ * The depth passes are render nodes of a technique (one per active layer, each writing its layer of the shadow map); the batches are drawn through the
+ * node's state-tracking pass, so a pipeline or material bind group shared by consecutive batches is set once.
  */
 export class ShadowSystem implements RenderFeature {
   readonly name = 'shadows';
@@ -77,6 +82,10 @@ export class ShadowSystem implements RenderFeature {
   private casters = new Uint32Array(0);
   private signature = '';
   private frameData = new Float32Array(FRAME_FLOATS);
+  /** The depth passes of the active layers; rebuilt when the set of layers changes. */
+  private passes: CachedTechnique;
+  /** The renderer's object bind group for the frame being encoded (the layer passes' draw callbacks read it). */
+  private objectBG: GPUBindGroup | null = null;
 
   /** Allocate one depth-array texture (`cascades + spots + 6 per point light` layers), a view / frame uniform per layer and publish the textures to the scene bind group. */
   constructor(
@@ -98,6 +107,7 @@ export class ShadowSystem implements RenderFeature {
       this.frameBGs.push(device.createBindGroup({ label: `shadow-frame-${i}`, layout: layouts.frame, entries: [{ binding: 0, resource: { buffer: fb } }] }));
     }
     scene.setShadowResources(this.texture.createView({ dimension: '2d-array' }), this.matricesBuffer);
+    this.passes = new CachedTechnique(gpu, 'shadow-maps');
   }
 
   /**
@@ -167,6 +177,9 @@ export class ShadowSystem implements RenderFeature {
 
   // ---- RenderFeature hooks ----
 
+  /** Free the depth passes. The shadow map itself stays: the scene bind group still samples it. */
+  dispose(): void { this.passes.dispose(); }
+
   /** Give the frame's shadow-requesting lights their layers (before the lights are uploaded). */
   beginFrame(f: FeatureFrame): void { this.assign(f.lights, f.camera); }
 
@@ -215,28 +228,37 @@ export class ShadowSystem implements RenderFeature {
       fd.set(layer.vp, 0);
       fd[51] = frameTime; fd[52] = this.config.mapSize; fd[53] = this.config.mapSize;
       queue.writeBuffer(this.frameBuffers[layer.index], 0, fd);
-      const pass = enc.beginRenderPass({
-        label: `shadow-layer-${layer.index}`, colorAttachments: [], timestampWrites: profiler?.writes('shadows'),
-        depthStencilAttachment: { view: this.views[layer.index], depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
-      });
-      if (layer.count > 0) {
-        pass.setBindGroup(0, this.frameBGs[layer.index]);
-        pass.setBindGroup(1, this.scene.shadowPassBindGroup);
-        pass.setBindGroup(3, objectBG);
-        pass.setVertexBuffer(0, this.meshes.vertexBuffer);
-        pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
-        const b = layer.batches;
-        let curPipe: GPURenderPipeline | null = null, curMat = -1;
-        for (let i = 0; i < b.count; i++) {
-          const mesh = this.meshes.get(b.meshId[i]);
-          const pipe = this.materials.getShadowPipeline(b.materialId[i], mesh.deformMask, DEPTH_FORMAT);
-          if (pipe !== curPipe) { pass.setPipeline(pipe); curPipe = pipe; }
-          if (b.materialId[i] !== curMat) { pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i])); curMat = b.materialId[i]; }
-          pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
-          this.stats.draws++;
-        }
+    }
+    this.objectBG = objectBG;
+    const fx = this.passes.get(this.layers.map((l) => l.index).join(','), (t) => {
+      const size = this.config.mapSize;
+      const map = t.texture('shadowMap', { format: DEPTH_FORMAT, dimension: '2d-array', size: [size, size, this.layerCount], visibility: 'imported' });
+      for (const layer of this.layers) {
+        const index = layer.index;
+        t.renderPass(`shadow-layer-${index}`, { depthTarget: { resource: map, layer: index }, record: (pass) => this.recordLayer(index, pass) });
       }
-      pass.end();
+    });
+    fx.setImport('shadowMap', this.texture);
+    const timestampWrites = profiler?.writes('shadows');
+    fx.execute(enc, { timestampWrites: () => timestampWrites });
+  }
+
+  /** Draw one layer's casters: every batch with its depth-only pipeline and material bind group. */
+  private recordLayer(index: number, pass: TrackedRenderPass): void {
+    const layer = this.layers.find((l) => l.index === index);
+    if (!layer || layer.count === 0) return;
+    pass.setBindGroup(0, this.frameBGs[index]);
+    pass.setBindGroup(1, this.scene.shadowPassBindGroup);
+    pass.setBindGroup(3, this.objectBG!);
+    pass.setVertexBuffer(0, this.meshes.vertexBuffer);
+    pass.setIndexBuffer(this.meshes.indexBuffer, 'uint32');
+    const b = layer.batches;
+    for (let i = 0; i < b.count; i++) {
+      const mesh = this.meshes.get(b.meshId[i]);
+      pass.setPipeline(this.materials.getShadowPipeline(b.materialId[i], mesh.deformMask, DEPTH_FORMAT));
+      pass.setBindGroup(2, this.materials.getBindGroup(b.materialId[i]));
+      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+      this.stats.draws++;
     }
   }
 }

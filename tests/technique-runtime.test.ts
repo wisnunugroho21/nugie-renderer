@@ -35,7 +35,7 @@ function setup() {
       passes.push(pass);
       return {
         setPipeline() {}, dispatchWorkgroups() {}, end() {}, dispatchWorkgroupsIndirect() {},
-        setBindGroup: (i: number, bg: unknown) => (pass.bindGroups as [number, unknown][]).push([i, bg]),
+        setBindGroup: (i: number, bg: unknown, offsets?: number[]) => (pass.bindGroups as unknown[]).push([i, bg, offsets]),
       };
     },
   } as unknown as GPUCommandEncoder;
@@ -93,6 +93,147 @@ describe('TechniqueInstance runtime', () => {
 
     it('refuses a host layout that the instance was not given', () => {
       expect(() => TechniqueInstance.create(ctx.gpu, hosted(), { imports: { out: buffer(128) }, hostLayouts: {} })).toThrow(/host layout 'frame' was not given/);
+    });
+  });
+
+  describe('several generated bind groups and dynamic offsets', () => {
+    /** Per-view data in group 1 (a uniform struct, one 256-byte slot per view, picked by a dynamic offset) and the output in group 0. */
+    const twoGroups = (): Technique => ({
+      name: 't',
+      resources: [
+        { kind: 'buffer', name: 'out', element: 'u32', count: 4, visibility: 'imported' },
+        { kind: 'buffer', name: 'view', element: 'ViewData', stride: 256, count: 4, visibility: 'imported' },
+      ],
+      nodes: [computeNode({ bindings: [{ resource: 'out', access: 'write' }, { resource: 'view', access: 'read', uniform: true, dynamicOffset: true, group: 1 }] })],
+    });
+    const imports = () => ({ out: buffer(128), view: buffer(64 | 4, 1024) });
+
+    it('creates a layout and a bind group per generated group, with the dynamic-offset flag and a one-element window', () => {
+      TechniqueInstance.create(ctx.gpu, twoGroups(), { imports: imports() }).execute(ctx.encoder);
+      const layouts = (ctx.log.find((e) => e.t === 'pipelineLayout')!.d as { bindGroupLayouts: { d: { entries: Entry[] } }[] }).bindGroupLayouts;
+      expect(layouts).toHaveLength(2);
+      expect(layouts[0].d.entries).toEqual([expect.objectContaining({ binding: 0, buffer: { type: 'storage' } })]);
+      expect(layouts[1].d.entries).toEqual([expect.objectContaining({ binding: 0, buffer: { type: 'uniform', hasDynamicOffset: true } })]);
+      const groups = ctx.log.filter((e) => e.t === 'bindGroup').map((e) => (e.d as { entries: { binding: number; resource: { size?: number } }[] }).entries);
+      expect(groups).toHaveLength(2);
+      expect(groups[1][0].resource.size).toBe(256);                                // the window is one element wide
+      expect(groups[0][0].resource.size).toBeUndefined();                          // a plain storage binding covers the buffer
+    });
+
+    it('sets every group on the pass, with offsets only for the group that has dynamic bindings', () => {
+      const fx = TechniqueInstance.create(ctx.gpu, twoGroups(), { imports: imports() });
+      fx.execute(ctx.encoder);
+      const calls = ctx.passes[0].bindGroups as [number, unknown, number[] | undefined][];
+      expect(calls.map((c) => [c[0], c[2]])).toEqual([[0, undefined], [1, [0]]]);
+    });
+
+    it('records the offset current at each execute, so one technique can run once per view', () => {
+      const fx = TechniqueInstance.create(ctx.gpu, twoGroups(), { imports: imports() });
+      for (const offset of [0, 256, 768]) { fx.setDynamicOffset('c', 'view', offset); fx.execute(ctx.encoder); }
+      expect(ctx.passes.map((p) => (p.bindGroups as [number, unknown, number[] | undefined][])[1][2])).toEqual([[0], [256], [768]]);
+    });
+
+    it('checks the offset and the binding it is set for', () => {
+      const fx = TechniqueInstance.create(ctx.gpu, twoGroups(), { imports: imports() });
+      expect(() => fx.setDynamicOffset('c', 'view', 100)).toThrow(/multiple of 256 bytes/);
+      expect(() => fx.setDynamicOffset('c', 'view', -256)).toThrow(/multiple of 256 bytes/);
+      expect(() => fx.setDynamicOffset('c', 'out', 0)).toThrow(/no dynamic-offset binding 'out'/);
+      expect(() => fx.setDynamicOffset('nope', 'view', 0)).toThrow(/node 'nope' has no dynamic-offset binding/);
+    });
+
+    it('orders several dynamic bindings of one group by binding number', () => {
+      const t: Technique = {
+        name: 't',
+        resources: [
+          { kind: 'buffer', name: 'out', element: 'u32', count: 4, visibility: 'imported' },
+          { kind: 'buffer', name: 'a', element: 'vec4<f32>', count: 16, visibility: 'imported' }, { kind: 'buffer', name: 'b', element: 'vec4<f32>', count: 16, visibility: 'imported' },
+        ],
+        nodes: [computeNode({ bindings: [
+          { resource: 'out', access: 'write' },
+          { resource: 'a', access: 'read', group: 1, dynamicOffset: true, name: 'first' }, { resource: 'b', access: 'read', group: 1, dynamicOffset: true, name: 'second' },
+        ] })],
+      };
+      const fx = TechniqueInstance.create(ctx.gpu, t, { imports: { out: buffer(128), a: buffer(128 | 64, 1024), b: buffer(128 | 64, 1024) } });
+      fx.setDynamicOffset('c', 'second', 512); fx.setDynamicOffset('c', 'first', 256);
+      fx.execute(ctx.encoder);
+      expect((ctx.passes[0].bindGroups as [number, unknown, number[] | undefined][])[1][2]).toEqual([256, 512]);
+    });
+
+    it('lets host groups fill the groups the generated ones do not use', () => {
+      const t = twoGroups();
+      (t.nodes[0] as { hostGroups?: unknown }).hostGroups = [{ group: 2, layout: 'scene' }];
+      const scene = { kind: 'host-scene' } as unknown as GPUBindGroupLayout;
+      const fx = TechniqueInstance.create(ctx.gpu, t, { imports: imports(), hostLayouts: { scene } });
+      const layouts = (ctx.log.find((e) => e.t === 'pipelineLayout')!.d as { bindGroupLayouts: unknown[] }).bindGroupLayouts;
+      expect(layouts).toHaveLength(3);
+      expect(layouts[2]).toBe(scene);
+      const sceneBg = {} as GPUBindGroup;
+      fx.setHostBindGroup('scene', sceneBg);
+      fx.execute(ctx.encoder);
+      expect((ctx.passes[0].bindGroups as [number, unknown][]).map((c) => c[0])).toEqual([0, 1, 2]);
+    });
+  });
+
+  describe('render nodes', () => {
+    /** An encoder whose render passes log how they were begun, what was recorded in them and whether they ended. */
+    const renderEncoder = () => {
+      const begun: Entry[] = [], events: string[] = [];
+      const encoder = {
+        beginRenderPass: (d: Entry) => {
+          begun.push(d); events.push('begin');
+          return { setPipeline() {}, setBindGroup() {}, setVertexBuffer() {}, setIndexBuffer() {}, draw() { events.push('draw'); }, end() { events.push('end'); } };
+        },
+      } as unknown as GPUCommandEncoder;
+      return { encoder, begun, events };
+    };
+    const attachmentTexture = (label: string, extra: Entry = {}) => ({
+      label, usage: 16, format: 'rgba8unorm', width: 8, height: 8, sampleCount: 1, mipLevelCount: 1, destroy() {},
+      createView: (v?: Entry) => ({ of: label, v }), ...extra,
+    }) as unknown as GPUTexture;
+    const target = (extra: Record<string, unknown> = {}): Technique['nodes'][number] => ({ type: 'render', name: 'r', record: () => {}, colorTargets: [{ resource: 'color' }], ...extra }) as never;
+    const base = (nodes: Technique['nodes'], extra: Technique['resources'] = []): Technique => ({
+      name: 't', nodes, resources: [{ kind: 'texture', name: 'color', format: 'rgba8unorm', size: [8, 8], visibility: 'imported' }, ...extra],
+    });
+
+    it('begins the pass, records the host draws through the tracking wrapper, then ends it', () => {
+      const { encoder, events } = renderEncoder();
+      let seen: unknown;
+      const fx = TechniqueInstance.create(ctx.gpu, base([target({ record: (pass: { draw(n: number): void }) => { seen = pass; pass.draw(3); } })]), { imports: { color: attachmentTexture('color') } });
+      fx.execute(encoder);
+      expect(events).toEqual(['begin', 'draw', 'end']);
+      expect(seen).toBeDefined();
+    });
+
+    it('ends the pass even when recording throws, and lets the error through', () => {
+      const { encoder, events } = renderEncoder();
+      const fx = TechniqueInstance.create(ctx.gpu, base([target({ record: () => { throw new Error('boom'); } })]), { imports: { color: attachmentTexture('color') } });
+      expect(() => fx.execute(encoder)).toThrow('boom');
+      expect(events).toEqual(['begin', 'end']);
+    });
+
+    it('builds the attachments: MSAA resolve with discard, a depth layer with its clear value, and a read-only depth', () => {
+      const { encoder, begun } = renderEncoder();
+      const t = base([
+        target({ name: 'a', colorTargets: [{ resource: 'msaa', resolve: 'color', clearValue: [0, 0, 1, 0], storeOp: 'discard' }] }),
+        target({ name: 'b', colorTargets: [], depthTarget: { resource: 'map', layer: 2, clearValue: 0.5 } }),
+        target({ name: 'c', sideEffect: true, colorTargets: [], depthTarget: { resource: 'map', readOnly: true } }),
+      ], [
+        { kind: 'texture', name: 'msaa', format: 'rgba8unorm', size: [8, 8], samples: 4, visibility: 'imported' },
+        { kind: 'texture', name: 'map', format: 'depth32float', dimension: '2d-array', size: [8, 8, 4], visibility: 'imported' },
+      ]);
+      const fx = TechniqueInstance.create(ctx.gpu, t, {
+        imports: { color: attachmentTexture('color'), msaa: attachmentTexture('msaa', { sampleCount: 4 }), map: attachmentTexture('map', { format: 'depth32float', depthOrArrayLayers: 4 }) },
+      });
+      const writes = { querySet: {} as GPUQuerySet, beginningOfPassWriteIndex: 1 };
+      fx.execute(encoder, { timestampWrites: (path) => (path === 'a' ? writes : undefined) });
+      const [first, layered, readOnly] = begun as { colorAttachments: Entry[]; depthStencilAttachment: Entry; timestampWrites?: unknown; label: string }[];
+      expect(first.label).toBe('a');
+      expect(first.timestampWrites).toBe(writes);
+      expect(first.colorAttachments[0]).toMatchObject({ view: { of: 'msaa' }, resolveTarget: { of: 'color' }, storeOp: 'discard', loadOp: 'clear', clearValue: [0, 0, 1, 0] });
+      expect(layered.colorAttachments).toEqual([]);
+      expect(layered.depthStencilAttachment).toMatchObject({ view: { of: 'map', v: { dimension: '2d', baseArrayLayer: 2, arrayLayerCount: 1 } }, depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 0.5 });
+      expect('timestampWrites' in layered).toBe(false);
+      expect(readOnly.depthStencilAttachment).toEqual({ view: { of: 'map', v: { dimension: '2d', baseMipLevel: 0, mipLevelCount: 1, baseArrayLayer: 0, arrayLayerCount: 1 } }, depthReadOnly: true });
     });
   });
 

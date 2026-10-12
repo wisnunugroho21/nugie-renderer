@@ -1,3 +1,5 @@
+import type { TrackedRenderPass } from './TrackedRenderPass';
+
 /**
  * Technique schema: a render graph written as data, modelled on EA SEED's Gigi (https://github.com/electronicarts/gigi).
  *
@@ -93,6 +95,20 @@ export interface BindingDecl {
   name?: string;
   /** Also declare `<name>_sampler` with this filter (sampled textures only). */
   sampler?: GPUFilterMode;
+  /**
+   * `@group` this binding is declared in. Default: the node's `group` (0 unless set). A node may spread its bindings over several groups (for example per-view data
+   * in one group and per-object data in another); the host's groups (`hostGroups`) take other indices. Groups 0 to 3.
+   */
+  group?: number;
+  /** Buffers, `read` only: declare `var<uniform> name: <element>` (one element, not an array) instead of a read-only storage array. The buffer needs the UNIFORM usage. */
+  uniform?: boolean;
+  /**
+   * Buffers: the binding window moves by an offset chosen at run time, `TechniqueInstance.setDynamicOffset(node, binding, bytes)`, so one buffer can hold the
+   * data of many views or objects (a ring of per-draw uniforms). The offset is a multiple of the device's offset alignment (256 on most devices).
+   */
+  dynamicOffset?: boolean;
+  /** Buffers: bytes of the binding window. Default: the whole buffer, or one element (`stride`) when the binding has a `dynamicOffset`. */
+  size?: number;
   /** Textures: first mip level of the view (default 0). */
   mip?: number;
   /**
@@ -121,7 +137,7 @@ interface NodeBase {
 
 /** A bind group the host supplies to a node (the engine's frame and scene groups): the shader declares its bindings itself. */
 export interface HostBindGroup {
-  /** `@group(n)` of the shader; must differ from the node's own `group`. */
+  /** `@group(n)` of the shader; must differ from every group the node's generated bindings use. */
   group: number;
   /** Name of the layout, registered with `TechniqueInstance` (`hostLayouts`); the bind group is supplied with `setHostBindGroup(layout, ...)`. */
   layout: string;
@@ -130,9 +146,9 @@ export interface HostBindGroup {
 export interface ComputeNode extends NodeBase {
   type: 'compute';
   shader: ShaderSource;
-  /** `@group` of the bindings the technique generates (resources, variables). Default 0. */
+  /** Default `@group` of the bindings the technique generates (resources, variables); a binding can choose its own with `group`. Default 0. */
   group?: number;
-  /** Bind groups the host supplies at other group indices. */
+  /** Bind groups the host supplies at group indices the generated bindings do not use. */
   hostGroups?: HostBindGroup[];
   entryPoint?: string;
   /** Must match the shader's `@workgroup_size`; read from the source when it uses plain numbers. */
@@ -165,6 +181,10 @@ export interface DepthTarget {
   clearValue?: number;
   compare?: GPUCompareFunction;
   write?: boolean;
+  /** Array layer of a `2d-array` depth texture (a shadow map with one layer per light / cascade). Default 0. */
+  layer?: number;
+  /** The pass only tests against the depth (load and store are not performed, no depth is written): the depth buffer can be sampled or shared meanwhile. */
+  readOnly?: boolean;
 }
 
 /** One attribute of a vertex buffer: the shader reads it with `@location(location)`. */
@@ -198,9 +218,9 @@ export interface IndexBufferBinding {
 
 export interface DrawNode extends NodeBase {
   type: 'draw';
-  /** `@group` of the bindings the technique generates (resources, variables). Default 0. */
+  /** Default `@group` of the bindings the technique generates (resources, variables); a binding can choose its own with `group`. Default 0. */
   group?: number;
-  /** Bind groups the host supplies at other group indices. */
+  /** Bind groups the host supplies at group indices the generated bindings do not use. */
   hostGroups?: HostBindGroup[];
   /** One WGSL module with both entry points. Geometry is procedural (`@builtin(vertex_index)`), read from bound storage buffers, or fed by `vertexBuffers`. */
   shader: ShaderSource;
@@ -254,6 +274,29 @@ export interface SubGraphNode extends NodeBase {
   loop?: number | { variable: string };
 }
 
+/** How a `render` node's recorded draws use a resource besides its attachments (so ordering, lifetimes and usage flags are right). */
+export interface RenderPassUse {
+  resource: string;
+  usage: 'sampled' | 'storage' | 'uniform' | 'vertex' | 'index' | 'indirect';
+  /** The draws write the resource (a storage buffer or texture). Default: read only. */
+  write?: boolean;
+}
+
+/**
+ * A render pass whose draws the host records: the technique owns the attachments (colour targets with MSAA resolve, depth target with a layer or read-only), the pass
+ * timestamps and the ordering, and the host issues the draws through a {@link TrackedRenderPass}, which skips redundant pipeline / bind group / buffer switches.
+ * Use it where a draw node is not enough: many draws with different pipelines, bind groups (dynamic offsets) and geometry per draw, as in a batch list. Code only, like a callback node.
+ */
+export interface RenderPassNode extends NodeBase {
+  type: 'render';
+  colorTargets: ColorTarget[];
+  depthTarget?: DepthTarget;
+  /** What the draws read or write besides the attachments (host-owned resources the technique declares). */
+  uses?: RenderPassUse[];
+  /** Record the draws. Called once per `execute`, between the pass's begin and end. */
+  record: (pass: TrackedRenderPass) => void;
+}
+
 /** Engine code as a node (how the renderer's own passes plug in): declares what it reads and writes and records commands itself. */
 export interface CallbackNode extends NodeBase {
   type: 'callback';
@@ -262,7 +305,7 @@ export interface CallbackNode extends NodeBase {
   execute: (encoder: GPUCommandEncoder) => void;
 }
 
-export type NodeDecl = ComputeNode | DrawNode | CopyNode | SubGraphNode | CallbackNode;
+export type NodeDecl = ComputeNode | DrawNode | CopyNode | SubGraphNode | CallbackNode | RenderPassNode;
 
 export interface Technique {
   name: string;

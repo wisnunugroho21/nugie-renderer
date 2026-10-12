@@ -2,7 +2,7 @@ import { estimateTextureBytes } from '../../gpu/TextureManager';
 import { dependenciesOf, liveNodes, orderNodes, orderCost, type AnalysisNode, type NodeAccess, type OrderStrategy } from './Analysis';
 import { flatten, type FlatGraph, type FlatNode, type FlatVariable, type VariableValue } from './Flatten';
 import {
-  TechniqueError, type BindingDecl, type BufferDecl, type Diagnostic, type NodeCondition, type SizeDim, type TextureDecl, type TextureDimension, type Technique, type TechniqueRegistry, type VertexBufferBinding,
+  TechniqueError, type BindingDecl, type BufferDecl, type ColorTarget, type DepthTarget, type Diagnostic, type NodeCondition, type SizeDim, type TextureDecl, type TextureDimension, type Technique, type TechniqueRegistry, type VertexBufferBinding,
 } from './TechniqueTypes';
 
 export interface CompileOptions {
@@ -16,7 +16,7 @@ export interface CompileOptions {
 }
 
 /** How a resource is used by the live nodes (decides the GPU usage flags it is created with). */
-export type ResourceUse = 'sampled' | 'storage' | 'render' | 'vertex' | 'index' | 'copy-src' | 'copy-dst' | 'indirect';
+export type ResourceUse = 'sampled' | 'storage' | 'uniform' | 'render' | 'vertex' | 'index' | 'copy-src' | 'copy-dst' | 'indirect';
 
 export interface ResolvedTexture { kind: 'texture'; dimension: TextureDimension; format: GPUTextureFormat; size: [number, number, number]; mips: number; samples: number; }
 export interface ResolvedBuffer { kind: 'buffer'; element: string; stride: number; count: number; }
@@ -201,9 +201,14 @@ export function textureSize(r: Resolved | null): [number, number, number] | null
 
 /** How a binding touches its resource. */
 function bindingAccess(b: BindingDecl, kind: 'texture' | 'buffer'): NodeAccess {
-  const access: NodeAccess = { resource: b.resource, read: b.access !== 'write', write: b.access !== 'read', usage: b.access === 'read' ? (kind === 'texture' ? 'sampled' : 'sampled') : 'storage' };
+  const access: NodeAccess = { resource: b.resource, read: b.access !== 'write', write: b.access !== 'read', usage: b.access === 'read' ? (b.uniform ? 'uniform' : 'sampled') : 'storage' };
   if (kind === 'texture' && (b.mip !== undefined || b.mipCount !== undefined)) access.mips = [b.mip ?? 0, b.mipCount ?? 1];
   return access;
+}
+
+/** Bytes of one element of a buffer: the resolved stride, or the size of the declared WGSL element type. */
+export function bufferStride(decl: BufferDecl, resolved: Resolved | null | undefined): number | undefined {
+  return resolved?.kind === 'buffer' ? resolved.stride : decl.stride ?? wgslElementBytes(decl.element ?? 'u32');
 }
 
 /** Two sub-ranges of a texture's mip chain that do not overlap (both must be given). */
@@ -239,12 +244,14 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
     if (!same) { out.push(a); return; }
     if (a.write || same.write || a.usage !== same.usage) throw new TechniqueError(`${ctx}: resource '${a.resource}' is bound more than once with conflicting usage (${same.usage} and ${a.usage})`);
   };
-  const groups = (n: { group?: number; hostGroups?: { group: number; layout: string }[] }) => {
-    const own = n.group ?? 0, seen = new Set<number>([own]);
-    if (!Number.isInteger(own) || own < 0 || own > 3) throw new TechniqueError(`${ctx}: group ${own} must be from 0 to 3`);
+  /** Bind group indices: the generated bindings (the node's default group and each binding's own) and the host's must not overlap. */
+  const groups = (n: { group?: number; hostGroups?: { group: number; layout: string }[]; bindings: BindingDecl[] }) => {
+    const own = n.group ?? 0, seen = new Set<number>([own, ...n.bindings.map((b) => b.group ?? own)]);
+    for (const g of seen) if (!Number.isInteger(g) || g < 0 || g > 3) throw new TechniqueError(`${ctx}: group ${g} must be from 0 to 3`);
+    const generated = [...seen].sort().join(', ');
     for (const h of n.hostGroups ?? []) {
       if (!Number.isInteger(h.group) || h.group < 0 || h.group > 3) throw new TechniqueError(`${ctx}: host group ${h.group} must be from 0 to 3`);
-      if (seen.has(h.group)) throw new TechniqueError(`${ctx}: @group(${h.group}) is used twice (the generated bindings are at group ${own})`);
+      if (seen.has(h.group)) throw new TechniqueError(`${ctx}: @group(${h.group}) is used twice (the generated bindings use group ${generated})`);
       seen.add(h.group);
       if (!h.layout) throw new TechniqueError(`${ctx}: host group ${h.group} needs a layout name`);
     }
@@ -259,6 +266,9 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       names.add(wgsl);
       if (b.sampler && (kind !== 'texture' || b.access !== 'read')) throw new TechniqueError(`${ctx}: only sampled (read) textures can have a sampler ('${b.resource}')`);
       if (b.sampler && ((resolved.get(b.resource) as ResolvedTexture | null)?.samples ?? 1) > 1) throw new TechniqueError(`${ctx}: multisampled texture '${b.resource}' cannot be filtered; read it with textureLoad (no sampler)`);
+      if (b.uniform && (kind !== 'buffer' || b.access !== 'read')) throw new TechniqueError(`${ctx}: only buffers bound for reading can be uniform ('${b.resource}')`);
+      if (b.dynamicOffset && kind !== 'buffer') throw new TechniqueError(`${ctx}: only buffers can have a dynamicOffset ('${b.resource}')`);
+      if (b.size !== undefined && (kind !== 'buffer' || !Number.isInteger(b.size) || b.size < 4 || b.size % 4)) throw new TechniqueError(`${ctx}: size ${b.size} of '${b.resource}' must be a multiple of 4 bytes and apply to a buffer`);
       if (b.mip !== undefined || b.mipCount !== undefined) {
         const r = resolved.get(b.resource) as ResolvedTexture | null, first = b.mip ?? 0, count = b.mipCount ?? 1;
         if (kind !== 'texture') throw new TechniqueError(`${ctx}: mip / mipCount only apply to textures ('${b.resource}')`);
@@ -276,6 +286,47 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       add(bindingAccess(b, kind));
     }
   };
+  /** Validate the attachments of a draw / render pass (same size and sample count, resolve targets, depth format) and record how they are accessed. */
+  const attachments = (n: { colorTargets: ColorTarget[]; depthTarget?: DepthTarget }): void => {
+    if (!n.colorTargets.length && !n.depthTarget) throw new TechniqueError(`${ctx}: a draw needs at least one color or depth target`);
+    let target: [number, number, number] | null = null;
+    let samples: number | null = null;
+    /** Every attachment of a pass has the same size and sample count. */
+    const attach = (name: string, r: ResolvedTexture | null) => {
+      if (!r) return;
+      if (target && (target[0] !== r.size[0] || target[1] !== r.size[1])) throw new TechniqueError(`${ctx}: targets differ in size (${target[0]}x${target[1]} and ${r.size[0]}x${r.size[1]})`);
+      target = r.size;
+      if (samples !== null && samples !== r.samples) throw new TechniqueError(`${ctx}: targets differ in sample count (${samples} and ${r.samples}; '${name}' has ${r.samples})`);
+      samples = r.samples;
+    };
+    for (const t of n.colorTargets) {
+      const d = decl(t.resource);
+      if (d.kind !== 'texture') throw new TechniqueError(`${ctx}: color target '${t.resource}' must be a texture`);
+      const r = resolved.get(t.resource) as ResolvedTexture | null;
+      if (r && (isDepthFormat(r.format))) throw new TechniqueError(`${ctx}: '${t.resource}' is a depth format and cannot be a color target`);
+      attach(t.resource, r);
+      if (t.resolve !== undefined) {
+        const rd = decl(t.resolve);
+        if (rd.kind !== 'texture') throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' must be a texture`);
+        if (t.resolve === t.resource) throw new TechniqueError(`${ctx}: '${t.resource}' cannot resolve into itself`);
+        const rr = resolved.get(t.resolve) as ResolvedTexture | null;
+        if (r && r.samples < 2) throw new TechniqueError(`${ctx}: '${t.resource}' resolves into '${t.resolve}' but is not multisampled (set samples: 4)`);
+        if (rr && rr.samples !== 1) throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' must be single-sample`);
+        if (r && rr && (r.format !== rr.format || r.size[0] !== rr.size[0] || r.size[1] !== rr.size[1])) throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' (${rr.format} ${rr.size[0]}x${rr.size[1]}) must match '${t.resource}' (${r.format} ${r.size[0]}x${r.size[1]})`);
+        add({ resource: t.resolve, read: false, write: true, usage: 'color' });
+      } else if (r && r.samples > 1 && t.storeOp === 'discard') {
+        throw new TechniqueError(`${ctx}: '${t.resource}' is multisampled and discarded without a resolve target; its result would be lost`);
+      }
+      // a target names its mip level, so it can sit beside a binding of another mip of the same texture (a mip chain built by draws)
+      add({ resource: t.resource, read: t.loadOp === 'load' || (t.blend ?? 'none') !== 'none', write: true, usage: 'color', ...(t.mip !== undefined ? { mips: [t.mip, 1] as [number, number] } : {}) });
+    }
+    if (n.depthTarget) {
+      const r = resolved.get(n.depthTarget.resource) as ResolvedTexture | null;
+      if (decl(n.depthTarget.resource).kind !== 'texture' || (r && !isDepthFormat(r.format))) throw new TechniqueError(`${ctx}: depth target '${n.depthTarget.resource}' must be a texture with a depth format`);
+      attach(n.depthTarget.resource, r);
+      add({ resource: n.depthTarget.resource, read: true, write: n.depthTarget.readOnly ? false : n.depthTarget.write !== false, usage: 'depth' });
+    }
+  };
   switch (node.type) {
     case 'compute':
       groups(node);
@@ -289,44 +340,7 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       break;
     case 'draw': {
       groups(node);
-      if (!node.colorTargets.length && !node.depthTarget) throw new TechniqueError(`${ctx}: a draw needs at least one color or depth target`);
-      let target: [number, number, number] | null = null;
-      let samples: number | null = null;
-      /** Every attachment of a pass has the same size and sample count. */
-      const attach = (name: string, r: ResolvedTexture | null) => {
-        if (!r) return;
-        if (target && (target[0] !== r.size[0] || target[1] !== r.size[1])) throw new TechniqueError(`${ctx}: targets differ in size (${target[0]}x${target[1]} and ${r.size[0]}x${r.size[1]})`);
-        target = r.size;
-        if (samples !== null && samples !== r.samples) throw new TechniqueError(`${ctx}: targets differ in sample count (${samples} and ${r.samples}; '${name}' has ${r.samples})`);
-        samples = r.samples;
-      };
-      for (const t of node.colorTargets) {
-        const d = decl(t.resource);
-        if (d.kind !== 'texture') throw new TechniqueError(`${ctx}: color target '${t.resource}' must be a texture`);
-        const r = resolved.get(t.resource) as ResolvedTexture | null;
-        if (r && (isDepthFormat(r.format))) throw new TechniqueError(`${ctx}: '${t.resource}' is a depth format and cannot be a color target`);
-        attach(t.resource, r);
-        if (t.resolve !== undefined) {
-          const rd = decl(t.resolve);
-          if (rd.kind !== 'texture') throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' must be a texture`);
-          if (t.resolve === t.resource) throw new TechniqueError(`${ctx}: '${t.resource}' cannot resolve into itself`);
-          const rr = resolved.get(t.resolve) as ResolvedTexture | null;
-          if (r && r.samples < 2) throw new TechniqueError(`${ctx}: '${t.resource}' resolves into '${t.resolve}' but is not multisampled (set samples: 4)`);
-          if (rr && rr.samples !== 1) throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' must be single-sample`);
-          if (r && rr && (r.format !== rr.format || r.size[0] !== rr.size[0] || r.size[1] !== rr.size[1])) throw new TechniqueError(`${ctx}: resolve target '${t.resolve}' (${rr.format} ${rr.size[0]}x${rr.size[1]}) must match '${t.resource}' (${r.format} ${r.size[0]}x${r.size[1]})`);
-          add({ resource: t.resolve, read: false, write: true, usage: 'color' });
-        } else if (r && r.samples > 1 && t.storeOp === 'discard') {
-          throw new TechniqueError(`${ctx}: '${t.resource}' is multisampled and discarded without a resolve target; its result would be lost`);
-        }
-        // a target names its mip level, so it can sit beside a binding of another mip of the same texture (a mip chain built by draws)
-        add({ resource: t.resource, read: t.loadOp === 'load' || (t.blend ?? 'none') !== 'none', write: true, usage: 'color', ...(t.mip !== undefined ? { mips: [t.mip, 1] as [number, number] } : {}) });
-      }
-      if (node.depthTarget) {
-        const r = resolved.get(node.depthTarget.resource) as ResolvedTexture | null;
-        if (decl(node.depthTarget.resource).kind !== 'texture' || (r && !isDepthFormat(r.format))) throw new TechniqueError(`${ctx}: depth target '${node.depthTarget.resource}' must be a texture with a depth format`);
-        attach(node.depthTarget.resource, r);
-        add({ resource: node.depthTarget.resource, read: true, write: node.depthTarget.write !== false, usage: 'depth' });
-      }
+      attachments(node);
       const locations = new Set<number>();
       let perVertex: string | undefined;
       for (const [i, v] of (node.vertexBuffers ?? []).entries()) {
@@ -371,6 +385,15 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
       out.push({ resource: node.source, read: true, write: false, usage: 'copy-src' }, { resource: node.dest, read: false, write: true, usage: 'copy-dst' });
       break;
     }
+    case 'render': {
+      attachments(node);
+      for (const u of node.uses ?? []) {
+        const kind = decl(u.resource).kind;
+        if (kind === 'texture' && u.usage !== 'sampled' && u.usage !== 'storage') throw new TechniqueError(`${ctx}: texture '${u.resource}' can only be used as sampled or storage, not ${u.usage}`);
+        add({ resource: u.resource, read: u.write !== true, write: u.write === true, usage: u.usage });
+      }
+      break;
+    }
     case 'callback':
       for (const r of node.reads ?? []) out.push({ resource: r, read: true, write: (node.writes ?? []).includes(r), usage: 'callback' });
       for (const r of node.writes ?? []) if (!(node.reads ?? []).includes(r)) out.push({ resource: r, read: false, write: true, usage: 'callback' });
@@ -379,12 +402,13 @@ function accessesOf(node: FlatNode, graph: FlatGraph, resolved: Map<string, Reso
   return out;
 }
 
-const nodeKind = (node: FlatNode) => (node.type === 'compute' ? 'compute' : node.type === 'draw' ? 'render' : node.type === 'copy' ? 'copy' : 'callback') as 'compute' | 'render' | 'copy' | 'callback';
+const nodeKind = (node: FlatNode) => (node.type === 'compute' ? 'compute' : node.type === 'draw' || node.type === 'render' ? 'render' : node.type === 'copy' ? 'copy' : 'callback') as 'compute' | 'render' | 'copy' | 'callback';
 
 /** GPU uses implied by a node access on a resource of `kind`. */
 function usesOf(access: NodeAccess): ResourceUse[] {
   switch (access.usage) {
     case 'sampled': return ['sampled'];
+    case 'uniform': return ['uniform'];
     case 'storage': return ['storage'];
     case 'color': case 'depth': return ['render'];
     case 'vertex': return ['vertex'];

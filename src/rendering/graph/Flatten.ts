@@ -1,5 +1,5 @@
 import {
-  TechniqueError, type BindingDecl, type CallbackNode, type ComputeNode, type CopyNode, type DrawNode, type NodeCondition, type NodeDecl, type ResourceDecl,
+  TechniqueError, type BindingDecl, type CallbackNode, type ComputeNode, type CopyNode, type DrawNode, type RenderPassNode, type NodeCondition, type NodeDecl, type ResourceDecl,
   type SizeDim, type SubGraphNode, type Technique, type TechniqueRegistry, type VariableDecl,
 } from './TechniqueTypes';
 
@@ -8,7 +8,7 @@ export type VariableValue = number | number[];
 export interface FlatVariable { name: string; decl: VariableDecl; value: VariableValue; }
 export interface FlatResource { name: string; decl: ResourceDecl; }
 /** A leaf node with every resource and variable name replaced by its name in the flattened graph. */
-export type FlatNode = (ComputeNode | DrawNode | CopyNode | CallbackNode) & {
+export type FlatNode = (ComputeNode | DrawNode | CopyNode | CallbackNode | RenderPassNode) & {
   /** Path of the node through the sub-graphs it came from, e.g. `blur#1/horizontal`. */
   path: string;
   /** All conditions that must hold: the node's own and those of the sub-graph nodes around it. */
@@ -226,6 +226,13 @@ function mapNode(node: Exclude<NodeDecl, SubGraphNode>, resource: Map<string, st
         ...(node.vertexCount !== undefined ? { vertexCount: dim(node.vertexCount) } : {}), ...(node.instanceCount !== undefined ? { instanceCount: dim(node.instanceCount) } : {}),
       };
     case 'copy': return { ...node, source: mapResource(resource, node.source, ctx), dest: mapResource(resource, node.dest, ctx) };
+    case 'render':
+      return {
+        ...node,
+        colorTargets: node.colorTargets.map((t) => ({ ...t, resource: mapResource(resource, t.resource, ctx), ...(t.resolve !== undefined ? { resolve: mapResource(resource, t.resolve, ctx) } : {}) })),
+        ...(node.depthTarget ? { depthTarget: { ...node.depthTarget, resource: mapResource(resource, node.depthTarget.resource, ctx) } } : {}),
+        ...(node.uses ? { uses: node.uses.map((u) => ({ ...u, resource: mapResource(resource, u.resource, ctx) })) } : {}),
+      };
     case 'callback': return { ...node, reads: (node.reads ?? []).map((r) => mapResource(resource, r, ctx)), writes: (node.writes ?? []).map((r) => mapResource(resource, r, ctx)) };
   }
 }

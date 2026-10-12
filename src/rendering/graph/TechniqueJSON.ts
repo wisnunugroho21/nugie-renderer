@@ -19,7 +19,9 @@ type Rule =
 const opt = (r: Rule): Rule => ({ optional: r });
 const SIZE_DIM: Rule = 'size';
 
-const BINDING: Spec = { resource: 'string', access: { enum: ['read', 'write', 'readwrite'] }, name: opt('string'), sampler: opt({ enum: ['nearest', 'linear'] }), mip: opt('number'), mipCount: opt('number') };
+const BINDING: Spec = { resource: 'string', access: { enum: ['read', 'write', 'readwrite'] }, name: opt('string'), sampler: opt({ enum: ['nearest', 'linear'] }), mip: opt('number'), mipCount: opt('number'),
+  group: opt('number'), uniform: opt('boolean'), dynamicOffset: opt('boolean'), size: opt('number'),
+};
 const CONDITION: Spec = { variable: 'string', op: { enum: ['eq', 'ne', 'lt', 'le', 'gt', 'ge'] }, value: 'number' };
 const VERTEX_BUFFER: Spec = {
   resource: 'string', stepMode: opt({ enum: ['vertex', 'instance'] }), arrayStride: opt('number'), offset: opt('number'),
@@ -127,7 +129,7 @@ export function parseTechnique(data: unknown, path = 'technique'): Technique {
   (data.nodes as Record<string, unknown>[]).forEach((n, i) => {
     const at = `${path}.nodes[${i}]`;
     const spec = isObject(n) ? NODE_SPECS[n.type as string] : undefined;
-    if (!spec) return fail(`${at}.type`, `expected one of ${Object.keys(NODE_SPECS).map((t) => `"${t}"`).join(', ')} (callback nodes hold code and cannot come from a file)`);
+    if (!spec) return fail(`${at}.type`, `expected one of ${Object.keys(NODE_SPECS).map((t) => `"${t}"`).join(', ')} (callback nodes hold code and cannot come from a file, and neither can render nodes)`);
     checkKeys(n, spec, at);
     if (n.type === 'subgraph' && isObject(n.technique)) n.technique = parseTechnique(n.technique, `${at}.technique`);
   });
@@ -138,7 +140,7 @@ export function parseTechnique(data: unknown, path = 'technique'): Technique {
 export function techniqueToJSON(technique: Technique, space = 2): string {
   const visit = (t: Technique, path: string) => {
     t.nodes.forEach((n, i) => {
-      if (n.type === 'callback') throw new TechniqueError(`${path}.nodes[${i}] ('${n.name}') is a callback node and cannot be serialized`);
+      if (n.type === 'callback' || n.type === 'render') throw new TechniqueError(`${path}.nodes[${i}] ('${n.name}') is a ${n.type} node and cannot be serialized`);
       if (n.type === 'subgraph' && typeof n.technique !== 'string') visit(n.technique, `${path}.nodes[${i}].technique`);
     });
   };
