@@ -45,12 +45,6 @@ export class LODLibrary {
   }
 }
 
-/** Fraction of the screen height covered by a bounding sphere of `radius` at distance `dist` (vertical fov in radians). */
-export function projectedSize(radius: number, dist: number, fovY: number): number {
-  if (dist <= radius) return Infinity; // camera inside the bounds: always the finest level
-  return radius / (dist * Math.tan(fovY / 2));
-}
-
 /**
  * Pick the LOD level with hysteresis. `current` is the previously chosen level (-1 = none yet), `n` = number of levels.
  * Returns a level in [0, n-1], or `n` meaning "culled". Moving to a COARSER level requires the size to drop `hysteresis`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeFakeGPU } from './helpers/fakeGPU';
-import { LODLibrary, LODSystem, projectedSize, selectLevel, type LODLevel } from '../src/visibility/LODSystem';
+import { LODLibrary, LODSystem, selectLevel, type LODLevel } from '../src/visibility/LODSystem';
 import { RenderWorld } from '../src/rendering/RenderWorld';
 import { RenderExtractor } from '../src/rendering/RenderExtractor';
 import { TransformSystem } from '../src/ecs/systems/TransformSystem';
@@ -21,18 +21,6 @@ describe('LODLibrary', () => {
     expect(() => lib.create({ levels: [] })).toThrow();
     expect(() => lib.create({ levels: [{ meshId: a, minScreenSize: 0.1 }, { meshId: b, minScreenSize: 0.3 }] })).toThrow(/decreasing/);
     expect(() => lib.create({ levels: [{ meshId: a, minScreenSize: 0.3 }, { meshId: skinned, minScreenSize: 0.1 }] })).toThrow(/deformation/);
-  });
-});
-
-describe('projectedSize', () => {
-  it('is the fraction of screen height covered by the bounding-sphere diameter', () => {
-    expect(projectedSize(1, 10, Math.PI / 2)).toBeCloseTo(0.1, 6);               // fov 90 => tan(45) = 1
-    expect(projectedSize(1, 20, Math.PI / 2)).toBeCloseTo(0.05, 6);              // twice as far => half the size
-    expect(projectedSize(2, 10, Math.PI / 2)).toBeCloseTo(0.2, 6);               // twice as big => twice the size
-    expect(projectedSize(1, 10, Math.PI / 3)).toBeGreaterThan(projectedSize(1, 10, Math.PI / 2)); // narrower fov => bigger on screen
-  });
-  it('camera inside the bounds is infinitely large (finest level)', () => {
-    expect(projectedSize(5, 2, 1)).toBe(Infinity);
   });
 });
 
