@@ -55,17 +55,18 @@ export class FullscreenEffect {
   /** The effect's uniforms (16 floats = 4 vec4), uploaded on every `run`. */
   readonly params = new Float32Array(16);
   private tech: Technique;
-  private instance: TechniqueInstance;
+  /** The technique on its own, for `run` (in a frame the effect's nodes are part of the frame's graph instead). */
+  private instance: TechniqueInstance | null;
   private size = '1x1';
 
-  /** Builds the effect at a placeholder size so a bad shader fails here, not in the middle of a frame; `run` rebuilds it for the real scene size. */
+  /** Builds the effect at a placeholder size so a bad shader fails here, not in the middle of a frame; it is rebuilt for the real scene size. */
   constructor(private gpu: GPUContext, private o: FullscreenEffectOptions) {
     this.tech = this.build(1, 1);
     this.instance = TechniqueInstance.create(this.gpu, this.tech, { label: `fx:${this.o.label}` });
   }
 
   /** Free the effect's scratch texture and pipeline. */
-  dispose(): void { this.instance.dispose(); }
+  dispose(): void { this.instance?.dispose(); this.instance = null; }
 
   /** The effect as a technique for a scene texture of this size: draw the effect into a scratch texture, then copy it back over the scene. */
   private build(width: number, height: number): Technique {
@@ -85,9 +86,8 @@ export class FullscreenEffect {
   private fit(sceneTexture: GPUTexture): void {
     const size = `${sceneTexture.width}x${sceneTexture.height}`;
     if (this.size === size) return;
-    this.instance.dispose();
+    this.dispose();   // (made again by `run` if it is used: the frame path never executes it)
     this.tech = this.build(sceneTexture.width, sceneTexture.height);
-    this.instance = TechniqueInstance.create(this.gpu, this.tech, { label: `fx:${this.o.label}` });
     this.size = size;
   }
 
@@ -104,7 +104,7 @@ export class FullscreenEffect {
   /** Apply the effect to `sceneTexture` (the HDR scene colour, `PostFeatureFrame.sceneTexture`) on its own. Records two commands into `enc`. */
   run(enc: GPUCommandEncoder, sceneTexture: GPUTexture): void {
     this.fit(sceneTexture);
-    const fx = this.instance;
+    const fx = this.instance ??= TechniqueInstance.create(this.gpu, this.tech, { label: `fx:${this.o.label}` });
     fx.setImport('scene', sceneTexture);
     for (const [name, value] of Object.entries(this.values())) fx.setVariable(name, value);
     fx.execute(enc);

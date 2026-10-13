@@ -320,6 +320,28 @@ The engine had two render graph systems: the Gigi-style technique compiler and `
 * Frame cost (`npm run bench:frame`, no GPU: declaring a 10-node frame with 5 particle pools, clusters, fog, culling and the 40-variable post chain, its structure key, and running the reused plan): **about 86 us per frame** (declare 62 us, key 18 us, run 6 us), under 0.6% of a 60 fps frame. In the browser the cost shows as 0.03 ms (one pass) to about 0.12 ms (eight includes) next to the passes' real work. `include` and `structureKey` were tuned for this (per-technique check cache, direct sub-graph node, hand-written key for sub-graph nodes: key 58 -> 31 us in the browser).
 * Browser frame times on this machine swing 2-5x from minute to minute (the same build measured 4 ms and 15 ms for 10k unsorted draws within minutes, in both the old and the new build), so A/B runs of whole frames only resolve large differences; use `tools/frameTiming.js` (CPU time of `engine.frame` per scene) and `tools/frameBattery.js` (pass order + image per scene) alternately on both builds, and `npm run bench:frame` for the graph's own cost.
 
+### Steady-state cost review of the frame graph (October 2026)
+
+Benchmarked against a worktree at the last commit before the render-graph work (b2d88e3), same Intel Gen12LP iGPU, production builds, runs interleaved.
+
+* **Fixed: every step rebound every frame.** `setImport` set one instance-wide "bindings dirty" flag, and the triple-buffered instance ring (`instances`) is a different buffer each frame,
+  so with GPU culling every step of the frame recreated its bind groups and texture views: 31 bind groups and 92 views per frame in a 34-step frame (post chain, fog, `hiz2`). Steps are now
+  rebound only when a resource *they* bind changes, and each step keeps its last few bind-group sets by physical resource, so a cycling import costs nothing once warm: **0 per frame**.
+* **Fixed: every step's uniform rewritten when any variable changed.** `TechniqueInstance` now tracks which steps read each variable and rewrites only those uniforms.
+* **Fixed: a frame whose shape alternates recompiled every frame.** A view with `interval: 2` (or transmission switching on and off) changed the structure key every other frame; `FrameGraph`
+  disposed and rebuilt the whole instance each time: 11 textures, 21 buffers and 32 bind-group layouts per frame, ~4 ms CPU instead of ~1 ms, and the contents of persistent resources were lost.
+  `FrameGraph` now keeps the last four plans (an idle one is freed after 120 frames) and they share memory through `AllocationPool` (`rendering/graph/AllocationPool.ts`): **0 GPU objects** over 20 alternating frames.
+* **Fixed: shadow GPU timing.** All shadow layers shared one pair of timestamp queries, so the `shadows` time in the HUD / benchmark B was the last layer's only; each layer has its own pair again (summed, as before the migration).
+* **Wasted work removed:** `HiZ`, `ClusterGrid`, `VolumetricFog` and `FullscreenEffect` built a standalone `TechniqueInstance` (pipelines, a full-size scratch texture for the effect) that only their
+  `encode` / `run` paths use; the frame path never executed it. They are now made on first use. `ShadowSystem` reuses its per-layer `BatchList`s. `FrameBuilder.include` caches the frame names of a
+  technique's variables, variable handles are made on demand and `structureKey` stays on `JSON.stringify`'s fast path: declaring the `bench:frame` frame went from ~41 to ~29 us.
+* **Dead code removed:** `GPUCuller.encode` (+ the three instances its constructor built), `TransmissionCopy.copyFrom`, `HiZ.fullView`, `ShadowSystem` per-layer views, `RenderTarget.depthView`,
+  `PostProcessor.structureVersion`, `PostFrameInfo.depthView`, `FeatureRegistry.drawBackdrop / drawMain` (replaced by `FeatureRegistry.segments`, which `Renderer` uses for the main-pass segments).
+* **Results.** GPU time per pass (benchmark B, everything on): 13.25 / 13.08 ms baseline vs 13.71 / 13.16 ms now, within noise. Benchmark A CPU, instanced path (one draw, GPU idle-waited
+  every frame, so caches are cold): 0.32-0.44 ms baseline vs 0.51-0.65 ms now; the difference is the per-frame declaration and execution of the graph (~0.05-0.15 ms on this laptop), the
+  price of re-declaring the frame every frame. Unsorted / sorted 10k-draw paths are within noise. Verified: 821 tests, GPU self-tests 65/65, `npm run check`, scenes `rtt`, `materials` (MSAA, SSAO, SSR,
+  bloom, FXAA, transmission), `lights` (fog, prepass, clusters), `particles`, `occlusion` (`hiz2`) and `gallery` with every feature on, no GPU validation errors.
+
 ## Compressed assets (October 2026)
 
 * **`EXT_meshopt_compression`** and **`KHR_draco_mesh_compression`** are decoded while parsing (`parseGLTF` -> `assets/gltf/GLTFCompression.ts`): the document that comes

@@ -59,7 +59,8 @@ export { FeatureOrder } from './rendering/RenderFeature';
 export { FullscreenEffect, type FullscreenEffectOptions } from './rendering/post/FullscreenEffect';
 export { FrameGraph, FrameBuilder, type IncludeOptions } from './rendering/graph/FrameGraph';
 // Gigi-style techniques: the render graph as data (docs/TECHNIQUES.md)
-export { TechniqueInstance, type TechniqueInstanceOptions, type TechniqueHost } from './rendering/graph/TechniqueInstance';
+export { TechniqueInstance, allocationPool, type TechniqueInstanceOptions, type TechniqueHost } from './rendering/graph/TechniqueInstance';
+export { AllocationPool, type Allocation } from './rendering/graph/AllocationPool';
 export { runOnce, deviceHost } from './rendering/graph/OneShot';
 export { readBuffer, readTexture } from './rendering/graph/Readback';
 export { compileTechnique, type CompiledTechnique, type CompileOptions, type ResourcePlan, type Slot } from './rendering/graph/Compile';

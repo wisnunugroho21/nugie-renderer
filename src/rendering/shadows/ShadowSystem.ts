@@ -69,7 +69,8 @@ export class ShadowSystem implements RenderFeature {
   /** Stats of the last frame. */
   stats = { layers: 0, draws: 0, casters: 0 };
 
-  private views: GPUTextureView[] = [];
+  /** Caster batches of each layer, reused from frame to frame. */
+  private batchLists: BatchList[] = [];
   private frameBuffers: GPUBuffer[] = [];
   private frameBGs: GPUBindGroup[] = [];
   private matrices: Float32Array;
@@ -81,7 +82,7 @@ export class ShadowSystem implements RenderFeature {
   private signature = '';
   private frameData = new Float32Array(FRAME_FLOATS);
 
-  /** Allocate one depth-array texture (`cascades + spots + 6 per point light` layers), a view / frame uniform per layer and publish the textures to the scene bind group. */
+  /** Allocate one depth-array texture (`cascades + spots + 6 per point light` layers), a frame uniform per layer and publish the textures to the scene bind group. */
   constructor(
     private gpu: GPUContext, layouts: BindLayouts, private scene: SceneResources,
     private meshes: MeshManager, private materials: MaterialManager, readonly config: ShadowConfig = { ...DEFAULT_SHADOW_CONFIG },
@@ -95,7 +96,6 @@ export class ShadowSystem implements RenderFeature {
     this.matrices = new Float32Array(this.layerCount * 16);
     this.matricesBuffer = r.buffers.create('ShadowMatrixBuffer', this.matrices.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
     for (let i = 0; i < this.layerCount; i++) {
-      this.views.push(this.texture.createView({ dimension: '2d', baseArrayLayer: i, arrayLayerCount: 1 }));
       const fb = r.buffers.create(`ShadowFrame${i}`, FRAME_FLOATS * 4, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
       this.frameBuffers.push(fb);
       this.frameBGs.push(device.createBindGroup({ label: `shadow-frame-${i}`, layout: layouts.frame, entries: [{ binding: 0, resource: { buffer: fb } }] }));
@@ -165,7 +165,7 @@ export class ShadowSystem implements RenderFeature {
   /** Register shadow layer `index` with its light view-projection matrix and an empty caster batch list. */
   private addLayer(index: number, vp: Float32Array): void {
     this.matrices.set(vp, index * 16);
-    this.layers.push({ index, vp, batches: new BatchList(), count: 0 });
+    this.layers.push({ index, vp, batches: (this.batchLists[index] ??= new BatchList()), count: 0 });
   }
 
   // ---- RenderFeature hooks ----
@@ -189,11 +189,12 @@ export class ShadowSystem implements RenderFeature {
     }
     const map = graph.importTexture('shadowMap', this.texture);
     graph.publish('shadowMap');
-    const timestampWrites = f.profiler?.writes('shadows');
     for (const layer of this.layers) {
       const index = layer.index, node = `shadow-layer-${index}`;
       // `f.objectBindGroup()` is valid once all allocations are done, which is the case while the frame's passes are recorded
       graph.renderPass(node, { depthTarget: { resource: map, layer: index }, record: (pass) => this.recordLayer(index, pass, f.objectBindGroup()) });
+      // every layer times its own pass (the profiler sums the 'shadows' scopes of a frame): one shared pair of queries would keep only the last layer's time
+      const timestampWrites = f.profiler?.writes('shadows');
       graph.timestamps(node, () => timestampWrites);
     }
   }

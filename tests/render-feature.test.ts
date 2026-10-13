@@ -26,14 +26,15 @@ describe('FeatureRegistry', () => {
     expect(r.all.map((f) => f.name)).toEqual(['c', 'b', 'd', 'a']);   // default order is 100
   });
 
-  it('calls only the hooks a feature has, in order, and skips the drawing hooks without a camera', () => {
+  it('calls only the hooks a feature has, in order, and its draws (as main-pass segments) draw nothing without a camera', () => {
     const r = new FeatureRegistry(), log: string[] = [];
     r.add({ name: 'late', order: 200, beginFrame: () => log.push('late.begin'), prepare: () => log.push('late.prepare'), drawMain: () => log.push('late.draw'), endFrame: () => log.push('late.end') });
     r.add({ name: 'early', order: 10, beginFrame: () => log.push('early.begin'), buildInstances: () => log.push('early.instances'), prepare: () => log.push('early.prepare'),
       drawBackdrop: () => log.push('early.backdrop'), drawMain: () => log.push('early.draw'), retarget: () => log.push('early.retarget') });
     r.add({ name: 'bare' });                                       // no hooks at all
     r.beginFrame(frame()); r.buildInstances(frame()); r.prepare(frame());
-    r.drawBackdrop(pass, frame()); r.drawMain(pass, frame()); r.drawBackdrop(pass, frame(false)); r.drawMain(pass, frame(false));
+    for (const f of [frame(), frame(false)]) for (const hook of ['drawBackdrop', 'drawMain'] as const) for (const sg of r.segments(hook, f)) sg.record(pass);
+    expect(r.segments('drawMain', frame()).map((sg) => sg.name)).toEqual(['drawMain:0:early', 'drawMain:2:late']);
     r.retarget(); r.endFrame();
     expect(log).toEqual(['early.begin', 'late.begin', 'early.instances', 'early.prepare', 'late.prepare', 'early.backdrop', 'early.draw', 'late.draw', 'early.retarget', 'late.end']);
   });

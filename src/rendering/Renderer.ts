@@ -898,14 +898,7 @@ export class Renderer {
   }
 
   /** One segment per feature that has `hook`, in feature order: the feature's draws as an ordered part of the main pass. */
-  private featureSegments(hook: 'drawBackdrop' | 'drawMain'): MainPassSegment[] {
-    const frame = this.featureFrame, out: MainPassSegment[] = [];
-    this.features.all.forEach((f, i) => {
-      if (!f[hook]) return;
-      out.push({ name: `${hook}:${i}:${f.name}`, record: (pass) => { if (frame.hasCamera) { if (hook === 'drawBackdrop') f.drawBackdrop!(pass, frame); else f.drawMain!(pass, frame); } } });
-    });
-    return out;
-  }
+  private featureSegments(hook: 'drawBackdrop' | 'drawMain'): MainPassSegment[] { return this.features.segments(hook, this.featureFrame); }
 
   /** The scene geometry (`early`: opaque + alpha-masked, `late`: blended + transmissive; the GPU-culled / remaining halves in the two-phase passes) as a segment. */
   private sceneSegment(name: string, rw: RenderWorld, draw: (pass: TrackedRenderPass) => void): MainPassSegment {

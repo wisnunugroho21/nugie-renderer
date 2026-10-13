@@ -4,7 +4,6 @@ import { INSTANCE_BYTES } from './BatchBuilder';
 import type { MeshManager } from './MeshManager';
 import cullSrc from '../shaders/gpu_cull.wgsl?raw';
 import { technique } from './graph/TechniqueBuilder';
-import { TechniqueInstance } from './graph/TechniqueInstance';
 import type { FrameBuilder } from './graph/FrameGraph';
 import type { VariableValue } from './graph/Flatten';
 import type { Technique } from './graph/TechniqueTypes';
@@ -18,8 +17,8 @@ export interface GPULodGroup { levels: { meshId: number; minScreenSize: number }
  * take part. A batch whose mesh belongs to a LOD group expands into one virtual draw per level; the shader routes every
  * instance to the level its projected size selects (same thresholds as the CPU reference `selectLevel`, without hysteresis).
  *
- * Each cull dispatch is a compute node of a technique (see TECHNIQUES.md): in a frame every phase is its own node (`addToFrame`) with its own parameters, and `encode`
- * runs the technique on its own, one instance per phase; the working buffers are imported resources and the frustum, camera and counts are variables.
+ * Each cull dispatch is a compute node of a technique (see TECHNIQUES.md): in a frame every phase is its own node (`addToFrame`) with its own parameters; the working
+ * buffers are imported resources and the frustum, camera and counts are variables.
  */
 export class GPUCuller {
   /** Compacted instance records for the current frame (bind this as the object group's instance buffer). */
@@ -43,19 +42,16 @@ export class GPUCuller {
   private visCap = 0;
   /** The culling dispatch as a technique, shared by the frame's culling passes (each is its own node, with its own parameter buffer). */
   private readonly tech: Technique;
-  /** One standalone instance per phase for `encode` (queue.writeBuffer lands before the whole submit, so phases must not share a parameter buffer). */
-  private phases: TechniqueInstance[];
   private dummyHiz: GPUTexture;
   private instCap = 0;
   private dstCap = 0;
   private batchCap = 0;
   private virtCap = 0;
 
-  /** Create the per-phase culling techniques and the initial working buffers. */
+  /** Create the culling technique and the initial working buffers. */
   constructor(private gpu: GPUContext) {
     const { resources: r } = gpu;
     this.tech = this.createTechnique();
-    this.phases = [0, 1, 2].map((i) => TechniqueInstance.create(gpu, this.tech, { label: `gpu-cull-${i}` }));
     this.dummyHiz = r.textures.create({ label: 'hiz-dummy', size: [1, 1], format: 'r32float', usage: GPUTextureUsage.TEXTURE_BINDING });
     this.ensure(1024, 1024, 64, 64);
   }
@@ -77,9 +73,6 @@ export class GPUCuller {
     });
     return g.build();
   }
-
-  /** Free the three phase techniques. */
-  dispose(): void { for (const p of this.phases) p.dispose(); }
 
   /** Grow (by doubling) the sphere, culled-instance, batch, and indirect-argument buffers so they hold the requested counts. */
   private ensure(instances: number, dst: number, batches: number, virtuals: number): void {
@@ -229,21 +222,5 @@ export class GPUCuller {
     for (let i = 0; i < 6; i++) v[`plane${i}`] = [planes[i * 4], planes[i * 4 + 1], planes[i * 4 + 2], planes[i * 4 + 3]];
     for (let i = 0; i < 4; i++) v[`viewProj${i}`] = [viewProj[i * 4], viewProj[i * 4 + 1], viewProj[i * 4 + 2], viewProj[i * 4 + 3]];
     return v;
-  }
-
-  /** Record one culling dispatch (`phase` 0 = single pass, 1 = last frame's visible set, 2 = the rest, tested against the Hi-Z pyramid `hiz`) into `enc`. */
-  encode(
-    enc: GPUCommandEncoder, srcBuffer: GPUBuffer, srcBase: number, planes: ArrayLike<number>, viewProj: ArrayLike<number>,
-    hiz: { texture: GPUTexture; width: number; height: number; mips: number } | null, timestampWrites?: GPUComputePassTimestampWrites,
-    phase: 0 | 1 | 2 = 0, camera?: { position: ArrayLike<number>; fovY: number },
-  ): void {
-    if (this.total === 0 || this.batchCount === 0) return;
-    const fx = this.phases[phase];
-    for (const [name, value] of Object.entries(this.frameValues(srcBase, planes, viewProj, hiz, phase, camera))) fx.setVariable(name, value);
-    // buffers are replaced when they grow (and the source ring rotates): setImport only rebuilds the bind group when the object changed
-    fx.setImport('src', srcBuffer); fx.setImport('dst', this.instanceBuffer); fx.setImport('spheres', this.spheres); fx.setImport('batchFirst', this.batchFirst);
-    fx.setImport('args', this.argsBuffer); fx.setImport('visBits', this.visBits); fx.setImport('batchInfo', this.batchInfo); fx.setImport('lodThresholds', this.thresholds);
-    fx.setImport('hizTex', hiz ? hiz.texture : this.dummyHiz);
-    fx.execute(enc, { timestampWrites: () => timestampWrites });
   }
 }

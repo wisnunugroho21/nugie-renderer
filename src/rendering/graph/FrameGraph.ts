@@ -1,8 +1,9 @@
 import { TechniqueBuilder, type BufferHandle, type TextureHandle } from './TechniqueBuilder';
 import type { VariableValue } from './Flatten';
-import type { TechniqueHost, TechniqueInstance, TechniqueInstanceOptions } from './TechniqueInstance';
+import { allocationPool, type TechniqueHost, type TechniqueInstance, type TechniqueInstanceOptions } from './TechniqueInstance';
+import type { AllocationPool } from './AllocationPool';
 import type { ResourceRef } from './TechniqueBuilder';
-import type { Technique, VariableType } from './TechniqueTypes';
+import type { Technique, VariableDecl, VariableType } from './TechniqueTypes';
 
 /** What {@link FrameBuilder.include} needs to run a sub-technique inside the frame. */
 export interface IncludeOptions {
@@ -109,19 +110,31 @@ export class FrameBuilder extends TechniqueBuilder {
       if (decl.kind === 'texture') this.importTexture(outer, resource as GPUTexture); else this.importBuffer(outer, resource as GPUBuffer, decl.element ?? 'u32', decl.stride);
       inputs[decl.name] = outer;
     }
-    const bound: Record<string, string> = {};
-    for (const decl of technique.variables ?? []) {
-      const outer = `${node}/${decl.name}`;
+    const binding = FrameBuilder.variableBinding(node, technique);
+    for (const { decl, outer } of binding.variables) {
       this.declareVariable(outer, decl.type);
       this.values.set(outer, o.variables?.[decl.name] ?? decl.value ?? (decl.type === 'float4' ? [0, 0, 0, 0] : 0));
-      bound[decl.name] = outer;
     }
-    this.pushSubgraph(node, technique, inputs, bound, { outputs: o.outputs, keep: o.keep, after: o.after });
+    this.pushSubgraph(node, technique, inputs, binding.bound, { outputs: o.outputs, keep: o.keep, after: o.after });
     if (o.publish) this.publish(...o.publish);
   }
 
   /** Techniques already checked for nodes whose code a reused plan cannot refresh. */
   private static checked = new WeakSet<Technique>();
+
+  /** How the variables of a technique included as `node` are named on the frame, worked out once per technique and node (`include` runs every frame). */
+  private static bindings = new WeakMap<Technique, Map<string, { variables: { decl: VariableDecl; outer: string }[]; bound: Record<string, { bind: string }> }>>();
+  private static variableBinding(node: string, technique: Technique) {
+    let byNode = FrameBuilder.bindings.get(technique);
+    if (!byNode) FrameBuilder.bindings.set(technique, byNode = new Map());
+    let binding = byNode.get(node);
+    if (!binding) {
+      const variables = (technique.variables ?? []).map((decl) => ({ decl, outer: `${node}/${decl.name}` }));
+      binding = { variables, bound: Object.fromEntries(variables.map(({ decl, outer }) => [decl.name, { bind: outer }])) };
+      byNode.set(node, binding);
+    }
+    return binding;
+  }
 
   /** Say that the passes declared so far produce these frame resources for the scene passes: the main pass is ordered after their producers. */
   publish(...names: string[]): void { for (const name of names) this.published.add(name); }
@@ -146,34 +159,57 @@ export class FrameBuilder extends TechniqueBuilder {
   }
 }
 
+/** Compiled frame plans kept by default: enough for a frame that alternates between a few shapes (a view drawn every other frame, transmission switching on and off). */
+const DEFAULT_PLANS = 4;
+/** A kept plan unused for this many frames is freed (a plan for the size the window had before a resize, say), so it stops holding memory. */
+const IDLE_FRAMES = 120;
+
 /**
  * The renderer's frame as one technique. Each frame the renderer (and its features) declares the passes on a fresh builder from `begin()`, then `run` compiles them
  * (dependencies, culling, ordering) and records them in order. Most frames declare the same passes as the one before; then the compiled plan is reused and only
  * the frame's own data (imports, variable values, the passes' code) is handed over, so a steady scene pays for building the list but not for compiling it.
+ *
+ * The last few plans are kept (least recently used goes first), so a frame whose shape alternates switches between compiled plans instead of compiling every frame.
+ * The plans never execute at the same time, so they share their textures and buffers through one {@link AllocationPool}: keeping a plan costs its pipelines and
+ * bind groups, not a second copy of its memory, and persistent and exported resources keep their contents across a switch.
  */
 export class FrameGraph {
-  private key: string | null = null;
-  private instance: TechniqueInstance | null = null;
+  /** Compiled plans by structure key, least recently used first, with the frame each last ran in. */
+  private plans = new Map<string, { fx: TechniqueInstance; used: number }>();
+  private frames = 0;
+  private current: TechniqueInstance | null = null;
   private readonly pipelines = new Map<string, GPUComputePipeline | GPURenderPipeline>();
+  private readonly allocations: AllocationPool;
 
-  constructor(private host: TechniqueHost, private name = 'frame', private options: TechniqueInstanceOptions = {}) {}
+  /** `maxPlans`: how many compiled plans to keep (at least 1). */
+  constructor(private host: TechniqueHost, private name = 'frame', private options: TechniqueInstanceOptions = {}, private maxPlans = DEFAULT_PLANS) {
+    this.allocations = options.allocations ?? allocationPool(host);
+  }
 
   /** A fresh builder for one frame's passes. */
   begin(): FrameBuilder {
     return new FrameBuilder(this.name);
   }
 
-  /** Compile the declared passes (or reuse the previous plan if they are the same) and record them into `encoder`. */
+  /** Compile the declared passes (or reuse a kept plan of the same shape) and record them into `encoder`. */
   run(builder: FrameBuilder, encoder: GPUCommandEncoder): TechniqueInstance {
-    const key = builder.structureKey();
-    if (this.instance && key === this.key) this.instance.setHostCode(builder.hostNodes());
-    else {
-      this.instance?.dispose();
-      this.instance = null; this.key = null;   // a failed compile must not leave the freed instance to be reused
-      this.instance = builder.instantiate(this.host, { label: this.name, pipelineCache: this.pipelines, ...this.options });
-      this.key = key;
+    const key = builder.structureKey(), frame = ++this.frames;
+    let fx = this.plans.get(key)?.fx;
+    this.current = null;   // a failed compile must not leave the previous plan looking like this frame's
+    if (fx) {
+      this.plans.delete(key);   // (re-inserted below as the most recently used)
+      fx.setHostCode(builder.hostNodes());
+    } else {
+      fx = builder.instantiate(this.host, { label: this.name, pipelineCache: this.pipelines, ...this.options, allocations: this.allocations });
     }
-    const fx = this.instance;
+    // (evicted after the new plan took its allocations, so the ones they share are kept)
+    for (const [k, plan] of this.plans) {
+      if (this.plans.size < Math.max(1, this.maxPlans) && frame - plan.used <= IDLE_FRAMES) break;   // least recently used first: the rest are newer
+      plan.fx.dispose();
+      this.plans.delete(k);
+    }
+    this.plans.set(key, { fx, used: frame });
+    this.current = fx;
     for (const [name, resource] of builder.imports) fx.setImport(name, resource);
     for (const [name, value] of builder.values) fx.setVariable(name, value);
     for (const [layout, group] of builder.hostGroups) fx.setHostBindGroup(layout, group);
@@ -182,9 +218,16 @@ export class FrameGraph {
     return fx;
   }
 
-  /** The instance of the last frame (its `plan` lists the order and the culled passes), or null before the first. */
-  get last(): TechniqueInstance | null { return this.instance; }
+  /** The instance of the last frame (its `plan` lists the order and the culled passes), or null before the first (or after a frame that failed to compile). */
+  get last(): TechniqueInstance | null { return this.current; }
 
-  /** Free the compiled frame (the next `run` builds it again). */
-  dispose(): void { this.instance?.dispose(); this.instance = null; this.key = null; }
+  /** Number of compiled plans kept. */
+  get planCount(): number { return this.plans.size; }
+
+  /** Free every compiled plan (the next `run` builds one again). */
+  dispose(): void {
+    for (const plan of this.plans.values()) plan.fx.dispose();
+    this.plans.clear();
+    this.current = null;
+  }
 }

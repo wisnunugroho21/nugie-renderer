@@ -112,6 +112,34 @@ describe('FrameGraph plan reuse', () => {
     frame.run(g3, encoder);
     expect(log.sort()).toEqual(['a', 'b']);
   });
+  it('switches between kept plans when the frame alternates between shapes, and frees the least recently used beyond the limit', () => {
+    const frame = new FrameGraph(frameHost, 'frame', {}, 2), log: string[] = [];
+    const declare = (extra: string | null) => {
+      const g = frame.begin();
+      addPass(g, { name: 'a', writes: ['x'], sideEffect: true, execute: () => log.push('a') });
+      if (extra) addPass(g, { name: extra, reads: ['x'], sideEffect: true, execute: () => log.push(extra) });
+      return g;
+    };
+    const plain = frame.run(declare(null), encoder), withView = frame.run(declare('view'), encoder);
+    for (let i = 0; i < 4; i++) {
+      expect(frame.run(declare(null), encoder)).toBe(plain);
+      expect(frame.run(declare('view'), encoder)).toBe(withView);
+    }
+    expect(plain.compileCount + withView.compileCount).toBe(2);
+    expect(log.filter((e) => e === 'view')).toHaveLength(5);
+    frame.run(declare('third'), encoder);                                      // a third shape pushes out the least recently used (plain)
+    expect(frame.planCount).toBe(2);
+    expect(frame.run(declare(null), encoder)).not.toBe(plain);
+  });
+
+  it('frees a kept plan that has not run for a while', () => {
+    const frame = new FrameGraph(frameHost);
+    const declare = (name: string) => { const g = frame.begin(); addPass(g, { name, sideEffect: true }); return g; };
+    frame.run(declare('old'), encoder);
+    for (let i = 0; i < 200; i++) frame.run(declare('steady'), encoder);
+    expect(frame.planCount).toBe(1);
+  });
+
   it('a failed compile leaves no stale plan behind', () => {
     const frame = new FrameGraph(frameHost);
     const ok = frame.begin();
