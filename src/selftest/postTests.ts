@@ -74,7 +74,7 @@ async function runCase(gpu: GPUContext, c: Case): Promise<Uint8Array> {
   const frame = new FrameGraph(gpu), g = frame.begin();
   g.callback('main', { writes: [g.importTexture('sceneColor', post.sceneTexture)], keep: true, execute: () => {} });   // the scene was drawn above: this stands in for the passes that wrote it
   if (post.needsAux) g.callback('aux', { reads: ['sceneColor'], writes: [g.importTexture('auxTex', post.auxTexture)], execute: () => {} });
-  post.addChainPasses(g, { projection: PROJ, depthView: depth.createView({ aspect: 'depth-only' }), depthTexture: depth, depthSamples: c.samples });
+  post.addChainPasses(g, { projection: PROJ, depthTexture: depth, depthSamples: c.samples });
   const enc2 = device.createCommandEncoder();
   frame.run(g, enc2);
   device.queue.submit([enc2.finish()]);

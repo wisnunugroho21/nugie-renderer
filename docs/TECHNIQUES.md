@@ -343,9 +343,14 @@ frame supplies at run time); the renderer and the features add their passes to i
 * **Logical resources** (`graph.logical('plasma')`, idempotent) hold no memory: they are names for ordering, usable by callback nodes (`reads` / `writes`) and by any node's `after`. They are how a game's own callback pass tells
   the main pass to wait for it (`produces` on the feature, or `after`).
 * **The plan** (`plan.steps`, `plan.culled`, `plan.resources.get(name).first / last`, `plan.stats` with transitions and kind switches) is the technique's usual one, and `compile({ order: 'transitions' })` reorders independent passes.
-* **Plan reuse.** Most frames declare the same passes as the one before. `FrameGraph` computes `structureKey()` (resources and nodes without the functions, sub-techniques by identity, no variables) and, when it is unchanged, keeps the
-  compiled instance and hands it this frame's imports, variable values, bind groups, offsets and code (`setHostCode`: callback `execute`, render-node `record` and segments). A steady scene does not recompile; a change in the
-  set of passes, in a target's size or format, or in the clear colour does. Pipelines survive a recompile (`pipelineCache`).
+* **Plan reuse.** Most frames declare the same passes as the one before. `FrameGraph` computes `structureKey()` (resources and nodes without the functions, sub-techniques by identity, no variables) and, when it matches a
+  compiled plan it keeps, hands that instance this frame's imports, variable values, bind groups, offsets and code (`setHostCode`: callback `execute`, render-node `record` and segments). A steady scene does not recompile; a
+  change in the set of passes, in a target's size or format, or in the clear colour does. The last few plans are kept (four by default; one unused for 120 frames is freed), so a frame that alternates between shapes, such as
+  an off-screen view drawn every other frame (`interval: 2`) or transmission switching on and off, switches between compiled plans instead of compiling every frame. The kept plans share their textures and buffers through
+  one `AllocationPool` (they never execute at the same time), so a kept plan costs pipelines and bind groups, not memory, and persistent / exported resources keep their contents across a switch. Pipelines survive a
+  recompile (`pipelineCache`).
+* **Steady-state cost.** Executing a reused plan creates no GPU objects: a step's bind groups are rebuilt only when a resource *it* binds is replaced, and the bind groups for an import that cycles through a few
+  objects (the triple-buffered instance ring) are kept and reused; a variable change rewrites only the uniforms of the steps that read it.
 
 A technique of your own that owns resources (a plasma texture a material samples) plugs in as one callback node: `fx.addTo(graph, { writes: [graph.logical('plasma')] })`.
 

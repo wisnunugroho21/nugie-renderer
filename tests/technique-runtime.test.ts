@@ -425,6 +425,24 @@ describe('TechniqueInstance runtime', () => {
       expect(binds()).toBe(created + 1);                                       // a bound buffer was replaced
     });
 
+    it('rebinds only the steps that bind a replaced import, and reuses bind groups for an import that cycles through a ring', () => {
+      const ring = [buffer(128), buffer(128), buffer(128)];
+      const t: Technique = {
+        name: 't',
+        resources: [{ kind: 'buffer', name: 'out', element: 'u32', count: 4, visibility: 'imported' }, { kind: 'buffer', name: 'other', element: 'u32', count: 4, visibility: 'imported' }],
+        nodes: [computeNode(), computeNode({ name: 'd', bindings: [{ resource: 'other', access: 'write' }] })],
+      };
+      const fx = TechniqueInstance.create(ctx.gpu, t, { imports: { out: ring[0], other: buffer(128) } });
+      fx.execute(ctx.encoder);
+      expect(binds()).toBe(2);
+      for (const b of ring.slice(1)) { fx.setImport('out', b); fx.execute(ctx.encoder); }
+      expect(binds()).toBe(4);                                                 // one new set per ring slot, for the step that binds 'out' only
+      for (let frame = 0; frame < 6; frame++) { fx.setImport('out', ring[frame % 3]); fx.execute(ctx.encoder); }
+      expect(binds()).toBe(4);                                                 // the ring's sets are reused
+      const used = ctx.passes.slice(-2).map((p) => (p.bindGroups as [number, { d: { entries: { resource: { buffer: unknown } }[] } }][])[0][1].d.entries[0].resource.buffer);
+      expect(used[0]).toBe(ring[2]);                                           // and the right one is bound
+    });
+
     it('does not rebuild bind groups when only a render target import changes (a swap chain image per frame)', () => {
       const target = (id: number) => ({ id, usage: 16, format: 'rgba8unorm', width: 4, height: 4, sampleCount: 1, mipLevelCount: 1, createView: () => ({}), destroy() {} }) as unknown as GPUTexture;
       const t: Technique = {
@@ -489,6 +507,18 @@ describe('TechniqueInstance runtime', () => {
       f.execute(ctx.encoder);
       expect(f.getVariable('tint')).toEqual([0.25, 0.5, 1, 7]);
       expect(uniformWrites()).toBe(base + 1);
+    });
+
+    it('rewrites only the uniforms of the steps that read a changed variable', () => {
+      const node = (name: string, variable: string) => computeNode({ name, shader: { code: `@compute @workgroup_size(1) fn main() { let v = /*$(Variable:${variable})*/; }` } });
+      const f = TechniqueInstance.create(ctx.gpu, withBuffer([node('a', 'n'), node('b', 'm')], [{ name: 'n', type: 'uint' }, { name: 'm', type: 'uint' }]), { imports: { out: buffer(128) } });
+      f.execute(ctx.encoder);
+      const written = () => ctx.fake.writes.filter((w) => w.label.endsWith(':variables')).map((w) => w.label);
+      const base = written().length;
+      expect(base).toBe(2);                                                    // both written once at first
+      f.setVariable('n', 3);
+      f.execute(ctx.encoder);
+      expect(written().slice(base)).toEqual(['a:variables']);
     });
 
     it('sets consecutive float4 variables from one array', () => {

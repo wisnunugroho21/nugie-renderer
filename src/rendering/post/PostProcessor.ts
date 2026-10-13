@@ -105,9 +105,7 @@ interface Target { tex: GPUTexture; view: GPUTextureView; w: number; h: number; 
 export interface PostFrameInfo {
   /** Camera projection matrix (column-major). */
   projection: ArrayLike<number>;
-  /** Depth-only view of the main depth buffer (multisampled when `depthSamples` > 1). */
-  depthView: GPUTextureView;
-  /** The texture behind `depthView`. */
+  /** The main depth buffer (multisampled when `depthSamples` > 1). */
   depthTexture: GPUTexture;
   depthSamples: number;
 }
@@ -132,8 +130,6 @@ export class PostProcessor implements RenderFeature {
   enabled = false;
   /** Render the final image into this texture (format = the swap chain's) instead of the swap chain. For tests and off-screen use. */
   outputTexture: GPUTexture | null = null;
-  /** Bumped by every `configure` / `disable` that changes `enabled` or `msaa` (the renderer rebuilds its targets when it differs). */
-  structureVersion = 0;
 
   private scene: Target | null = null;
   private msaaTarget: Target | null = null;
@@ -153,7 +149,6 @@ export class PostProcessor implements RenderFeature {
 
   /** Apply settings. Turns the post chain on (`enabled = true`) unless `enabled: false` is passed explicitly. */
   configure(input: PostSettingsInput & { enabled?: boolean } = {}): this {
-    const prevMsaa = this.settings.msaa, prevEnabled = this.enabled;
     const { bloom, ssao, ssr, enabled, ...rest } = input;
     if (rest.msaa !== undefined && rest.msaa !== 1 && rest.msaa !== 4) throw new Error(`post: msaa must be 1 or 4, got ${rest.msaa}`);
     Object.assign(this.settings, rest);
@@ -170,22 +165,19 @@ export class PostProcessor implements RenderFeature {
     s.ssao.samples = Math.max(4, Math.min(32, Math.round(s.ssao.samples)));
     s.ssr.steps = Math.max(8, Math.min(256, Math.round(s.ssr.steps)));
     this.enabled = enabled ?? true;
-    if (this.enabled !== prevEnabled || s.msaa !== prevMsaa) this.structureVersion++;
     return this;
   }
 
   /** Back to direct rendering (the swap chain gets tone-mapped sRGB straight from the main pass); MSAA is left as set. */
   disable(): this {
-    if (this.enabled) { this.enabled = false; this.structureVersion++; }
+    this.enabled = false;
     return this;
   }
 
   /** Restore every setting to its default and switch the chain off. */
   reset(): this {
-    const had = this.enabled || this.settings.msaa !== 1;
     Object.assign(this.settings, cloneDefaults());
     this.enabled = false;
-    if (had) this.structureVersion++;
     return this;
   }
 
@@ -231,7 +223,7 @@ export class PostProcessor implements RenderFeature {
     };
     for (const t of [this.scene, this.msaaTarget, this.aux, this.auxMsaa]) if (t) r.textures.destroy(t.tex);
     this.scene = this.msaaTarget = this.aux = this.auxMsaa = null;
-    this.disposeChain();
+    this.chain = null;
     this.bloomSizes = [];
 
     const RT = GPUTextureUsage.RENDER_ATTACHMENT, TB = GPUTextureUsage.TEXTURE_BINDING;
@@ -254,10 +246,6 @@ export class PostProcessor implements RenderFeature {
     return Math.min(this.settings.bloom.levels, fit);
   }
 
-  private disposeChain(): void {
-    this.chain = null;
-  }
-
   /** The chain technique for the current targets and depth buffer (rebuilt only when the size or the set of enabled effects changes). Valid while the chain is on. */
   chainPlan(depthSamples: number): { technique: Technique; shape: PostChainShape } {
     const scene = this.scene!, s = this.settings, aux = this.aux !== null;
@@ -267,7 +255,6 @@ export class PostProcessor implements RenderFeature {
     };
     const key = JSON.stringify(shape);
     if (this.chain?.key !== key) {
-      this.disposeChain();
       const shaders = this.gpu.resources.shaders;
       const plan = buildPostChain(shape, { assemble: (src) => shaders.assemble(src, {}), post: POST_SOURCE, depth: POST_DEPTH_SOURCE, ssao: SSAO_SOURCE, ssr: SSR_SOURCE });
       this.chain = { key, shape, plan };
@@ -277,7 +264,7 @@ export class PostProcessor implements RenderFeature {
 
   /** The post chain as a feature: runs after any user post feature (see `order`). */
   addPostPasses(g: FrameBuilder, f: PostFeatureFrame): void {
-    this.addChainPasses(g, { projection: f.projection, depthView: f.depthView, depthTexture: f.depthTexture, depthSamples: f.depthSamples });
+    this.addChainPasses(g, { projection: f.projection, depthTexture: f.depthTexture, depthSamples: f.depthSamples });
   }
 
   /**

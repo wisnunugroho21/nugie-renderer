@@ -1,4 +1,5 @@
 import type { GPUResources } from '../../gpu/GPUResources';
+import { AllocationPool, type Allocation } from './AllocationPool';
 import type { ResourceRef, TechniqueBuilder } from './TechniqueBuilder';
 import { bytesPerTexel } from '../../gpu/TextureManager';
 import { bufferStride, compileTechnique, evalDim, type CompileOptions, type CompiledStep, type CompiledTechnique, type ResolvedBuffer, type ResolvedTexture, type ResourcePlan, type ResourceUse } from './Compile';
@@ -25,6 +26,11 @@ export interface TechniqueInstanceOptions extends CompileOptions {
   label?: string;
   /** Pipelines to keep across instances: an instance rebuilt for a slightly different plan (a frame graph) finds the pipelines it needs already made. */
   pipelineCache?: Map<string, GPUComputePipeline | GPURenderPipeline>;
+  /**
+   * Where the instance's textures and buffers come from. Instances that never execute at the same time (the cached plans of a frame graph) can share one pool, and with it
+   * their memory. Default: a pool of the instance's own.
+   */
+  allocations?: AllocationPool;
   /** Layouts of the bind groups the host supplies to nodes (`hostGroups`), by name. */
   hostLayouts?: Record<string, GPUBindGroupLayout>;
 }
@@ -35,8 +41,16 @@ export interface ExecuteOptions {
   timestampWrites?: (path: string) => GPUComputePassTimestampWrites | GPURenderPassTimestampWrites | undefined;
 }
 
-type Physical = GPUTexture | GPUBuffer;
+type Physical = Allocation;
 const isTexture = (r: Physical): r is GPUTexture => 'createView' in r;
+
+/** An allocation pool whose textures and buffers are freed through `host`'s resource managers. */
+export function allocationPool(host: TechniqueHost): AllocationPool {
+  return new AllocationPool((a) => {
+    if (!host.resources) throw new TechniqueError('a technique allocation was made without resource managers');
+    if (isTexture(a)) host.resources.textures.destroy(a); else host.resources.buffers.destroy(a);
+  });
+}
 
 /** Rows of a texture-to-buffer copy are padded to 256 bytes. */
 const alignRow = (bytes: number): number => Math.ceil(bytes / 256) * 256;
@@ -62,10 +76,22 @@ interface StepRuntime {
   groups: GeneratedGroup[];
   uniform: GPUBuffer | null;
   uniformData: DataView | null;
+  /** The uniform buffer must be written before the next execution: the step is new, or a variable it reads changed. */
+  uniformStale: boolean;
   workgroup: [number, number, number];
   /** The host's bind groups, at the group indices the generated ones do not use. */
   hostGroups: { group: number; layout: string }[];
+  /** The bind groups must be (re)made before the next execution: the step is new, or a resource it binds was replaced. */
+  bindingsStale: boolean;
+  /**
+   * Bind groups made earlier, by the physical resources they hold (in slot order), most recent last. A host that cycles an import through a few objects (a per-frame ring of
+   * buffers) finds its bind groups here instead of creating them again every frame.
+   */
+  boundSets: { resources: (Physical | null)[]; groups: GPUBindGroup[] }[];
 }
+
+/** Bind-group sets kept per step: enough for a triple-buffered import plus one replacement. */
+const BOUND_SETS = 4;
 
 /** One `@group` of a node's generated bindings. */
 interface GeneratedGroup {
@@ -130,17 +156,21 @@ export class TechniqueInstance {
   private runtimes = new Map<CompiledStep, StepRuntime>();
   private declarations: Map<string, VariableDecl>;
   private dirty = true;
-  private bindingsDirty = true;
-  private uniformDirty = true;
+  /** The steps whose uniform reads each variable (by flat name), so a change rewrites only those uniforms. */
+  private variableUsers = new Map<string, StepRuntime[]>();
   /** Number of times the technique was compiled (1 after creation). */
   compileCount = 0;
   private listeners = new Set<(names: string[]) => void>();
   private callbackFns = new Map<string, (encoder: GPUCommandEncoder) => void>();
   private renderHost = new Map<string, { record?: (pass: TrackedRenderPass) => void; segments: ((pass: TrackedRenderPass) => void)[] }>();
 
+  /** Where the allocations come from and go back to (shared with other instances, or the instance's own). */
+  private pool: AllocationPool;
+
   private constructor(readonly gpu: TechniqueHost, readonly technique: Technique, private options: TechniqueInstanceOptions) {
     this.declarations = new Map((technique.variables ?? []).map((v) => [v.name, v]));
     this.pipelines = options.pipelineCache ?? new Map();
+    this.pool = options.allocations ?? allocationPool(gpu);
   }
 
   /** Compile `technique` and create its GPU resources. Throws a {@link TechniqueError} if it is invalid. */
@@ -148,7 +178,12 @@ export class TechniqueInstance {
     const instance = new TechniqueInstance(gpu, technique, options);
     for (const [name, resource] of Object.entries(options.imports ?? {})) instance.imports.set(name, resource);
     for (const [name, value] of Object.entries(options.values ?? {})) instance.values.set(name, value);
-    instance.build();
+    try {
+      instance.build();
+    } catch (e) {
+      instance.dispose();   // give back what it took (a shared pool would otherwise keep those allocations forever)
+      throw e;
+    }
     return instance;
   }
 
@@ -179,7 +214,10 @@ export class TechniqueInstance {
     const stored = Array.isArray(value) ? value.slice() : value;
     this.values.set(name, stored);
     if (this.compiled.structural.has(name)) this.dirty = true;
-    else { this.compiled.variables.get(name)!.value = decl.type === 'float4' ? (stored as number[]).slice() : Array.isArray(stored) ? stored[0] : stored; this.uniformDirty = true; }
+    else {
+      this.compiled.variables.get(name)!.value = decl.type === 'float4' ? (stored as number[]).slice() : Array.isArray(stored) ? stored[0] : stored;
+      for (const rt of this.variableUsers.get(name) ?? []) rt.uniformStale = true;
+    }
   }
 
   /** Set a `float4` variable from `source[offset .. offset + 3]` without allocating when the value did not change (the per-frame path for matrices and planes). */
@@ -218,8 +256,9 @@ export class TechniqueInstance {
     if (this.imports.get(name) === resource) return;
     this.checkImport(plan, resource);
     this.imports.set(name, resource);
-    // bind groups only hold resources that a shader binding names: a render target changing every frame (the swap chain) does not invalidate them
-    for (const rt of this.runtimes.values()) if (rt.shader?.slots.some((s) => s.decl?.resource === name)) { this.bindingsDirty = true; break; }
+    // bind groups only hold resources that a shader binding names: a render target changing every frame (the swap chain) does not invalidate them,
+    // and only the steps that bind this resource are rebound
+    for (const rt of this.runtimes.values()) if (!rt.bindingsStale && rt.shader?.slots.some((s) => s.decl?.resource === name)) rt.bindingsStale = true;
   }
 
   /**
@@ -279,36 +318,42 @@ export class TechniqueInstance {
     this.compiled = compileTechnique(this.technique, { ...this.options, values });
     this.compileCount++;
     this.dirty = false;
-    // transient memory plan -> physical resources; an existing allocation with the same key and enough usage flags is kept
+    // transient memory plan -> physical resources: the pool hands back an existing allocation with the same key and enough usage flags (the key fixes the
+    // rest of the description), so a recompile keeps the resources that did not change
     const next = new Map<string, Physical>();
     for (const slot of this.compiled.slots) {
       const plan = this.compiled.resources.get(slot.resources[0])!;
-      const old = this.allocations.get(slot.key);
       const label = `${this.options.label ?? this.technique.name}:${slot.resources.join('+')}`;
       if (plan.resolved?.kind === 'texture') {
         const r = plan.resolved;
         // multisampled textures are render targets that cannot be storage textures (the compiler rejects storage use)
         const flags = textureUsage(slot.uses) | (r.samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
-        if (old && isTexture(old) && (old.usage & flags) === flags) { next.set(slot.key, old); continue; }
-        next.set(slot.key, this.resources.textures.create({
+        next.set(slot.key, this.pool.acquire(slot.key, (old) => isTexture(old) && (old.usage & flags) === flags, () => this.resources.textures.create({
           label, size: r.dimension === '3d' ? { width: r.size[0], height: r.size[1], depthOrArrayLayers: r.size[2] } : [r.size[0], r.size[1], r.dimension === '2d' ? 1 : r.size[2]],
           dimension: r.dimension === '3d' ? '3d' : '2d', format: r.format, mipLevelCount: r.mips, sampleCount: r.samples, usage: flags | (flags === 0 ? GPUTextureUsage.TEXTURE_BINDING : 0),
-        }));
+        })));
       } else if (plan.resolved?.kind === 'buffer') {
         const flags = bufferUsage(slot.uses);
-        if (old && !isTexture(old) && (old.usage & flags) === flags && old.size >= slot.bytes) { next.set(slot.key, old); continue; }
-        next.set(slot.key, this.resources.buffers.create(label, Math.max(4, slot.bytes), flags | (flags === 0 ? GPUBufferUsage.STORAGE : 0)));
+        next.set(slot.key, this.pool.acquire(slot.key, (old) => !isTexture(old) && (old.usage & flags) === flags && old.size >= slot.bytes,
+          () => this.resources.buffers.create(label, Math.max(4, slot.bytes), flags | (flags === 0 ? GPUBufferUsage.STORAGE : 0))));
       }
     }
-    for (const [key, old] of this.allocations) if (next.get(key) !== old) { if (isTexture(old)) this.resources.textures.destroy(old); else this.resources.buffers.destroy(old); }
+    for (const old of this.allocations.values()) this.pool.release(old);   // (after the new ones were taken, so the ones kept never reach zero holders)
     this.allocations = next;
     for (const [name, resource] of this.imports) { const plan = this.compiled.resources.get(name); if (plan?.visibility === 'imported') this.checkImport(plan, resource); }
     // per-step pipelines and uniforms
     for (const rt of this.runtimes.values()) rt.uniform?.destroy();
     this.runtimes.clear();
-    for (const step of this.compiled.steps) this.runtimes.set(step, this.prepareStep(step));
-    this.bindingsDirty = true;
-    this.uniformDirty = true;
+    this.variableUsers.clear();
+    for (const step of this.compiled.steps) {
+      const rt = this.prepareStep(step);
+      this.runtimes.set(step, rt);
+      for (const m of rt.shader?.uniform?.members ?? []) {
+        let users = this.variableUsers.get(m.flat);
+        if (!users) this.variableUsers.set(m.flat, users = []);
+        users.push(rt);
+      }
+    }
     if (before) {
       // only what a host can hold: exported resources that now live in a different object (internal ones that merely stopped being used do not count)
       const replaced = [...this.compiled.resources.values()].filter((p) => {
@@ -332,15 +377,17 @@ export class TechniqueInstance {
 
   /** Expand the shader and create the pipeline of a compute / draw step. */
   private prepareStep(step: CompiledStep): StepRuntime {
-    const rt: StepRuntime = { shader: null, pipeline: null, groups: [], uniform: null, uniformData: null, workgroup: [8, 8, 1], hostGroups: [] };
+    const rt: StepRuntime = { shader: null, pipeline: null, groups: [], uniform: null, uniformData: null, uniformStale: false, workgroup: [8, 8, 1], hostGroups: [], bindingsStale: false, boundSets: [] };
     const node = step.node;
     if (node.type !== 'compute' && node.type !== 'draw') return rt;
     const device = this.gpu.device;
     const ctx = `node '${node.path}'`;
     rt.shader = expandShader(node, this.compiled);
+    rt.bindingsStale = true;
     if (rt.shader.uniform) {
       rt.uniform = device.createBuffer({ label: `${node.path}:variables`, size: rt.shader.uniform.size, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       rt.uniformData = new DataView(new ArrayBuffer(rt.shader.uniform.size));
+      rt.uniformStale = true;
     }
     const visibility = node.type === 'compute' ? GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
     const layoutEntries = rt.shader.slots.map((slot): GPUBindGroupLayoutEntry => {
@@ -466,15 +513,28 @@ export class TechniqueInstance {
     return r;
   }
 
-  /** Create the bind group of a step from the current physical resources. */
+  /** Point a step at the bind groups of its current physical resources: ones made earlier for the same resources, else new ones. */
   private bindStep(step: CompiledStep, rt: StepRuntime): void {
+    rt.bindingsStale = false;
     if (!rt.shader) return;
     const ctx = `node '${step.node.path}'`;
-    const entries = rt.shader.slots.map((slot): GPUBindGroupEntry => {
+    const resources = rt.shader.slots.map((slot) => (slot.kind === 'resource' ? this.physical(slot.decl!.resource, ctx) : null));
+    let set = rt.boundSets.find((s) => s.resources.every((r, i) => r === resources[i]));
+    if (!set) {
+      set = { resources, groups: this.createBindGroups(step, rt, resources) };
+      rt.boundSets.push(set);
+      if (rt.boundSets.length > BOUND_SETS) rt.boundSets.shift();
+    }
+    rt.groups.forEach((g, i) => { g.bindGroup = set.groups[i]; });
+  }
+
+  /** Create a step's bind groups (one per generated `@group`) over `resources`, the physical resource of each shader slot (null for the uniform and samplers). */
+  private createBindGroups(step: CompiledStep, rt: StepRuntime, resources: (Physical | null)[]): GPUBindGroup[] {
+    const entries = rt.shader!.slots.map((slot, i): GPUBindGroupEntry => {
       if (slot.kind === 'variables') return { binding: slot.binding, resource: { buffer: rt.uniform! } };
       const b = slot.decl as BindingDecl;
       if (slot.kind === 'sampler') return { binding: slot.binding, resource: this.resources.samplers.get({ magFilter: b.sampler, minFilter: b.sampler, mipmapFilter: b.sampler, addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' }) };
-      const res = this.physical(b.resource, ctx);
+      const res = resources[i]!;
       const plan = this.compiled.resources.get(b.resource)!;
       if (!isTexture(res)) {
         // a dynamic-offset window is one element (or `size` bytes) wide: the offset slides it along the buffer
@@ -487,10 +547,9 @@ export class TechniqueInstance {
         : b.access === 'read' ? {} : { baseMipLevel: 0, mipLevelCount: 1 };
       return { binding: slot.binding, resource: res.createView({ dimension, ...mips }) };
     });
-    for (const g of rt.groups) {
-      const here = entries.filter((_, i) => rt.shader!.slots[i].group === g.group);
-      g.bindGroup = this.gpu.device.createBindGroup({ label: `${step.node.path}:bindings${rt.groups.length > 1 ? `:${g.group}` : ''}`, layout: g.layout, entries: here });
-    }
+    return rt.groups.map((g) => this.gpu.device.createBindGroup({
+      label: `${step.node.path}:bindings${rt.groups.length > 1 ? `:${g.group}` : ''}`, layout: g.layout, entries: entries.filter((_, i) => rt.shader!.slots[i].group === g.group),
+    }));
   }
 
   // ---------------------------------------------------------------------------------------------------------- execution
@@ -498,10 +557,12 @@ export class TechniqueInstance {
   /** Record every live node, in order, into `encoder`. */
   execute(encoder: GPUCommandEncoder, options: ExecuteOptions = {}): void {
     if (this.dirty) this.build();
-    if (this.bindingsDirty) { for (const [step, rt] of this.runtimes) this.bindStep(step, rt); this.bindingsDirty = false; }
-    if (this.uniformDirty) {
-      for (const rt of this.runtimes.values()) if (rt.uniform && rt.shader?.uniform) { writeUniform(rt.shader.uniform, this.compiled.variables, rt.uniformData!); this.gpu.queue.writeBuffer(rt.uniform, 0, rt.uniformData!.buffer as ArrayBuffer); }
-      this.uniformDirty = false;
+    for (const [step, rt] of this.runtimes) if (rt.bindingsStale) this.bindStep(step, rt);
+    for (const rt of this.runtimes.values()) {
+      if (!rt.uniformStale) continue;
+      writeUniform(rt.shader!.uniform!, this.compiled.variables, rt.uniformData!);
+      this.gpu.queue.writeBuffer(rt.uniform!, 0, rt.uniformData!.buffer as ArrayBuffer);
+      rt.uniformStale = false;
     }
     for (const step of this.compiled.steps) {
       const node = step.node, rt = this.runtimes.get(step)!;
@@ -684,9 +745,9 @@ export class TechniqueInstance {
     }
   }
 
-  /** Free every GPU object the instance created (imported resources are the host's and stay). */
+  /** Free every GPU object the instance created (imported resources are the host's and stay; allocations shared through a pool stay while another instance holds them). */
   dispose(): void {
-    for (const r of this.allocations.values()) { if (isTexture(r)) this.resources.textures.destroy(r); else this.resources.buffers.destroy(r); }
+    for (const r of this.allocations.values()) this.pool.release(r);
     this.allocations.clear();
     for (const rt of this.runtimes.values()) rt.uniform?.destroy();
     this.runtimes.clear();

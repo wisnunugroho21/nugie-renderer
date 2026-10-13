@@ -31,7 +31,6 @@ export class RenderTarget {
   texture!: GPUTexture;
   view!: GPUTextureView;
   depthTexture!: GPUTexture;
-  depthView!: GPUTextureView;
   /** Texture handle for materials; `view` is updated in place when the target is resized (see `onResized`). */
   readonly ref: TextureRef;
   /** Called after the textures were re-created (the renderer uses it to refresh material bind groups). */
@@ -55,7 +54,6 @@ export class RenderTarget {
     });
     this.view = this.texture.createView();
     this.depthTexture = textures.create({ label: `${this.label}-depth`, size: [this.width, this.height], format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT });
-    this.depthView = this.depthTexture.createView();
   }
 
   /** Re-create the textures at a new size (contents are lost until the next render). */

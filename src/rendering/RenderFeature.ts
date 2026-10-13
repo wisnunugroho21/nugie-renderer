@@ -7,6 +7,7 @@ import type { LightData } from './lighting/LightData';
 import type { VisibleSet } from '../visibility/VisibilitySystem';
 import type { DynamicBufferAllocator } from '../gpu/DynamicBufferAllocator';
 import type { GPUProfiler } from '../profiling/GPUProfiler';
+import type { MainPassSegment } from './MainPassNode';
 
 /**
  * Where the built-in features sit among each other (lower runs first in every hook). Your own features default to `FeatureOrder.default`,
@@ -160,8 +161,18 @@ export class FeatureRegistry {
   prepare(frame: FeatureFrame): void { for (const f of this.list) f.prepare?.(frame); }
   addPasses(graph: FrameBuilder, frame: FeatureFrame): void { for (const f of this.list) f.addPasses?.(graph, frame); }
   addPostPasses(graph: FrameBuilder, frame: PostFeatureFrame): void { for (const f of this.list) f.addPostPasses?.(graph, frame); }
-  drawBackdrop(pass: TrackedRenderPass, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawBackdrop?.(pass, frame); }
-  drawMain(pass: TrackedRenderPass, frame: FeatureFrame): void { if (frame.hasCamera) for (const f of this.list) f.drawMain?.(pass, frame); }
+  /**
+   * The draws of the features that have `hook`, in order, as segments of a main pass: one per feature, named `<hook>:<position>:<feature name>`. A segment
+   * draws nothing while the frame has no camera.
+   */
+  segments(hook: 'drawBackdrop' | 'drawMain', frame: FeatureFrame): MainPassSegment[] {
+    const out: MainPassSegment[] = [];
+    this.list.forEach((f, i) => {
+      const draw = f[hook];
+      if (draw) out.push({ name: `${hook}:${i}:${f.name}`, record: (pass) => { if (frame.hasCamera) draw.call(f, pass, frame); } });
+    });
+    return out;
+  }
   retarget(): void { for (const f of this.list) f.retarget?.(); }
   endFrame(): void { for (const f of this.list) f.endFrame?.(); }
 }

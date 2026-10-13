@@ -40,7 +40,8 @@ export class ClusterGrid implements RenderFeature {
   private grid: GPUBuffer | null = null;
   private indices: GPUBuffer | null = null;
   private overflowBuf: GPUBuffer;
-  private fx: TechniqueInstance;
+  /** The technique on its own, for `encode` (made on first use: frames run the technique as part of the frame's graph). */
+  private standalone: TechniqueInstance | null = null;
   private readonly tech: Technique;
   private width = 0;
   private height = 0;
@@ -64,7 +65,6 @@ export class ClusterGrid implements RenderFeature {
       dispatch: { threads: [g.variableNamed('clusters')] },
     });
     this.tech = g.build();
-    this.fx = TechniqueInstance.create(gpu, this.tech, { label: 'light-clusters', imports: { overflow: this.overflowBuf } });
   }
 
   // ---- RenderFeature hooks ----
@@ -72,7 +72,8 @@ export class ClusterGrid implements RenderFeature {
   /** Stop assigning lights and free the pass. The grid and index buffers stay: the scene bind group still points at them. */
   dispose(): void {
     this.active = false;
-    this.fx.dispose();
+    this.standalone?.dispose();
+    this.standalone = null;
     this.gpu.resources.buffers.destroy(this.overflowBuf);
   }
 
@@ -127,7 +128,7 @@ export class ClusterGrid implements RenderFeature {
    */
   encode(enc: GPUCommandEncoder, view: ArrayLike<number>, proj00: number, proj11: number, near: number, far: number, lights: LightData, timestampWrites?: GPUComputePassTimestampWrites): void {
     if (!this.grid || lights.count === 0) return;
-    const fx = this.fx;
+    const fx = this.standalone ??= TechniqueInstance.create(this.gpu, this.tech, { label: 'light-clusters', imports: { overflow: this.overflowBuf } });
     fx.setImport('lights', this.scene.lightBuffer);
     fx.setImport('clusterGrid', this.grid);
     fx.setImport('clusterIndices', this.indices!);

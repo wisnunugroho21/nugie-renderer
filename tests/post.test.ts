@@ -32,7 +32,7 @@ function passOrder(post: PostProcessor): string[] {
   const depth = { format: 'depth24plus', width: 512, height: 512, depthOrArrayLayers: 1, dimension: '2d', mipLevelCount: 1, sampleCount: 1 } as unknown as GPUTexture;
   graph.callback('main', { writes: [post.enabled ? graph.importTexture('sceneColor', post.sceneTexture) : graph.logical('backbuffer')], keep: true, execute: () => {} });
   if (post.needsAux) graph.callback('aux', { reads: ['sceneColor'], writes: [graph.importTexture('auxTex', post.auxTexture)], execute: () => {} });
-  post.addChainPasses(graph, { projection: PROJ, depthView: {} as GPUTextureView, depthTexture: depth, depthSamples: 1 });
+  post.addChainPasses(graph, { projection: PROJ, depthTexture: depth, depthSamples: 1 });
   // the chain's nodes sit below 'post/': report them as the one pass they are
   return orderOf(graph).map((name) => (name.startsWith('post/') ? 'post-chain' : name)).filter((name, i, all) => name !== all[i - 1]);
 }
@@ -63,17 +63,15 @@ describe('PostProcessor settings', () => {
     expect(post.enabled).toBe(false);
   });
 
-  it('validates msaa, clamps bloom levels, and bumps structureVersion only on structural change', () => {
+  it('validates msaa, clamps bloom levels, enables the chain, and resets', () => {
     const { post } = setup();
     expect(() => post.configure({ msaa: 2 as unknown as 4 })).toThrow(/msaa/);
     expect(post.settings.msaa).toBe(1);                    // a rejected value leaves the settings untouched
-    const v0 = post.structureVersion;
-    post.configure({ exposure: 2 });                       // enables the chain: structural
-    expect(post.structureVersion).toBe(v0 + 1);
-    post.configure({ exposure: 3, vignette: 0.2 });        // cosmetic
-    expect(post.structureVersion).toBe(v0 + 1);
-    post.configure({ msaa: 4 });
-    expect(post.structureVersion).toBe(v0 + 2);
+    post.configure({ exposure: 2 });                       // enables the chain
+    expect(post.enabled).toBe(true);
+    post.configure({ msaa: 4, enabled: false });
+    expect(post.enabled).toBe(false);
+    expect(post.settings.msaa).toBe(4);
     post.configure({ bloom: { levels: 99 } });
     expect(post.settings.bloom.levels).toBe(8);
     post.disable();

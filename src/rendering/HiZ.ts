@@ -29,28 +29,29 @@ export function hizPassTimestamps(path: string, mips: number, whole: GPUComputeP
  */
 export class HiZ {
   texture: GPUTexture | null = null;
-  fullView: GPUTextureView | null = null;
   width = 0;
   height = 0;
   mips = 0;
-  private fx: TechniqueInstance | null = null;
+  /** The technique on its own, for `encode` (made on first use: frames run the technique as part of the frame's graph). */
+  private standalone: TechniqueInstance | null = null;
   private tech: Technique | null = null;
   private depthFormat: GPUTextureFormat = DEPTH_FORMAT;
 
   constructor(private gpu: GPUContext) {}
 
   /** Free the pyramid. */
-  dispose(): void { this.fx?.dispose(); this.fx = null; this.tech = null; this.destroyTexture(); }
+  dispose(): void { this.standalone?.dispose(); this.standalone = null; this.tech = null; this.destroyTexture(); }
 
   private destroyTexture(): void {
     if (this.texture) this.gpu.resources.textures.destroy(this.texture);
-    this.texture = null; this.fullView = null;
+    this.texture = null;
   }
 
-  /** (Re)create the pyramid for a `width` x `height` depth buffer of `depthFormat`; no-op when unchanged. */
+  /** (Re)create the pyramid and its technique for a `width` x `height` depth buffer of `depthFormat`; no-op when unchanged. */
   resize(width: number, height: number, depthFormat: GPUTextureFormat = this.depthFormat): void {
-    if (width === this.width && height === this.height && depthFormat === this.depthFormat && this.fx) return;
-    this.fx?.dispose();
+    if (width === this.width && height === this.height && depthFormat === this.depthFormat && this.tech) return;
+    this.standalone?.dispose();
+    this.standalone = null;
     this.destroyTexture();
     this.width = Math.max(1, width); this.height = Math.max(1, height);
     this.depthFormat = depthFormat;
@@ -72,8 +73,6 @@ export class HiZ {
       label: 'hiz', size: [this.width, this.height], format: 'r32float', mipLevelCount: this.mips,
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC,
     });
-    this.fullView = this.texture.createView();
-    this.fx = TechniqueInstance.create(this.gpu, this.tech, { label: 'hiz', imports: { hiz: this.texture } });
   }
 
   /** Add the pyramid build for `depth` to the frame: the technique's nodes read the depth buffer and write the pyramid (the frame's `hizTex`). */
@@ -88,8 +87,8 @@ export class HiZ {
 
   /** Append the pyramid build for `depth` (a depth texture with TEXTURE_BINDING usage, sized like the pyramid). */
   encode(enc: GPUCommandEncoder, depth: GPUTexture, timestampWrites?: GPUComputePassTimestampWrites): void {
-    if (depth.format !== this.depthFormat) this.resize(this.width, this.height, depth.format);
-    const fx = this.fx!;
+    if (depth.format !== this.depthFormat || !this.tech) this.resize(this.width, this.height, depth.format);
+    const fx = this.standalone ??= TechniqueInstance.create(this.gpu, this.tech!, { label: 'hiz', imports: { hiz: this.texture! } });
     fx.setImport('depth', depth);
     fx.execute(enc, { timestampWrites: timestampWrites && ((path) => hizPassTimestamps(path, this.mips, timestampWrites)) });
   }

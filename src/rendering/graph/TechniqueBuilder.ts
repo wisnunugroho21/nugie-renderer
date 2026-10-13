@@ -236,6 +236,8 @@ export class TechniqueBuilder {
   private variables: VariableDecl[] = [];
   private resources: (TextureDecl | BufferDecl)[] = [];
   private nodes: NodeDecl[] = [];
+  /** Every declared variable's type; handles are made when asked for (a frame declares many variables it never needs a handle of). */
+  private variableTypes = new Map<string, VariableType>();
   private variableHandles = new Map<string, VariableHandle>();
   private resourceHandles = new Map<string, ResourceHandle>();
   private nodeNames = new Set<string>();
@@ -254,32 +256,34 @@ export class TechniqueBuilder {
   float4(name: string, value?: number[], options?: VariableVisibility | VariableOptions): VariableHandle { return this.variable(name, 'float4', value, options); }
 
   private variable(name: string, type: VariableType, value: number | number[] | undefined, options: VariableVisibility | VariableOptions = {}): VariableHandle {
-    if (this.variableHandles.has(name)) throw new TechniqueError(`technique '${this.name}': variable '${name}' is already declared`);
+    if (this.variableTypes.has(name)) throw new TechniqueError(`technique '${this.name}': variable '${name}' is already declared`);
     const o = typeof options === 'string' ? { visibility: options } : options;
     const decl: VariableDecl = { name, type, ...(value !== undefined || o.value !== undefined ? { value: value ?? o.value } : {}), ...(o.visibility ? { visibility: o.visibility } : {}) };
     this.variables.push(decl);
     const handle = new VariableHandle(name, type, this);
+    this.variableTypes.set(name, type);
     this.variableHandles.set(name, handle);
     return handle;
   }
 
   /** Declare a variable of `type` unless the name is taken (for builders that declare many names every frame, like the frame graph). */
   protected declareVariable(name: string, type: VariableType): void {
-    if (this.variableHandles.has(name)) return;
+    if (this.variableTypes.has(name)) return;
     this.variables.push({ name, type });
-    this.variableHandles.set(name, new VariableHandle(name, type, this));
+    this.variableTypes.set(name, type);
   }
 
   /**
    * Add a sub-graph node whose resource inputs and variable bindings are already names of this builder's own resources and variables (`variables`: sub-technique name ->
-   * this builder's name). The checked, handle-based form is {@link subgraph}; this one skips the lookups for callers that just declared everything they pass.
+   * `{ bind: this builder's name }`; the record is kept as given, so a caller may reuse it). The checked, handle-based form is {@link subgraph}; this one skips the lookups for
+   * callers that just declared everything they pass.
    */
-  protected pushSubgraph(name: string, technique: Technique, inputs: Record<string, string>, variables: Record<string, string>, o: NodeOptions & { outputs?: Record<string, ResourceRef> } = {}): void {
+  protected pushSubgraph(
+    name: string, technique: Technique, inputs: Record<string, string>, variables: Record<string, { bind: string }>, o: NodeOptions & { outputs?: Record<string, ResourceRef> } = {},
+  ): void {
     const ctx = this.begin(name);
-    const bound: Record<string, { bind: string }> = {};
-    for (const key in variables) bound[key] = { bind: variables[key] };
     this.push({
-      type: 'subgraph', name, technique, inputs, variables: bound,
+      type: 'subgraph', name, technique, inputs, variables,
       ...(o.outputs ? { outputs: Object.fromEntries(Object.entries(o.outputs).map(([k, v]) => [k, this.resource(v, ctx).name])) } : {}),
       ...this.base(o, ctx),
     });
@@ -287,8 +291,12 @@ export class TechniqueBuilder {
 
   /** The handle of a variable declared earlier (useful across helper functions). */
   variableNamed(name: string): VariableHandle {
-    const h = this.variableHandles.get(name);
-    if (!h) throw new TechniqueError(`technique '${this.name}' has no variable '${name}'`);
+    let h = this.variableHandles.get(name);
+    if (!h) {
+      const type = this.variableTypes.get(name);
+      if (type === undefined) throw new TechniqueError(`technique '${this.name}' has no variable '${name}'`);
+      this.variableHandles.set(name, h = new VariableHandle(name, type, this));
+    }
     return h;
   }
 
@@ -489,14 +497,13 @@ export class TechniqueBuilder {
    * kept (and reused) by the caller for this to hold. Only for techniques whose variables are bound by sub-graph nodes and set by the host, like a frame's.
    */
   structureKey(): string {
-    // (called every frame: the many sub-graph nodes of a frame are written out by hand, the few nodes with host code go through a replacer)
+    // (called every frame, so it stays on JSON.stringify's fast path: function-valued fields such as `execute` / `record` are dropped by it anyway,
+    // and sub-graph nodes are written out by hand)
     let key = JSON.stringify(this.resources);
     for (const n of this.nodes) {
-      if (n.type === 'subgraph' && typeof n.technique === 'object') {
-        key += `|S${n.name}#${TechniqueBuilder.identity(n.technique)}${n.sideEffect ? '!' : ''}${JSON.stringify(n.inputs)}${JSON.stringify(n.outputs)}${JSON.stringify(n.after)}${JSON.stringify(n.condition)}${JSON.stringify(n.loop)}`;
-      } else {
-        key += '|' + JSON.stringify(n, (k, value: unknown) => (typeof value === 'function' || k === 'variables' ? undefined : k === 'technique' && typeof value === 'object' && value !== null ? TechniqueBuilder.identity(value) : value));
-      }
+      if (n.type !== 'subgraph') { key += '|' + JSON.stringify(n); continue; }
+      const technique = typeof n.technique === 'object' ? `#${TechniqueBuilder.identity(n.technique)}` : `@${n.technique}`;
+      key += `|S${n.name}${technique}${n.sideEffect ? '!' : ''}${JSON.stringify(n.inputs)}${JSON.stringify(n.outputs)}${JSON.stringify(n.after)}${JSON.stringify(n.condition)}${JSON.stringify(n.loop)}`;
     }
     return key;
   }
@@ -513,7 +520,7 @@ export class TechniqueBuilder {
   hostNodes(): readonly NodeDecl[] { return this.nodes; }
 
   /** Whether a variable of that name is declared. */
-  hasVariable(name: string): boolean { return this.variableHandles.has(name); }
+  hasVariable(name: string): boolean { return this.variableTypes.has(name); }
 
   /** Whether a resource of that name is declared. */
   hasResource(name: string): boolean { return this.resourceHandles.has(name); }
@@ -577,7 +584,7 @@ export class TechniqueBuilder {
   }
 
   private ownVariableName(name: string, ctx: string): void {
-    if (!this.variableHandles.has(name)) throw new TechniqueError(`${ctx}: variable '${name}' is not declared`);
+    if (!this.variableTypes.has(name)) throw new TechniqueError(`${ctx}: variable '${name}' is not declared`);
   }
 
   private dim(d: Dim, ctx: string): SizeDim {
