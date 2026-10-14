@@ -246,6 +246,15 @@ describe('MaterialManager', () => {
     expect(fallback).toBe(mm.getPipeline(mm.errorMaterial, TARGET));
   });
 
+  it('a built-in pipeline failure is reported with the material name but does not mark it failed', async () => {
+    const { mm } = fake({ popError: true });
+    const id = mm.createPBR({ name: 'rock' });
+    mm.getPipeline(id, TARGET);
+    await Promise.resolve(); await Promise.resolve();
+    expect(mm.get(id).failed).toBe(false);
+    expect(mm.shaderErrors.some((e) => e.includes("material 'rock'"))).toBe(true);
+  });
+
   it('depth-only targets omit the fragment stage in the key', () => {
     const { mm } = fake();
     const k = mm.pipelineKey(mm.get(mm.defaultMaterial), { colorFormat: null, depthFormat: 'depth24plus', sampleCount: 1 });

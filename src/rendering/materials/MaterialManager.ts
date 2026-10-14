@@ -466,7 +466,12 @@ export class MaterialManager {
       const key = this.pipelineKey(m, target, dm, variant), k = pipelineKeyString(key);
       if (seen.has(k)) return;   // many materials share one pipeline
       seen.add(k);
-      jobs.push(this.res.pipelines.primeRender(key, () => this.device.createRenderPipelineAsync(this.pipelineDescriptor(m, key, target, dm, variant))));
+      jobs.push(this.res.pipelines.primeRender(key, () => this.device.createRenderPipelineAsync(this.pipelineDescriptor(m, key, target, dm, variant)).catch((error: Error) => {
+        const msg = `Warm-up pipeline for material '${m.name}' (shader ${m.shaderId}, deform mask ${dm}) failed to build: ${error.message}`;
+        this.shaderErrors.push(msg);
+        console.error(msg);
+        throw error;
+      })));
     };
     for (const m of this.materials) {
       if (m.failed || m.kind === 'custom') continue;
@@ -479,20 +484,23 @@ export class MaterialManager {
     return jobs.length;
   }
 
-  /** Create the render pipeline; custom shaders are wrapped in a validation error scope so a bad shader marks its materials `failed` (drawn with the error material) instead of crashing. */
+  /**
+   * Create the render pipeline inside a validation error scope so a failure names the material, shader and variant instead of surfacing
+   * as an anonymous uncaptured error. A bad custom shader also marks its materials `failed` (drawn with the error material) instead of crashing.
+   */
   private createPipeline(m: Material, target: PassTarget, key: PipelineKey, deformMask: number, variant: DrawVariant): GPURenderPipeline {
-    const guard = m.kind === 'custom';
-    if (guard) this.device.pushErrorScope('validation');
+    this.device.pushErrorScope('validation');
     const pipeline = this.device.createRenderPipeline(this.pipelineDescriptor(m, key, target, deformMask, variant));
-    if (guard) {
-      this.device.popErrorScope().then((err) => {
-        if (!err) return;
-        const msg = `Custom material '${m.name}' failed to build: ${err.message}`;
-        this.shaderErrors.push(msg);
-        console.error(msg);
-        for (const mm of this.materials) if (mm.shaderId === m.shaderId) { mm.failed = true; mm.version++; }
-      });
-    }
+    this.device.popErrorScope().then((err) => {
+      if (!err) return;
+      const custom = m.kind === 'custom';
+      const msg = custom
+        ? `Custom material '${m.name}' failed to build: ${err.message}`
+        : `Pipeline for material '${m.name}' (shader ${m.shaderId}, deform mask ${deformMask}) failed to build: ${err.message}`;
+      this.shaderErrors.push(msg);
+      console.error(msg);
+      if (custom) for (const mm of this.materials) if (mm.shaderId === m.shaderId) { mm.failed = true; mm.version++; }
+    });
     return pipeline;
   }
 
