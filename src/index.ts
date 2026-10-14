@@ -12,6 +12,7 @@
 // --- application / engine ---------------------------------------------------------------------------------------------
 export { Engine, type EngineOptions, type EngineTimings, type SpawnObjectOptions, type SpawnLightOptions, type LocalBounds, type EngineSystem, type SystemPhase } from './app/Engine';
 export { runRecoverable, type RecoverableOptions, type RecoverableEngine } from './app/RecoverableEngine';
+export { MeshletCuller, meshletVisible, type MeshletCullParams } from './rendering/MeshletCuller';
 export { Application } from './app/Application';
 export { OrbitController } from './app/OrbitController';
 export { formatHud } from './app/Hud';

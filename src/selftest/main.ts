@@ -21,6 +21,7 @@ import { iblTests } from './iblTests';
 import { clusterTests } from './clusterTests';
 import { hizTests } from './hizTests';
 import { fogTests } from './fogTests';
+import { meshletTests } from './meshletTests';
 import { postTests } from './postTests';
 import { ribbonTests } from './ribbonTests';
 
@@ -223,6 +224,7 @@ async function mipmapTest(gpu: GPUContext, srgb: boolean): Promise<string> {
       ...clusterTests(gpu),
       ...hizTests(gpu),
       ...fogTests(gpu),
+      ...meshletTests(gpu),
       ...particleTests(gpu),
       ...ribbonTests(gpu),
       ...retainedTests(gpu),
