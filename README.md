@@ -72,9 +72,12 @@ npm install ../nugie-renderer/nugie-renderer-0.1.0.tgz     # or: npm install ../
 
 ```ts
 import { Engine, LightType, createCube } from 'nugie-renderer';          // the public API (src/index.ts)
-import { Mat4 } from 'nugie-renderer/math/Mat4';                          // any module can be deep-imported (no barrel needed)
+import { Mat4 } from 'nugie-renderer/math/Mat4';                          // stable folders can be deep-imported (see below)
 ```
 
+* **Public surface:** the root export plus deep imports from `animation`, `app`, `assets`, `core`, `ecs`, `geometry`, `math`, `particles`,
+  `picking`, `profiling`, `scene`, `streaming` and `visibility` (`nugie-renderer/<folder>/<Module>`). `gpu`, `rendering`, `workers` and
+  `shaders` are internal: what they offer to games is re-exported from the root, and their other modules may change in any release.
 * **Bundler:** use **Vite** (or another bundler that understands `new Worker(new URL(...), import.meta.url)`); the worker used for
   `generateLODChainAsync` is emitted next to the library files and picked up by your build.
 * **Types:** TypeScript 5.x needs `"types": ["@webgpu/types"]` in your tsconfig (`npm i -D @webgpu/types`; it is an optional peer

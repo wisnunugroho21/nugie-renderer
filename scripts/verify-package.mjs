@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Engine, createCube } from 'nugie-renderer';
 import { Mat4 } from 'nugie-renderer/math/Mat4';
@@ -7,6 +7,10 @@ import { buildMipChain } from 'nugie-renderer/assets/MipChain';
 import { buildMipChain as compatibilityExport } from 'nugie-renderer/streaming/TextureStreamer';
 import { PriorityQueue } from 'nugie-renderer/core/PriorityQueue';
 import { MotionMatchingMotion } from 'nugie-renderer/animation/motionmatching/MotionMatchingMotion';
+
+/** Top-level source folders the package exports as `nugie-renderer/<folder>/*`, read from package.json. */
+const publicFolders = new Set(Object.keys(JSON.parse(readFileSync('package.json', 'utf8')).exports)
+  .map((key) => /^\.\/([^/]+)\/\*$/.exec(key)?.[1]).filter(Boolean));
 
 /** Check runtime/declaration pairs for every source module promised by wildcard exports. */
 async function verifyModules(directory = 'src') {
@@ -19,7 +23,9 @@ async function verifyModules(directory = 'src') {
       const output = join('dist', path.slice(4, -3));
       assert.ok(existsSync(`${output}.js`), `Missing runtime module: ${path}`);
       assert.ok(existsSync(`${output}.d.ts`), `Missing declarations: ${path}`);
-      await import(`nugie-renderer/${path.slice(4, -3).replaceAll('\\', '/')}`);
+      const specifier = path.slice(4, -3).replaceAll('\\', '/');
+      if (publicFolders.has(specifier.split('/')[0])) await import(`nugie-renderer/${specifier}`);
+      else await assert.rejects(import(`nugie-renderer/${specifier}`), `Internal module is importable: ${specifier}`);
       count++;
     }
   }

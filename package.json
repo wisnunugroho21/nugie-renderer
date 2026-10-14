@@ -1,7 +1,7 @@
 {
   "name": "nugie-renderer",
   "private": false,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -44,9 +44,57 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js"
+    "./animation/*": {
+      "types": "./dist/animation/*.d.ts",
+      "import": "./dist/animation/*.js"
+    },
+    "./app/*": {
+      "types": "./dist/app/*.d.ts",
+      "import": "./dist/app/*.js"
+    },
+    "./assets/*": {
+      "types": "./dist/assets/*.d.ts",
+      "import": "./dist/assets/*.js"
+    },
+    "./core/*": {
+      "types": "./dist/core/*.d.ts",
+      "import": "./dist/core/*.js"
+    },
+    "./ecs/*": {
+      "types": "./dist/ecs/*.d.ts",
+      "import": "./dist/ecs/*.js"
+    },
+    "./geometry/*": {
+      "types": "./dist/geometry/*.d.ts",
+      "import": "./dist/geometry/*.js"
+    },
+    "./math/*": {
+      "types": "./dist/math/*.d.ts",
+      "import": "./dist/math/*.js"
+    },
+    "./particles/*": {
+      "types": "./dist/particles/*.d.ts",
+      "import": "./dist/particles/*.js"
+    },
+    "./picking/*": {
+      "types": "./dist/picking/*.d.ts",
+      "import": "./dist/picking/*.js"
+    },
+    "./profiling/*": {
+      "types": "./dist/profiling/*.d.ts",
+      "import": "./dist/profiling/*.js"
+    },
+    "./scene/*": {
+      "types": "./dist/scene/*.d.ts",
+      "import": "./dist/scene/*.js"
+    },
+    "./streaming/*": {
+      "types": "./dist/streaming/*.d.ts",
+      "import": "./dist/streaming/*.js"
+    },
+    "./visibility/*": {
+      "types": "./dist/visibility/*.d.ts",
+      "import": "./dist/visibility/*.js"
     },
     "./package.json": "./package.json"
   },
