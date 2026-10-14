@@ -18,10 +18,14 @@ export class AnimatorStore extends ComponentStore {
   /** Time and clip the pose was last sampled and written at (NaN / -1 = never): an animator that is still at the same time has nothing new to write. */
   sampledTime = new Float32Array(0);
   sampledClip = new Int32Array(0);
+  /** Evaluate only every `stride`-th frame (0 or 1 = every frame); the time skipped in between accumulates in `pending`. See AnimationLODSystem. */
+  stride = new Uint8Array(0);
+  pending = new Float32Array(0);
 
   /** Grow the per-entity playback arrays. */
   protected grow(n: number): void {
     this.clip = growI32(this.clip, n); this.time = growF32(this.time, n); this.speed = growF32(this.speed, n); this.flags = growU8(this.flags, n);
+    this.stride = growU8(this.stride, n); this.pending = growF32(this.pending, n);
     const oldTimes = this.sampledTime.length;
     this.sampledTime = growF32(this.sampledTime, n); this.sampledClip = growI32(this.sampledClip, n, -1);
     this.sampledTime.fill(NaN, oldTimes);
@@ -31,6 +35,7 @@ export class AnimatorStore extends ComponentStore {
     this.instance[i] = undefined; this.pose[i] = undefined; this.hints[i] = undefined;
     this.clip[i] = 0; this.time[i] = 0; this.speed[i] = 0; this.flags[i] = 0;
     this.sampledTime[i] = NaN; this.sampledClip[i] = -1;
+    this.stride[i] = 0; this.pending[i] = 0;
   }
 
   /** Attach a single-clip animator: starts looping at speed 1 on `clip` (not yet playing until the Playing flag is set by `Animator.play`). */

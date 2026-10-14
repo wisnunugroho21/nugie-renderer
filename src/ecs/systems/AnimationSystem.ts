@@ -21,6 +21,9 @@ export class AnimationSystem {
   activeAnimators = 0;
   activeControllers = 0;
   nodesWritten = 0;
+  /** Animators / controllers that were playing but skipped this frame by their update stride. */
+  skippedAnimators = 0;
+  private frame = 0;
   private tmp: AdvanceResult = { time: 0, finished: false };
 
   /** Create the system for `world` (it reads animators / controllers and writes transforms and morph weights). */
@@ -29,7 +32,8 @@ export class AnimationSystem {
   /** Advance every playing animator and controller by `dt` seconds and write the sampled pose into the ECS. */
   update(dt: number): void {
     const w = this.world, a = w.animators, tr = w.transforms, mo = w.morphs;
-    this.activeAnimators = 0; this.activeControllers = 0; this.nodesWritten = 0;
+    this.activeAnimators = 0; this.activeControllers = 0; this.nodesWritten = 0; this.skippedAnimators = 0;
+    const frame = this.frame++;
     BitSet.forEachAnd([a.has], (i) => {
       const f = a.flags[i];
       if ((f & AnimatorFlags.Playing) === 0) return;
@@ -37,8 +41,10 @@ export class AnimationSystem {
       const clip = inst.clips[a.clip[i]];
       if (!clip) return;
       this.activeAnimators++;
+      const step = this.stepFor(a.stride[i], frame, i, a.pending, dt);
+      if (step < 0) { this.skippedAnimators++; return; }
 
-      const r = advanceTime(a.time[i], dt * a.speed[i], clip.duration, (f & AnimatorFlags.Loop) !== 0, this.tmp);
+      const r = advanceTime(a.time[i], step * a.speed[i], clip.duration, (f & AnimatorFlags.Loop) !== 0, this.tmp);
       a.time[i] = r.time;
       if (r.finished) a.flags[i] = (f & ~AnimatorFlags.Playing) | AnimatorFlags.Finished;
 
@@ -67,7 +73,9 @@ export class AnimationSystem {
       if (w.controllers.enabled[i] === 0) return;
       const ctrl = w.controllers.controller[i]!, inst = w.controllers.instance[i]!;
       this.activeControllers++;
-      ctrl.update(dt);
+      const step = this.stepFor(w.controllers.stride[i], frame, i, w.controllers.pending, dt);
+      if (step < 0) { this.skippedAnimators++; return; }
+      ctrl.update(step);
 
       const pose = ctrl.pose, layout = ctrl.layout, nodes = ctrl.animatedNodes;
       for (let k = 0; k < nodes.length; k++) {
@@ -87,6 +95,23 @@ export class AnimationSystem {
       // Root motion: displace the OWNING entity in its own frame (position += rot * (scale * delta); rot = rot * delta).
       if (ctrl.rootMotion.mode !== 'disabled') this.applyRootDelta(i, ctrl.rootDelta.t, ctrl.rootDelta.r);
     });
+  }
+
+  /**
+   * The time step to evaluate entity `i` with this frame, or -1 to skip it. An entity with `stride` n > 1 is evaluated once every n frames
+   * (staggered by its index so a crowd does not all update on the same frame) with the time of all the frames it skipped.
+   */
+  private stepFor(stride: number, frame: number, i: number, pending: Float32Array, dt: number): number {
+    if (stride <= 1) {
+      const step = dt + pending[i];
+      pending[i] = 0;
+      return step;
+    }
+    pending[i] += dt;
+    if ((frame + i) % stride !== 0) return -1;
+    const step = pending[i];
+    pending[i] = 0;
+    return step;
   }
 
   /** Apply this frame's root-motion translation (rotated + scaled into the owner's frame) and rotation to entity `e`. */

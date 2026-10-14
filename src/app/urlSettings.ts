@@ -6,7 +6,7 @@ import type { CullMode } from '../visibility/VisibilitySystem';
 /**
  * Renderer options that can be switched from the page URL while developing:
  *  post-processing: `ssao=<intensity>`, `ssr=<intensity>`, `msaa=4`, `fxaa=1`, `bloom=<intensity>`, `tonemap=none|reinhard|aces|neutral`, `exposure=<x>`, `vignette=<0..1>`, `post=1` (HDR chain only);
- *  `mode=unsorted|sorted|instanced`, `cluster=0`, `prepass=1`, `gpulod=1`, `gpucull=off|frustum|hiz2`, `cull=none|linear|bvh`.
+ *  `animlod=1` (distance-based animation update rate), `mode=unsorted|sorted|instanced`, `cluster=0`, `prepass=1`, `gpulod=1`, `gpucull=off|frustum|hiz2`, `cull=none|linear|bvh`.
  * Applied synchronously; call before the first frame.
  */
 export function applyRenderSettings(engine: Engine, params: URLSearchParams): void {
@@ -17,6 +17,7 @@ export function applyRenderSettings(engine: Engine, params: URLSearchParams): vo
   r.gpuLOD = params.get('gpulod') === '1';
   const gpucull = params.get('gpucull');
   r.gpuCulling = gpucull === 'frustum' || gpucull === 'hiz2' ? gpucull : gpucull === 'hiz' ? 'hiz2' : 'off';   // 'hiz' (removed single-phase mode) maps to hiz2
+  if (params.get('animlod') === '1') engine.setAnimationLOD(true);
   engine.visibility.mode = (params.get('cull') as CullMode) ?? 'bvh';
   applyPostSettings(engine, params);
 }

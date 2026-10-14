@@ -7,6 +7,7 @@ import { entityIndex } from '../ecs/Entity';
 import { TransformSystem } from '../ecs/systems/TransformSystem';
 import { BoundsSystem } from '../ecs/systems/BoundsSystem';
 import { AnimationSystem } from '../ecs/systems/AnimationSystem';
+import { AnimationLODSystem, DEFAULT_ANIMATION_LOD, type AnimationLODConfig } from '../ecs/systems/AnimationLODSystem';
 import { SkeletonSystem } from '../ecs/systems/SkeletonSystem';
 import { ParticleEmitterSystem } from '../ecs/systems/ParticleEmitterSystem';
 import { RibbonEmitterSystem } from '../ecs/systems/RibbonEmitterSystem';
@@ -42,6 +43,8 @@ export interface EngineOptions {
   freezePipelinesAfterFrames?: number;
   /** Post-processing / anti-aliasing to enable from the start (same shape as `renderer.post.configure`), e.g. `{ msaa: 4 }` or `{ bloom: true, fxaa: true }`. */
   post?: PostSettingsInput & { enabled?: boolean };
+  /** Lower the animation update rate with camera distance (`true` = default bands 25 / 60 / 120 units -> every 2nd / 4th / 8th frame, or your own bands). Default off. */
+  animationLOD?: boolean | Partial<AnimationLODConfig>;
 }
 
 /** Wall-clock cost (ms) of the CPU phases of the last frame, shown by the HUD. */
@@ -126,6 +129,8 @@ export class Engine {
   readonly transformSystem: TransformSystem;
   readonly boundsSystem: BoundsSystem;
   readonly animation: AnimationSystem;
+  /** Distance-based animation update rate; `null` unless enabled (`EngineOptions.animationLOD`, or {@link setAnimationLOD}). */
+  animationLOD: AnimationLODSystem | null = null;
   readonly skeletons: SkeletonSystem;
   readonly particleEmitters: ParticleEmitterSystem;
   readonly ribbonEmitters: RibbonEmitterSystem;
@@ -169,6 +174,7 @@ export class Engine {
     this.transformSystem = new TransformSystem(this.world.transforms);
     this.boundsSystem = new BoundsSystem(this.world.transforms, this.world.bounds);
     this.animation = new AnimationSystem(this.world);
+    if (options.animationLOD) this.setAnimationLOD(options.animationLOD);
     this.skeletons = new SkeletonSystem(this.world, this.renderer.joints);
     this.particleEmitters = new ParticleEmitterSystem(this.world);
     this.ribbonEmitters = new RibbonEmitterSystem(this.world);
@@ -350,6 +356,16 @@ export class Engine {
     return this.renderer.captureEnvironment(this.renderWorld, position, o);
   }
 
+  /**
+   * Turn animation LOD on (`true` or custom bands) or off (`false`): animators and controllers farther from the camera then evaluate
+   * every 2nd / 4th / 8th frame with the accumulated time (see {@link AnimationLODSystem}).
+   */
+  setAnimationLOD(config: boolean | Partial<AnimationLODConfig>): void {
+    if (!config) { this.animationLOD?.reset(); this.animationLOD = null; return; }
+    const bands = { ...DEFAULT_ANIMATION_LOD, ...(typeof config === 'object' ? config : {}) };
+    if (this.animationLOD) this.animationLOD.configure(bands); else this.animationLOD = new AnimationLODSystem(this.world, bands);
+  }
+
   /** Register a custom per-frame system (e.g. physics sync, AI, a new feature) to run at the given phase of every frame. */
   addSystem(system: EngineSystem, phase: SystemPhase = 'beforeAnimation'): void { this.systems[phase].push(system); }
 
@@ -368,6 +384,7 @@ export class Engine {
     const { renderer, world, renderWorld: rw } = this;
     for (const sys of this.systems.beforeAnimation) sys.update(dt, time);
     const a0 = performance.now();
+    if (this.animationLOD) { const p = rw.camera.position; this.animationLOD.update(p[0], p[1], p[2]); }   // (the camera of the last frame)
     this.animation.update(dt);                           // clips -> local TRS / morph weights
     const a1 = performance.now();
     this.transformSystem.update();                       // dirty transform hierarchy -> world matrices
@@ -384,7 +401,7 @@ export class Engine {
     this.extractor.extract(rw, this.canvas.width / this.canvas.height);
     renderer.stats.cpu.extraction = performance.now() - e0;
     const an = renderer.stats.animation;
-    an.activeAnimators = this.animation.activeAnimators; an.activeSkeletons = world.skins.aliveInstances;
+    an.activeAnimators = this.animation.activeAnimators; an.skippedAnimators = this.animation.skippedAnimators; an.activeSkeletons = world.skins.aliveInstances;
     an.updatedSkeletons = this.skeletons.updatedSkeletons; an.updatedJoints = this.skeletons.updatedJoints;
     this.timings.animationMs = a1 - a0;
     this.timings.transformMs = e0 - a1;

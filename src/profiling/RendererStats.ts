@@ -26,7 +26,7 @@ export class RendererStats {
   lighting = { lights: 0, globalLights: 0, clusters: 0, clustered: false };
   // animation
   animation = {
-    activeAnimators: 0, activeSkeletons: 0, updatedSkeletons: 0, updatedJoints: 0, jointUploadBytes: 0,
+    activeAnimators: 0, skippedAnimators: 0, activeSkeletons: 0, updatedSkeletons: 0, updatedJoints: 0, jointUploadBytes: 0,
     activeMorphStates: 0, activeMorphTargets: 0, morphUploadBytes: 0,
   };
   // CPU timings (ms)

@@ -28,7 +28,7 @@ export function formatHud(engine: Engine, sceneName: string): string {
     lines.push(`LOD: levels [${Array.from(rs.lodCounts.subarray(0, 4)).join(', ')}] culled ${rs.lodCulled} (select ${renderer.lod.ms.toFixed(2)} ms)`);
   }
   lines.push(
-    `anim: ${an.activeAnimators} animators, ${an.activeSkeletons} skeletons (${an.updatedSkeletons} updated / ${an.updatedJoints} joints, ${an.jointUploadBytes} B), ` +
+    `anim: ${an.activeAnimators} animators${an.skippedAnimators ? ` (${an.skippedAnimators} skipped)` : ''}, ${an.activeSkeletons} skeletons (${an.updatedSkeletons} updated / ${an.updatedJoints} joints, ${an.jointUploadBytes} B), ` +
     `${an.activeMorphStates} morph states / ${an.activeMorphTargets} targets (${an.morphUploadBytes} B)  [anim ${timings.animationMs.toFixed(2)} ms, xform+skel ${timings.transformMs.toFixed(2)} ms]`,
     `cpu ms: sort ${rs.cpu.sorting.toFixed(2)} batch ${rs.cpu.batching.toFixed(2)} encode ${rs.cpu.encoding.toFixed(2)} total ${rs.cpu.total.toFixed(2)}`,
     `particles: ${renderer.particles ? renderer.particles.pools.map((p) => `${p.config.name}:${p.spawnedThisFrame}`).join(' ') : '-'} spawned this frame`,

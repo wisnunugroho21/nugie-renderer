@@ -604,20 +604,6 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 
 ---
 
-## 8. Performance checklist
-
-1. Share meshes and materials between objects (instancing needs identical mesh + material).
-2. Mark non-moving things `RenderFlags.Static`; set tight local `bounds` on everything.
-3. Create materials/meshes at load time, then `await renderer.warmup()`; the engine freezes the pipeline cache after 30 frames and
-   reports any later creation (`pipelines: … (after freeze N)` in the debug HUD must stay 0).
-4. Prefer many cheap lights over few expensive ones; clustered shading handles the count. Only shadow what matters (sun + a few spots).
-5. Use LOD for anything with more than a few thousand triangles that appears many times.
-6. Profile: the debug HUD (`formatHud`) shows GPU time per pass (`renderer.profiler.smoothed`), draw calls, uploads and cull stats;
-   `/bench.html?suite=passes` gives a per-pass breakdown (the spheres use a 3-level LOD group, `lod=0` turns it off; other options: `segs=<n>` sphere tessellation - small values make the scene fragment-bound, `lights=<n>`, `tile=<px>` / `slices=<n>` light-cluster grid, `frames=<n>`, `rows=1`).
-7. Never `await` GPU readbacks in the frame loop.
-
----
-
 ### Surviving GPU device loss
 
 A lost device (driver reset, GPU switch) destroys every GPU resource, so an engine cannot repair itself in place. `runRecoverable`
@@ -631,6 +617,22 @@ const game = await runRecoverable(canvas, { post: { msaa: 4 } }, async (engine) 
 ```
 
 Keep game state outside `setup`, and fetch `game.engine` instead of caching the engine. A lower-level `engine.onDeviceLost` hook exists too (the frame loop is already stopped when it fires).
+
+## 8. Performance checklist
+
+1. Share meshes and materials between objects (instancing needs identical mesh + material).
+2. Mark non-moving things `RenderFlags.Static`; set tight local `bounds` on everything.
+3. Create materials/meshes at load time, then `await renderer.warmup()`; the engine freezes the pipeline cache after 30 frames and
+   reports any later creation (`pipelines: … (after freeze N)` in the debug HUD must stay 0).
+4. Prefer many cheap lights over few expensive ones; clustered shading handles the count. Only shadow what matters (sun + a few spots).
+5. Use LOD for anything with more than a few thousand triangles that appears many times.
+6. Profile: the debug HUD (`formatHud`) shows GPU time per pass (`renderer.profiler.smoothed`), draw calls, uploads and cull stats;
+   `/bench.html?suite=passes` gives a per-pass breakdown (the spheres use a 3-level LOD group, `lod=0` turns it off; other options: `segs=<n>` sphere tessellation - small values make the scene fragment-bound, `lights=<n>`, `tile=<px>` / `slices=<n>` light-cluster grid, `frames=<n>`, `rows=1`).
+7. Never `await` GPU readbacks in the frame loop.
+8. Crowds of animated characters: `Engine.create(canvas, { animationLOD: true })` (or `?animlod=1` in the demos) lowers the update rate with camera distance
+   (every 2nd / 4th / 8th frame past 25 / 60 / 120 units; playback speed stays exact, only the pose steps). Pass your own `distances` / `strides` to tune it.
+
+---
 
 ## 9. Known limitations (see `PROGRESS.md` for the full list)
 
