@@ -3,10 +3,9 @@ import type { BindLayouts } from '../../gpu/BindLayouts';
 import type { DynamicBufferAllocator } from '../../gpu/DynamicBufferAllocator';
 import { Frustum } from '../../math/Frustum';
 import { Mat4 } from '../../math/Mat4';
-import { FrustumCuller } from '../../visibility/FrustumCuller';
+import { CasterCuller } from './CasterCuller';
 import { BatchList, INSTANCE_BYTES, INSTANCE_WORDS, buildBatches } from '../BatchBuilder';
 import { RenderQueueBuilder, RenderQueues } from '../RenderQueue';
-import { RenderFlags } from '../../ecs/components/MeshRendererStore';
 import type { MaterialManager } from '../materials/MaterialManager';
 import type { MeshManager } from '../MeshManager';
 import type { RenderWorld } from '../RenderWorld';
@@ -74,11 +73,10 @@ export class ShadowSystem implements RenderFeature {
   private frameBuffers: GPUBuffer[] = [];
   private frameBGs: GPUBindGroup[] = [];
   private matrices: Float32Array;
-  private culler = new FrustumCuller();
+  private culler = new CasterCuller();
   private frustum = new Frustum();
   private queueBuilder = new RenderQueueBuilder();
   private queues = new RenderQueues();
-  private casters = new Uint32Array(0);
   private signature = '';
   private frameData = new Float32Array(FRAME_FLOATS);
 
@@ -206,15 +204,9 @@ export class ShadowSystem implements RenderFeature {
     this.stats.layers = this.layers.length; this.stats.casters = 0; this.stats.draws = 0;
     for (const layer of this.layers) {
       this.frustum.setFromViewProjection(layer.vp);
-      this.culler.cull(rw, this.frustum, 'sphere');
-      if (this.casters.length < this.culler.count) this.casters = new Uint32Array(Math.max(this.culler.count, 256));
-      let n = 0;
-      const vis = this.culler.visible, flags = rw.flags;
-      for (let i = 0; i < this.culler.count; i++) {
-        const slot = vis[i];
-        if ((flags[slot] & RenderFlags.CastShadow) !== 0) this.casters[n++] = slot;
-      }
-      this.queueBuilder.build(rw, this.casters, n, this.materials.materials, this.meshes.records, { position: [0, 0, 0], far: 1 }, 'sorted', this.queues);
+      this.culler.cull(rw, this.frustum);
+      const n = this.culler.count;
+      this.queueBuilder.build(rw, this.culler.slots, n, this.materials.materials, this.meshes.records, { position: [0, 0, 0], far: 1 }, 'sorted', this.queues);
       const lists = [this.queues.opaque, this.queues.alphaMask];   // transparent surfaces do not cast shadows
       const total = lists[0].count + lists[1].count;
       layer.count = total;
