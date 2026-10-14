@@ -525,8 +525,15 @@ export class Renderer {
     this.featureFrame.sceneBindGroup = this.sceneResources.bindGroup;   // may have been rebuilt while the frame was prepared
     this.features.prepare(this.featureFrame);
     this.recordPasses(enc, rw);
+    const culler = this.mainView.draw.frame.gpuCull ? this.culler : null;
+    const statsSlot = culler?.recordStats(enc) ?? null;
+    const statsDraws = culler?.virtualCount ?? 0;
     this.profiler.resolve(enc);
     queue.submit([enc.finish()]);
+    if (culler) {
+      if (statsSlot) void culler.resolveStats(statsSlot, statsDraws);
+      st.instances += culler.visibleInstances; st.triangles += culler.visibleTriangles;   // GPU-drawn totals, a few frames late
+    }
     this.features.endFrame();
     st.bufferUploadBytes += cache.packedUploadBytes;
     const t4 = performance.now();

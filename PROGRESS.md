@@ -103,7 +103,7 @@ are identical to before.
   `OffscreenViews` (new) owns render targets, views and probe capture. `formats.ts` holds the shared `DEPTH_FORMAT`.
 * **`PostProcessor.addChainPasses`** is one small method per effect (view depth, SSAO, SSR, bloom, composite, FXAA).
 * Docs: `MAKING_A_GAME.md` section 6 and file map, `ARCHITECTURE.md` and `RENDERER_WALKTHROUGH.md` describe the hook order and `ViewState`.
-* Known limitation: GPU-culled draws leave `stats.triangles` / `stats.instances` at 0.
+* GPU-culled draws are counted in `stats.triangles` / `stats.instances` by reading the indirect arguments back through a small staging ring (`GPUCuller.recordStats`); the values lag the frame by 2-3 frames and never stall it (`culler.collectStats = false` turns the readback off).
 
 ## Storage-buffer budget and arena guard (October 2026)
 

@@ -34,6 +34,13 @@ export class GPUCuller {
   /** Compacted-instance capacity needed per phase (instances x LOD levels). */
   dstInstances = 0;
   lodBias = 1;
+  /** Read the indirect arguments back (asynchronously) to count what the GPU actually drew; see {@link visibleInstances}. */
+  collectStats = true;
+  /** Latest resolved totals of the GPU-culled draws. They lag the current frame by 2-3 frames (the readback never stalls). */
+  visibleInstances = 0;
+  visibleTriangles = 0;
+  private statsRing: { buf: GPUBuffer; size: number; busy: boolean }[] = [];
+  private statsIndex = 0;
   private spheres!: GPUBuffer;
   private batchFirst!: GPUBuffer;
   private batchInfo!: GPUBuffer;
@@ -206,6 +213,44 @@ export class GPUCuller {
       publish: ['culledInstances', 'cullArgs'],
     });
     g.timestamps(name, () => timestampWrites);
+  }
+
+  /**
+   * Copy this frame's indirect arguments into a staging buffer; call once after the culling passes were recorded and before the encoder is
+   * finished. Pair with {@link resolveStats} after `queue.submit`. Skips the frame when every staging slot is still being read.
+   */
+  recordStats(enc: GPUCommandEncoder): { buf: GPUBuffer; size: number; busy: boolean } | null {
+    if (!this.collectStats || this.virtualCount === 0 || this.total === 0) return null;
+    const size = this.virtualCount * 2 * 20;   // two argument sets (phase A / B) of 5 words per virtual draw
+    if (this.statsRing.length === 0) for (let i = 0; i < 3; i++) this.statsRing.push({ buf: null as unknown as GPUBuffer, size: 0, busy: false });
+    const slot = this.statsRing[this.statsIndex];
+    if (slot.busy) return null;
+    this.statsIndex = (this.statsIndex + 1) % this.statsRing.length;
+    if (slot.size < size) {
+      if (slot.buf) this.gpu.resources.buffers.destroy(slot.buf);
+      slot.size = Math.max(size, slot.size * 2);
+      slot.buf = this.gpu.resources.buffers.create('CullStatsStaging', slot.size, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+    }
+    enc.copyBufferToBuffer(this.argsBuffer, 0, slot.buf, 0, size);
+    slot.busy = true;
+    return slot;
+  }
+
+  /** Map the staging slot returned by {@link recordStats} (after submit) and update {@link visibleInstances} / {@link visibleTriangles}. */
+  async resolveStats(slot: { buf: GPUBuffer; busy: boolean }, virtualCount: number): Promise<void> {
+    try {
+      const bytes = virtualCount * 40;
+      await slot.buf.mapAsync(GPUMapMode.READ, 0, bytes);
+      const words = new Uint32Array(slot.buf.getMappedRange(0, bytes).slice(0));
+      slot.buf.unmap();
+      let instances = 0, triangles = 0;
+      for (let i = 0; i < virtualCount * 2; i++) {
+        const n = words[i * 5 + 1];
+        instances += n; triangles += Math.floor(words[i * 5] / 3) * n;
+      }
+      this.visibleInstances = instances; this.visibleTriangles = triangles;
+    } catch { /* device lost or buffer destroyed */ }
+    slot.busy = false;
   }
 
   /** The technique's variables for one dispatch. */
