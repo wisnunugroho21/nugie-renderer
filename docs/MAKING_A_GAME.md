@@ -618,6 +618,20 @@ Keep game code out of the renderer folders: put it in your own folder and talk t
 
 ---
 
+### Surviving GPU device loss
+
+A lost device (driver reset, GPU switch) destroys every GPU resource, so an engine cannot repair itself in place. `runRecoverable`
+builds the engine and re-runs your `setup` on a fresh one after each loss (retrying with back-off):
+
+```ts
+const game = await runRecoverable(canvas, { post: { msaa: 4 } }, async (engine) => {
+  buildScene(engine);           // meshes, materials, entities, camera: everything GPU-backed
+  engine.start(update);
+}, { onLost: () => showToast('Graphics reset...') });
+```
+
+Keep game state outside `setup`, and fetch `game.engine` instead of caching the engine. A lower-level `engine.onDeviceLost` hook exists too (the frame loop is already stopped when it fires).
+
 ## 9. Known limitations (see `PROGRESS.md` for the full list)
 
 * Off-screen views do not draw particles / fog / post-processing; no per-object reflection probes or portals with recursion.

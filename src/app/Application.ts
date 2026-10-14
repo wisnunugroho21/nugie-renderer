@@ -12,6 +12,8 @@ export class Application {
   onFrame: FrameCallback = () => {};
   /** Runs after the canvas backing size changed (and once at startup). */
   onResize: ResizeCallback = () => {};
+  /** Called after the GPU device is lost (the frame loop has already been stopped). */
+  onDeviceLost: ((info: GPUDeviceLostInfo) => void) | null = null;
   /** Frames rendered so far. */
   frame = 0;
   private last = 0;
@@ -26,7 +28,7 @@ export class Application {
   /** Acquire the WebGPU device, size the canvas and start observing it for resizes. Rejects if WebGPU is unavailable. */
   async init(): Promise<void> {
     this.gpu = await GPUContext.create(this.canvas);
-    this.gpu.onDeviceLost = () => { this.stop(); };
+    this.gpu.onDeviceLost = (info) => { this.stop(); this.onDeviceLost?.(info); };
     this.gpu.resize();
     this.onResize(this.canvas.width, this.canvas.height);
     this.resizeObserver = new ResizeObserver(() => {

@@ -142,6 +142,9 @@ export class Engine {
   /** Index of the camera entity (the first camera entity is the active one). */
   readonly camera: number;
   readonly timings: EngineTimings = { animationMs: 0, transformMs: 0 };
+  /** Called when the GPU device is lost. The frame loop is already stopped and every GPU resource of this engine is gone: build a new engine (see {@link runRecoverable}). */
+  get onDeviceLost(): ((info: GPUDeviceLostInfo) => void) | null { return this.app.onDeviceLost; }
+  set onDeviceLost(callback: ((info: GPUDeviceLostInfo) => void) | null) { this.app.onDeviceLost = callback; }
   /** Called at the end of every frame (the demo HUD hooks in here). */
   onFrameEnd: ((dt: number, time: number) => void) | null = null;
 
