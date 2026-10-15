@@ -17,6 +17,8 @@ export interface MeshletCullParams {
   eye: ArrayLike<number>;
   /** Added to every index by the draw (the mesh's base vertex in the shared vertex buffer). Default 0. */
   baseVertex?: number;
+  /** First instance of the draw (its instance record). Non-zero needs the `indirect-first-instance` device feature. Default 0. */
+  firstInstance?: number;
 }
 
 /**
@@ -33,12 +35,12 @@ export interface MeshletCullParams {
  * ```
  *
  * Call `encode` once per submit (it writes the uniform block and resets the counter through the queue). Winding is not flipped for
- * mirrored (negative-scale) models.
+ * mirrored (negative-scale) models. The renderer drives these per mesh through `MeshletDraws` (`renderer.meshlets.enable(meshId)`).
  */
 export class MeshletCuller {
   /** Compacted triangle indices (mesh-local vertex ids, to be drawn with the mesh's `baseVertex`). */
   readonly indexBuffer: GPUBuffer;
-  /** `drawIndexedIndirect` arguments: [indexCount (written by the shader), 1, 0, baseVertex, 0]. */
+  /** `drawIndexedIndirect` arguments: [indexCount (written by the shader), 1, 0, baseVertex, firstInstance]. */
   readonly argsBuffer: GPUBuffer;
   readonly meshletCount: number;
   /** Indices of the whole mesh (the capacity of {@link indexBuffer}). */
@@ -106,7 +108,7 @@ export class MeshletCuller {
     f[48] = Mat4.maxScale(m as number[]);   // radius multiplier (the largest axis scale keeps the sphere test conservative)
     const q = this.gpu.device.queue;
     q.writeBuffer(this.params, 0, f);
-    this.argsInit[0] = 0; this.argsInit[1] = 1; this.argsInit[2] = 0; this.argsInit[3] = (o.baseVertex ?? 0) >>> 0; this.argsInit[4] = 0;
+    this.argsInit[0] = 0; this.argsInit[1] = 1; this.argsInit[2] = 0; this.argsInit[3] = (o.baseVertex ?? 0) >>> 0; this.argsInit[4] = o.firstInstance ?? 0;
     q.writeBuffer(this.argsBuffer, 0, this.argsInit);
     if (this.meshletCount === 0) return;
     const pass = enc.beginComputePass({ label: 'meshlet-cull' });

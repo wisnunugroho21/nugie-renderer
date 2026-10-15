@@ -263,6 +263,7 @@ the resources they really read and write. Each was checked against the previous 
 | Light-cluster assignment | `ClusterGrid.ts` | clear the overflow counter, compute over the clusters |
 | Volumetric fog fill | `VolumetricFog.ts` | compute with the engine's frame and scene bind groups from the host, imported 3D volume |
 | GPU culling (frustum, Hi-Z, LOD), three phases | `GPUCuller.ts` | one compute node per phase (`gpu-cull`, `cull-A`, `cull-B`), each with its own parameters |
+| Meshlet culling of opted-in meshes | `MeshletDraws.ts` (+ `MeshletCuller.ts`) | callback node `meshlet-cull` (one compute pass per meshlet draw), writes the logical `meshletDraws` the main pass waits for |
 | Hi-Z pyramid | `HiZ.ts` | compute: copy depth, then one reduction per mip |
 | GPU particles | `particles/ParticleSystem.ts` | per pool, compute: reset, simulate (indirect dispatch), emit, finalize |
 | Ribbon trails | `particles/RibbonSystem.ts` | compute |
@@ -270,7 +271,7 @@ the resources they really read and write. Each was checked against the previous 
 | Aux pass (normal / roughness / metallic for SSAO and SSR) | `Renderer.ts` | render node, MSAA colour with resolve, read-only depth |
 | Shadow maps | `shadows/ShadowSystem.ts` | one render node per active layer, writing that layer of the shadow-map array |
 | **Main pass(es)**: single pass, opaque + late around the transmission copy, the two Hi-Z culling phases | `rendering/MainPassNode.ts` (+ `Renderer.ts`) | one render node each: swap chain or HDR scene image, MSAA buffer with resolve, depth load / clear, clear colour; **segments** for the scene geometry and for every feature's `drawBackdrop` / `drawMain` |
-| Scene draw loop (batches, GPU-culled indirect draws, retained render bundles) | `Renderer.ts` (`drawGeometry`) | records through `TrackedRenderPass`, into the pass or into a bundle encoder; bundles replay with `executeBundles` |
+| Scene draw loop (batches, GPU-culled indirect draws, meshlet-culled indirect draws, retained render bundles) | `DrawRecorder.ts` (`drawGeometry`) | records through `TrackedRenderPass`, into the pass or into a bundle encoder; bundles replay with `executeBundles` |
 | Feature draws: sky, lines, points, sprites, particles, ribbons, custom features | `Skybox`, `overlay/*`, `particles/*` | the segment of the pass; state set through the shared tracker |
 | Arena growth (mesh, index and deform buffers copy their contents into the bigger buffer) | `gpu/Arena.ts` | copy node (one-shot) |
 | Streamed texture levels (the mips two residencies share are copied GPU-side) | `streaming/TextureStreamer.ts` | one copy node per level (one-shot) |

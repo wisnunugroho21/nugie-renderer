@@ -21,6 +21,7 @@ import type { TextureStreamer } from '../streaming/TextureStreamer';
 import { StreamingDriver } from '../streaming/StreamingDriver';
 import { VolumetricFog, type FogSettings } from './lighting/VolumetricFog';
 import { GPUCuller } from './GPUCuller';
+import { MeshletDraws } from './MeshletDraws';
 import { GPULodIndex } from './GPULodIndex';
 import { HiZ } from './HiZ';
 import { FrameGraph, type FrameBuilder } from './graph/FrameGraph';
@@ -79,6 +80,11 @@ export class Renderer {
   /** LOD groups, and the CPU LOD selector (run after culling; see applyLOD). */
   readonly lodLibrary: LODLibrary;
   readonly lod: LODSystem;
+  /**
+   * GPU meshlet culling of chosen meshes: `meshlets.enable(meshId)` and their single-instance opaque / alpha-mask draws in the main view
+   * become a per-meshlet frustum + normal-cone cull and one indirect draw of the survivors (see {@link MeshletDraws} for the conditions).
+   */
+  readonly meshlets: MeshletDraws;
   /** Ribbon / trail systems (one draw call each). */
   readonly ribbonSystems: RibbonSystem[] = [];
   batching: BatchingMode = 'instanced';
@@ -124,6 +130,7 @@ export class Renderer {
     this.materials = new MaterialManager(device, r, this.layouts);
     this.lodLibrary = new LODLibrary(this.meshes);
     this.lod = new LODSystem(this.lodLibrary);
+    this.meshlets = new MeshletDraws(gpu, this.meshes);
     this.mainView = new ViewState({ colorFormat: gpu.format, depthFormat: DEPTH_FORMAT, sampleCount: 1 }, { prepassTarget: true });
     this.extrasTarget = { colorFormat: gpu.format, depthFormat: DEPTH_FORMAT, sampleCount: 1 };
     this.post = new PostProcessor(gpu);
@@ -350,7 +357,7 @@ export class Renderer {
     return {
       get gpu() { return self.gpu; }, get stats() { return self.stats; }, get meshes() { return self.meshes; }, get materials() { return self.materials; },
       get frameUniform() { return self.frameUniform; }, get sceneResources() { return self.sceneResources; }, get mainView() { return self.mainView; },
-      get culler() { return self.culler; }, get batching() { return self.batching; },
+      get culler() { return self.culler; }, get meshlets() { return self.meshlets; }, get batching() { return self.batching; },
       get retainedVertex() { return self.retainedVertex; }, get retainedLighting() { return self.retainedLighting; },
       get directionalLighting() { return self.directionalLighting; }, get retainedBundles() { return self.retainedBundles; },
       get instanceGeneration() { return self.instanceAlloc.generation; },
@@ -513,6 +520,7 @@ export class Renderer {
       cache.uploadedGenerations.add(this.instanceAlloc.generation);
     }
     st.drawPreparationReused = reuse;
+    this.planMeshlets(rw);
     const t3 = performance.now();
     st.cpu.batching = t3 - t2;
     this.transmissionActive = this.post.enabled && this.mainView.draw.frame.transmissive && rw.hasCamera && !(this.mainView.draw.frame.gpuCull && this.gpuCulling === 'hiz2');
@@ -643,6 +651,16 @@ export class Renderer {
     this.markLateBatches(view);
   }
 
+  /** Choose the main view's meshlet-culled batches for this frame (after `buildBatches`) and count them in the stats. */
+  private planMeshlets(rw: RenderWorld): void {
+    const f = this.mainView.draw.frame, st = this.stats.meshlets;
+    this.meshlets.plan({
+      rw, batches: this.mainView.draw.batches, lists: this.mainView.draw.queues.ordered, instanceBase: f.byteOffset / INSTANCE_BYTES,
+      materials: this.materials.materials, meshes: this.meshes, gpuCull: f.gpuCull,
+    });
+    st.draws = this.meshlets.drawCount; st.meshlets = this.meshlets.meshletCount; st.inputTriangles = this.meshlets.inputTriangles;
+  }
+
   /** Flag the batches drawn after the opaque geometry + sky (blended surfaces, transmissive materials) and note whether transmission is needed. */
   private markLateBatches(view: ViewState): void {
     const b = view.draw.batches, mats = this.materials.materials;
@@ -672,6 +690,11 @@ export class Renderer {
     const targets = this.frameTargets(g);
     if (prepass) this.addDepthPrepass(g, targets);
     if (f.gpuCull) this.addCullingPasses(g, rw, twoPhase);
+    if (this.meshlets.drawCount > 0) {
+      // per-meshlet culling of the planned batches; the main pass waits for it (published)
+      g.callback('meshlet-cull', { writes: [g.logical('meshletDraws')], execute: (encoder) => this.meshlets.encode(encoder, rw) });
+      g.publish('meshletDraws');
+    }
     if (twoPhase) this.addTwoPhaseMainPasses(g, rw, targets);
     else this.addMainPass(g, rw, prepass, targets);
     if (this.post.needsAux) this.addAuxPass(g, rw, targets);

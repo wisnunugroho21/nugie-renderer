@@ -24,6 +24,7 @@ export function formatHud(engine: Engine, sceneName: string): string {
   }
   lines.push(`lights: ${rs.lighting.lights} (${rs.lighting.globalLights} global)  shading: ${rs.lighting.clustered ? `clustered (${rs.lighting.clusters} clusters)` : 'naive loop'}`);
   lines.push(`upload: ${rs.bufferUploadBytes} B (transforms ${rs.transformUploadBytes} B in ${rs.transformUploadRanges} ranges)`);
+  if (rs.meshlets.draws) lines.push(`meshlets: ${rs.meshlets.draws} draws, ${rs.meshlets.meshlets} meshlets / ${rs.meshlets.inputTriangles} triangles culled on the GPU`);
   if (renderer.lodLibrary.groups.length) {
     lines.push(`LOD: levels [${Array.from(rs.lodCounts.subarray(0, 4)).join(', ')}] culled ${rs.lodCulled} (select ${renderer.lod.ms.toFixed(2)} ms)`);
   }

@@ -355,6 +355,19 @@ Benchmarked against a worktree at the last commit before the render-graph work (
 * Tests: `tests/codecs-gltf.test.ts` (real encoders: meshoptimizer, draco3d), `tests/codecs-ktx2.test.ts` (real UASTC / ETC1S fixtures from `scripts/make-codec-fixtures.ts`),
   GPU self-tests (`/selftest.html`: every transcode target decoded on the device and compared with the RGBA8 transcode) and `/?scene=compressed`.
 
+## Meshlet culling in the draw path (October 2026)
+
+* **`renderer.meshlets`** (`rendering/MeshletDraws.ts`): `enable(meshId)` builds meshlets (64 vertices / 124 triangles) from the mesh's CPU geometry copy and gives it a
+  `MeshletCuller`. After the batches are built, `plan` picks the main view's batches the cull is exact for (one instance, static mesh, `cullMode: 'back'`, positive determinant,
+  opaque / alpha-mask, not GPU instance-culled; one batch per culler per frame). A callback node `meshlet-cull` records one compute pass per such draw (the object's transform,
+  the camera frustum and position, the mesh's `baseVertex` and the batch's `firstInstance`); the main pass waits for it through the published logical `meshletDraws`.
+* **`DrawRecorder`** draws those batches with the culler's compacted index buffer and one `drawIndexedIndirect` (then rebinds the shared index buffer). It works on the standard, packed
+  and directional paths and inside retained render bundles (the culler is part of the bundle signature; the replayed indirect draw reads the arguments the culling pass wrote this frame).
+  A non-zero `firstInstance` needs `indirect-first-instance` (requested by `GPUContext` when available); without it only batches at instance 0 qualify.
+* `MeshletCuller.encode` takes `firstInstance`; `stats.meshlets` reports draws, meshlets tested and input triangles.
+* Tests: `tests/meshlet-draws.test.ts` (eligibility, record -> object lookup, encode parameters, culler lifetime) and a GPU self-test that renders a sphere through the renderer with
+  meshlets off and on, on the standard and the bundled path: identical images, partial triangle count read back from the indirect arguments.
+
 ## Deferred / known limitations
 - Animated bounds are conservative padding (skin: 0.5 x extent; morph: sum of max displacements). Per-animation / joint bounds later.
 - Morph delta arenas always hold position+normal+tangent per target (zeros if absent): 3x memory; optimize if profiling says so.
@@ -373,7 +386,7 @@ Benchmarked against a worktree at the last commit before the render-graph work (
 - Area lights: LTC fit tail over-estimates (specular up to 1.35x the quadrature reference in far tails); shadows are an approximation from the centre point.
 - Fog: no temporal reprojection / noise (froxel grid is 8 px x 48 slices), area lights do not scatter; transparent objects and particles are not fogged.
 - GPU culling: spheres only; transparent batches stay on the CPU path; the in-frame `hiz` mode cannot be combined with GPU LOD (depth mismatch), use `hiz2`; GPU LOD has no hysteresis.
-- Meshlets can be culled on the GPU through the standalone `MeshletCuller` (not yet part of the renderer's draw path; the renderer itself culls whole objects); LOD generation keeps the original normals / UVs of the surviving vertices.
+- Meshlet culling (`renderer.meshlets.enable(meshId)`) covers single-instance, static, back-face-culled, non-mirrored batches of the main view with GPU instance culling off, one batch per mesh per frame; instanced batches, the prepass, shadows, the aux pass and off-screen views draw whole meshes. No per-meshlet occlusion test; `stats.meshlets` counts draws / input triangles, not what the GPU kept (no readback). LOD generation keeps the original normals / UVs of the surviving vertices.
 - Texture streaming keeps the full CPU mip chain in memory (a real streamer would read mips from disk / network on demand).
 - Custom materials are not pre-warmed (validated on first use through error scopes).
 - Dev note: the browser pane pauses `requestAnimationFrame` when the tab is not fronted; call `tabs_select` before reading the HUD.

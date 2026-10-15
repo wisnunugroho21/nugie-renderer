@@ -103,7 +103,7 @@ Optional GPU visibility processes the opaque/alpha-mask instance batches on the 
 
 Two-phase Hi-Z visibility first draws previously visible objects that remain in the frustum, builds a max-depth pyramid from their current-frame depth, tests remaining candidates against that pyramid, and draws newly visible objects. For this standard-Z depth convention, a candidate can be rejected when its nearest possible depth lies behind all relevant occluder depths. Conservative checks keep camera-plane-crossing bounds visible. History improves the first phase; the depth comparison uses the current frame's pyramid. Hi-Z forces MSAA to one sample and disables the current screen-space transmission path.
 
-Mesh optimization utilities can optimize cache/fetch ordering, generate simplified LOD meshes and build meshlet data. The current main draw path issues indexed mesh draws; merely having a meshlet utility does not make it a meshlet-rendering pipeline.
+Mesh optimization utilities can optimize cache/fetch ordering, generate simplified LOD meshes and build meshlet data. Meshlet culling is opt-in per mesh (`renderer.meshlets.enable(meshId)`, `MeshletDraws`): each frame, a single-instance opaque/alpha-mask batch of such a mesh in the main view is culled per meshlet on the GPU (bounding sphere against the frustum, normal cone against the camera) by a compute pass that compacts the surviving triangles into the mesh's own index buffer, and drawn with one `drawIndexedIndirect`. The test is conservative, so the image matches the whole-mesh draw. It applies only where it is exact: static meshes, back-face-culled materials, non-mirrored transforms, one instance, GPU instance culling off; other batches of the mesh, the prepass, shadows, the aux pass and off-screen views draw the whole mesh. There is no mesh-shader stage (WebGPU has none) and no per-meshlet occlusion test.
 
 ## 8. Queues, sorting and batching
 
@@ -254,7 +254,7 @@ Important current boundaries:
 - Device loss stops rendering; application disposal stops RAF/resize observation but is not a complete renderer-resource disposal API.
 - Mesh arenas/shared resource caches require explicit lifetime decisions; destroying scene entities does not automatically remove shared GPU assets.
 - Pipeline freeze reports late creation rather than making late feature creation impossible; PBR warmup is only part of full scene warmup.
-- The source includes utilities not directly active in the main pipeline, such as meshlet generation and CPU deformation references.
+- The source includes utilities not directly active in the main pipeline, such as CPU deformation references. Meshlet culling runs only for meshes opted in with `renderer.meshlets.enable`.
 
 Validation for this walkthrough: it was checked against the source (`Engine.frame`, `Renderer.render` / `recordPasses`, `FrameGraph`, `MainPassNode`, the features' `addPasses` hooks, `TechniqueInstance.execute`, `OffscreenViews.declarePasses`, `pbr.wgsl`). At the time of the last update the full check command passed (813 CPU tests in 57 files, production demo build, library/declaration build and imports of 190 library modules) and the browser GPU self-tests passed 65/65 on the author's machine. No rendering or shader algorithm was changed for this documentation update.
 

@@ -5,6 +5,7 @@ import type { RendererStats } from '../profiling/RendererStats';
 import type { FrameUniform } from './FrameUniform';
 import type { SceneResources } from './lighting/SceneResources';
 import type { GPUCuller } from './GPUCuller';
+import type { MeshletDraws } from './MeshletDraws';
 import type { ViewState } from './RenderDrawState';
 import type { BatchingMode } from './Renderer';
 import { TrackedRenderPass } from './graph/TrackedRenderPass';
@@ -41,6 +42,8 @@ export interface DrawHost {
   readonly sceneResources: SceneResources;
   readonly mainView: ViewState;
   readonly culler: GPUCuller | null;
+  /** Per-meshlet culled draws of the main view's batches this frame. */
+  readonly meshlets: MeshletDraws;
   readonly batching: BatchingMode;
   readonly retainedVertex: boolean;
   readonly retainedLighting: boolean;
@@ -55,7 +58,8 @@ export interface DrawHost {
 
 /**
  * Records the geometry draw calls of a view into a pass or render bundle: picks the draw path (standard, retained vertex stream,
- * directional-lights-only), issues direct instanced draws or GPU-culled indirect draws, and replays cached bundles for still scenes.
+ * directional-lights-only), issues direct instanced draws, GPU-culled indirect draws or meshlet-culled indirect draws, and replays cached bundles
+ * for still scenes.
  */
 export class DrawRecorder {
   /** @param host the renderer's state and lookups (see {@link DrawHost}) */
@@ -124,6 +128,7 @@ export class DrawRecorder {
   /** Direct instanced draws of batches `first..count`, switching pipeline and material bind group only when they change. */
   private drawBatches(pass: TrackedRenderPass, view: ViewState, first: number, part: DrawPart, path: DrawPath, bound: BoundState): void {
     const b = view.draw.batches, st = this.host.stats, unsorted = this.host.batching === 'unsorted';
+    const meshlets = view === this.host.mainView ? this.host.meshlets : null;
     let curMesh = -1;
     for (let i = first; i < b.count; i++) {
       if (isSkippedPart(part, b.late[i] === 1)) continue;
@@ -136,12 +141,20 @@ export class DrawRecorder {
       if (unsorted && meshId !== curMesh) st.meshSwitches++;
       curMesh = meshId;
       this.bindPipelineAndMaterial(pass, bound, pipe, matId, this.materialGroupFor(path, matId));
-      pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+      const culler = meshlets?.cullerFor(i) ?? null;
+      if (culler) {
+        // the surviving triangles of the culling pass (mesh-local indices; the arguments carry baseVertex / firstInstance)
+        pass.setIndexBuffer(culler.indexBuffer, 'uint32');
+        pass.drawIndexedIndirect(culler.argsBuffer, 0);
+        pass.setIndexBuffer(this.host.meshes.indexBuffer, 'uint32');
+      } else {
+        pass.drawIndexed(mesh.indexCount, b.instanceCount[i], mesh.firstIndex, mesh.baseVertex, b.firstInstance[i]);
+        st.triangles += (mesh.indexCount / 3) * b.instanceCount[i];   // (meshlet draws: the GPU decides; see `stats.meshlets`)
+      }
       if (path.retained) st.retainedVertexDraws++;
       if (path.directional) st.retainedLightingDraws++;
       st.drawCalls++;
       st.instances += b.instanceCount[i];
-      st.triangles += (mesh.indexCount / 3) * b.instanceCount[i];
     }
   }
 
@@ -166,7 +179,7 @@ export class DrawRecorder {
       if (isSkippedPart(part, b.late[i] === 1)) continue;
       const m = this.host.meshes.get(b.meshId[i]);
       signature.push(this.host.pipelineFor(view, b.materialId[i], 0, path.variant), this.materialGroupFor(path, b.materialId[i]),
-        m.indexCount, m.firstIndex, m.baseVertex, b.instanceCount[i], b.firstInstance[i]);
+        m.indexCount, m.firstIndex, m.baseVertex, b.instanceCount[i], b.firstInstance[i], this.host.meshlets.cullerFor(i));
       draws++;
     }
     if (draws === 0) return;

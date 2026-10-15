@@ -22,6 +22,8 @@ export class RendererStats {
   // LOD
   lodCounts = new Uint32Array(16);
   lodCulled = 0;
+  // meshlet culling (renderer.meshlets): draws culled per meshlet, the meshlets they test and the triangles submitted to the culling
+  meshlets = { draws: 0, meshlets: 0, inputTriangles: 0 };
   // lighting
   lighting = { lights: 0, globalLights: 0, clusters: 0, clustered: false };
   // animation
@@ -41,6 +43,7 @@ export class RendererStats {
     this.pipelineSwitches = this.materialSwitches = this.meshSwitches = 0;
     this.bufferUploadBytes = this.transformUploadBytes = this.transformUploadRanges = 0;
     this.lodCounts.fill(0); this.lodCulled = 0;
+    this.meshlets.draws = this.meshlets.meshlets = this.meshlets.inputTriangles = 0;
     this.lighting.lights = this.lighting.globalLights = this.lighting.clusters = 0; this.lighting.clustered = false;
     const a = this.animation;
     a.jointUploadBytes = a.morphUploadBytes = a.activeMorphStates = a.activeMorphTargets = 0;

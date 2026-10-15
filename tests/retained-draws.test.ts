@@ -26,7 +26,7 @@ function setup() {
   // Exercise the actual Renderer.render/buildBatches integration, replacing only GPU pass recording and unrelated feature uploads.
   const renderer = Object.assign(Object.create(Renderer.prototype), {
     gpu: { device, queue: device.queue, canvas: { width: 1, height: 1 } },
-    stats, mainView: view, cacheDraws: true, batching: 'instanced', gpuCulling: 'off', instanceAlloc: allocator, transformBuffer: transforms,
+    stats, mainView: view, meshlets: { plan() {}, drawCount: 0, meshletCount: 0, inputTriangles: 0 }, cacheDraws: true, batching: 'instanced', gpuCulling: 'off', instanceAlloc: allocator, transformBuffer: transforms,
     meshes: { records: [mesh] }, materials: { materials: [material] },
     depthTexture: { width: 1, height: 1, sampleCount: 1 }, syncFramebuffer() {},
     transmission: { maxMip: 0 }, post: { enabled: false, ensureTargets() {} }, frameUniform: { setTransmission() {} },
