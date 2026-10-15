@@ -263,7 +263,7 @@ the resources they really read and write. Each was checked against the previous 
 | Light-cluster assignment | `ClusterGrid.ts` | clear the overflow counter, compute over the clusters |
 | Volumetric fog fill | `VolumetricFog.ts` | compute with the engine's frame and scene bind groups from the host, imported 3D volume |
 | GPU culling (frustum, Hi-Z, LOD), three phases | `GPUCuller.ts` | one compute node per phase (`gpu-cull`, `cull-A`, `cull-B`), each with its own parameters |
-| Meshlet culling of opted-in meshes | `MeshletDraws.ts` (+ `MeshletCuller.ts`) | callback node `meshlet-cull` (one compute pass per meshlet draw), writes the logical `meshletDraws` the main pass waits for |
+| Meshlet culling of opted-in meshes | `MeshletCuller.ts` (driven by `MeshletDraws.ts`) | per meshlet draw, the `meshlet-cull` technique included as `meshlet-cull-<n>`: a clear node zeroes the indirect arguments, a compute node (one thread per meshlet; variables: model, frustum planes, eye + scale, counts, baseVertex, firstInstance) compacts the surviving triangles; the meshlet table and source indices are imported reads, the culled indices and arguments imported writes, published for the main pass |
 | Hi-Z pyramid | `HiZ.ts` | compute: copy depth, then one reduction per mip |
 | GPU particles | `particles/ParticleSystem.ts` | per pool, compute: reset, simulate (indirect dispatch), emit, finalize |
 | Ribbon trails | `particles/RibbonSystem.ts` | compute |

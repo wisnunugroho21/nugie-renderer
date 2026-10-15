@@ -359,8 +359,10 @@ Benchmarked against a worktree at the last commit before the render-graph work (
 
 * **`renderer.meshlets`** (`rendering/MeshletDraws.ts`): `enable(meshId)` builds meshlets (64 vertices / 124 triangles) from the mesh's CPU geometry copy and gives it a
   `MeshletCuller`. After the batches are built, `plan` picks the main view's batches the cull is exact for (one instance, static mesh, `cullMode: 'back'`, positive determinant,
-  opaque / alpha-mask, not GPU instance-culled; one batch per culler per frame). A callback node `meshlet-cull` records one compute pass per such draw (the object's transform,
-  the camera frustum and position, the mesh's `baseVertex` and the batch's `firstInstance`); the main pass waits for it through the published logical `meshletDraws`.
+  opaque / alpha-mask, not GPU instance-culled; one batch per culler per frame). Each such draw includes the `meshlet-cull` technique in the frame as `meshlet-cull-<n>`: a clear
+  node zeroes the indirect arguments, then a compute node culls with the object's transform, the camera frustum and position, the mesh's `baseVertex` and the batch's `firstInstance`
+  as variables (its thread 0 writes the static words of the draw, so nothing goes through `queue.writeBuffer` per frame). The meshlet table and source indices are imported reads,
+  the culled indices and arguments imported writes published for the main pass; GPU timings are summed under `meshlets`. `MeshletCuller.encode` runs the same technique standalone.
 * **`DrawRecorder`** draws those batches with the culler's compacted index buffer and one `drawIndexedIndirect` (then rebinds the shared index buffer). It works on the standard, packed
   and directional paths and inside retained render bundles (the culler is part of the bundle signature; the replayed indirect draw reads the arguments the culling pass wrote this frame).
   A non-zero `firstInstance` needs `indirect-first-instance` (requested by `GPUContext` when available); without it only batches at instance 0 qualify.

@@ -690,11 +690,7 @@ export class Renderer {
     const targets = this.frameTargets(g);
     if (prepass) this.addDepthPrepass(g, targets);
     if (f.gpuCull) this.addCullingPasses(g, rw, twoPhase);
-    if (this.meshlets.drawCount > 0) {
-      // per-meshlet culling of the planned batches; the main pass waits for it (published)
-      g.callback('meshlet-cull', { writes: [g.logical('meshletDraws')], execute: (encoder) => this.meshlets.encode(encoder, rw) });
-      g.publish('meshletDraws');
-    }
+    this.meshlets.addPasses(g, rw, () => this.profiler.writes('meshlets'));   // per-meshlet culling of the planned batches (published: the main pass waits for it)
     if (twoPhase) this.addTwoPhaseMainPasses(g, rw, targets);
     else this.addMainPass(g, rw, prepass, targets);
     if (this.post.needsAux) this.addAuxPass(g, rw, targets);

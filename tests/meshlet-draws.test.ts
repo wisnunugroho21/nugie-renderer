@@ -6,14 +6,17 @@ import type { MeshManager, MeshRecord } from '../src/rendering/MeshManager';
 import type { Material } from '../src/rendering/materials/Material';
 import type { MeshletSet } from '../src/geometry/MeshOptimizer';
 import { Mat4 } from '../src/math/Mat4';
+import { MeshletCuller, meshletCullTechnique } from '../src/rendering/MeshletCuller';
+import type { FrameBuilder } from '../src/rendering/graph/FrameGraph';
+import { newFrame, orderOf } from './helpers/frameGraph';
 
-/** A culler stand-in that records what it was asked to encode. */
+/** A culler stand-in that records the culling passes it was asked to add to the frame. */
 function fakeCuller(meshletCount = 10, totalIndices = 300) {
-  const calls: { model: number[]; baseVertex?: number; firstInstance?: number; planes: ArrayLike<number> }[] = [];
+  const calls: { name: string; model: number[]; baseVertex?: number; firstInstance?: number; planes: ArrayLike<number> }[] = [];
   const c = {
     indexBuffer: {} as GPUBuffer, argsBuffer: {} as GPUBuffer, meshletCount, totalIndices, destroyed: false, calls,
-    encode: (_enc: GPUCommandEncoder, p: { model: ArrayLike<number>; planes: ArrayLike<number>; baseVertex?: number; firstInstance?: number }) => {
-      calls.push({ model: Array.from(p.model), baseVertex: p.baseVertex, firstInstance: p.firstInstance, planes: p.planes });
+    addToFrame: (_g: FrameBuilder, name: string, p: { model: ArrayLike<number>; planes: ArrayLike<number>; baseVertex?: number; firstInstance?: number }) => {
+      calls.push({ name, model: Array.from(p.model), baseVertex: p.baseVertex, firstInstance: p.firstInstance, planes: p.planes });
     },
     destroy: () => { c.destroyed = true; },
   };
@@ -67,8 +70,9 @@ describe('MeshletDraws (meshlet culling in the draw path)', () => {
     const bi = slots[0] === 0 ? 0 : 1;   // batch of the object with mesh 0
     expect(draws.cullerFor(bi)).toBe(made[0]);
     expect(draws.cullerFor(1 - bi)).toBeNull();
-    draws.encode({} as GPUCommandEncoder, rw);
+    draws.addPasses({} as FrameBuilder, rw);
     expect(made[0].calls).toHaveLength(1);
+    expect(made[0].calls[0].name).toBe('meshlet-cull-0');
     expect(made[0].calls[0].model[12]).toBe(0);           // object 0 sits at x = 0
     expect(made[0].calls[0].baseVertex).toBe(0);
     expect(made[0].calls[0].firstInstance).toBe(bi);
@@ -81,7 +85,7 @@ describe('MeshletDraws (meshlet culling in the draw path)', () => {
     const { f, rw } = frame([0, 1, 2], [0, 0, 0], { base: 40 });
     draws.plan(f);
     expect(draws.drawCount).toBe(1);
-    draws.encode({} as GPUCommandEncoder, rw);
+    draws.addPasses({} as FrameBuilder, rw);
     const call = made[0].calls[0];
     expect(call.model[12]).toBe(1);   // object 1's translation
     expect(call.baseVertex).toBe(100);
@@ -138,6 +142,29 @@ describe('MeshletDraws (meshlet culling in the draw path)', () => {
     expect(made[1].destroyed).toBe(true);
     expect(draws.disable(0)).toBe(false);
     expect(draws.has(0)).toBe(false);
+  });
+
+  it('runs as a technique in the frame graph: clear the arguments, cull, then the pass that draws them', () => {
+    const buffers = ['table', 'source', 'indices', 'args'].map((label) => ({ label }) as unknown as GPUBuffer);
+    const culler = Object.assign(Object.create(MeshletCuller.prototype), {
+      id: 7, meshletCount: 20, totalIndices: 600, tech: meshletCullTechnique(),
+      meshletBuffer: buffers[0], sourceBuffer: buffers[1], indexBuffer: buffers[2], argsBuffer: buffers[3],
+    }) as MeshletCuller;
+    const g = newFrame().begin();
+    const planes = Float32Array.from({ length: 24 }, (_, i) => i);
+    culler.addToFrame(g, 'meshlet-cull-0', { model: Mat4.compose(Mat4.create(), 1, 2, 3, 0, 0, 0, 1, 2, 2, 2), planes, eye: [4, 5, 6], baseVertex: 30, firstInstance: 9 });
+    const out = culler.frameResources;
+    expect(g.imports.get(out.indices)).toBe(buffers[2]);
+    expect(g.imports.get(out.args)).toBe(buffers[3]);
+    expect([...g.published]).toEqual([out.indices, out.args]);
+    expect(g.values.get('meshlet-cull-0/eye')).toEqual([4, 5, 6, 2]);   // w = the model's scale (radius multiplier)
+    expect(g.values.get('meshlet-cull-0/model3')).toEqual([1, 2, 3, 1]);
+    expect(g.values.get('meshlet-cull-0/plane5')).toEqual([20, 21, 22, 23]);
+    expect(g.values.get('meshlet-cull-0/threads')).toBe(20);
+    expect(g.values.get('meshlet-cull-0/baseVertex')).toBe(30);
+    expect(g.values.get('meshlet-cull-0/firstInstance')).toBe(9);
+    g.callback('draw', { reads: [out.indices, out.args], keep: true, execute: () => {} });
+    expect(orderOf(g)).toEqual(['meshlet-cull-0/clear-args', 'meshlet-cull-0/meshlet-cull', 'draw']);
   });
 
   it('needs CPU geometry (or a MeshletSet) to build meshlets', () => {

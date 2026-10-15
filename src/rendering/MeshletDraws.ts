@@ -5,10 +5,11 @@ import type { MeshManager } from './MeshManager';
 import type { Material } from './materials/Material';
 import type { QueueList } from './RenderQueue';
 import type { RenderWorld } from './RenderWorld';
+import type { FrameBuilder } from './graph/FrameGraph';
 import { MeshletCuller, type MeshletCullParams } from './MeshletCuller';
 
-/** What the planner needs of a culler: the buffers a draw binds and the per-frame encode (a {@link MeshletCuller}, or a stand-in in tests). */
-export type MeshletCullerLike = Pick<MeshletCuller, 'indexBuffer' | 'argsBuffer' | 'meshletCount' | 'totalIndices' | 'encode' | 'destroy'>;
+/** What the planner needs of a culler: the buffers a draw binds and the frame's culling pass (a {@link MeshletCuller}, or a stand-in in tests). */
+export type MeshletCullerLike = Pick<MeshletCuller, 'indexBuffer' | 'argsBuffer' | 'meshletCount' | 'totalIndices' | 'addToFrame' | 'destroy'>;
 
 /** One batch of this frame that draws through its mesh's culler. */
 interface ActiveDraw { culler: MeshletCullerLike; slot: number; baseVertex: number; firstInstance: number; }
@@ -36,8 +37,8 @@ function determinant3(m: ArrayLike<number>, o: number): number {
 
 /**
  * GPU meshlet culling in the renderer's draw path. Opt a mesh in with {@link enable}; every frame, each single-instance opaque /
- * alpha-mask batch of that mesh in the main view is culled per meshlet (frustum + normal cone, see {@link MeshletCuller}) by a compute
- * node that runs before the main pass, and drawn as one `drawIndexedIndirect` over the surviving triangles instead of the whole mesh.
+ * alpha-mask batch of that mesh in the main view is culled per meshlet (frustum + normal cone, see {@link MeshletCuller}) by a
+ * technique the frame graph includes (`meshlet-cull-<n>`: a clear and a compute node) before the main pass, and drawn as one `drawIndexedIndirect` over the surviving triangles instead of the whole mesh.
  *
  * A batch takes this path only when the cull is exact for it: one instance (the culler holds one model matrix), a static mesh (no skin /
  * morph), a material that culls back faces (the cone test drops back-facing clusters), a non-mirrored transform, and GPU instance culling
@@ -137,14 +138,18 @@ export class MeshletDraws {
   /** The culler that draws batch `i` of the main view this frame, or null for an ordinary draw. */
   cullerFor(i: number): MeshletCullerLike | null { return i < this.batchCount ? this.batchCuller[i] : null; }
 
-  /** Record this frame's culling passes (before the main pass that draws them). */
-  encode(enc: GPUCommandEncoder, rw: RenderWorld): void {
+  /**
+   * Add this frame's culling passes to the frame graph: one node `meshlet-cull-<n>` per planned draw, publishing its compacted indices and indirect arguments
+   * (so the main pass that draws them runs after it). `timestampWrites` names the GPU timing of each pass.
+   */
+  addPasses(g: FrameBuilder, rw: RenderWorld, timestampWrites?: () => GPUComputePassTimestampWrites | undefined): void {
     const p = this.params, cam = rw.camera;
     p.planes = cam.frustum.planes; p.eye = cam.position;
-    for (const a of this.active) {
+    for (let k = 0; k < this.active.length; k++) {
+      const a = this.active[k];
       p.model.set(rw.transforms.subarray(a.slot * 16, a.slot * 16 + 16));
       p.baseVertex = a.baseVertex; p.firstInstance = a.firstInstance;
-      a.culler.encode(enc, p);
+      a.culler.addToFrame(g, `meshlet-cull-${k}`, p, timestampWrites);   // (reads the parameters now: they become the frame's variable values)
     }
   }
 
